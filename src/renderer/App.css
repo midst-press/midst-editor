@@ -1,0 +1,64 @@
+/*
+ * @NOTE: Prepend a `~` to css file paths that are in your node_modules
+ *        See https://github.com/webpack-contrib/sass-loader#imports
+ */
+
+body {
+  background: #fff5ee !important;
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+/* Track */
+::-webkit-scrollbar-track {
+  background: #fff5ee;
+}
+
+::-webkit-scrollbar-track:hover {
+  width: 15px;
+}
+
+/* Handle */
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 4px;
+}
+
+/* Handle on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.cet-menubar-menu-container {
+  background-color: #fff !important;
+}
+
+.cet-titlebar {
+  overflow: visible !important;
+  z-index: 99 !important;
+}
+
+.cet-title {
+  color: rgba(77, 77, 77, 0.6);
+}
+
+.cet-menubar {
+  overflow: visible;
+}
+
+.svg {
+  fill: #ffa4b9;
+  opacity: 70%;
+  height: 80px;
+  position: absolute;
+  z-index: 1000;
+  left: 20px;
+  top: 2px;
+}
+
+.svg-linux {
+  left: 200px;
+  height: 60px;
+}

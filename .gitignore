@@ -1,0 +1,59 @@
+# Logs
+logs
+*.log
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Coverage directory used by tools like istanbul
+coverage
+.eslintcache
+
+# Dependency directory
+# https://www.npmjs.org/doc/misc/npm-faq.html#should-i-check-my-node_modules-folder-into-git
+node_modules
+
+# OSX
+.DS_Store
+
+release/app/dist
+release/build
+.erb/dll
+
+.idea
+npm-debug.log.*
+*.css.d.ts
+*.sass.d.ts
+*.scss.d.ts
+test-files
+
+.env
+
+electron-builder.env
+
+# ---- added when this repository was seeded ----
+
+# LOGS -- never commit
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+report.*.json
+
+# local environment
+.env
+.env.*
+!.env.example
+
+# poem data does not live in this repository
+*.midst
+test-files/
+
+# code-graph (its manifest bakes an absolute path)
+code-graph.db
+code-graph.db.wal
+manifest.json

@@ -1,0 +1,82 @@
+.outer-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 140px;
+}
+.welcome-message {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  text-align: center;
+  padding: 0;
+  margin: 0;
+  font-size: 28px;
+  line-height: normal;
+  font-weight: lighter;
+}
+
+.message-container {
+  background-color: #ffced4;
+  width: 80%;
+  max-width: 400px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+}
+
+.logo-thin {
+  margin-top: 50px;
+  margin-bottom: 18px;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  max-width: 350px;
+}
+
+.file-button-container {
+  width: 100%;
+  margin: 0 25px;
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding-top: 20px;
+  padding-bottom: 20px;
+}
+
+.file-button-container button {
+  cursor: pointer;
+  padding: 3px 12px;
+  font-size: 18px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  line-height: normal;
+  font-weight: lighter;
+  border: none;
+  border-radius: 3px;
+  background-color: rgba(240, 240, 240, 1);
+  color: rgba(77, 77, 77, 0.9);
+  transition: background-color ease-in-out 100ms;
+}
+
+.file-button-container button:hover {
+  background-color: rgba(230, 230, 230, 0.85);
+}
+
+.help-link {
+  color: dodgerblue;
+  text-decoration-color: rgba(0, 0, 0, 0);
+  transition: text-decoration-color ease-in-out 100ms;
+  margin-bottom: 20px;
+}
+.help-link:hover {
+  text-decoration-color: dodgerblue;
+}
+
+.svg.hide {
+  /* removes squiggle m */
+  display: none;
+}
