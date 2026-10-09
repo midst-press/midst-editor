@@ -12,7 +12,8 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',
-    project: './tsconfig.json',
+    // Lint-only project: see tsconfig.eslint.json for why the build config cannot serve here.
+    project: './tsconfig.eslint.json',
     tsconfigRootDir: __dirname,
     createDefaultProgram: true,
   },
