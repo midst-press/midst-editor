@@ -196,7 +196,7 @@ export default function Editor() {
           placement="top-start"
         >
           <Link to="/replay">
-            <button type="button" className="icon-button">
+            <button aria-label="Replay" type="button" className="icon-button">
               <HistoryIcon fontSize="small" />
             </button>
           </Link>

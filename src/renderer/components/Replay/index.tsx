@@ -217,6 +217,7 @@ export default function Replay() {
           arrow
         >
           <button
+            aria-label="Increase text size"
             type="button"
             onClick={increaseSize}
             disabled={sizeClass >= 4}
@@ -232,6 +233,7 @@ export default function Replay() {
           arrow
         >
           <button
+            aria-label="Decrease text size"
             type="button"
             disabled={sizeClass <= 0}
             className="icon-button size-icon"
@@ -291,6 +293,7 @@ export default function Replay() {
           >
             <Link to="/editor">
               <button
+                aria-label="Edit"
                 type="button"
                 className="control-bar-icon"
                 style={{

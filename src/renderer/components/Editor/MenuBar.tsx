@@ -112,6 +112,7 @@ function MenuBar() {
       >
         <span>
           <button
+            aria-label="Increase text size"
             type="button"
             onClick={increaseSize}
             disabled={sizeClass >= 4}
@@ -129,6 +130,7 @@ function MenuBar() {
       >
         <span>
           <button
+            aria-label="Decrease text size"
             type="button"
             disabled={sizeClass <= 0}
             className="icon-button size-icon"
@@ -140,6 +142,7 @@ function MenuBar() {
       </Tooltip>
       <Tooltip title="Bold" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          aria-label="Bold"
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editor.can().chain().focus().toggleBold().run()}
@@ -152,6 +155,7 @@ function MenuBar() {
       </Tooltip>
       <Tooltip title="Italic" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          aria-label="Italic"
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editor.can().chain().focus().toggleItalic().run()}
