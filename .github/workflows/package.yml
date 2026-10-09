@@ -1,8 +1,12 @@
 # Installers, on demand. Nothing is released by a push.
 #
-# Unsigned for now: macOS Gatekeeper will refuse the .pkg until a Developer ID certificate and
-# notarisation credentials are added as repository secrets, and Windows shows a SmartScreen
-# warning. CSC_IDENTITY_AUTO_DISCOVERY=false makes "unsigned" explicit rather than accidental.
+# macOS is signed and notarised when the repository has the signing secrets, and built unsigned
+# (and says so) when it does not, so the workflow stays usable before signing is set up:
+#   CSC_LINK, CSC_KEY_PASSWORD                      Developer ID Application .p12, base64, and its password
+#   CSC_INSTALLER_LINK, CSC_INSTALLER_KEY_PASSWORD  Developer ID Installer .p12, base64, and its password
+#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD           the Apple account that notarises
+# Windows and Linux are unsigned: there is no Windows certificate, so Windows shows a SmartScreen
+# warning on first run.
 name: package
 on:
   workflow_dispatch:
@@ -14,9 +18,9 @@ on:
 permissions:
   contents: read
 jobs:
-  # GitHub does not allow the matrix context in a job-level `if:`, which made this file invalid:
-  # every push produced a failed run with no jobs, and it could never be dispatched. The platform
-  # choice is applied here instead, by building the matrix the package job runs.
+  # GitHub does not allow the matrix context in a job-level `if:`, which made the first version of
+  # this file invalid: every push produced a failed run with no jobs, and it could never be
+  # dispatched. The platform choice is applied here instead, by building the matrix.
   plan:
     runs-on: ubuntu-latest
     outputs:
@@ -39,8 +43,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
-    env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -48,9 +50,68 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # electron-builder treats an EMPTY CSC_LINK as a certificate to import and fails, so the
+      # signing variables are exported only when the secrets exist. Without them, signing is
+      # switched off explicitly rather than left to whatever identity the runner happens to have.
+      - name: decide whether to sign
+        id: signing
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          put() { { echo "$1<<__END__"; printf '%s\n' "$2"; echo "__END__"; } >> "$GITHUB_ENV"; }
+          if [ "${{ matrix.want }}" = macos ] && [ -n "$CSC_LINK" ] && [ -n "$CSC_INSTALLER_LINK" ]; then
+            put CSC_LINK "$CSC_LINK"
+            put CSC_KEY_PASSWORD "$CSC_KEY_PASSWORD"
+            put CSC_INSTALLER_LINK "$CSC_INSTALLER_LINK"
+            put CSC_INSTALLER_KEY_PASSWORD "$CSC_INSTALLER_KEY_PASSWORD"
+            echo "signed=yes" >> "$GITHUB_OUTPUT"
+            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
+              put APPLE_ID "$APPLE_ID"
+              put APPLE_APP_SPECIFIC_PASSWORD "$APPLE_APP_SPECIFIC_PASSWORD"
+              # The team identifier is printed in the certificate itself; it is not a secret.
+              echo "APPLE_TEAM_ID=5HT777V3FG" >> "$GITHUB_ENV"
+              echo "notarised=yes" >> "$GITHUB_OUTPUT"
+            else
+              echo "notarised=no" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+            echo "signed=no" >> "$GITHUB_OUTPUT"
+            echo "notarised=no" >> "$GITHUB_OUTPUT"
+          fi
+      # On macOS this signs the app, notarises it through .erb/scripts/notarize.js (afterSign), and
+      # signs the .pkg with the Developer ID Installer identity.
       - run: npm run package
-      # The macOS target is a .pkg (package.json build.mac.target), which the old pattern omitted,
-      # so a macOS run would have failed at upload even once the workflow was valid.
+      # The afterSign hook notarises the .app inside; the .pkg poets download is a separate file
+      # that Gatekeeper assesses on its own, so it is notarised and stapled here.
+      - name: notarise and staple the installers
+        if: steps.signing.outputs.notarised == 'yes'
+        shell: bash
+        run: |
+          for pkg in release/build/*.pkg; do
+            xcrun notarytool submit "$pkg" --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun stapler staple "$pkg"
+          done
+      - name: check what Gatekeeper will say
+        if: steps.signing.outputs.signed == 'yes'
+        shell: bash
+        run: |
+          for pkg in release/build/*.pkg; do
+            pkgutil --check-signature "$pkg"
+            spctl --assess --type install -vv "$pkg" || {
+              [ "${{ steps.signing.outputs.notarised }}" = yes ] && exit 1
+              echo "::warning::$pkg is signed but not notarised; Gatekeeper rejects it until it is"
+            }
+          done
+      # The macOS target is a .pkg (package.json build.mac.target), which the first upload pattern
+      # omitted, so a macOS run would have failed at upload even once the workflow was valid.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: midst-${{ matrix.want }}-${{ github.sha }}
@@ -65,5 +126,6 @@ jobs:
         run: |
           echo "### ${{ matrix.want }} build" >> "$GITHUB_STEP_SUMMARY"
           echo "commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "signed: no" >> "$GITHUB_STEP_SUMMARY"
+          echo "signed: ${{ steps.signing.outputs.signed }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "notarised: ${{ steps.signing.outputs.notarised }}" >> "$GITHUB_STEP_SUMMARY"
           node -e "console.log('version:', require('./package.json').version)" >> "$GITHUB_STEP_SUMMARY"
