@@ -50,9 +50,15 @@ export default function Editor() {
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
 
-  const saveFileAndUpdateStore = () => {
-    window.electron.store.set('poem', htmlString);
-    window.electron.store.set('history', JSON.stringify(poemHistory));
+  // The caller may supply the document explicitly. The 'open-file' handler must, because React state
+  // setters do not update `htmlString`/`poemHistory` within the same closure: reading them there yields
+  // the PREVIOUSLY loaded document, which then gets saved to the newly opened file's path. See #12.
+  const saveFileAndUpdateStore = (
+    text: string = htmlString,
+    history: ChangeObj[] = poemHistory
+  ) => {
+    window.electron.store.set('poem', text);
+    window.electron.store.set('history', JSON.stringify(history));
     window.electron.ipcRenderer.sendMessage('save-file', []);
     setEdited(false);
   };
@@ -114,7 +120,10 @@ export default function Editor() {
         if (myEditor) {
           myEditor.commands.setContent(savedPoem as string);
         }
-        saveFileAndUpdateStore();
+        saveFileAndUpdateStore(
+          savedPoem as string,
+          savedHistory as ChangeObj[]
+        );
         navigate('/editor');
       }
     );
