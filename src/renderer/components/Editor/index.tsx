@@ -5,13 +5,13 @@ import { useTheme } from '@mui/material/styles';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { HandleTab } from '../../HandleTab';
+import { TextContext, HistoryContext } from 'renderer/context';
+import HandleTab from '../../HandleTab';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
-import { TextContext, HistoryContext } from 'renderer/context';
 
 const extensions = [
   StarterKit.configure({
@@ -46,13 +46,43 @@ export default function Editor() {
     ? 'editor-height-tall'
     : 'editor-height-short';
 
-  const saveFileAndUpdateStore = () => {
-    console.log('saveFileAndUpdateStore');
-    window.electron.store.set('poem', htmlString);
-    window.electron.store.set('history', JSON.stringify(poemHistory));
-    window.electron.ipcRenderer.sendMessage('save-file', []);
-    setEdited(false);
-  };
+  // const { filename, setFilename } = useContext(FilenameContext);
+  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
+  const { poemHistory, setPoemHistory } = useContext(HistoryContext);
+
+  // THE DOCUMENT AS ONE VALUE, READABLE AT CALL TIME.
+  //
+  // `gen` identifies which document the text belongs to and advances on every open. Text, history and
+  // identity are written together so they cannot be half-updated: #12 was exactly a case of the text
+  // and the destination PATH coming from different places and disagreeing.
+  //
+  // It is also what makes `saveFileAndUpdateStore` identity-stable. Reading `htmlString` through a
+  // parameter default closed over it, so memoising on those values would hand back a new identity on
+  // every keystroke -- and the three effects react-hooks/exhaustive-deps wants the function added to
+  // would then re-register once per character typed.
+  const latest = useRef({ gen: 0, htmlString, poemHistory });
+  // Declared ahead of every effect that saves, so the ref is current by the time those run.
+  useEffect(() => {
+    latest.current = { ...latest.current, htmlString, poemHistory };
+  });
+
+  // Explicit arguments still win, and the 'open-file' handler still passes them.
+  // THE REF IS NOT A GUARD FOR #12. During an open it holds the document being REPLACED until the
+  // handler updates it, so dropping those arguments would reinstate the overwrite exactly. What
+  // protects that path is passing the document in; `gen` is the net underneath, not the fix.
+  const saveFileAndUpdateStore = useCallback(
+    (text?: string, history?: ChangeObj[]) => {
+      const doc = latest.current;
+      window.electron.store.set('poem', text ?? doc.htmlString);
+      window.electron.store.set(
+        'history',
+        JSON.stringify(history ?? doc.poemHistory)
+      );
+      window.electron.ipcRenderer.sendMessage('save-file', []);
+      setEdited(false);
+    },
+    []
+  );
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(
@@ -66,14 +96,11 @@ export default function Editor() {
       removeCancelSave();
       window.electron.ipcRenderer.sendMessage('disable-save', []);
     };
-  }, []);
+  }, [navigate, saveFileAndUpdateStore]);
 
-  // const { filename, setFilename } = useContext(FilenameContext);
-  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
-  const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const onUpdate = ({ editor }: { editor: EditorType }) => {
     const newHtml = editor.getHTML();
-    const pos = editor.state.selection.$anchor.pos;
+    const { pos } = editor.state.selection.$anchor;
     if (htmlString === newHtml) {
       return;
     }
@@ -86,9 +113,24 @@ export default function Editor() {
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
-    // cancel current autosave interval and set new one
+    // Cancel the pending autosave and schedule a new one. The generation captured here identifies
+    // the document being typed into: if an open lands before the timer fires, `gen` has moved on and
+    // the write is abandoned rather than carrying this poem's text to the newly opened file's path.
+    // There is no lock and nothing to release, so this cannot wedge saving -- the worst case is a
+    // write that proceeds, which is the behaviour without the check.
     clearTimeout(autosaveTimeout);
-    const newTimeout = setTimeout(saveFileAndUpdateStore, 1000);
+    const genAtSchedule = latest.current.gen;
+    const newTimeout = setTimeout(() => {
+      if (latest.current.gen !== genAtSchedule) {
+        window.electron.log.warn(
+          'autosave abandoned: the document changed after the save was scheduled'
+        );
+        return;
+      }
+      // No arguments, so the ref supplies the document as it stands when the timer fires. Passing
+      // the function straight to setTimeout saved the text from BEFORE the last keystroke.
+      saveFileAndUpdateStore();
+    }, 1000);
     setAutostateTimeout(newTimeout);
   };
   const onBlur = ({ editor }: { editor: EditorType }) => {
@@ -107,6 +149,14 @@ export default function Editor() {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
+        // Advance the generation so an autosave already in flight for the PREVIOUS document
+        // abandons its write instead of sending that poem's text to this file's path, and point the
+        // ref at the new document immediately rather than waiting for the re-render.
+        latest.current = {
+          gen: latest.current.gen + 1,
+          htmlString: savedPoem as string,
+          poemHistory: savedHistory as ChangeObj[],
+        };
         setHtmlString(savedPoem as string);
 
         setPoemHistory(savedHistory as ChangeObj[]);
@@ -114,7 +164,10 @@ export default function Editor() {
         if (myEditor) {
           myEditor.commands.setContent(savedPoem as string);
         }
-        saveFileAndUpdateStore();
+        saveFileAndUpdateStore(
+          savedPoem as string,
+          savedHistory as ChangeObj[]
+        );
         navigate('/editor');
       }
     );
@@ -133,7 +186,14 @@ export default function Editor() {
       removeOpen();
       removeToggleSpellcheckHandler();
     };
-  }, [myEditor]);
+  }, [
+    myEditor,
+    navigate,
+    saveFileAndUpdateStore,
+    setHtmlString,
+    setPoemHistory,
+    spellcheckOn,
+  ]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
@@ -147,7 +207,7 @@ export default function Editor() {
       removeToggleEdit();
       clearTimeout(autosaveTimeout);
     };
-  }, [htmlString, poemHistory, autosaveTimeout]);
+  }, [autosaveTimeout, navigate, saveFileAndUpdateStore]);
 
   const onCreate = ({ editor }: { editor: EditorType }) => {
     editor.commands.focus();
@@ -158,7 +218,7 @@ export default function Editor() {
     ? Number(window.electron.store.get('font-size'))
     : 2;
 
-  const [sizeClass, _setSizeClass] = useState<number>(
+  const [sizeClass] = useState<number>(
     [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
       ? restoreSizeClassSetting
       : 2
@@ -184,9 +244,7 @@ export default function Editor() {
         }}
         parseOptions={{ preserveWhitespace: true }}
         onCreate={onCreate}
-      >
-        <></>
-      </EditorProvider>
+      />
 
       <div className="Spacer">
         <Tooltip
@@ -197,7 +255,7 @@ export default function Editor() {
           placement="top-start"
         >
           <Link to="/replay">
-            <button type="button" className="icon-button">
+            <button aria-label="Replay" type="button" className="icon-button">
               <HistoryIcon fontSize="small" />
             </button>
           </Link>

@@ -3,10 +3,10 @@ import { BrowserWindow } from 'electron';
 import path from 'path';
 import { ChangeObj } from 'renderer/tracking/utils';
 import { URL } from 'url';
-import store from './store';
 import { generateJSON, generateHTML } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
 import { JSONContent } from '@tiptap/core';
+import store from './store';
 
 const extensions = [
   StarterKit.configure({
@@ -125,7 +125,7 @@ export const convertMidstFile = (oldMidst: string) => {
   const oldMidstJSON = JSON.parse(oldMidst);
   const frames = oldMidstJSON.editorTimelineFrames;
 
-  const newFrames = frames.map((el: OldMidstTimelineFrame, index: number) => {
+  const newFrames = frames.map((el: OldMidstTimelineFrame) => {
     const jsonContentAtFrame = generateJSON(el.content, extensions);
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, extensions);
     // get the slice of the content before the line number

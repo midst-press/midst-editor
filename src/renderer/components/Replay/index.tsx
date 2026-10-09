@@ -38,19 +38,31 @@ export default function Replay() {
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const { setText: setHtmlString } = useContext(TextContext);
-  const [maxStep, setMaxStep] = useState(
-    poemHistory.length ? poemHistory.length - 1 : 0
-  );
+  const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
 
   const [step, setStep] = useState(maxStep);
   const [playing, setPlaying] = useState(false);
-  const [playingInterval, setPlayingInterval] = useState<
-    ReturnType<typeof setInterval> | undefined
-  >(undefined);
+  // A TIMER HANDLE, NOT RENDERED STATE. It is only ever created, cleared, and tested for
+  // truthiness -- nothing displays it. Holding it in state bought nothing and cost a dependency:
+  // react-hooks/exhaustive-deps requires it in every effect that clears it, so the IPC-listener
+  // effect below would re-register its three listeners on every play and every pause.
+  const playingInterval = useRef<ReturnType<typeof setInterval> | undefined>(
+    undefined
+  );
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
+
+  const restoreSizeClassSetting = Number(
+    window.electron.store.get('font-size')
+  );
+
+  const [sizeClass, setSizeClass] = useState<number>(
+    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
+      ? restoreSizeClassSetting
+      : 2
+  );
 
   const editor = useEditor({
     extensions,
@@ -74,7 +86,7 @@ export default function Replay() {
   };
   useEffect(() => {
     if (step >= maxStep) {
-      clearInterval(playingInterval);
+      clearInterval(playingInterval.current);
       setPlaying(false);
     }
     if (!editor) return;
@@ -85,20 +97,32 @@ export default function Replay() {
     if (node) {
       (node as any).scrollIntoView?.({ block: 'center' });
     }
-  }, [playingInterval, maxStep, step, poemHistory]);
+  }, [maxStep, step, poemHistory, editor]);
 
   useEffect(() => {
-    // this clean up function runs when unmounted, clearing the interval
-    editor?.commands.focus();
+    // The cleanup clears the playback timer on unmount. The handle is a ref, so it is read when the
+    // cleanup runs and is not a dependency of this effect.
+    //
+    // 🚨 `editor` is narrowed EXPLICITLY here rather than reached through `editor?.commands`, and
+    // that is load-bearing. With the optional chain, react-hooks/exhaustive-deps asks for
+    // `editor?.commands` as the dependency -- and `commands` is a GETTER returning a fresh object
+    // on every access, so supplying it makes this effect re-run on every render, its setState
+    // re-render, and Replay die with React error #185 (Maximum update depth exceeded), dropping the
+    // reader back to the landing screen. Measured in the running app on 2026-10-09, not reasoned
+    // about. Narrowing first makes the dependency `editor`, which useEditor creates once per mount,
+    // so the rule is satisfied by a dependency that is genuinely stable. Do not reintroduce the
+    // optional chain here.
+    if (!editor) return undefined;
+    editor.commands.focus();
     return () => {
-      if (playingInterval) {
-        clearInterval(playingInterval);
+      if (playingInterval.current) {
+        clearInterval(playingInterval.current);
       }
     };
-  }, [playingInterval]);
+  }, [editor]);
 
   const handleClickPlay = async () => {
-    clearInterval(playingInterval);
+    clearInterval(playingInterval.current);
     setPlaying(true);
     if (step >= maxStep) {
       setStep(0);
@@ -109,13 +133,13 @@ export default function Replay() {
         const interval = setInterval(() => {
           setStep((val) => val + 1);
         }, 60);
-        setPlayingInterval(interval);
+        playingInterval.current = interval;
       }, 250);
     } else {
       const interval = setInterval(() => {
         setStep((val) => val + 1);
       }, 60);
-      setPlayingInterval(interval);
+      playingInterval.current = interval;
     }
   };
 
@@ -126,7 +150,7 @@ export default function Replay() {
       : '';
   };
   const handleClickPause = () => {
-    clearInterval(playingInterval);
+    clearInterval(playingInterval.current);
     setPlaying(false);
   };
 
@@ -134,7 +158,7 @@ export default function Replay() {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
-        clearInterval(playingInterval);
+        clearInterval(playingInterval.current);
         setPlaying(false);
         // const typeHistory = savedHistory as ChangeObj[];
         setHtmlString(savedPoem as string);
@@ -163,7 +187,7 @@ export default function Replay() {
       removeToggleEditHandler();
       removeFontSizeHandler();
     };
-  }, []);
+  }, [navigate, setHtmlString, setPoemHistory]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -181,16 +205,7 @@ export default function Replay() {
     return function cleanup() {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
-  const restoreSizeClassSetting = Number(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass, setSizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
-  );
+  }, [navigate]);
   const decreaseSize = () => {
     if (sizeClass <= 0) {
       return;
@@ -217,15 +232,15 @@ export default function Replay() {
           enterDelay={1000}
           arrow
         >
-          <>
-            <button
-              onClick={increaseSize}
-              disabled={sizeClass >= 4}
-              className="icon-button size-icon"
-            >
-              <TextIncreaseIcon fontSize="small" />
-            </button>
-          </>
+          <button
+            aria-label="Increase text size"
+            type="button"
+            onClick={increaseSize}
+            disabled={sizeClass >= 4}
+            className="icon-button size-icon"
+          >
+            <TextIncreaseIcon fontSize="small" />
+          </button>
         </Tooltip>
         <Tooltip
           title="Decrease text size"
@@ -233,21 +248,19 @@ export default function Replay() {
           enterDelay={1000}
           arrow
         >
-          <>
-            <button
-              disabled={sizeClass <= 0}
-              className="icon-button size-icon"
-              onClick={decreaseSize}
-            >
-              <TextDecreaseIcon fontSize="small" />
-            </button>
-          </>
+          <button
+            aria-label="Decrease text size"
+            type="button"
+            disabled={sizeClass <= 0}
+            className="icon-button size-icon"
+            onClick={decreaseSize}
+          >
+            <TextDecreaseIcon fontSize="small" />
+          </button>
         </Tooltip>
       </div>
       <div className={`ReplayContainer size-${sizeClass}`}>
-        <EditorContent editor={editor}>
-          <></>
-        </EditorContent>
+        <EditorContent editor={editor} />
       </div>
       <Grow mountOnEnter in>
         <Box
@@ -262,7 +275,7 @@ export default function Replay() {
             ref={playPauseButton}
             style={{ color: theme.palette.secondary.contrastText }}
             onClick={playing ? handleClickPause : handleClickPlay}
-            disabled={!history.length}
+            disabled={!window.history.length}
             className="control-bar-icon control-icon-gap"
           >
             {playing ? (
@@ -278,11 +291,11 @@ export default function Replay() {
             step={1}
             size="small"
             valueLabelFormat={labelFormatter}
-            valueLabelDisplay={history.length ? 'auto' : undefined}
+            valueLabelDisplay={window.history.length ? 'auto' : undefined}
             sx={{
               color: theme.palette.secondary.contrastText,
               marginRight: '15px',
-              cursor: history.length ? undefined : 'not-allowed',
+              cursor: window.history.length ? undefined : 'not-allowed',
             }}
             onChange={handleStepChange}
           />
@@ -296,6 +309,7 @@ export default function Replay() {
           >
             <Link to="/editor">
               <button
+                aria-label="Edit"
                 type="button"
                 className="control-bar-icon"
                 style={{

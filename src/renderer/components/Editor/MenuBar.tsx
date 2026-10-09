@@ -8,13 +8,13 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { useState, useEffect } from 'react';
 
-const MenuBar = () => {
+function MenuBar() {
   const { editor } = useCurrentEditor();
 
-  if (!editor) {
-    return null;
-  }
-
+  // The `!editor` guard lives below, after every hook. tiptap's EditorProvider returns null until
+  // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
+  // placing it above the hooks made the hook count conditional, which a tiptap change that renders
+  // slotBefore eagerly would turn into a hard "Rendered more hooks than during the previous render".
   const restoreSizeClassSetting = window.electron.store.get('font-size')
     ? Number(window.electron.store.get('font-size'))
     : 2;
@@ -24,6 +24,45 @@ const MenuBar = () => {
       : 2
   );
 
+  useEffect(() => {
+    if (!editor) {
+      return undefined;
+    }
+    const removeSetFontSize = window.electron.ipcRenderer.on(
+      'set-font-size',
+      (newSize) => {
+        setSizeClass(Number(newSize));
+        // @ts-ignore
+        const existingClasses = editor.options.editorProps.attributes?.class;
+        const existingClassesList = existingClasses.split(' ');
+        const newClasses = existingClassesList.filter(
+          (item: string) => !item.includes('size')
+        );
+        newClasses.push(`size-${newSize}`);
+        editor.setOptions({
+          editorProps: {
+            // @ts-ignore
+            attributes: {
+              ...editor.options.editorProps.attributes,
+              class: newClasses.join(' '),
+            },
+          },
+        });
+      }
+    );
+    return () => {
+      removeSetFontSize();
+    };
+    // `editor` is created once per mount by useEditor, and this component is tiptap's slotBefore so
+    // it does not mount until the editor exists -- so listing it here is inert, not a timing change.
+  }, [editor]);
+
+  if (!editor) {
+    return null;
+  }
+
+  // These are plain handlers, not hooks, so they belong BELOW the guard: TypeScript narrows
+  // `editor` to non-null only after it, and the buttons that call them render only after it.
   const decreaseSize = () => {
     if (sizeClass <= 0) {
       return;
@@ -74,33 +113,6 @@ const MenuBar = () => {
     });
     setSizeClass(sizeClass + 1);
   };
-  useEffect(() => {
-    const removeSetFontSize = window.electron.ipcRenderer.on(
-      'set-font-size',
-      (newSize) => {
-        setSizeClass(Number(newSize));
-        // @ts-ignore
-        const existingClasses = editor.options.editorProps.attributes?.class;
-        const existingClassesList = existingClasses.split(' ');
-        const newClasses = existingClassesList.filter(
-          (item: string) => !item.includes('size')
-        );
-        newClasses.push(`size-${newSize}`);
-        editor.setOptions({
-          editorProps: {
-            // @ts-ignore
-            attributes: {
-              ...editor.options.editorProps.attributes,
-              class: newClasses.join(' '),
-            },
-          },
-        });
-      }
-    );
-    return () => {
-      removeSetFontSize();
-    };
-  }, []);
 
   return (
     <div className="TopButtons">
@@ -112,6 +124,8 @@ const MenuBar = () => {
       >
         <span>
           <button
+            aria-label="Increase text size"
+            type="button"
             onClick={increaseSize}
             disabled={sizeClass >= 4}
             className="icon-button size-icon"
@@ -128,6 +142,8 @@ const MenuBar = () => {
       >
         <span>
           <button
+            aria-label="Decrease text size"
+            type="button"
             disabled={sizeClass <= 0}
             className="icon-button size-icon"
             onClick={decreaseSize}
@@ -138,6 +154,8 @@ const MenuBar = () => {
       </Tooltip>
       <Tooltip title="Bold" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          aria-label="Bold"
+          type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editor.can().chain().focus().toggleBold().run()}
           className={
@@ -149,6 +167,8 @@ const MenuBar = () => {
       </Tooltip>
       <Tooltip title="Italic" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          aria-label="Italic"
+          type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editor.can().chain().focus().toggleItalic().run()}
           className={
@@ -160,5 +180,5 @@ const MenuBar = () => {
       </Tooltip>
     </div>
   );
-};
+}
 export default MenuBar;

@@ -25,6 +25,7 @@ import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import fs from 'fs';
 import path from 'path';
+import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
 import MenuBuilder, { save, newFile, openFile } from './menu';
 import store from './store';
 import {
@@ -38,7 +39,8 @@ import {
 
 class AppUpdater {
   constructor() {
-    log.transports.file.level = 'info';
+    // Level is whatever the user has configured; see src/main/logging.ts.
+    applyLogLevel();
     autoUpdater.logger = log;
     autoUpdater.checkForUpdatesAndNotify();
   }
@@ -52,7 +54,7 @@ let earlyPath = '';
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
+  log.debug(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
 });
 
@@ -80,7 +82,7 @@ const installExtensions = async () => {
   return installExtension(extensions, {
     loadExtensionOptions: { allowFileAccess: true },
     forceDownload,
-  }).catch((err) => console.log('An error occurred: ', err));
+  }).catch((err) => log.warn('failed to install devtools extension', err));
 };
 
 const createWindow = async () => {
@@ -112,32 +114,32 @@ const createWindow = async () => {
     titleBarOverlay: true,
   });
 
-  ipcMain.on('save-file', async (event, arg) => {
+  ipcMain.on('save-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     save(mainWindow, darwin);
   });
-  ipcMain.on('new-file', async (event, arg) => {
+  ipcMain.on('new-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     newFile(mainWindow, darwin);
   });
-  ipcMain.on('button-open-file', async (event) => {
+  ipcMain.on('button-open-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     openFile(mainWindow, darwin);
   });
 
   ipcMain.on('app-open', (filename: IpcMainEvent) => {
-    console.log('inside ipcmain open-file', filename);
     const darwin = process.platform === 'darwin';
-    console.log(filename, 'filename main.ts');
+    // The open/save pairing is where a document was once written to another document's path
+    // (#12), so which file the OS asked us to open is worth having in the log.
+    log.info('os requested open', { filename });
     if (mainWindow === null) return;
     openFile(mainWindow, darwin, filename as unknown as string[]);
   });
 
-  ipcMain.on('enable-save', async (event) => {
-    const darwin = process.platform === 'darwin';
+  ipcMain.on('enable-save', async () => {
     if (mainWindow === null) return;
     const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
     if (saveMenuItem) {
@@ -149,8 +151,7 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('disable-save', async (event) => {
-    const darwin = process.platform === 'darwin';
+  ipcMain.on('disable-save', async () => {
     if (mainWindow === null) return;
     const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
     if (saveMenuItem) {
@@ -283,7 +284,35 @@ ipcMain.on('electron-store-get', async (event, val) => {
 });
 ipcMain.on('electron-store-set', async (event, key, val) => {
   store.set(key, val);
+  // Applied immediately so raising the level takes effect inside the session being reproduced,
+  // rather than only after a restart.
+  if (key === LOG_LEVEL_KEY) {
+    log.info('log level changed', { level: applyLogLevel(val) });
+  }
 });
+
+// Renderer diagnostics, forwarded from the preload's window.electron.log. The level is matched
+// explicitly rather than by indexing `log` with a string off the wire.
+ipcMain.on(
+  'log-message',
+  (_event, level: string, message: string, meta?: unknown) => {
+    // An if-chain rather than a lookup table: a table needs a function TYPE annotation, whose
+    // mandatory parameter names the base no-unused-vars rule misreads as unused bindings. This
+    // keeps `log` from ever being indexed by a string off the wire, with no rule turned off.
+    const text = `[renderer] ${message}`;
+    if (level === 'error') {
+      if (meta === undefined) log.error(text);
+      else log.error(text, meta);
+    } else if (level === 'warn') {
+      if (meta === undefined) log.warn(text);
+      else log.warn(text, meta);
+    } else if (level === 'debug') {
+      if (meta === undefined) log.debug(text);
+      else log.debug(text, meta);
+    } else if (meta === undefined) log.info(text);
+    else log.info(text, meta);
+  }
+);
 
 /**
  * Add event listeners...
@@ -318,4 +347,4 @@ app
       }
     });
   })
-  .catch(console.log);
+  .catch((err) => log.error('app failed to become ready', err));

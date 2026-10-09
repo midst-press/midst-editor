@@ -3,16 +3,31 @@ import { ChangeObj } from 'renderer/tracking/utils';
 
 const initialTextState = {
   text: '',
-  setText: (text: string) => {},
+  // Default no-op setter; real setter is supplied by the Provider in App.tsx.
+  setText: (text: string) => {
+    if (text) {
+      /* no-op */
+    }
+  },
 };
 
 const initialHistoryState = {
   poemHistory: [] as ChangeObj[],
-  setPoemHistory: (poemHistory: ChangeObj[]) => {},
+  // Default no-op setter; real setter is supplied by the Provider in App.tsx.
+  setPoemHistory: (poemHistory: ChangeObj[]) => {
+    if (poemHistory) {
+      /* no-op */
+    }
+  },
 };
 const initialFilenameState = {
   text: '',
-  setText: (filename: string) => {},
+  // Default no-op setter; real setter is supplied by a Provider.
+  setText: (filename: string) => {
+    if (filename) {
+      /* no-op */
+    }
+  },
 };
 
 export const TextContext = createContext(initialTextState);

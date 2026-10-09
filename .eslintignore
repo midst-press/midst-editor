@@ -33,3 +33,7 @@ npm-debug.log.*
 !.erb
 
 src/renderer/index.ejs
+
+# `!.erb` above un-ignores every path segment named .erb, at any depth -- including the generated
+# release/app/.erb that the e2e harness populates. Build output is not ours to lint.
+release/app/.erb

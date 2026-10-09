@@ -1,0 +1,29 @@
+{
+  // A TSConfig for LINTING ONLY. tsconfig.json says what SHIPS; this says what gets LINTED.
+  //
+  // Why it exists. TypeScript's default wildcard include does not match dot-directories, so nothing
+  // under .erb/ can be in the build program -- while .eslintignore deliberately un-ignores .erb (its
+  // `!.erb` line). ESLint therefore ran a type-aware parser over files the program could not contain
+  // and reported a parsing error on all 20 of them. typescript-eslint's own troubleshooting docs name
+  // three remedies; this is the third and the one they lead with.
+  //
+  // Why not simply widen tsconfig.json: measured, .erb's own code typechecks clean, but one
+  // dependency's declaration file does not (tsconfig-paths-webpack-plugin, TS2422), so widening the
+  // BUILD config would need skipLibCheck there -- which stops checking every .d.ts for the shipped
+  // app. Confining that to linting is the smaller change.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Only so a third-party .d.ts cannot break linting. The build config keeps full lib checking.
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/**/*",
+    "assets/**/*",
+    ".erb/**/*",
+    ".eslintrc.js",
+    // Not present on every branch; an include pattern that matches nothing is harmless, and this
+    // means the e2e suite is linted properly when it lands rather than hitting the same parse error.
+    "e2e/**/*",
+    "playwright.config.ts"
+  ]
+}
