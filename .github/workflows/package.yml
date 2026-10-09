@@ -210,7 +210,10 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
           files=$(find release/build -maxdepth 1 -type f \( -name '*.pkg' -o -name '*.exe' -o -name '*.AppImage' \) -exec basename {} \;)
-          echo "$files" | grep -qF -- "-$VERSION" \
+          # The version as a whole number, however the name separates it: "Midst-0.1.0-arm64.pkg",
+          # "Midst-0.1.0.AppImage", "Midst Setup 0.1.0.exe". 10.1.0 does not count as 0.1.0.
+          v_re="(^|[^0-9.])${VERSION//./\\.}([^0-9]|$)"
+          echo "$files" | grep -qE -- "$v_re" \
             || { echo "::error::no installer named with version $VERSION: $files"; exit 1; }
           {
             echo "### ${{ matrix.want }} build"
