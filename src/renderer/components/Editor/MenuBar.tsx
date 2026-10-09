@@ -11,10 +11,10 @@ import { useState, useEffect } from 'react';
 function MenuBar() {
   const { editor } = useCurrentEditor();
 
-  if (!editor) {
-    return null;
-  }
-
+  // The `!editor` guard lives below, after every hook. tiptap's EditorProvider returns null until
+  // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
+  // placing it above the hooks made the hook count conditional, which a tiptap change that renders
+  // slotBefore eagerly would turn into a hard "Rendered more hooks than during the previous render".
   const restoreSizeClassSetting = window.electron.store.get('font-size')
     ? Number(window.electron.store.get('font-size'))
     : 2;
@@ -24,6 +24,45 @@ function MenuBar() {
       : 2
   );
 
+  useEffect(() => {
+    if (!editor) {
+      return undefined;
+    }
+    const removeSetFontSize = window.electron.ipcRenderer.on(
+      'set-font-size',
+      (newSize) => {
+        setSizeClass(Number(newSize));
+        // @ts-ignore
+        const existingClasses = editor.options.editorProps.attributes?.class;
+        const existingClassesList = existingClasses.split(' ');
+        const newClasses = existingClassesList.filter(
+          (item: string) => !item.includes('size')
+        );
+        newClasses.push(`size-${newSize}`);
+        editor.setOptions({
+          editorProps: {
+            // @ts-ignore
+            attributes: {
+              ...editor.options.editorProps.attributes,
+              class: newClasses.join(' '),
+            },
+          },
+        });
+      }
+    );
+    return () => {
+      removeSetFontSize();
+    };
+    // Dependency list deliberately unchanged: adding `editor` here would alter when the listener
+    // re-registers, which is react-hooks/exhaustive-deps and a behaviour change, not this fix.
+  }, []);
+
+  if (!editor) {
+    return null;
+  }
+
+  // These are plain handlers, not hooks, so they belong BELOW the guard: TypeScript narrows
+  // `editor` to non-null only after it, and the buttons that call them render only after it.
   const decreaseSize = () => {
     if (sizeClass <= 0) {
       return;
@@ -74,33 +113,6 @@ function MenuBar() {
     });
     setSizeClass(sizeClass + 1);
   };
-  useEffect(() => {
-    const removeSetFontSize = window.electron.ipcRenderer.on(
-      'set-font-size',
-      (newSize) => {
-        setSizeClass(Number(newSize));
-        // @ts-ignore
-        const existingClasses = editor.options.editorProps.attributes?.class;
-        const existingClassesList = existingClasses.split(' ');
-        const newClasses = existingClassesList.filter(
-          (item: string) => !item.includes('size')
-        );
-        newClasses.push(`size-${newSize}`);
-        editor.setOptions({
-          editorProps: {
-            // @ts-ignore
-            attributes: {
-              ...editor.options.editorProps.attributes,
-              class: newClasses.join(' '),
-            },
-          },
-        });
-      }
-    );
-    return () => {
-      removeSetFontSize();
-    };
-  }, []);
 
   return (
     <div className="TopButtons">
