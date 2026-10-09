@@ -4,7 +4,8 @@
 # (and says so) when it does not, so the workflow stays usable before signing is set up:
 #   CSC_LINK, CSC_KEY_PASSWORD                      Developer ID Application .p12, base64, and its password
 #   CSC_INSTALLER_LINK, CSC_INSTALLER_KEY_PASSWORD  Developer ID Installer .p12, base64, and its password
-#   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD           the Apple account that notarises
+#   APPLE_API_KEY                                   App Store Connect TEAM API key: the AuthKey_<id>.p8, base64
+#   APPLE_API_KEY_ID, APPLE_API_ISSUER              that key's ID, and the team's issuer ID
 # Windows and Linux are unsigned: there is no Windows certificate, so Windows shows a SmartScreen
 # warning on first run.
 name: package
@@ -61,8 +62,9 @@ jobs:
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
         run: |
           put() { { echo "$1<<__END__"; printf '%s\n' "$2"; echo "__END__"; } >> "$GITHUB_ENV"; }
           if [ "${{ matrix.want }}" = macos ] && [ -n "$CSC_LINK" ] && [ -n "$CSC_INSTALLER_LINK" ]; then
@@ -71,11 +73,15 @@ jobs:
             put CSC_INSTALLER_LINK "$CSC_INSTALLER_LINK"
             put CSC_INSTALLER_KEY_PASSWORD "$CSC_INSTALLER_KEY_PASSWORD"
             echo "signed=yes" >> "$GITHUB_OUTPUT"
-            if [ -n "$APPLE_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-              put APPLE_ID "$APPLE_ID"
-              put APPLE_APP_SPECIFIC_PASSWORD "$APPLE_APP_SPECIFIC_PASSWORD"
-              # The team identifier is printed in the certificate itself; it is not a secret.
-              echo "APPLE_TEAM_ID=5HT777V3FG" >> "$GITHUB_ENV"
+            if [ -n "$APPLE_API_KEY_B64" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
+              # notarytool and @electron/notarize take the key as a FILE path. RUNNER_TEMP is
+              # emptied at the end of every job.
+              key="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+              printf '%s' "$APPLE_API_KEY_B64" | base64 --decode > "$key"
+              chmod 600 "$key"
+              echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+              put APPLE_API_KEY_ID "$APPLE_API_KEY_ID"
+              put APPLE_API_ISSUER "$APPLE_API_ISSUER"
               echo "notarised=yes" >> "$GITHUB_OUTPUT"
             else
               echo "notarised=no" >> "$GITHUB_OUTPUT"
@@ -109,8 +115,8 @@ jobs:
         shell: bash
         run: |
           for pkg in release/build/*.pkg; do
-            xcrun notarytool submit "$pkg" --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+            xcrun notarytool submit "$pkg" --key "$APPLE_API_KEY" \
+              --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
             xcrun stapler staple "$pkg"
           done
       # Apple silicon only: package.json build.mac.target builds arm64 alone. (Building arm64 and

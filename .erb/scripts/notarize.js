@@ -1,6 +1,11 @@
 const { notarize } = require('@electron/notarize');
-const { build } = require('../../package.json');
 
+// Notarises the signed .app with an App Store Connect TEAM API key (individual keys cannot use
+// notarytool). The package workflow writes the .p8 to a temporary file and sets:
+//   APPLE_API_KEY         path to AuthKey_<id>.p8
+//   APPLE_API_KEY_ID      the key's ID
+//   APPLE_API_ISSUER      the team's issuer ID (a UUID)
+// Without them, or outside CI, notarisation is skipped and the build says so.
 exports.default = async function notarizeMacos(context) {
   const { electronPlatformName, appOutDir } = context;
 
@@ -8,34 +13,26 @@ exports.default = async function notarizeMacos(context) {
     return;
   }
 
-  // can uncomment after we have CI set up
   if (process.env.CI !== 'true') {
-    console.warn('Skipping notarizing step. Packaging is not running in CI');
+    console.warn('Skipping notarisation: packaging is not running in CI');
     return;
   }
 
-  if (
-    !(
-      'APPLE_ID' in process.env &&
-      'APPLE_APP_SPECIFIC_PASSWORD' in process.env &&
-      'APPLE_TEAM_ID' in process.env
-    )
-  ) {
+  const { APPLE_API_KEY, APPLE_API_KEY_ID, APPLE_API_ISSUER } = process.env;
+  if (!APPLE_API_KEY || !APPLE_API_KEY_ID || !APPLE_API_ISSUER) {
     console.warn(
-      'Skipping notarizing step. APPLE_ID and APPLE_ID_PASS env variables must be set'
+      'Skipping notarisation: APPLE_API_KEY, APPLE_API_KEY_ID and APPLE_API_ISSUER must all be set'
     );
     return;
   }
 
   const appName = context.packager.appInfo.productFilename;
-  // const version = context.packager.appInfo.version;
   await notarize({
-    appBundleId: build.appId,
     appPath: `${appOutDir}/${appName}.app`,
-    appleId: process.env.APPLE_ID,
-    appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
-    teamId: process.env.APPLE_TEAM_ID,
+    appleApiKey: APPLE_API_KEY,
+    appleApiKeyId: APPLE_API_KEY_ID,
+    appleApiIssuer: APPLE_API_ISSUER,
   });
 
-  console.log('Notarization script finished');
+  console.log('Notarisation finished');
 };
