@@ -57,3 +57,6 @@ test-files/
 code-graph.db
 code-graph.db.wal
 manifest.json
+test-results
+playwright-report
+release/app/.erb
