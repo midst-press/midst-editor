@@ -228,8 +228,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "jpshafto",
-      "repo": "midst-app"
+      "owner": "midst-press",
+      "repo": "midst-editor"
     }
   },
   "engines": {

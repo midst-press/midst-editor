@@ -103,7 +103,12 @@ const createWindow = async () => {
     width: 1024,
     height: 728,
     frame: false,
-    icon: getAssetPath('icon.ico'),
+    // Linux cannot use an .ico for a window icon, so the window had none there (#32). macOS
+    // ignores this option and takes the icon from the app bundle.
+    icon:
+      process.platform === 'linux'
+        ? getAssetPath('icons', '256x256.png')
+        : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
       preload: app.isPackaged

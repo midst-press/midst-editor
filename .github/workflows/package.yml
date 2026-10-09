@@ -1,26 +1,46 @@
 # Installers, on demand. Nothing is released by a push.
+#
+# Unsigned for now: macOS Gatekeeper will refuse the .pkg until a Developer ID certificate and
+# notarisation credentials are added as repository secrets, and Windows shows a SmartScreen
+# warning. CSC_IDENTITY_AUTO_DISCOVERY=false makes "unsigned" explicit rather than accidental.
 name: package
 on:
   workflow_dispatch:
     inputs:
       platform:
         type: choice
-        options: [macos, windows, both]
-        default: both
+        options: [all, macos, windows, linux]
+        default: all
 permissions:
   contents: read
 jobs:
+  # GitHub does not allow the matrix context in a job-level `if:`, which made this file invalid:
+  # every push produced a failed run with no jobs, and it could never be dispatched. The platform
+  # choice is applied here instead, by building the matrix the package job runs.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          all='[{"os":"macos-latest","want":"macos"},{"os":"windows-latest","want":"windows"},{"os":"ubuntu-latest","want":"linux"}]'
+          if [ "$PLATFORM" = all ]; then
+            include="$all"
+          else
+            include=$(echo "$all" | jq -c --arg p "$PLATFORM" '[.[] | select(.want == $p)]')
+          fi
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
   package:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            want: macos
-          - os: windows-latest
-            want: windows
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
-    if: ${{ inputs.platform == 'both' || inputs.platform == matrix.want }}
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -29,17 +49,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run package
+      # The macOS target is a .pkg (package.json build.mac.target), which the old pattern omitted,
+      # so a macOS run would have failed at upload even once the workflow was valid.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: midst-${{ matrix.want }}-${{ github.sha }}
           path: |
+            release/build/*.pkg
             release/build/*.dmg
             release/build/*.exe
-            release/build/*.zip
+            release/build/*.AppImage
           if-no-files-found: error
       - name: record provenance in the summary
         shell: bash
         run: |
           echo "### ${{ matrix.want }} build" >> "$GITHUB_STEP_SUMMARY"
           echo "commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "signed: no" >> "$GITHUB_STEP_SUMMARY"
           node -e "console.log('version:', require('./package.json').version)" >> "$GITHUB_STEP_SUMMARY"
