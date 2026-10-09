@@ -11,7 +11,7 @@ repos:
       - id: trailing-whitespace
       - id: end-of-file-fixer
       - id: check-merge-conflict
-      - id: check-case-conflict        # macOS/Linux collisions; this repo has accented filenames
+      - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json
       - id: check-yaml
       - id: mixed-line-ending

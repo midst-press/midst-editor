@@ -31,7 +31,9 @@ const configuration: webpack.Configuration = {
   module: require('./webpack.config.renderer.dev').default.module,
 
   entry: {
-    renderer: Object.keys(dependencies || {}).filter((it) => !it.includes('tiptap')),
+    renderer: Object.keys(dependencies || {}).filter(
+      (it) => !it.includes('tiptap')
+    ),
   },
 
   output: {
