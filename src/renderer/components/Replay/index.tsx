@@ -43,9 +43,13 @@ export default function Replay() {
 
   const [step, setStep] = useState(maxStep);
   const [playing, setPlaying] = useState(false);
-  const [playingInterval, setPlayingInterval] = useState<
-    ReturnType<typeof setInterval> | undefined
-  >(undefined);
+  // A TIMER HANDLE, NOT RENDERED STATE. It is only ever created, cleared, and tested for
+  // truthiness -- nothing displays it. Holding it in state bought nothing and cost a dependency:
+  // react-hooks/exhaustive-deps requires it in every effect that clears it, so the IPC-listener
+  // effect below would re-register its three listeners on every play and every pause.
+  const playingInterval = useRef<ReturnType<typeof setInterval> | undefined>(
+    undefined
+  );
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
@@ -82,7 +86,7 @@ export default function Replay() {
   };
   useEffect(() => {
     if (step >= maxStep) {
-      clearInterval(playingInterval);
+      clearInterval(playingInterval.current);
       setPlaying(false);
     }
     if (!editor) return;
@@ -93,25 +97,32 @@ export default function Replay() {
     if (node) {
       (node as any).scrollIntoView?.({ block: 'center' });
     }
-  }, [playingInterval, maxStep, step, poemHistory, editor]);
+  }, [maxStep, step, poemHistory, editor]);
 
   useEffect(() => {
-    // this clean up function runs when unmounted, clearing the interval
-    editor?.commands.focus();
+    // The cleanup clears the playback timer on unmount. The handle is a ref, so it is read when the
+    // cleanup runs and is not a dependency of this effect.
+    //
+    // 🚨 `editor` is narrowed EXPLICITLY here rather than reached through `editor?.commands`, and
+    // that is load-bearing. With the optional chain, react-hooks/exhaustive-deps asks for
+    // `editor?.commands` as the dependency -- and `commands` is a GETTER returning a fresh object
+    // on every access, so supplying it makes this effect re-run on every render, its setState
+    // re-render, and Replay die with React error #185 (Maximum update depth exceeded), dropping the
+    // reader back to the landing screen. Measured in the running app on 2026-10-09, not reasoned
+    // about. Narrowing first makes the dependency `editor`, which useEditor creates once per mount,
+    // so the rule is satisfied by a dependency that is genuinely stable. Do not reintroduce the
+    // optional chain here.
+    if (!editor) return undefined;
+    editor.commands.focus();
     return () => {
-      if (playingInterval) {
-        clearInterval(playingInterval);
+      if (playingInterval.current) {
+        clearInterval(playingInterval.current);
       }
     };
-    // 🚨 DO NOT add `editor?.commands` here, which is what react-hooks/exhaustive-deps asks for.
-    // It is a GETTER returning a fresh object on every access, so as a dependency it differs on
-    // every render, this effect re-runs every render, its setState re-renders, and the Replay view
-    // dies with React error #185 (Maximum update depth exceeded) -- the player falls back to the
-    // landing screen. Measured in the running app on 2026-10-09, not reasoned about.
-  }, [playingInterval]);
+  }, [editor]);
 
   const handleClickPlay = async () => {
-    clearInterval(playingInterval);
+    clearInterval(playingInterval.current);
     setPlaying(true);
     if (step >= maxStep) {
       setStep(0);
@@ -122,13 +133,13 @@ export default function Replay() {
         const interval = setInterval(() => {
           setStep((val) => val + 1);
         }, 60);
-        setPlayingInterval(interval);
+        playingInterval.current = interval;
       }, 250);
     } else {
       const interval = setInterval(() => {
         setStep((val) => val + 1);
       }, 60);
-      setPlayingInterval(interval);
+      playingInterval.current = interval;
     }
   };
 
@@ -139,7 +150,7 @@ export default function Replay() {
       : '';
   };
   const handleClickPause = () => {
-    clearInterval(playingInterval);
+    clearInterval(playingInterval.current);
     setPlaying(false);
   };
 
@@ -147,7 +158,7 @@ export default function Replay() {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
-        clearInterval(playingInterval);
+        clearInterval(playingInterval.current);
         setPlaying(false);
         // const typeHistory = savedHistory as ChangeObj[];
         setHtmlString(savedPoem as string);
@@ -176,7 +187,7 @@ export default function Replay() {
       removeToggleEditHandler();
       removeFontSizeHandler();
     };
-  }, []);
+  }, [navigate, setHtmlString, setPoemHistory]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {

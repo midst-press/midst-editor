@@ -114,3 +114,71 @@ test('a poem plays back, advancing through its timeline', async () => {
     await app.close();
   }
 });
+
+test('pausing playback stops it, and it stays stopped', async () => {
+  // The pause path clears the playback timer. Nothing covered it, and the timer handle moved from
+  // useState to useRef -- `playingInterval` is never rendered, only created, cleared and tested, and
+  // holding it in state forced it into the dependency array of the effect that registers Replay's
+  // IPC listeners, which would then re-register on every play and pause.
+  const doc = makePlayableMidst(SENTENCE);
+  const work = mkdtempSync(join(tmpdir(), 'midst-pause-'));
+  const poemPath = join(work, 'pausable.midst');
+  writeFileSync(poemPath, doc.file);
+
+  const { app, userData } = await launch(work);
+  const failures: string[] = [];
+  try {
+    const win = await app.firstWindow();
+    win.on('pageerror', (e) => {
+      failures.push(`pageerror: ${String(e)}`);
+    });
+    win.on('console', (m) => {
+      if (m.type() === 'error') failures.push(m.text());
+    });
+    await win.waitForLoadState('domcontentloaded');
+
+    await openDocument(app, userData, poemPath, 'the pausable poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await win.getByRole('link', { name: 'Replay' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+
+    const len = () =>
+      win.evaluate(
+        () => document.querySelector('.ProseMirror')?.textContent?.length ?? -1
+      );
+
+    await win.locator('[data-testid="PlayArrowIcon"]').first().click();
+
+    // Let it get under way, then stop it well before the end.
+    await win.waitForFunction(
+      () =>
+        (document.querySelector('.ProseMirror')?.textContent?.length ?? 0) >= 8,
+      null,
+      { timeout: 30_000 }
+    );
+    await win.locator('[data-testid="PauseIcon"]').first().click();
+
+    const atPause = await len();
+
+    // CONTROL: we paused BEFORE the end. Without this, a run where playback had already finished
+    // would show a frozen length and pass while testing nothing -- the length cannot change once
+    // the poem is complete, pause or no pause.
+    expect(
+      atPause,
+      'playback had already finished, so pausing proved nothing'
+    ).toBeLessThan(doc.finalText.length);
+
+    // The timer is cleared, so the content must not advance again.
+    await win.waitForTimeout(900);
+    expect(await len(), 'playback continued after pause').toBe(atPause);
+
+    expect(
+      failures,
+      `the page reported errors:\n${failures.join('\n')}`
+    ).toEqual([]);
+  } finally {
+    await app.close();
+  }
+});
