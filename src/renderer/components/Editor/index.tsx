@@ -8,7 +8,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext } from 'renderer/context';
-import { HandleTab } from '../../HandleTab';
+import HandleTab from '../../HandleTab';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';

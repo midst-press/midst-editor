@@ -1,3 +1,4 @@
+import log from 'electron-log';
 import {
   BrowserWindow,
   Menu,
@@ -98,6 +99,14 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     mainWindow.setTitle(filename);
     mainWindow.webContents.send('set-filename', path.basename(filename));
 
+    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
+    // newly-opened document beside the previously-loaded document's text. With this in the log,
+    // that defect is diagnosable from a user's log file rather than needing demonstration files.
+    log.debug('save: writing document', {
+      filename,
+      textChars: typeof text === 'string' ? text.length : 0,
+      historyChars: typeof history === 'string' ? history.length : 0,
+    });
     fs.writeFile(filename, fullContents, () => {});
     store.set('edited', JSON.stringify(false));
   } else {
@@ -133,6 +142,14 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     mainWindow.setTitle(filename);
     mainWindow.webContents.send('set-filename', path.basename(filename));
 
+    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
+    // newly-opened document beside the previously-loaded document's text. With this in the log,
+    // that defect is diagnosable from a user's log file rather than needing demonstration files.
+    log.debug('saveAs: writing document', {
+      filename,
+      textChars: typeof text === 'string' ? text.length : 0,
+      historyChars: typeof history === 'string' ? history.length : 0,
+    });
     fs.writeFile(filename, fullContents, () => {});
     store.set('edited', JSON.stringify(false));
   }

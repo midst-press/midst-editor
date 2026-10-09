@@ -98,6 +98,22 @@ const electronHandler = {
       }
     },
   },
+  // Renderer diagnostics go to the same electron-log file as the main process, via IPC, because
+  // contextIsolation means the renderer cannot reach electron-log directly.
+  log: {
+    error(message: string, meta?: unknown) {
+      ipcRenderer.send('log-message', 'error', message, meta);
+    },
+    warn(message: string, meta?: unknown) {
+      ipcRenderer.send('log-message', 'warn', message, meta);
+    },
+    info(message: string, meta?: unknown) {
+      ipcRenderer.send('log-message', 'info', message, meta);
+    },
+    debug(message: string, meta?: unknown) {
+      ipcRenderer.send('log-message', 'debug', message, meta);
+    },
+  },
   versions: {
     isMac: process.platform === 'darwin',
   },

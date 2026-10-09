@@ -93,7 +93,10 @@ export function makePlayableMidst(sentence: string): PlayableDoc {
 
   const finalHtml = states[states.length - 1];
   return {
-    file: `${MIDST_VERSION_HEADER}\n${JSON.stringify({ text: finalHtml, history })}`,
+    file: `${MIDST_VERSION_HEADER}\n${JSON.stringify({
+      text: finalHtml,
+      history,
+    })}`,
     finalHtml,
     finalText: sentence,
     history,

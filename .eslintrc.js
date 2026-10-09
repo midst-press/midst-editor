@@ -16,7 +16,9 @@ module.exports = {
       // false positives on things like `NodeJS.Timeout`. typescript-eslint documents this.
       // Scoped to TS files so .js keeps the rule, where it is still useful.
       files: ['**/*.ts', '**/*.tsx'],
-      rules: { 'no-undef': 'off' },
+      rules: {
+        'no-undef': 'off',
+      },
     },
   ],
   parserOptions: {
