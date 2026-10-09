@@ -13,6 +13,12 @@ repos:
       - id: check-merge-conflict
       - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json
+        # tsconfig files are JSONC BY DESIGN -- TypeScript supports comments, and
+        # tsconfig.eslint.json carries the explanation of why it has to exist at all.
+        # check-json is a STRICT JSON decoder, so it rejects the file for being what it is
+        # meant to be. No coverage is lost: eslint loads that config on every run and fails
+        # loudly if it is malformed, which is a stronger check than this one.
+        exclude: ^tsconfig\.eslint\.json$
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
