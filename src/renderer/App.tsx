@@ -2,7 +2,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
@@ -19,13 +19,17 @@ export default function App() {
   // covers the degraded case so the hook order is identical either way.
   const restoreText = window.electron?.store.get('poem') || '';
   const [text, setText] = useState(restoreText);
-  const textContextValue = { text, setText };
+  // Memoised so context consumers do not re-render on every App render.
+  const textContextValue = useMemo(() => ({ text, setText }), [text]);
 
   const storedHistory = window.electron?.store.get('history');
   const [poemHistory, setPoemHistory] = useState<ChangeObj[]>(
     storedHistory ? JSON.parse(storedHistory) : []
   );
-  const historyContextValue = { poemHistory, setPoemHistory };
+  const historyContextValue = useMemo(
+    () => ({ poemHistory, setPoemHistory }),
+    [poemHistory]
+  );
   useEffect(() => {
     if (!window.electron) {
       return undefined;

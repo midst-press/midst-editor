@@ -9,6 +9,16 @@ module.exports = {
     'import/no-unresolved': 'off',
     'import/no-import-module-exports': 'off',
   },
+  overrides: [
+    {
+      // `no-undef` is a JavaScript rule and must be off for TypeScript: the compiler already
+      // resolves every identifier, and the rule cannot see TYPE-only references, so it reports
+      // false positives on things like `NodeJS.Timeout`. typescript-eslint documents this.
+      // Scoped to TS files so .js keeps the rule, where it is still useful.
+      files: ['**/*.ts', '**/*.tsx'],
+      rules: { 'no-undef': 'off' },
+    },
+  ],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',

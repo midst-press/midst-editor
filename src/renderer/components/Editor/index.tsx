@@ -51,7 +51,6 @@ export default function Editor() {
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
 
   const saveFileAndUpdateStore = () => {
-    console.log('saveFileAndUpdateStore');
     window.electron.store.set('poem', htmlString);
     window.electron.store.set('history', JSON.stringify(poemHistory));
     window.electron.ipcRenderer.sendMessage('save-file', []);
