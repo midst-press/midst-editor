@@ -8,7 +8,9 @@ import {
   existsSync,
 } from 'fs';
 import { tmpdir } from 'os';
-import { join, resolve } from 'path';
+// `resolve` is aliased because promise/param-names requires a Promise executor's first
+// parameter to be named `resolve`, which would otherwise shadow this import (no-shadow).
+import { join, resolve as resolvePath } from 'path';
 import { makeMidst, parseMidst } from './fixtures';
 
 // Regression test for the data-loss defect Annelyse reported in August 2026 (issue #12).
@@ -24,7 +26,7 @@ import { makeMidst, parseMidst } from './fixtures';
 // WHY THE ORACLE IS BYTES. The assertion is the content of a file on disk, not a rendered pixel, so
 // nothing here depends on layout or animation timing.
 
-const APP_DIR = resolve(__dirname, '..', 'release', 'app');
+const APP_DIR = resolvePath(__dirname, '..', 'release', 'app');
 
 // Long enough that the RED run reproduces the overwrite inside it, which is what establishes the window
 // is adequate. A green run pays it in full, once per test.
@@ -57,10 +59,10 @@ function seedStore(userData: string) {
 // deadlock from outside, so record them and let the test report what appeared.
 async function captureDialogs(app: ElectronApplication) {
   await app.evaluate(({ dialog }) => {
-    const g = globalThis as unknown as { __dialogs?: string[] };
-    g.__dialogs = [];
+    const g = globalThis as unknown as { capturedDialogs?: string[] };
+    g.capturedDialogs = [];
     dialog.showMessageBoxSync = ((_w: unknown, opts: { message?: string }) => {
-      g.__dialogs!.push(opts?.message ?? '(no message)');
+      g.capturedDialogs!.push(opts?.message ?? '(no message)');
       return 0; // 'Proceed' -- defaultId in the app's own prompt
     }) as typeof dialog.showMessageBoxSync;
   });
@@ -68,17 +70,28 @@ async function captureDialogs(app: ElectronApplication) {
 
 async function dialogsSeen(app: ElectronApplication): Promise<string[]> {
   return app.evaluate(
-    () => (globalThis as unknown as { __dialogs?: string[] }).__dialogs ?? []
+    () =>
+      (globalThis as unknown as { capturedDialogs?: string[] })
+        .capturedDialogs ?? []
   );
 }
 
-async function waitUntil(pred: () => boolean, ms: number): Promise<boolean> {
-  const deadline = Date.now() + ms;
-  for (;;) {
-    if (pred()) return true;
-    if (Date.now() >= deadline) return false;
-    await new Promise((r) => setTimeout(r, 100));
-  }
+// setInterval rather than awaiting inside a loop. The predicate is synchronous -- it reads a file --
+// so polling needs no await at all, which satisfies no-await-in-loop by not doing the thing rather
+// than by suppressing the complaint about it.
+function waitUntil(pred: () => boolean, ms: number): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const deadline = Date.now() + ms;
+    const timer = setInterval(() => {
+      if (pred()) {
+        clearInterval(timer);
+        resolve(true);
+      } else if (Date.now() >= deadline) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, 100);
+  });
 }
 
 async function launch(work: string) {
