@@ -87,7 +87,21 @@ jobs:
           fi
       # On macOS this signs the app, notarises it through .erb/scripts/notarize.js (afterSign), and
       # signs the .pkg with the Developer ID Installer identity.
-      - run: npm run package
+      - name: npm run package
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run package 2>&1 | tee package.log
+      # Put the end of a failed build where it can be read without opening the raw log: the run
+      # summary, and one annotation (which the API also returns).
+      - name: show why packaging failed
+        if: failure()
+        shell: bash
+        run: |
+          [ -f package.log ] || exit 0
+          { echo '### packaging failed'; echo '```'; tail -n 60 package.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          msg=$(tail -n 25 package.log | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=npm run package::$msg"
       # The afterSign hook notarises the .app inside; the .pkg poets download is a separate file
       # that Gatekeeper assesses on its own, so it is notarised and stapled here.
       - name: notarise and staple the installers
