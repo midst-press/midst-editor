@@ -8,7 +8,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { useState, useEffect } from 'react';
 
-const MenuBar = () => {
+function MenuBar() {
   const { editor } = useCurrentEditor();
 
   if (!editor) {
@@ -112,6 +112,7 @@ const MenuBar = () => {
       >
         <span>
           <button
+            type="button"
             onClick={increaseSize}
             disabled={sizeClass >= 4}
             className="icon-button size-icon"
@@ -128,6 +129,7 @@ const MenuBar = () => {
       >
         <span>
           <button
+            type="button"
             disabled={sizeClass <= 0}
             className="icon-button size-icon"
             onClick={decreaseSize}
@@ -138,6 +140,7 @@ const MenuBar = () => {
       </Tooltip>
       <Tooltip title="Bold" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editor.can().chain().focus().toggleBold().run()}
           className={
@@ -149,6 +152,7 @@ const MenuBar = () => {
       </Tooltip>
       <Tooltip title="Italic" TransitionComponent={Zoom} enterDelay={500} arrow>
         <button
+          type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editor.can().chain().focus().toggleItalic().run()}
           className={
@@ -160,5 +164,5 @@ const MenuBar = () => {
       </Tooltip>
     </div>
   );
-};
+}
 export default MenuBar;

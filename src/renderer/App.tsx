@@ -2,12 +2,12 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 import './App.css';
+import { useState, useEffect } from 'react';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
 import themeObj from './theme';
 import { TextContext, HistoryContext } from './context';
-import { useState, useEffect } from 'react';
 import { ChangeObj } from './tracking/utils';
 
 const theme = createTheme(themeObj);

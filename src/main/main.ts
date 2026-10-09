@@ -112,17 +112,17 @@ const createWindow = async () => {
     titleBarOverlay: true,
   });
 
-  ipcMain.on('save-file', async (event, arg) => {
+  ipcMain.on('save-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     save(mainWindow, darwin);
   });
-  ipcMain.on('new-file', async (event, arg) => {
+  ipcMain.on('new-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     newFile(mainWindow, darwin);
   });
-  ipcMain.on('button-open-file', async (event) => {
+  ipcMain.on('button-open-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     openFile(mainWindow, darwin);
@@ -136,8 +136,7 @@ const createWindow = async () => {
     openFile(mainWindow, darwin, filename as unknown as string[]);
   });
 
-  ipcMain.on('enable-save', async (event) => {
-    const darwin = process.platform === 'darwin';
+  ipcMain.on('enable-save', async () => {
     if (mainWindow === null) return;
     const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
     if (saveMenuItem) {
@@ -149,8 +148,7 @@ const createWindow = async () => {
     }
   });
 
-  ipcMain.on('disable-save', async (event) => {
-    const darwin = process.platform === 'darwin';
+  ipcMain.on('disable-save', async () => {
     if (mainWindow === null) return;
     const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
     if (saveMenuItem) {

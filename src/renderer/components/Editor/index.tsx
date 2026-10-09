@@ -7,11 +7,11 @@ import { EditorProvider } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useState, useEffect, useContext } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { TextContext, HistoryContext } from 'renderer/context';
 import { HandleTab } from '../../HandleTab';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
-import { TextContext, HistoryContext } from 'renderer/context';
 
 const extensions = [
   StarterKit.configure({
@@ -46,6 +46,10 @@ export default function Editor() {
     ? 'editor-height-tall'
     : 'editor-height-short';
 
+  // const { filename, setFilename } = useContext(FilenameContext);
+  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
+  const { poemHistory, setPoemHistory } = useContext(HistoryContext);
+
   const saveFileAndUpdateStore = () => {
     console.log('saveFileAndUpdateStore');
     window.electron.store.set('poem', htmlString);
@@ -68,12 +72,9 @@ export default function Editor() {
     };
   }, []);
 
-  // const { filename, setFilename } = useContext(FilenameContext);
-  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
-  const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const onUpdate = ({ editor }: { editor: EditorType }) => {
     const newHtml = editor.getHTML();
-    const pos = editor.state.selection.$anchor.pos;
+    const { pos } = editor.state.selection.$anchor;
     if (htmlString === newHtml) {
       return;
     }
@@ -158,7 +159,7 @@ export default function Editor() {
     ? Number(window.electron.store.get('font-size'))
     : 2;
 
-  const [sizeClass, _setSizeClass] = useState<number>(
+  const [sizeClass] = useState<number>(
     [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
       ? restoreSizeClassSetting
       : 2
@@ -184,9 +185,7 @@ export default function Editor() {
         }}
         parseOptions={{ preserveWhitespace: true }}
         onCreate={onCreate}
-      >
-        <></>
-      </EditorProvider>
+      />
 
       <div className="Spacer">
         <Tooltip

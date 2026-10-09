@@ -1,10 +1,9 @@
 import { useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { HistoryContext, TextContext } from 'renderer/context';
 import { ChangeObj } from 'renderer/tracking/utils';
 import './LandingDialog.css';
 import Logo from './LogoThin';
-import { Link } from 'react-router-dom';
 
 export default function LandingDialog() {
   const navigate = useNavigate();
@@ -43,12 +42,16 @@ export default function LandingDialog() {
   return (
     <div className="outer-container">
       <div className="message-container">
-        <Logo></Logo>
+        <Logo />
         <h1 className="welcome-message">Welcome to Midst!</h1>
         <h2 className="welcome-message">Get Started:</h2>
         <div className="file-button-container">
-          <button onClick={newFile}>New File...</button>
-          <button onClick={openFile}>Open File...</button>
+          <button type="button" onClick={newFile}>
+            New File...
+          </button>
+          <button type="button" onClick={openFile}>
+            Open File...
+          </button>
         </div>
         <Link className="help-link" target="_blank" to="https://midst.press">
           Need Help?

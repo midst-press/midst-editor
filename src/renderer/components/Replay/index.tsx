@@ -38,9 +38,7 @@ export default function Replay() {
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const { setText: setHtmlString } = useContext(TextContext);
-  const [maxStep, setMaxStep] = useState(
-    poemHistory.length ? poemHistory.length - 1 : 0
-  );
+  const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
 
   const [step, setStep] = useState(maxStep);
@@ -51,6 +49,16 @@ export default function Replay() {
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
+
+  const restoreSizeClassSetting = Number(
+    window.electron.store.get('font-size')
+  );
+
+  const [sizeClass, setSizeClass] = useState<number>(
+    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
+      ? restoreSizeClassSetting
+      : 2
+  );
 
   const editor = useEditor({
     extensions,
@@ -182,15 +190,6 @@ export default function Replay() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
-  const restoreSizeClassSetting = Number(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass, setSizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
-  );
   const decreaseSize = () => {
     if (sizeClass <= 0) {
       return;
@@ -217,15 +216,14 @@ export default function Replay() {
           enterDelay={1000}
           arrow
         >
-          <>
-            <button
-              onClick={increaseSize}
-              disabled={sizeClass >= 4}
-              className="icon-button size-icon"
-            >
-              <TextIncreaseIcon fontSize="small" />
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={increaseSize}
+            disabled={sizeClass >= 4}
+            className="icon-button size-icon"
+          >
+            <TextIncreaseIcon fontSize="small" />
+          </button>
         </Tooltip>
         <Tooltip
           title="Decrease text size"
@@ -233,21 +231,18 @@ export default function Replay() {
           enterDelay={1000}
           arrow
         >
-          <>
-            <button
-              disabled={sizeClass <= 0}
-              className="icon-button size-icon"
-              onClick={decreaseSize}
-            >
-              <TextDecreaseIcon fontSize="small" />
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={sizeClass <= 0}
+            className="icon-button size-icon"
+            onClick={decreaseSize}
+          >
+            <TextDecreaseIcon fontSize="small" />
+          </button>
         </Tooltip>
       </div>
       <div className={`ReplayContainer size-${sizeClass}`}>
-        <EditorContent editor={editor}>
-          <></>
-        </EditorContent>
+        <EditorContent editor={editor} />
       </div>
       <Grow mountOnEnter in>
         <Box
@@ -262,7 +257,7 @@ export default function Replay() {
             ref={playPauseButton}
             style={{ color: theme.palette.secondary.contrastText }}
             onClick={playing ? handleClickPause : handleClickPlay}
-            disabled={!history.length}
+            disabled={!window.history.length}
             className="control-bar-icon control-icon-gap"
           >
             {playing ? (
@@ -278,11 +273,11 @@ export default function Replay() {
             step={1}
             size="small"
             valueLabelFormat={labelFormatter}
-            valueLabelDisplay={history.length ? 'auto' : undefined}
+            valueLabelDisplay={window.history.length ? 'auto' : undefined}
             sx={{
               color: theme.palette.secondary.contrastText,
               marginRight: '15px',
-              cursor: history.length ? undefined : 'not-allowed',
+              cursor: window.history.length ? undefined : 'not-allowed',
             }}
             onChange={handleStepChange}
           />
