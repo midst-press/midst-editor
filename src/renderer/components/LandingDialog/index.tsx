@@ -37,7 +37,9 @@ export default function LandingDialog() {
 
       removeOpen();
     };
-  }, []);
+    // All three are stable: navigate from the router, and the two setters are useState dispatchers
+    // reached through context, whose identity React guarantees.
+  }, [navigate, setHtmlString, setPoemHistory]);
 
   return (
     <div className="outer-container">

@@ -93,7 +93,7 @@ export default function Replay() {
     if (node) {
       (node as any).scrollIntoView?.({ block: 'center' });
     }
-  }, [playingInterval, maxStep, step, poemHistory]);
+  }, [playingInterval, maxStep, step, poemHistory, editor]);
 
   useEffect(() => {
     // this clean up function runs when unmounted, clearing the interval
@@ -103,6 +103,11 @@ export default function Replay() {
         clearInterval(playingInterval);
       }
     };
+    // 🚨 DO NOT add `editor?.commands` here, which is what react-hooks/exhaustive-deps asks for.
+    // It is a GETTER returning a fresh object on every access, so as a dependency it differs on
+    // every render, this effect re-runs every render, its setState re-renders, and the Replay view
+    // dies with React error #185 (Maximum update depth exceeded) -- the player falls back to the
+    // landing screen. Measured in the running app on 2026-10-09, not reasoned about.
   }, [playingInterval]);
 
   const handleClickPlay = async () => {
@@ -189,7 +194,7 @@ export default function Replay() {
     return function cleanup() {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [navigate]);
   const decreaseSize = () => {
     if (sizeClass <= 0) {
       return;

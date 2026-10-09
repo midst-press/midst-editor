@@ -53,9 +53,9 @@ function MenuBar() {
     return () => {
       removeSetFontSize();
     };
-    // Dependency list deliberately unchanged: adding `editor` here would alter when the listener
-    // re-registers, which is react-hooks/exhaustive-deps and a behaviour change, not this fix.
-  }, []);
+    // `editor` is created once per mount by useEditor, and this component is tiptap's slotBefore so
+    // it does not mount until the editor exists -- so listing it here is inert, not a timing change.
+  }, [editor]);
 
   if (!editor) {
     return null;
