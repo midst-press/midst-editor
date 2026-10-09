@@ -177,8 +177,7 @@
       "target": {
         "target": "pkg",
         "arch": [
-          "arm64",
-          "x64"
+          "arm64"
         ]
       },
       "notarize": false,
@@ -228,8 +227,8 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "jpshafto",
-      "repo": "midst-app"
+      "owner": "midst-press",
+      "repo": "midst-editor"
     }
   },
   "engines": {

@@ -1,26 +1,49 @@
 # Installers, on demand. Nothing is released by a push.
+#
+# macOS is signed and notarised when the repository has the signing secrets, and built unsigned
+# (and says so) when it does not, so the workflow stays usable before signing is set up:
+#   CSC_LINK, CSC_KEY_PASSWORD                      Developer ID Application .p12, base64, and its password
+#   CSC_INSTALLER_LINK, CSC_INSTALLER_KEY_PASSWORD  Developer ID Installer .p12, base64, and its password
+#   APPLE_API_KEY                                   App Store Connect TEAM API key: the AuthKey_<id>.p8, base64
+#   APPLE_API_KEY_ID, APPLE_API_ISSUER              that key's ID, and the team's issuer ID
+# Windows and Linux are unsigned: there is no Windows certificate, so Windows shows a SmartScreen
+# warning on first run.
 name: package
 on:
   workflow_dispatch:
     inputs:
       platform:
         type: choice
-        options: [macos, windows, both]
-        default: both
+        options: [all, macos, windows, linux]
+        default: all
 permissions:
   contents: read
 jobs:
+  # GitHub does not allow the matrix context in a job-level `if:`, which made the first version of
+  # this file invalid: every push produced a failed run with no jobs, and it could never be
+  # dispatched. The platform choice is applied here instead, by building the matrix.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          PLATFORM: ${{ inputs.platform }}
+        run: |
+          all='[{"os":"macos-latest","want":"macos"},{"os":"windows-latest","want":"windows"},{"os":"ubuntu-latest","want":"linux"}]'
+          if [ "$PLATFORM" = all ]; then
+            include="$all"
+          else
+            include=$(echo "$all" | jq -c --arg p "$PLATFORM" '[.[] | select(.want == $p)]')
+          fi
+          echo "matrix={\"include\":$include}" >> "$GITHUB_OUTPUT"
   package:
+    needs: plan
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            want: macos
-          - os: windows-latest
-            want: windows
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
-    if: ${{ inputs.platform == 'both' || inputs.platform == matrix.want }}
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
@@ -28,18 +51,140 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run package
+      # electron-builder treats an EMPTY CSC_LINK as a certificate to import and fails, so the
+      # signing variables are exported only when the secrets exist. Without them, signing is
+      # switched off explicitly rather than left to whatever identity the runner happens to have.
+      - name: decide whether to sign
+        id: signing
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+          APPLE_API_KEY_B64: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          put() { { echo "$1<<__END__"; printf '%s\n' "$2"; echo "__END__"; } >> "$GITHUB_ENV"; }
+          if [ "${{ matrix.want }}" = macos ] && [ -n "$CSC_LINK" ] && [ -n "$CSC_INSTALLER_LINK" ]; then
+            # The certificates go into a keychain made here, NOT through electron-builder's
+            # CSC_LINK. electron-builder 24.13.3 (app-builder-lib macCodeSign.js, importCerts)
+            # runs `security set-key-partition-list -k <the .p12's password>` against a keychain it
+            # created with a different, random password, so it always fails with "The user name or
+            # passphrase you entered is not correct". With CSC_LINK unset it signs from the
+            # keychain named by CSC_KEYCHAIN (macPackager.js), which is this one.
+            kc="$RUNNER_TEMP/midst-signing.keychain-db"
+            kcpass=$(openssl rand -base64 24)
+            security create-keychain -p "$kcpass" "$kc"
+            security set-keychain-settings -lut 21600 "$kc"
+            security unlock-keychain -p "$kcpass" "$kc"
+            import() {
+              printf '%s' "$1" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+              security import "$RUNNER_TEMP/cert.p12" -k "$kc" -P "$2" -f pkcs12 \
+                -T /usr/bin/codesign -T /usr/bin/productbuild -T /usr/bin/pkgbuild
+              rm -f "$RUNNER_TEMP/cert.p12"
+            }
+            import "$CSC_LINK" "$CSC_KEY_PASSWORD"
+            import "$CSC_INSTALLER_LINK" "$CSC_INSTALLER_KEY_PASSWORD"
+            security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$kcpass" "$kc" > /dev/null
+            # Put it on the search list so codesign and productbuild find the identities.
+            existing=$(security list-keychains -d user | tr -d '"' | xargs)
+            # shellcheck disable=SC2086
+            security list-keychains -d user -s "$kc" $existing
+            echo "identities in the signing keychain:"
+            security find-identity -v "$kc" | sed 's/^ *[0-9]*) [0-9A-F]* //'
+            security find-identity -v "$kc" | grep -q 'Developer ID Application:' \
+              || { echo "::error::no Developer ID Application identity was imported"; exit 1; }
+            security find-identity -v "$kc" | grep -q 'Developer ID Installer:' \
+              || { echo "::error::no Developer ID Installer identity was imported"; exit 1; }
+            echo "CSC_KEYCHAIN=$kc" >> "$GITHUB_ENV"
+            echo "signed=yes" >> "$GITHUB_OUTPUT"
+            if [ -n "$APPLE_API_KEY_B64" ] && [ -n "$APPLE_API_KEY_ID" ] && [ -n "$APPLE_API_ISSUER" ]; then
+              # notarytool and @electron/notarize take the key as a FILE path. RUNNER_TEMP is
+              # emptied at the end of every job.
+              key="$RUNNER_TEMP/AuthKey_$APPLE_API_KEY_ID.p8"
+              printf '%s' "$APPLE_API_KEY_B64" | base64 --decode > "$key"
+              chmod 600 "$key"
+              echo "APPLE_API_KEY=$key" >> "$GITHUB_ENV"
+              put APPLE_API_KEY_ID "$APPLE_API_KEY_ID"
+              put APPLE_API_ISSUER "$APPLE_API_ISSUER"
+              echo "notarised=yes" >> "$GITHUB_OUTPUT"
+            else
+              echo "notarised=no" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+            echo "signed=no" >> "$GITHUB_OUTPUT"
+            echo "notarised=no" >> "$GITHUB_OUTPUT"
+          fi
+      # On macOS this signs the app, notarises it through .erb/scripts/notarize.js (afterSign), and
+      # signs the .pkg with the Developer ID Installer identity.
+      - name: npm run package
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run package 2>&1 | tee package.log
+      # Put the end of a failed build where it can be read without opening the raw log: the run
+      # summary, and one annotation (which the API also returns).
+      - name: show why packaging failed
+        if: failure()
+        shell: bash
+        run: |
+          [ -f package.log ] || exit 0
+          { echo '### packaging failed'; echo '```'; tail -n 60 package.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          msg=$(tail -n 25 package.log | sed 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=npm run package::$msg"
+      # The afterSign hook notarises the .app inside; the .pkg poets download is a separate file
+      # that Gatekeeper assesses on its own, so it is notarised and stapled here.
+      - name: notarise and staple the installers
+        if: steps.signing.outputs.notarised == 'yes'
+        shell: bash
+        run: |
+          for pkg in release/build/*.pkg; do
+            xcrun notarytool submit "$pkg" --key "$APPLE_API_KEY" \
+              --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+            xcrun stapler staple "$pkg"
+          done
+      # Apple silicon only: package.json build.mac.target builds arm64 alone. (Building arm64 and
+      # x64 together also crashed electron-builder 24's pkg target, which writes both
+      # architectures' intermediate files to the same path.)
+      - name: check the installer holds an arm64 app
+        if: matrix.want == 'macos'
+        shell: bash
+        run: |
+          a=$(lipo -archs release/build/mac-arm64/Midst.app/Contents/MacOS/Midst)
+          echo "architecture: $a"
+          [ "$a" = arm64 ]
+      - name: check what Gatekeeper will say
+        if: steps.signing.outputs.signed == 'yes'
+        shell: bash
+        run: |
+          for pkg in release/build/*.pkg; do
+            pkgutil --check-signature "$pkg"
+            spctl --assess --type install -vv "$pkg" || {
+              [ "${{ steps.signing.outputs.notarised }}" = yes ] && exit 1
+              echo "::warning::$pkg is signed but not notarised; Gatekeeper rejects it until it is"
+            }
+          done
+      # The macOS target is a .pkg (package.json build.mac.target), which the first upload pattern
+      # omitted, so a macOS run would have failed at upload even once the workflow was valid.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: midst-${{ matrix.want }}-${{ github.sha }}
           path: |
+            release/build/*.pkg
             release/build/*.dmg
             release/build/*.exe
-            release/build/*.zip
+            release/build/*.AppImage
           if-no-files-found: error
       - name: record provenance in the summary
         shell: bash
         run: |
-          echo "### ${{ matrix.want }} build" >> "$GITHUB_STEP_SUMMARY"
-          echo "commit: ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
-          node -e "console.log('version:', require('./package.json').version)" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### ${{ matrix.want }} build"
+            echo "commit: ${{ github.sha }}"
+            echo "signed: ${{ steps.signing.outputs.signed }}"
+            echo "notarised: ${{ steps.signing.outputs.notarised }}"
+            node -e "console.log('version:', require('./package.json').version)"
+          } >> "$GITHUB_STEP_SUMMARY"
