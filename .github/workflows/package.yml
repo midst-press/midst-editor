@@ -91,13 +91,7 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # macOS builds one architecture at a time. electron-builder 24's pkg target writes each
-          # architecture's distribution.xml and inner component package to the SAME path, so the
-          # parallel build either fails (ENOENT on unlink) or can put one architecture's app in
-          # the other's installer. package:mac runs arm64, then x64.
-          script=package
-          [ "${{ matrix.want }}" = macos ] && script=package:mac
-          npm run "$script" 2>&1 | tee package.log
+          npm run package 2>&1 | tee package.log
       # Put the end of a failed build where it can be read without opening the raw log: the run
       # summary, and one annotation (which the API also returns).
       - name: show why packaging failed
@@ -119,13 +113,16 @@ jobs:
               --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
             xcrun stapler staple "$pkg"
           done
-      - name: check each installer holds the right architecture
+      # Apple silicon only: package.json build.mac.target builds arm64 alone. (Building arm64 and
+      # x64 together also crashed electron-builder 24's pkg target, which writes both
+      # architectures' intermediate files to the same path.)
+      - name: check the installer holds an arm64 app
         if: matrix.want == 'macos'
         shell: bash
         run: |
-          check() { a=$(lipo -archs "$1/Contents/MacOS/Midst"); echo "$1: $a"; [ "$a" = "$2" ]; }
-          check release/build/mac-arm64/Midst.app arm64
-          check release/build/mac/Midst.app x86_64
+          a=$(lipo -archs release/build/mac-arm64/Midst.app/Contents/MacOS/Midst)
+          echo "architecture: $a"
+          [ "$a" = arm64 ]
       - name: check what Gatekeeper will say
         if: steps.signing.outputs.signed == 'yes'
         shell: bash
