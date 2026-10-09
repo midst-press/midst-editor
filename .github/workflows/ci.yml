@@ -24,4 +24,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: pip install 'pre-commit==4.6.0'
       - run: pre-commit run --all-files --show-diff-on-failure
+      # The jest setup file (.erb/scripts/check-build-exists.ts) refuses to run until both the
+      # main and renderer bundles exist, so the suite cannot start on a clean checkout. This step
+      # was never reached before: pre-commit failed first on every earlier run. Building here also
+      # makes CI prove the application builds, which nothing else checked.
+      - run: npm run build
       - run: npm test -- --coverage
