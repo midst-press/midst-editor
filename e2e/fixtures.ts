@@ -12,6 +12,10 @@
 //   line 2   {"text": "<html>", "history": [ {inserted, front, end, t, pos}, ... ]}
 // stripVersionInfo() takes line 1 by index, so the JSON must stay on a single line.
 
+// The application's own change recorder and type, so a generated fixture is valid by
+// construction rather than by this file computing front/end offsets correctly.
+import { compareStrings, ChangeObj } from '../src/renderer/tracking/utils';
+
 export const MIDST_VERSION_HEADER = 'midstVersion: 1';
 
 export interface Doc {
@@ -45,4 +49,53 @@ export function makeMidst(sentinel: string, extraChars: number): Doc {
 // Read a .midst back without going through the app, so the oracle is the bytes on disk.
 export function parseMidst(raw: string): { text: string; history: unknown[] } {
   return JSON.parse(raw.split('\n')[1]);
+}
+
+// ---------------------------------------------------------------------------------------------
+// A PLAYABLE document.
+//
+// makeMidst above is fine for the open/save tests, which only care that a file loads and that its
+// history length is distinguishable. It is NOT playable: its front/end values are invented, and a
+// fixture whose frames do not reconstruct simply renders frame zero forever -- measured, and it is
+// why an earlier hand-built fixture appeared to show playback as broken when the app was fine.
+//
+// So the history here is derived by the APPLICATION'S OWN recorder, `compareStrings`, from a
+// sequence of HTML states. Validity is then structural rather than something this file has to get
+// right. `step()` in tracking/utils.ts reconstructs as
+// `prev.slice(0, front) + inserted + prev.slice(prev.length - end)`, and compareStrings is the
+// function that produces those numbers when a poet types.
+//
+// The STRUCTURE is taken from Annelyse's Autoscroll Test Poem -- one `<p>`, one keystroke per
+// frame, `pos` advancing with the caret. None of her content is used or stored.
+
+export interface PlayableDoc {
+  file: string;
+  finalHtml: string;
+  finalText: string;
+  history: ChangeObj[];
+}
+
+export function makePlayableMidst(sentence: string): PlayableDoc {
+  // One HTML state per keystroke, exactly as typing produces.
+  const states: string[] = [];
+  for (let i = 1; i <= sentence.length; i += 1) {
+    states.push(`<p>${sentence.slice(0, i)}</p>`);
+  }
+
+  const history: ChangeObj[] = [];
+  let prev = '';
+  states.forEach((next, i) => {
+    // `pos` is the caret position in the document, which is what autoscroll follows. It does not
+    // affect reconstruction; it is here so the frames are shaped like real ones.
+    history.push(compareStrings(prev, next, i + 2));
+    prev = next;
+  });
+
+  const finalHtml = states[states.length - 1];
+  return {
+    file: `${MIDST_VERSION_HEADER}\n${JSON.stringify({ text: finalHtml, history })}`,
+    finalHtml,
+    finalText: sentence,
+    history,
+  };
 }
