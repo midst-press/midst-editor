@@ -152,7 +152,9 @@ def probe(work: str, repo: str) -> int:
     src = open(os.path.join(work, "control_source.txt")).read().strip()
     _, doc = load(src)
     words = sorted(set(re.findall(r"[A-Za-z]{4,}", re.sub(r"<[^>]+>", " ", doc["text"]))), key=len, reverse=True)
-    corpus = b"".join(open(p, "rb").read() for p in repo_files(repo) if os.path.getsize(p) < 5_000_000)
+    # Every file the leak search will read, with no size limit: a word present only in a large
+    # generated bundle was once chosen here and then "found" there (real run, 2026-10-11).
+    corpus = b"".join(open(p, "rb").read() for p in repo_files(repo))
     for w in words:
         if w.encode() not in corpus:
             with open(os.path.join(work, "probe.bin"), "wb") as fh:
