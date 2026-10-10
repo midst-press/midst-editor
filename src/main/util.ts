@@ -179,12 +179,3 @@ export const loadDataIntoWorkspace = (
   }
   store.set('edited', JSON.stringify(false));
 };
-
-export const getNewMidstFilename = (oldFilename: string) => {
-  // this will overwrite a file without giving you a chance to prevent it
-  // may be worth updating the logic to avoid that
-  if (oldFilename.endsWith('.midst')) {
-    return `${oldFilename.slice(0, -6)}-converted.midst`;
-  }
-  return `${oldFilename}-converted.midst`;
-};
