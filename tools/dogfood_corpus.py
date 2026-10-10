@@ -6,7 +6,7 @@ used by the leak checks are chosen here and searched for here, so they never rea
     census    <converted-dir>               tags and attributes across every conversion; fails on any the
                                             editor's schema does not keep
     manifest  <converted-dir> <work-dir>    write manifest.json, index.tsv and the control files
-    probe     <work-dir> <repo-dir>         BEFORE the run: choose a probe word absent from the repo
+    probe     <work-dir> <repo-dir> [...]   BEFORE the run: choose a probe word absent from every repo
     leaks     <work-dir> <log-file> <log-size-before> <marker> <repo-dir> [<repo-dir> ...]
     summary   <work-dir>                    every manifest case must have exactly one result row
 """
@@ -147,14 +147,14 @@ def repo_files(repo: str):
     return [p for p in files_under(repo) if not any(k in p for k in skip)]
 
 
-def probe(work: str, repo: str) -> int:
+def probe(work: str, *repos: str) -> int:
     """Choose a word from the control poem that appears nowhere in the repository yet."""
     src = open(os.path.join(work, "control_source.txt")).read().strip()
     _, doc = load(src)
     words = sorted(set(re.findall(r"[A-Za-z]{4,}", re.sub(r"<[^>]+>", " ", doc["text"]))), key=len, reverse=True)
     # Every file the leak search will read, with no size limit: a word present only in a large
     # generated bundle was once chosen here and then "found" there (real run, 2026-10-11).
-    corpus = b"".join(open(p, "rb").read() for p in repo_files(repo))
+    corpus = b"".join(open(p, "rb").read() for repo in repos for p in repo_files(repo))
     for w in words:
         if w.encode() not in corpus:
             with open(os.path.join(work, "probe.bin"), "wb") as fh:

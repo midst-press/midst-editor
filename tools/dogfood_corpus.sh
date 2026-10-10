@@ -17,6 +17,8 @@ PY=/opt/homebrew/bin/python3
 HELP="$EDITOR/tools/dogfood_corpus.py"
 LOGFILE="$HOME/Library/Logs/midst/main.log"
 PREFIX="${TMPDIR:-/tmp}/midst-dogfood-"
+# One list for the probe baseline AND the leak search, so a word cannot be absent from one and found in the other.
+REPOS=("$EDITOR" "$FORMAT")
 
 for stale in "$PREFIX"*; do [ -e "$stale" ] && { rm -rf "$stale"; echo "swept a stale run directory"; }; done
 W=$(mktemp -d "${PREFIX}XXXXXX") || exit 2
@@ -50,7 +52,7 @@ if ! "$PY" "$HELP" census "$W/converted"; then
   [ "${ALLOW_UNSUPPORTED:-0}" = 1 ] || { echo "census: STOPPING (ALLOW_UNSUPPORTED=1 to continue and see what the app does)"; exit 1; }
 fi
 "$PY" "$HELP" manifest "$W/converted" "$W" || { echo "manifest: STOPPING (a control could not be built)"; exit 1; }
-"$PY" "$HELP" probe "$W" "$EDITOR" || exit 1
+"$PY" "$HELP" probe "$W" "${REPOS[@]}" || exit 1
 
 ( cd "$EDITOR" && MIDST_DOGFOOD_MANIFEST="$W/manifest.json" npx playwright test e2e/dogfood-corpus.spec.ts \
     --reporter=list --output="$W/pw-output" ) > "$W/logs/playwright.log" 2>&1
@@ -58,5 +60,5 @@ echo "playwright: exit $?"
 echo
 "$PY" "$HELP" summary "$W"; rc_summary=$?
 echo
-"$PY" "$HELP" leaks "$W" "$LOGFILE" "$LOG_BEFORE" "$W/marker" "$EDITOR" "$FORMAT"; rc_leaks=$?
+"$PY" "$HELP" leaks "$W" "$LOGFILE" "$LOG_BEFORE" "$W/marker" "${REPOS[@]}"; rc_leaks=$?
 exit $(( rc_summary || rc_leaks ))
