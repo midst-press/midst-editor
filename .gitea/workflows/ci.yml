@@ -24,7 +24,11 @@ permissions:
   contents: read
 jobs:
   gates:
-    runs-on: macos-arm64
+    # Pinned to the Mac Studio, whose runner is a separate `gitearunner` account. `macos-arm64` alone
+    # also matches the M1 Max, whose runner is the account every Kindled session there shares, and
+    # the build and test steps execute this repository's dependency tree as whichever user runs them.
+    # stuart-m3ultra-canary is the only label that runner alone carries.
+    runs-on: stuart-m3ultra-canary
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
