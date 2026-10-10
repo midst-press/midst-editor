@@ -1,0 +1,131 @@
+# Promotes a tested package run to a release. Nothing is rebuilt: the installers published are the
+# run's own artifacts, checked byte-for-byte against the SHA-256 each build recorded.
+#
+# Actions -> release -> Run workflow, with the number of the package run that was tested (the
+# number in that run's URL). It refuses, before tagging or publishing anything, a run that:
+#   - is not a successful package run started from main;
+#   - lacks build-info for macOS, Windows and Linux, at one version and one commit;
+#   - has a macOS installer that was not signed and notarised, or any installer whose bytes differ
+#     from what its build recorded;
+#   - is for a version already released (or tagged) from a different commit;
+#   - has no CHANGELOG.md entry for its version (the entry becomes the release notes).
+# Artifacts expire after the repository's retention period, so a run must be promoted before then.
+#
+# Where releases go: this repository by default. To publish elsewhere (a public downloads
+# repository, say) set the repository variable RELEASE_REPOSITORY to owner/name and the secret
+# RELEASE_TOKEN to a token that can create releases there. The v<version> tag is always made here,
+# on the commit that was built. See docs/releasing.md.
+name: release
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: The package run to release (the number in its URL)
+        required: true
+        type: string
+permissions:
+  contents: write # the tag and, by default, the release
+  actions: read # to read the package run and download its artifacts
+concurrency:
+  group: release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RUN_ID: ${{ inputs.run_id }}
+      RELEASE_REPO: ${{ vars.RELEASE_REPOSITORY || github.repository }}
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: check the run is a successful package run from main
+        id: run
+        run: |
+          [[ $RUN_ID =~ ^[0-9]+$ ]] || { echo "::error::run_id must be the run's number, got: $RUN_ID"; exit 1; }
+          run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID") \
+            || { echo "::error::no run $RUN_ID in $GITHUB_REPOSITORY"; exit 1; }
+          field() { jq -r "$1" <<< "$run"; }
+          [ "$(field .path)" = .github/workflows/package.yml ] || { echo "::error::run $RUN_ID is $(field .path), not a package run"; exit 1; }
+          [ "$(field .head_branch)" = main ] || { echo "::error::run $RUN_ID was built from $(field .head_branch), not main"; exit 1; }
+          [ "$(field .conclusion)" = success ] || { echo "::error::run $RUN_ID concluded '$(field .conclusion)', not success"; exit 1; }
+          expired=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID/artifacts" --jq '[.artifacts[] | select(.expired)] | length')
+          [ "$expired" = 0 ] || { echo "::error::$expired of run $RUN_ID's artifacts have expired; build a new candidate"; exit 1; }
+          echo "sha=$(field .head_sha)" >> "$GITHUB_OUTPUT"
+          echo "url=$(field .html_url)" >> "$GITHUB_OUTPUT"
+      - name: download the run's artifacts
+        run: gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" --dir candidate
+      - name: check the installers are fit to release
+        id: verify
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+        run: |
+          version=$(tools/verify_candidate.sh candidate "$SHA")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: check the version has not been released from other code
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          # gh prints an API error on STDOUT, so only a successful lookup counts.
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/v$VERSION" --jq .sha 2>/dev/null) || tagged=""
+          if [ -n "$tagged" ] && [ "$tagged" != "$SHA" ]; then
+            echo "::error::v$VERSION already tags $tagged, not the candidate's commit $SHA. Bump the version."
+            exit 1
+          fi
+          if gh release view "v$VERSION" --repo "$RELEASE_REPO" > /dev/null 2>&1; then
+            echo "::error::$RELEASE_REPO already has a release v$VERSION"
+            exit 1
+          fi
+      - name: write the release notes from CHANGELOG.md at that commit
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          RUN_URL: ${{ steps.run.outputs.url }}
+        run: |
+          git fetch --quiet --depth 1 origin "$SHA"
+          git show "$SHA:CHANGELOG.md" > candidate-changelog.md
+          {
+            tools/changelog_section.sh "$VERSION" candidate-changelog.md
+            echo
+            echo "---"
+            echo "Built by [package run $RUN_ID]($RUN_URL) from \`$SHA\`. The macOS installer is signed and notarised; check downloads against \`SHA256SUMS\`."
+          } > release-notes.md
+          cat release-notes.md
+      - name: tag the commit
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          RUN_URL: ${{ steps.run.outputs.url }}
+        run: |
+          tag="v$VERSION"
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$tag" --jq .sha 2>/dev/null) || tagged=""
+          if [ "$tagged" = "$SHA" ]; then
+            echo "$tag already tags $SHA"
+            exit 0
+          fi
+          release_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          obj=$(gh api "repos/$GITHUB_REPOSITORY/git/tags" -f tag="$tag" -f object="$SHA" -f type=commit \
+            -f message="Midst $VERSION, built by $RUN_URL and released by $release_url" --jq .sha)
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$obj" > /dev/null
+          echo "tagged $SHA as $tag"
+      - name: publish the release
+        env:
+          # A token for another repository, when RELEASE_REPOSITORY points elsewhere.
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          here=()
+          # In this repository the release hangs on the tag just checked or made. Elsewhere the tag
+          # does not exist, so the release creates one on that repository's default branch.
+          [ "$RELEASE_REPO" = "$GITHUB_REPOSITORY" ] && here=(--verify-tag)
+          gh release create "v$VERSION" candidate/release/* --repo "$RELEASE_REPO" \
+            --title "Midst $VERSION" --notes-file release-notes.md "${here[@]}"
+          url=$(gh release view "v$VERSION" --repo "$RELEASE_REPO" --json url --jq .url)
+          {
+            echo "### Released Midst $VERSION"
+            echo "$url"
+            echo
+            echo '```'
+            cat candidate/release/SHA256SUMS
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
