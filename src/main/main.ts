@@ -28,10 +28,10 @@ import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
 import MenuBuilder, { save, newFile, openFile } from './menu';
 import store from './store';
+import { writeConvertedFile } from './convertedFile';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
-  getNewMidstFilename,
   includeVersionInfo,
   loadDataIntoWorkspace,
   resolveHtmlPath,
@@ -209,9 +209,10 @@ const createWindow = async () => {
           });
           if (response === 1) {
             const newFileContents = convertMidstFile(data);
-            const newFilename = getNewMidstFilename(earlyPath);
-
-            fs.writeFileSync(newFilename, includeVersionInfo(newFileContents));
+            const newFilename = writeConvertedFile(
+              earlyPath,
+              includeVersionInfo(newFileContents)
+            );
             loadDataIntoWorkspace(
               newFilename,
               includeVersionInfo(newFileContents),
