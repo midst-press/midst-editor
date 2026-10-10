@@ -34,15 +34,29 @@ step() { local name=$1; shift; if "$@" > "$W/logs/$name.log" 2>&1; then echo "$n
 
 step build-app npm --prefix "$EDITOR" run build
 step build-harness env MIDST_EDITOR_SRC="$EDITOR" npm --prefix "$FORMAT" run build:harness
+touch "$W/marker"
 ( cd "$FORMAT" && MIDST_CORPUS="$ARCHIVE" MIDST_OUT="$W/converted" node conformance/verify_all.cjs ) > "$W/logs/convert.log" 2>&1
-grep -E '^(PASS [0-9]|controls fired)' "$W/logs/convert.log" | sed 's/^/conversion: /'
-"$PY" "$HELP" manifest "$W/converted" "$W" || exit 1
+rc_convert=$?
+# The summary line ONLY. verify_all also prints one line per poem, starting with its file name.
+summary_line=$(grep -E '^PASS [0-9]+ +FAIL [0-9]+ +ERROR [0-9]+ +of [0-9]+$' "$W/logs/convert.log")
+echo "conversion: ${summary_line:-NO SUMMARY LINE} (exit $rc_convert)"
+zips=$("$PY" -c 'import os,sys; print(sum(f.endswith(".midst.zip") for _,_,fs in os.walk(sys.argv[1]) for f in fs))' "$ARCHIVE")
+converted=$("$PY" -c 'import os,sys; print(sum(f.endswith(".converted.midst") for f in os.listdir(sys.argv[1])))' "$W/converted")
+echo "conversion: $converted converted of $zips archive files"
+if [ "$rc_convert" -ne 0 ] || ! [[ "$summary_line" =~ FAIL\ 0\ +ERROR\ 0 ]] || [ "$converted" -ne "$zips" ]; then
+  echo "conversion: STOPPING. Every archive file must convert and verify before the app is judged."; exit 1
+fi
+if ! "$PY" "$HELP" census "$W/converted"; then
+  [ "${ALLOW_UNSUPPORTED:-0}" = 1 ] || { echo "census: STOPPING (ALLOW_UNSUPPORTED=1 to continue and see what the app does)"; exit 1; }
+fi
+"$PY" "$HELP" manifest "$W/converted" "$W" || { echo "manifest: STOPPING (a control could not be built)"; exit 1; }
 "$PY" "$HELP" probe "$W" "$EDITOR" || exit 1
 
 ( cd "$EDITOR" && MIDST_DOGFOOD_MANIFEST="$W/manifest.json" npx playwright test e2e/dogfood-corpus.spec.ts \
     --reporter=list --output="$W/pw-output" ) > "$W/logs/playwright.log" 2>&1
+echo "playwright: exit $?"
 echo
 "$PY" "$HELP" summary "$W"; rc_summary=$?
 echo
-"$PY" "$HELP" leaks "$W" "$EDITOR" "$LOGFILE" "$LOG_BEFORE"; rc_leaks=$?
+"$PY" "$HELP" leaks "$W" "$LOGFILE" "$LOG_BEFORE" "$W/marker" "$EDITOR" "$FORMAT"; rc_leaks=$?
 exit $(( rc_summary || rc_leaks ))

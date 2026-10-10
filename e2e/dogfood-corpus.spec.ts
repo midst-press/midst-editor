@@ -14,11 +14,17 @@
 // UNMUTATED conversion, so a mutated control copy must disagree with its expectation.
 //
 //   1  opens      no dialog, no renderer error, editor reachable
-//   2t text       the editor's text equals the text of the conversion's `text`
+//   2t text       the editor's text equals the text of the app's own parse of the conversion's `text`
+//   2r raw        the editor's text equals the conversion's text from an INERT document, whitespace
+//                 removed: no schema on that side, so content the editor drops shows here
+//   2h html       the editor's getHTML() equals the conversion's `text`, exactly
 //   2s structure  the editor's ProseMirror document equals the app's own parse of that `text`
 //                 (marks and block boundaries, which plain text cannot see)
 //   3  history    the renderer's poemHistory, and the store's, equal the conversion's `history`
-//   4  unchanged  the copy on disk is byte-identical after the settle window AND after the app closes
+//   4  unchanged  the copy's BYTES are identical after the settle window AND after the app closes
+//
+// text and struct share the editor's schema with the app, so whatever the schema drops is dropped on
+// both sides; raw and html exist for that, and the C-unsupported control proves html catches it.
 
 import { test, expect } from '@playwright/test';
 import { appendFileSync, copyFileSync, mkdtempSync, readFileSync } from 'fs';
@@ -68,6 +74,8 @@ function sortKeys(v: unknown): unknown {
   return v;
 }
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+// Bytes, not decoded text: every invalid byte would decode to the same replacement character.
+const shaBytes = (b: Buffer) => createHash('sha256').update(b).digest('hex');
 const canonHash = (v: unknown) => sha(JSON.stringify(sortKeys(v)));
 const parseMidst = (raw: string) =>
   JSON.parse(raw.split('\n')[1]) as { text: string; history: unknown[] };
@@ -82,7 +90,7 @@ cases.forEach((c) => {
     const work = mkdtempSync(join(m.work, 'case-'));
     const copy = join(work, 'poem.midst');
     copyFileSync(c.feed, copy);
-    const before = sha(readFileSync(copy, 'utf8'));
+    const before = shaBytes(readFileSync(copy));
     const expected = parseMidst(readFileSync(c.expected, 'utf8'));
 
     const userData = join(work, 'userdata');
@@ -117,6 +125,7 @@ cases.forEach((c) => {
           };
           options: { parseOptions?: unknown };
           getJSON: () => unknown;
+          getHTML: () => string;
           state: { doc: { textContent: string } };
         };
         /* eslint-disable no-unused-vars */
@@ -141,13 +150,12 @@ cases.forEach((c) => {
         const parser = domParser as Parser | undefined;
         let expDoc: unknown = null;
         let expText: string | null = null;
+        // Schema-independent: the conversion's own text, from an inert document. Nothing in the poem's
+        // HTML can execute while it is parsed.
+        const inert = new window.DOMParser().parseFromString(html, 'text/html');
+        const rawText = inert.body.textContent ?? '';
         if (parser) {
-          // An inert document: nothing in the poem's HTML can execute while it is parsed.
-          const { body } = new window.DOMParser().parseFromString(
-            html,
-            'text/html'
-          );
-          const d = parser.parse(body, ed.options.parseOptions);
+          const d = parser.parse(inert.body, ed.options.parseOptions);
           expDoc = d.toJSON();
           expText = d.textContent;
         }
@@ -184,6 +192,8 @@ cases.forEach((c) => {
           expDoc,
           appText: ed.state.doc.textContent,
           expText,
+          rawText,
+          appHTML: ed.getHTML(),
           history,
         };
       }, expected.text);
@@ -191,7 +201,7 @@ cases.forEach((c) => {
       await new Promise((resolve) => {
         setTimeout(resolve, SETTLE_MS);
       });
-      const afterSettle = sha(readFileSync(copy, 'utf8'));
+      const afterSettle = shaBytes(readFileSync(copy));
       const storeRaw = readStore(userData).history;
       const dialogs = (await dialogsSeen(app)).length;
       const expHist = canonHash(expected.history);
@@ -207,6 +217,13 @@ cases.forEach((c) => {
         seen.reach === true &&
         seen.parser === true &&
         canonHash(seen.appDoc) === canonHash(seen.expDoc);
+      // Not through the schema: what the schema drops is dropped from BOTH sides of text and struct.
+      const squash = (t: unknown) => String(t ?? '').replace(/\s+/g, '');
+      r.raw =
+        seen.reach === true &&
+        sha(squash(seen.appText)) === sha(squash(seen.rawText));
+      r.html =
+        seen.reach === true && sha(String(seen.appHTML)) === sha(expected.text);
       r.historyReachable = seen.reach === true && Array.isArray(seen.history);
       r.history =
         r.historyReachable === true && canonHash(seen.history) === expHist;
@@ -217,12 +234,14 @@ cases.forEach((c) => {
     } finally {
       await app.close();
     }
-    r.unchangedAfterClose = sha(readFileSync(copy, 'utf8')) === before;
+    r.unchangedAfterClose = shaBytes(readFileSync(copy)) === before;
     r.rendererErrors = rendererErrors;
     r.opens = r.opens === true && rendererErrors === 0;
     r.pass = [
       'opens',
       'text',
+      'raw',
+      'html',
       'structure',
       'history',
       'storeHistory',
