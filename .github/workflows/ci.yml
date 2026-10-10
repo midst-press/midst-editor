@@ -18,11 +18,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with: { python-version: '3.12' }
+        with: { python-version: '3.14' }
       # --ignore-scripts: postinstall runs electron-builder install-app-deps, which downloads
       # Electron binaries. The gates do not need them; the packaging job does and does not skip it.
       - run: npm ci --ignore-scripts
-      - run: pip install 'pre-commit==4.6.0'
+      - run: pip install 'pre-commit==4.6.2'
       - run: pre-commit run --all-files --show-diff-on-failure
       # The jest setup file (.erb/scripts/check-build-exists.ts) refuses to run until both the
       # main and renderer bundles exist, so the suite cannot start on a clean checkout. This step
