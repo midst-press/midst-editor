@@ -8,6 +8,11 @@
 #   APPLE_API_KEY_ID, APPLE_API_ISSUER              that key's ID, and the team's issuer ID
 # Windows and Linux are unsigned: there is no Windows certificate, so Windows shows a SmartScreen
 # warning on first run.
+#
+# The version is release/app/package.json (what the installers carry; tools/set_version.sh changes
+# it). A run from main whose macOS installer is signed and notarised tags that commit v<version>,
+# and a run from main is refused up front if v<version> already tags a different commit: one
+# version, one build. Runs from other branches are never tagged. See docs/releasing.md.
 name: package
 on:
   workflow_dispatch:
@@ -26,7 +31,26 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      version: ${{ steps.version.outputs.version }}
     steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - name: read the version, and refuse to rebuild a released one on main
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tools/check_version.sh
+          version=$(node -p "require('./release/app/package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "### version $version" >> "$GITHUB_STEP_SUMMARY"
+          [ "$GITHUB_REF" = refs/heads/main ] || exit 0
+          # The commit a tag names, lightweight or annotated; empty if there is no such tag. gh
+          # prints an API error on STDOUT, so only a successful lookup counts.
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/v$version" --jq .sha 2>/dev/null) || tagged=""
+          if [ -n "$tagged" ] && [ "$tagged" != "$GITHUB_SHA" ]; then
+            echo "::error::v$version already tags $tagged, a different commit. Bump the version (tools/set_version.sh) before building a release from main."
+            exit 1
+          fi
       - id: plan
         env:
           PLATFORM: ${{ inputs.platform }}
@@ -171,20 +195,72 @@ jobs:
       # omitted, so a macOS run would have failed at upload even once the workflow was valid.
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: midst-${{ matrix.want }}-${{ github.sha }}
+          name: midst-${{ matrix.want }}-${{ needs.plan.outputs.version }}-${{ github.sha }}
           path: |
             release/build/*.pkg
             release/build/*.dmg
             release/build/*.exe
             release/build/*.AppImage
           if-no-files-found: error
+      # The version the installer actually carries: electron-builder puts it in the file name, from
+      # release/app/package.json. Checked rather than assumed, so the summary cannot disagree.
       - name: record provenance in the summary
         shell: bash
+        env:
+          VERSION: ${{ needs.plan.outputs.version }}
         run: |
+          files=$(find release/build -maxdepth 1 -type f \( -name '*.pkg' -o -name '*.exe' -o -name '*.AppImage' \) -exec basename {} \;)
+          # The version as a whole number, however the name separates it: "Midst-0.1.0-arm64.pkg",
+          # "Midst-0.1.0.AppImage", "Midst Setup 0.1.0.exe". 10.1.0 does not count as 0.1.0.
+          v_re="(^|[^0-9.])${VERSION//./\\.}([^0-9]|$)"
+          echo "$files" | grep -qE -- "$v_re" \
+            || { echo "::error::no installer named with version $VERSION: $files"; exit 1; }
           {
             echo "### ${{ matrix.want }} build"
+            echo "version: $VERSION"
             echo "commit: ${{ github.sha }}"
             echo "signed: ${{ steps.signing.outputs.signed }}"
             echo "notarised: ${{ steps.signing.outputs.notarised }}"
-            node -e "console.log('version:', require('./package.json').version)"
+            echo "installer: $files"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # Tags the commit v<version> when a run from main produced a signed, notarised macOS installer.
+  # Its own job so that only this step holds a token that can write to the repository; the build
+  # steps above (which run npm install scripts) keep a read-only one.
+  tag:
+    needs: [plan, package]
+    if: >-
+      github.ref == 'refs/heads/main' && needs.package.result == 'success' &&
+      (inputs.platform == 'all' || inputs.platform == 'macos')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: tag the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.plan.outputs.version }}
+          # The macOS leg succeeds signed AND notarised only when all of these exist: with them it
+          # fails rather than ship anything Gatekeeper would reject. Without them it builds
+          # unsigned, which is never tagged.
+          CAN_NOTARISE: >-
+            ${{ secrets.CSC_LINK != '' && secrets.CSC_INSTALLER_LINK != '' &&
+            secrets.APPLE_API_KEY != '' && secrets.APPLE_API_KEY_ID != '' &&
+            secrets.APPLE_API_ISSUER != '' }}
+        run: |
+          if [ "$CAN_NOTARISE" != true ]; then
+            echo "not tagged: the macOS installer was not signed and notarised" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          tag="v$VERSION"
+          tagged=$(gh api "repos/$GITHUB_REPOSITORY/commits/refs/tags/$tag" --jq .sha 2>/dev/null) || tagged=""
+          if [ "$tagged" = "$GITHUB_SHA" ]; then
+            echo "$tag already tags this commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          [ -z "$tagged" ] || { echo "::error::$tag already tags $tagged"; exit 1; }
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          obj=$(gh api "repos/$GITHUB_REPOSITORY/git/tags" -f tag="$tag" -f object="$GITHUB_SHA" -f type=commit \
+            -f message="Midst $VERSION: signed and notarised macOS installer built by $run_url" --jq .sha)
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$tag" -f sha="$obj" > /dev/null
+          echo "tagged $GITHUB_SHA as $tag" >> "$GITHUB_STEP_SUMMARY"

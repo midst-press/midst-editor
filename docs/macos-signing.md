@@ -92,6 +92,9 @@ Running it again replaces them, so the same command is how credentials are rotat
 
 ## 5. Build, and check it worked
 
+This checks signing works. To make a release, with a version number and a tag, follow
+[releasing.md](releasing.md).
+
 On GitHub, go to **midst-press/midst-editor → Actions → package → Run workflow**, choose `macos`
 (or `all`), and run it. It takes about ten minutes, most of it waiting for Apple's notary service.
 

@@ -44,6 +44,13 @@ repos:
           Log files carry absolute paths, usernames and environment details. yarn-error.log in the
           fork point contained a contributor's home directory and full shell PATH.
         files: '(\.log$|(^|/)logs/)'
+
+      - id: version-consistent
+        name: one app version (release/app/package.json is what installers carry)
+        language: system
+        entry: tools/check_version.sh
+        pass_filenames: false
+        files: '(^|/)package(-lock)?\.json$|^tools/(check|set)_version\.sh$'
       - id: prettier
         name: prettier (repo's own pinned version)
         language: system
