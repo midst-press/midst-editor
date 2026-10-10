@@ -12,6 +12,11 @@ updates:
       all-prod:
         dependency-type: production
         update-types: [minor, patch]
+    ignore:
+      # electron-debug 4 needs Electron 30 and 5 needs Electron 44; this app is on Electron 25.
+      # Its majors cannot be taken until Electron is upgraded (#42); remove this rule then.
+      - dependency-name: electron-debug
+        update-types: ['version-update:semver-major']
   - package-ecosystem: github-actions
     directory: '/'
     schedule: { interval: monthly }
