@@ -3,7 +3,13 @@ import { existsSync, mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { dialogsSeen, launch, openDocument, readStore } from './harness';
+import {
+  SETTLE_MS,
+  dialogsSeen,
+  launch,
+  openDocument,
+  readStore,
+} from './harness';
 
 // Issue #14: the first open on a new profile warned of unsaved changes when nothing had been edited.
 // `edited` had no value on a new profile, and only the string 'false' counted as "nothing to lose".
@@ -28,6 +34,15 @@ test('the first open on a new profile does not warn of unsaved changes', async (
     await win.waitForLoadState('domcontentloaded');
 
     await openDocument(app, userData, file, 'the poem');
+
+    // Do not close before the editor has mounted and its first save has been handled. On mounting,
+    // the Editor sends 'save-file'; if the window's close handler has already cleared the stored
+    // filename, save() asks for one with a native Save dialog that nothing here can answer, and the
+    // run hangs in teardown (seen on the first version of this spec, which closed straight away).
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await new Promise((resolve) => {
+      setTimeout(resolve, SETTLE_MS);
+    });
 
     // CONTROL -- the open really happened, so an empty dialog record is not an app that did nothing.
     expect(readStore(userData).poem, 'the poem was not loaded').toContain(
