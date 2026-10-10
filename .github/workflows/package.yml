@@ -197,7 +197,7 @@ jobs:
           done
       # The macOS target is a .pkg (package.json build.mac.target), which the first upload pattern
       # omitted, so a macOS run would have failed at upload even once the workflow was valid.
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: midst-${{ matrix.want }}-${{ needs.plan.outputs.version }}-${{ github.sha }}
           path: |
@@ -239,7 +239,7 @@ jobs:
           fs.writeFileSync(`build-info/${info.platform}.json`, `${JSON.stringify(info, null, 2)}\n`);
           console.log(JSON.stringify(info, null, 2));
           JS
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: build-info-${{ matrix.want }}
           path: build-info/${{ matrix.want }}.json
