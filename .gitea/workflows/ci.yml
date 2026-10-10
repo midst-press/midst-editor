@@ -1,0 +1,45 @@
+# Gitea CI, on the self-hosted macOS runners. The GitHub workflow in .github/workflows/ci.yml runs
+# the same gates on GitHub's Linux runners; this one runs them on Apple silicon, where the app is
+# actually used. Keep the two in step: a gate added to one belongs in the other.
+#
+# Gitea reads .gitea/workflows/ in preference to .github/workflows/, so the GitHub packaging and
+# release workflows -- which sign and notarise with secrets that live only on GitHub -- never run
+# here.
+#
+# Host mode: these steps run directly on the runner machine, not in a VM. Nothing is installed into
+# any Python the host uses: pre-commit goes into a throwaway virtual environment under RUNNER_TEMP.
+#
+# Not here yet: the end-to-end suite. It needs the Electron binary, which `npm ci --ignore-scripts`
+# deliberately does not download (the allowScripts decision is open), and the macOS runners have no
+# window-server session for an Electron window to open in.
+name: ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  gates:
+    runs-on: macos-arm64
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: which machine, which user, which toolchain
+        run: |
+          echo "host=$(hostname -s) user=$(id -un) arch=$(uname -m)"
+          node --version; npm --version; command -v python3; python3 --version
+      - run: npm ci --ignore-scripts
+      - name: pre-commit, in a throwaway virtual environment
+        run: |
+          python3 -m venv "$RUNNER_TEMP/precommit"
+          "$RUNNER_TEMP/precommit/bin/pip" install --quiet 'pre-commit==4.6.0'
+          "$RUNNER_TEMP/precommit/bin/pre-commit" run --all-files --show-diff-on-failure
+      # The jest setup file refuses to run until both bundles exist; see .github/workflows/ci.yml.
+      - run: npm run build
+      - run: npm test -- --coverage
