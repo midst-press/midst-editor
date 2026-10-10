@@ -11,12 +11,12 @@ import {
 import path from 'path';
 import fs from 'fs';
 import store from './store';
+import { writeConvertedFile } from './convertedFile';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
   includeVersionInfo,
   loadDataIntoWorkspace,
-  getNewMidstFilename,
 } from './util';
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
@@ -220,8 +220,10 @@ export const openFile = async (
         });
         if (response === 1) {
           const newFileContents = convertMidstFile(data);
-          const newFilename = getNewMidstFilename(filename![0]);
-          fs.writeFileSync(newFilename, includeVersionInfo(newFileContents));
+          const newFilename = writeConvertedFile(
+            filename![0],
+            includeVersionInfo(newFileContents)
+          );
           app.addRecentDocument(newFilename);
           loadDataIntoWorkspace(
             newFilename,
