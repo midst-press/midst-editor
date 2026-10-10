@@ -11,7 +11,9 @@
 #
 # Homebrew first, always: every step runs under Homebrew's bash, the job puts Homebrew at the front
 # of PATH, and .gitea/scripts/toolchain_guard.sh fails the job if what macOS ships (bash 3.2,
-# Python 3.9, Apple git) is what it actually got, or if node differs from .nvmrc.
+# Python 3.9, Apple git) is what it actually got, or if node differs from .nvmrc. Node is Homebrew's too,
+# not setup-node's: this runner gives every job a fresh, empty tool cache, so setup-node downloaded
+# Node on every job.
 #
 # Not here yet: the end-to-end suite. It needs the Electron binary, which `npm ci --ignore-scripts`
 # deliberately does not download (the allowScripts decision is open), and the macOS runners have no
@@ -42,9 +44,6 @@ jobs:
           echo /opt/homebrew/sbin >> "$GITHUB_PATH"
           echo /opt/homebrew/bin >> "$GITHUB_PATH"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version-file: .nvmrc
       - name: toolchain guard (Homebrew first, current versions)
         run: bash .gitea/scripts/toolchain_guard.sh .nvmrc
       - run: npm ci --ignore-scripts
