@@ -126,7 +126,11 @@ export const convertMidstFile = (oldMidst: string) => {
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    const jsonContentAtFrame = generateJSON(el.content, extensions);
+    // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
+    // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
+    const jsonContentAtFrame = generateJSON(el.content, extensions, {
+      preserveWhitespace: true,
+    });
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, extensions);
     // get the slice of the content before the line number
     const truncatedJsonContentAtFrame = {

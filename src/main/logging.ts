@@ -1,4 +1,5 @@
 import log from 'electron-log';
+import { join } from 'path';
 import store from './store';
 
 // Centralised logging, with a level the user can change so a problem can be reproduced at higher
@@ -10,6 +11,12 @@ import store from './store';
 //   macOS    ~/Library/Logs/<app>/main.log
 //   Windows  %USERPROFILE%\AppData\Roaming\<app>\logs\main.log
 //   Linux    ~/.config/<app>/logs/main.log
+
+// MIDST_LOG_DIR moves the log file. The end-to-end specs set it to their own temporary directory, so a
+// run that opens real poems leaves no record of them in the user's persistent log (the open handler
+// logs every path it is asked to open). Unset in normal use, which keeps the defaults above.
+const logDir = process.env.MIDST_LOG_DIR;
+if (logDir) log.transports.file.resolvePath = () => join(logDir, 'main.log');
 
 export type LogLevel =
   | 'error'
