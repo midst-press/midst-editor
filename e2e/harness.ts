@@ -29,6 +29,9 @@ export function readStore(userData: string): Record<string, string> {
 // a brand-new profile it is undefined, so the first open puts up a modal `showMessageBoxSync`, which
 // blocks Electron's main process with nobody to click it -- the app hangs rather than opening
 // anything. Seeding 'false' puts the app in the state a returning user is actually in.
+// The app now defaults `edited` to 'false' itself (src/main/store.ts), and fresh-profile.spec.ts
+// launches with no seed to hold it to that. The seed stays for the other specs, so that what they
+// start from is written down here and does not depend on that default.
 export function seedStore(userData: string) {
   mkdirSync(userData, { recursive: true });
   writeFileSync(
@@ -79,9 +82,12 @@ export function waitUntil(pred: () => boolean, ms: number): Promise<boolean> {
 // WHY global-setup copies a preload: main.ts:107 picks the preload path on app.isPackaged, which is
 // false for a built-but-unpackaged launch, so it looks for a dev preload `npm run build` never
 // creates. Without it window.electron is undefined and React never mounts.
-export async function launch(work: string) {
+export async function launch(
+  work: string,
+  { seed = true }: { seed?: boolean } = {}
+) {
   const userData = join(work, 'userdata');
-  seedStore(userData);
+  if (seed) seedStore(userData);
   const app = await electron.launch({
     args: [APP_DIR, `--user-data-dir=${userData}`],
     timeout: 60_000,
