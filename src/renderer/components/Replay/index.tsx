@@ -17,6 +17,13 @@ import StarterKit from '@tiptap/starter-kit';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
+import {
+  scrollParent,
+  targetScrollTop,
+  glideTo,
+  gliding,
+  Glide,
+} from './follow';
 
 const extensions = [
   StarterKit.configure({
@@ -40,6 +47,7 @@ export default function Replay() {
   const { setText: setHtmlString } = useContext(TextContext);
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
+  const glide = useRef<Glide | null>(null);
 
   const [step, setStep] = useState(maxStep);
   const [playing, setPlaying] = useState(false);
@@ -90,12 +98,23 @@ export default function Replay() {
       setPlaying(false);
     }
     if (!editor) return;
+    const before = editor.state.doc;
     const newContent = reconstructHTML('', poemHistory, step);
     editor.commands.setContent(newContent, false, { preserveWhitespace: true });
-    const pos = poemHistory[step]?.pos || 0;
-    const { node } = editor.view.domAtPos(pos !== undefined ? pos : 0);
-    if (node) {
-      (node as any).scrollIntoView?.({ block: 'center' });
+    // Follow the writing: see ./follow.ts for why this does not use the recorded pos.
+    const after = editor.state.doc;
+    const changed = after.content.findDiffStart(before.content);
+    const scroller = scrollParent(editor.view.dom as HTMLElement);
+    if (changed != null && scroller) {
+      const at = Math.min(changed, after.content.size);
+      const point = editor.view.coordsAtPos(at);
+      const to = targetScrollTop(
+        point,
+        scroller.getBoundingClientRect(),
+        scroller.scrollTop,
+        scroller.scrollHeight
+      );
+      if (to != null) glide.current = glideTo(scroller, to, glide.current);
     }
   }, [maxStep, step, poemHistory, editor]);
 
@@ -131,13 +150,13 @@ export default function Replay() {
       // there might be a more elegant way to do this with async/await
       setTimeout(() => {
         const interval = setInterval(() => {
-          setStep((val) => val + 1);
+          setStep((val) => (gliding(glide.current) ? val : val + 1));
         }, 60);
         playingInterval.current = interval;
       }, 250);
     } else {
       const interval = setInterval(() => {
-        setStep((val) => val + 1);
+        setStep((val) => (gliding(glide.current) ? val : val + 1));
       }, 60);
       playingInterval.current = interval;
     }
