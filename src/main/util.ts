@@ -121,12 +121,30 @@ const getTextLengthFromJSONContent = (doc: JSONContent): number => {
   return 0;
 };
 
+// A browser never draws a <br> that is the last thing in its block: <p><br></p> is ONE empty line,
+// <p>a<br></p> is one line. ProseMirror draws the same <br> as a hard break plus a trailing line, so
+// every blank line of an old poem doubled. Drop exactly that one <br> (closing inline tags may follow
+// it); a second <br> before it is a real line and stays. Paragraphs only: an emptied <div> would lose
+// its line in the editor (measured by midst-format's render_lines, html-shape--div-as-line).
+const TRAILING_BREAK =
+  /<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/p>)/gi;
+export const dropTrailingBreaks = (html: string) =>
+  html.replace(TRAILING_BREAK, '$1');
+
 export const convertMidstFile = (oldMidst: string) => {
   const oldMidstJSON = JSON.parse(oldMidst);
   const frames = oldMidstJSON.editorTimelineFrames;
 
   const newFrames = frames.map((el: OldMidstTimelineFrame) => {
-    const jsonContentAtFrame = generateJSON(el.content, extensions);
+    // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
+    // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
+    const jsonContentAtFrame = generateJSON(
+      dropTrailingBreaks(el.content),
+      extensions,
+      {
+        preserveWhitespace: true,
+      }
+    );
     const htmlContentAtFrame = generateHTML(jsonContentAtFrame, extensions);
     // get the slice of the content before the line number
     const truncatedJsonContentAtFrame = {
