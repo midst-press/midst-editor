@@ -1,4 +1,10 @@
-import { test, expect, ElectronApplication, Page } from '@playwright/test';
+import {
+  test,
+  expect,
+  chromium,
+  ElectronApplication,
+  Page,
+} from '@playwright/test';
 import { mkdtempSync, writeFileSync, copyFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -54,6 +60,7 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
     let last: string[] = [];
     let target: [number, number] | null = null;
     let lastHeight = 0;
+    let lastTop = 0;
     const t0 = performance.now();
     g.ft = setInterval(() => {
       const pm = document.querySelector(
@@ -62,10 +69,15 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
       const s = scroller(pm);
       if (!pm || !s) return;
       g.fv = s.clientHeight;
+      // A clamp only if the OLD position no longer fits the shorter document, and the new position is its
+      // maximum. A shrink alongside a jump the shrink did not force is still a jump (alden-ec2221c7).
+      const newMax = s.scrollHeight - s.clientHeight;
       const clamped =
         s.scrollHeight < lastHeight &&
-        Math.abs(s.scrollTop - (s.scrollHeight - s.clientHeight)) < 1;
+        lastTop > newMax + 0.5 &&
+        Math.abs(s.scrollTop - newMax) < 1;
       lastHeight = s.scrollHeight;
+      lastTop = s.scrollTop;
       const ps = Array.from(pm.children) as HTMLElement[];
       const now = ps.map((p) => p.textContent ?? '');
       // First paragraph that differs, INCLUDING when the paragraph count changed (a line added or deleted):
@@ -324,6 +336,57 @@ test('the follow verdict rejects each failure it claims to catch', () => {
     verdict({ samples: run(40, 0, 20, true, glide, [0, 10]), viewport })
       .wroteWhileGliding
   ).toBe(0);
+});
+
+// The RECORDER's clamp label, on a controlled page (alden-ec2221c7): a document that shrinks while the
+// view jumps further than the shrink forced is a jump; a shrink that pulls an out-of-range position back
+// to the new maximum is a clamp. 90 lines of 20px in a 600px scroller; 45 are then removed (max 300).
+test('the recorder tells a forced clamp from a jump that rides along with a shrink', async () => {
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage();
+    const scenario = async (startTop: number, jumpTo: number | null) => {
+      await page.setContent(
+        `<div class="ReplayContainer" style="height:600px;overflow-y:auto"><div class="ProseMirror">${Array.from(
+          { length: 90 },
+          (_, i) => `<p style="margin:0;height:20px">line ${i}</p>`
+        ).join('')}</div></div>`
+      );
+      await page.evaluate((t) => {
+        (document.querySelector('.ReplayContainer') as HTMLElement).scrollTop =
+          t;
+      }, startTop);
+      return verdict(
+        await record(page, async () => {
+          await page.waitForTimeout(100);
+          // A visible edit near the current view, so there is a target.
+          await page.evaluate((t) => {
+            const ps = document.querySelectorAll('.ProseMirror p');
+            ps[Math.floor(t / 20) + 2].textContent += 'x';
+          }, startTop);
+          await page.waitForTimeout(200);
+          // Shrink to 45 lines and, in the same task, optionally set scrollTop.
+          await page.evaluate((to) => {
+            const ps = Array.from(document.querySelectorAll('.ProseMirror p'));
+            ps.slice(45).forEach((x) => x.remove());
+            if (to !== null)
+              (
+                document.querySelector('.ReplayContainer') as HTMLElement
+              ).scrollTop = to;
+          }, jumpTo);
+          await page.waitForTimeout(200);
+        })
+      );
+    };
+    // From 0, nothing forced a move: the 0->300 jump must be reported.
+    const riding = await scenario(0, 300);
+    expect(riding.instant + riding.abrupt).toBeGreaterThan(0);
+    // From 1200, the browser must pull back to 300: a clamp, not a jump.
+    const forced = await scenario(1200, null);
+    expect(forced).toMatchObject({ abrupt: 0, instant: 0 });
+  } finally {
+    await browser.close();
+  }
 });
 
 (['end', 'middle'] as const).forEach((at) => {
