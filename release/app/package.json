@@ -2,7 +2,7 @@
   "name": "midst",
   "version": "0.1.0",
   "description": "Poetry in process",
-  "license": "MIT",
+  "license": "AGPL-3.0-or-later",
   "author": {
     "name": "Midst Team",
     "email": "team@midst.press",
