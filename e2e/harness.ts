@@ -6,6 +6,7 @@ import { expect } from '@playwright/test';
 import { _electron as electron, type ElectronApplication } from 'playwright';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { join, resolve as resolvePath } from 'path';
+import { collectCoverage, coverageEnv } from './coverage';
 
 export const APP_DIR = resolvePath(__dirname, '..', 'release', 'app');
 
@@ -90,9 +91,11 @@ export async function launch(
   if (seed) seedStore(userData);
   const app = await electron.launch({
     args: [APP_DIR, `--user-data-dir=${userData}`],
+    env: coverageEnv(),
     timeout: 60_000,
   });
   await captureDialogs(app);
+  await collectCoverage(app);
   return { app, userData };
 }
 
