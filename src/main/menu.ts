@@ -16,6 +16,7 @@ import {
   fileVersionMatchesCurrent,
   convertMidstFile,
   includeVersionInfo,
+  serializeDocument,
   loadDataIntoWorkspace,
 } from './util';
 
@@ -86,11 +87,9 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     store.set('baseFilename', path.basename(filename));
     const text: string = store.get('poem') as string;
     const history: string = store.get('history') as string;
+    const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
-      JSON.stringify({
-        text,
-        history: JSON.parse(history),
-      })
+      serializeDocument(text, history, meta)
     );
     if (darwin) {
       mainWindow.setDocumentEdited(false);
@@ -129,11 +128,9 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     store.set('baseFilename', path.basename(filename));
     const text: string = store.get('poem') as string;
     const history: string = store.get('history') as string;
+    const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
-      JSON.stringify({
-        text,
-        history: JSON.parse(history),
-      })
+      serializeDocument(text, history, meta)
     );
     if (darwin) {
       mainWindow.setDocumentEdited(false);
@@ -162,6 +159,7 @@ export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
   }
   store.set('poem', '');
   store.set('history', JSON.stringify([]));
+  store.set('meta', '');
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
@@ -320,6 +318,7 @@ export default class MenuBuilder {
             if (this.mainWindow.isDestroyed()) {
               store.set('poem', '');
               store.set('history', JSON.stringify([]));
+              store.set('meta', '');
               store.set('filename', '');
               store.set('edited', JSON.stringify(false));
               app.emit('activate', false);
