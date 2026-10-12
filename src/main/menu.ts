@@ -52,16 +52,22 @@ const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
+// The stored size is a string, as the renderer writes it. Only a missing or empty value is unset:
+// a 0 is the smallest size, whichever type it was stored as.
+const storedFontSize = () => {
+  const stored = store.get('font-size');
+  return stored === undefined || stored === '' ? 2 : Number(stored);
+};
 const increaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = store.get('font-size') ? Number(store.get('font-size')) : 2;
+  const fontSize = storedFontSize();
   if (fontSize >= 4) {
     return;
   }
-  store.set('font-size', fontSize + 1);
+  store.set('font-size', String(fontSize + 1));
   mainWindow.webContents.send('set-font-size', String(fontSize + 1));
 };
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = store.get('font-size') ? Number(store.get('font-size')) : 2;
+  const fontSize = storedFontSize();
 
   if (fontSize <= 0) {
     return;
@@ -85,8 +91,8 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
   if (filename) {
     store.set('filename', filename);
     store.set('baseFilename', path.basename(filename));
-    const text: string = store.get('poem') as string;
-    const history: string = store.get('history') as string;
+    const text = (store.get('poem') as string | undefined) ?? '';
+    const history = (store.get('history') as string | undefined) ?? '[]';
     const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
       serializeDocument(text, history, meta)
@@ -126,8 +132,8 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   if (filename) {
     store.set('filename', filename);
     store.set('baseFilename', path.basename(filename));
-    const text: string = store.get('poem') as string;
-    const history: string = store.get('history') as string;
+    const text = (store.get('poem') as string | undefined) ?? '';
+    const history = (store.get('history') as string | undefined) ?? '[]';
     const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
       serializeDocument(text, history, meta)
