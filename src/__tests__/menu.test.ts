@@ -291,6 +291,23 @@ describe('newFile', () => {
     expect(options.type).toBe('warning');
   });
 
+  // Only the string 'false' means there is nothing to lose. A missing or empty value must still
+  // ask, as the window's close handler does.
+  it.each([['true'], [undefined], ['']])(
+    'asks before discarding the document when edited is %p',
+    (edited) => {
+      seedDocument();
+      if (edited === undefined) mockStore.delete('edited');
+      else mockStore.set('edited', edited);
+      showMessageBox.mockReturnValue(1);
+      const win = makeWindow();
+      newFile(asWindow(win), false);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      expect(mockStore.get('poem')).toBe('<p>xv</p>');
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    }
+  );
+
   it('when the poet cancels, keeps the document and tells the renderer nothing', () => {
     seedDocument({ edited: 'true', filename: '/x/zq.midst' });
     showMessageBox.mockReturnValue(1);
@@ -354,6 +371,24 @@ describe('openFile', () => {
     expect(mockStore.get('poem')).toBe('<p>xv</p>');
     expect(pendingIo).toHaveLength(0);
   });
+
+  it.each([['true'], [undefined], ['']])(
+    'asks before replacing the document when edited is %p, and a Cancel opens nothing',
+    async (edited) => {
+      seedDocument();
+      if (edited === undefined) mockStore.delete('edited');
+      else mockStore.set('edited', edited);
+      showMessageBox.mockReturnValue(1);
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, goodFile());
+      const win = makeWindow();
+      await openFile(asWindow(win), false, [target]);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      expect(pendingIo).toHaveLength(0);
+      expect(mockStore.get('poem')).toBe('<p>xv</p>');
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    }
+  );
 
   it('loads a current-version file given up front, without a file dialog', async () => {
     seedDocument({ edited: 'false' });
