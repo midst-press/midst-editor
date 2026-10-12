@@ -131,6 +131,43 @@ const TRAILING_BREAK =
 export const dropTrailingBreaks = (html: string) =>
   html.replace(TRAILING_BREAK, '$1');
 
+/**
+ * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
+ * is copied unchanged; a field B does not have is left out, so the reader's default applies.
+ */
+export const metaFromOldMidst = (old: Record<string, unknown> = {}) => {
+  const meta: Record<string, unknown> = {};
+  if ('editorFontFamily' in old) meta.fontFamily = old.editorFontFamily;
+  if ('editorFontSize' in old) meta.fontSize = old.editorFontSize;
+  if (Array.isArray(old.editorDraftMarkers))
+    meta.draftMarkers = old.editorDraftMarkers.map(
+      ({ timelineIndex, ...rest }: Record<string, unknown>) => ({
+        index: timelineIndex,
+        ...rest,
+      })
+    );
+  if ('editorHighestEverDraftNumber' in old)
+    meta.highestDraftNumber = old.editorHighestEverDraftNumber;
+  if ('editorTitle' in old) meta.title = old.editorTitle;
+  if ('editorAuthor' in old) meta.author = old.editorAuthor;
+  return meta;
+};
+
+/**
+ * The file body the editor saves. `meta` is the stored JSON string ('' when the document has
+ * none) and is written back unchanged, unknown keys included, so a save never loses it.
+ */
+export const serializeDocument = (
+  text: string,
+  history: string,
+  meta: string
+) =>
+  JSON.stringify({
+    text,
+    history: JSON.parse(history),
+    ...(meta ? { meta: JSON.parse(meta) } : {}),
+  });
+
 export const convertMidstFile = (oldMidst: string) => {
   const oldMidstJSON = JSON.parse(oldMidst);
   const frames = oldMidstJSON.editorTimelineFrames;
@@ -170,6 +207,7 @@ export const convertMidstFile = (oldMidst: string) => {
   const fullContents = JSON.stringify({
     text,
     history,
+    meta: metaFromOldMidst(oldMidstJSON.meta),
   });
   return fullContents;
 };
@@ -180,9 +218,11 @@ export const loadDataIntoWorkspace = (
   mainWindow: BrowserWindow,
   darwin: boolean
 ) => {
-  const { text, history } = JSON.parse(stripVersionInfo(data));
+  const { text, history, meta } = JSON.parse(stripVersionInfo(data));
   store.set('poem', text);
   store.set('history', JSON.stringify(history));
+  // Always set, so a poem without meta never inherits the previous poem's.
+  store.set('meta', meta === undefined ? '' : JSON.stringify(meta));
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   mainWindow.webContents.send(
