@@ -24,6 +24,7 @@
 //   2 reach     the e2e layer must include main-process code (main.ts) and window code (Replay/index.tsx) with
 //               some line covered, or that half of the collector is dead.
 import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -158,6 +159,53 @@ function summarise(layers, root = ROOT) {
   }
 }
 
+// nyc merge over a set of layers -> the merged istanbul JSON, keyed src/... (the same matching nyc report uses).
+function merged(layers) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-nyc-merge-'));
+  try {
+    layers.forEach((l, i) =>
+      fs.writeFileSync(path.join(dir, `${i}.json`), JSON.stringify(l))
+    );
+    const out = path.join(dir, 'merged.out');
+    run(NYC, ['merge', dir, out]);
+    return Object.fromEntries(
+      Object.entries(JSON.parse(fs.readFileSync(out, 'utf8'))).map(([k, v]) => [
+        rel(k) || k,
+        v,
+      ])
+    );
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+// Control 3 (cyril-9137f1ee, review of #36): the converter layer must MERGE into the other two, never add to
+// them. Its map differs (blank, comment and type-only lines removed, c8's own index keys), so for each file it
+// covers: the combined line total equals the unit layer's (no new lines), and at every one of its statements
+// the combined hit count is EXACTLY unit + e2e + converter. Count equality goes red if the layer were dropped,
+// even where every line it hits is already covered by unit tests. Refuses if the layer has no hits at all.
+function converterControl(unitL, e2eL, convL, combined) {
+  const key = (l) =>
+    `${l.start.line}:${l.start.column}-${l.end.line}:${l.end.column}`;
+  const byLoc = (fc) =>
+    new Map(
+      fc
+        ? Object.entries(fc.statementMap).map(([i, l]) => [key(l), fc.s[i]])
+        : []
+    );
+  let hits = 0;
+  for (const [f, fc] of Object.entries(convL)) {
+    const [u, e, c] = [byLoc(unitL[f]), byLoc(e2eL[f]), byLoc(combined[f])];
+    if (!combined[f] || c.size !== u.size) return false;
+    for (const [loc, n] of byLoc(fc)) {
+      hits += n;
+      if (c.get(loc) !== (u.get(loc) ?? 0) + (e.get(loc) ?? 0) + n)
+        return false;
+    }
+  }
+  return hits > 0;
+}
+
 function pipelineControl() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-cov-ctl-'));
   try {
@@ -224,9 +272,39 @@ const unit = linesOnly(JSON.parse(fs.readFileSync(unitFile, 'utf8')));
 const e2e = linesOnly(
   convertV8(rawDir, path.join(COV, 'e2e', 'istanbul'), path.join(ROOT, 'src'))
 );
-const converter = fs.existsSync(CONVERTER)
-  ? linesOnly(JSON.parse(fs.readFileSync(CONVERTER, 'utf8')))
-  : null;
+// The converter layer is keyed src/main/util.ts but measured on another checkout's util.ts, so its line numbers
+// mean something here only if the two files are the same (vivian-1a61bc9a, review of #36). midst-format writes
+// the sha256 of the util.ts it measured to converter-util.sha256 beside the JSON: on a mismatch the layer is
+// left out and named; with no hash file it is merged, and the report says its source was not checked.
+const CONVERTER_HASH = path.join(
+  path.dirname(CONVERTER),
+  'converter-util.sha256'
+);
+let converter = null;
+let converterNote;
+if (!fs.existsSync(CONVERTER)) {
+  converterNote = `converter layer missing (${path.relative(
+    ROOT,
+    CONVERTER
+  )}): combined is unit + e2e only`;
+} else {
+  const ours = crypto
+    .createHash('sha256')
+    .update(fs.readFileSync(path.join(ROOT, 'src', 'main', 'util.ts')))
+    .digest('hex');
+  const theirs = fs.existsSync(CONVERTER_HASH)
+    ? fs.readFileSync(CONVERTER_HASH, 'utf8').trim().split(/\s+/)[0]
+    : null;
+  if (theirs && theirs !== ours) {
+    converterNote =
+      'converter layer measured on another util.ts (sha256 differs): not merged; combined is unit + e2e only';
+  } else {
+    converter = linesOnly(JSON.parse(fs.readFileSync(CONVERTER, 'utf8')));
+    converterNote = theirs
+      ? 'combined includes midst-format converter-istanbul.json (its util.ts sha256 matches this one)'
+      : 'combined includes midst-format converter-istanbul.json; NOT checked against this util.ts (no converter-util.sha256 beside it)';
+  }
+}
 
 const U = summarise([unit]);
 const E = summarise([e2e]);
@@ -245,9 +323,13 @@ for (const f of files)
       C[f]
     ).padStart(9)}`
   );
+// Every column over the combined file list: a file absent from a layer counts as 0 of its lines there.
 const tot = (S) =>
-  Object.values(S).reduce(
-    (a, v) => ({ covered: a.covered + v.covered, total: a.total + v.total }),
+  files.reduce(
+    (a, f) => ({
+      covered: a.covered + (S[f]?.covered ?? 0),
+      total: a.total + C[f].total,
+    }),
     { covered: 0, total: 0 }
   );
 const [tu, te, tc] = [tot(U), tot(E), tot(C)];
@@ -256,14 +338,7 @@ console.log(
     tc
   ).padStart(9)}   (${tc.covered}/${tc.total} lines, ${files.length} files)`
 );
-console.log(
-  converter
-    ? 'combined includes midst-format converter-istanbul.json'
-    : `converter layer missing (${path.relative(
-        ROOT,
-        CONVERTER
-      )}): combined is unit + e2e only`
-);
+console.log(converterNote);
 console.log(
   "not collected: src/main/preload.ts (e2e runs it in the preload's isolated world, which neither collector reaches)"
 );
@@ -282,4 +357,23 @@ console.log(
     c2 ? 'holds' : 'FAILED'
   }`
 );
-process.exit(c1 && c2 ? 0 : 1);
+// Control 4 (vivian-1a61bc9a): with Electron's source-map-cache trusted, every main-process file read 100%. The
+// main-process files must keep at least one line e2e never ran; if the over-read comes back, this fires.
+const c4 = ['src/main/main.ts', 'src/main/menu.ts'].some((f) =>
+  Object.values(e2e[f]?.s ?? {}).some((n) => n === 0)
+);
+console.log(
+  `control 4 (main-process files are not all read as run: the source-map-cache over-read is absent): ${
+    c4 ? 'holds' : 'FAILED'
+  }`
+);
+const c3 = converter
+  ? converterControl(unit, e2e, converter, merged([unit, e2e, converter]))
+  : null;
+if (c3 !== null)
+  console.log(
+    `control 3 (converter layer merges into util.ts: same line total, hits add exactly): ${
+      c3 ? 'holds' : 'FAILED'
+    }`
+  );
+process.exit(c1 && c2 && c4 && c3 !== false ? 0 : 1);
