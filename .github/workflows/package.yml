@@ -78,7 +78,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # Dependencies' install scripts are not run (#47): Jest 30 brought in unrs-resolver and @parcel/watcher,
+      # dev-only packages whose scripts packaging does not need. Only the project's own postinstall is needed
+      # here (native app dependencies, renderer DLL), so it is run by name.
+      - run: npm ci --ignore-scripts
+      - run: npm run postinstall
       # electron-builder treats an EMPTY CSC_LINK as a certificate to import and fails, so the
       # signing variables are exported only when the secrets exist. Without them, signing is
       # switched off explicitly rather than left to whatever identity the runner happens to have.
