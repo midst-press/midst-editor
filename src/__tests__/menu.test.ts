@@ -192,15 +192,51 @@ describe('save', () => {
     expect(mockStore.get('filename')).toBe(target);
   });
 
-  it('saves an empty document when nothing has been loaded yet', async () => {
+  it('writes a new, empty document as an empty document', async () => {
     const target = path.join(dir, 'zq.midst');
+    seedDocument({ poem: '', history: '[]', filename: '' });
     showSaveDialog.mockReturnValue(target);
     await save(asWindow(makeWindow()), false);
     await ioDone();
     expect(readBack(target)).toBe(
       `midstVersion: 1\n${JSON.stringify({ text: '', history: [] })}`
     );
-    expect(mockStore.get('edited')).toBe('false');
+  });
+
+  it('with no document in the store, asks nothing, writes nothing and says so', async () => {
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    const win = makeWindow();
+    await save(asWindow(win), false);
+    await ioDone();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBeUndefined();
+    expect(mockStore.get('baseFilename')).toBeUndefined();
+    expect(win.webContents.send.mock.calls).toEqual([['cancel-save']]);
+  });
+
+  it.each(['poem', 'history'])(
+    'leaves the file on disk alone when the stored %s is gone',
+    async (missing) => {
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'earlier work');
+      seedDocument({ filename: target });
+      mockStore.delete(missing);
+      await save(asWindow(makeWindow()), false);
+      await ioDone();
+      expect(readBack(target)).toBe('earlier work');
+      expect(mockStore.get('edited')).toBe('true');
+    }
+  );
+
+  it('does not keep the chosen filename when the document cannot be written', async () => {
+    seedDocument({ filename: '', history: '{not json' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    await expect(save(asWindow(makeWindow()), false)).rejects.toThrow();
+    await ioDone();
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBe('');
+    expect(mockStore.get('baseFilename')).toBeUndefined();
   });
 
   it('when the poet cancels the dialog, writes nothing, keeps the edited state and says so', async () => {
@@ -275,15 +311,32 @@ describe('saveAs', () => {
     expect(win.setDocumentEdited).not.toHaveBeenCalled();
   });
 
-  it('saves an empty document when nothing has been loaded yet', async () => {
-    const chosen = path.join(dir, 'xv.midst');
-    showSaveDialog.mockReturnValue(chosen);
-    await saveAs(asWindow(makeWindow()), false);
+  it.each(['poem', 'history'])(
+    'with the stored %s gone, asks nothing and writes nothing, even over a file the poet could pick',
+    async (missing) => {
+      const existing = path.join(dir, 'zq.midst');
+      fs.writeFileSync(existing, 'earlier work');
+      seedDocument({ filename: existing });
+      mockStore.delete(missing);
+      showSaveDialog.mockReturnValue(existing);
+      const win = makeWindow();
+      await saveAs(asWindow(win), false);
+      await ioDone();
+      expect(showSaveDialog).not.toHaveBeenCalled();
+      expect(readBack(existing)).toBe('earlier work');
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does not keep the chosen filename when the document cannot be written', async () => {
+    const previous = path.join(dir, 'zq.midst');
+    seedDocument({ filename: previous, history: '{not json' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'xv.midst'));
+    await expect(saveAs(asWindow(makeWindow()), false)).rejects.toThrow();
     await ioDone();
-    expect(readBack(chosen)).toBe(
-      `midstVersion: 1\n${JSON.stringify({ text: '', history: [] })}`
-    );
-    expect(mockStore.get('edited')).toBe('false');
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBe(previous);
   });
 
   it('when the poet cancels, changes nothing', async () => {
