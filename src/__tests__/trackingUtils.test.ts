@@ -78,9 +78,15 @@ describe('compareStrings change object', () => {
     });
   });
 
-  // Not pinned: what compareStrings returns for two identical strings. That change, applied with
-  // step, erases the text (front 0, end 0). The editor never asks for it (it returns before
-  // comparing when nothing changed), so it is unreachable today; see the pull request.
+  it('describes an unchanged state as a change that keeps the whole text', () => {
+    expect(compareStrings('zq', 'zq', 5)).toEqual({
+      front: 2,
+      inserted: '',
+      end: 0,
+      t: T,
+      pos: 5,
+    });
+  });
 
   it('stamps the time the change was made', () => {
     const change = compareStrings('zq', 'zqx', 0);
@@ -141,6 +147,20 @@ describe('round trip: compareStrings then step', () => {
         from,
       ]);
     });
+  });
+
+  // The editor does not record an unchanged state today, but a change for one must be safe to replay:
+  // it once came back as front 0, end 0, which step() applies by erasing the text.
+  it.each(['', 'z', 'zq xv', '<p>zq</p>', 'zq\nxv', 'aaaa'])(
+    'an unchanged state replays as the same text: %j',
+    (text) => {
+      expect(step(text, compareStrings(text, text, 0))).toBe(text);
+    }
+  );
+
+  it('reproduces each state of a history that repeats a state', () => {
+    const states = ['zq', 'zq', 'zq xv', 'zq xv', '', '', 'ab'];
+    expect(replayAll(buildHistory(states))).toEqual(states);
   });
 
   it('reproduces each state of a multi-step history', () => {
