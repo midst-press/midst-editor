@@ -102,3 +102,60 @@ export function makePlayableMidst(sentence: string): PlayableDoc {
     history,
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// A TALL poem whose writing JUMPS between distant lines, for Replay's scrolling (midst-press/midst-web#32,
+// Annelyse: "when the author jumps to a place that was off screen, the content should scroll gently to
+// that new point"). Frame 0 is the whole poem; then, at each target line in turn, ten letters are typed
+// at the end of the line, one frame per letter, with `pos` at the caret as the editor records it
+// (`editor.state.selection.$anchor.pos`). Invented letters only.
+export interface JumpingDoc extends PlayableDoc {
+  lines: number;
+  targets: number[];
+  typed: number;
+}
+
+// at 'end' types after the last character of the line; 'middle' types after its first character (editing a
+// word already there), which puts the caret inside a text node.
+export function makeJumpingMidst(
+  at: 'end' | 'middle' = 'end',
+  lines = 150,
+  targets = [140, 3, 110, 20, 148, 1],
+  typed = 10
+): JumpingDoc {
+  const text = Array.from(
+    { length: lines },
+    (_, i) => `abc ${'d'.repeat(1 + (i % 7))} efg`
+  );
+  const html = (t: string[]) => t.map((s) => `<p>${s}</p>`).join('');
+  // ProseMirror position just after character c of line k: each earlier paragraph is size + 2.
+  const caret = (t: string[], k: number, c: number) =>
+    t.slice(0, k).reduce((n, s) => n + s.length + 2, 0) + 1 + c;
+  const history: ChangeObj[] = [];
+  let prev = '';
+  const cur = text.slice();
+  history.push(compareStrings(prev, html(cur), caret(cur, 0, 0)));
+  prev = html(cur);
+  targets.forEach((k) => {
+    for (let j = 0; j < typed; j += 1) {
+      const c = at === 'end' ? cur[k].length : 1 + j;
+      cur[k] = `${cur[k].slice(0, c)}z${cur[k].slice(c)}`;
+      const next = html(cur);
+      history.push(compareStrings(prev, next, caret(cur, k, c + 1)));
+      prev = next;
+    }
+  });
+  const finalHtml = prev;
+  return {
+    file: `${MIDST_VERSION_HEADER}\n${JSON.stringify({
+      text: finalHtml,
+      history,
+    })}`,
+    finalHtml,
+    finalText: cur.join(''),
+    history,
+    lines,
+    targets,
+    typed,
+  };
+}
