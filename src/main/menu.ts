@@ -52,16 +52,22 @@ const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
+// The stored size is a string, as the renderer writes it. Only a missing or empty value is unset:
+// a 0 is the smallest size, whichever type it was stored as.
+const storedFontSize = () => {
+  const stored = store.get('font-size');
+  return stored === undefined || stored === '' ? 2 : Number(stored);
+};
 const increaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = store.get('font-size') ? Number(store.get('font-size')) : 2;
+  const fontSize = storedFontSize();
   if (fontSize >= 4) {
     return;
   }
-  store.set('font-size', fontSize + 1);
+  store.set('font-size', String(fontSize + 1));
   mainWindow.webContents.send('set-font-size', String(fontSize + 1));
 };
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = store.get('font-size') ? Number(store.get('font-size')) : 2;
+  const fontSize = storedFontSize();
 
   if (fontSize <= 0) {
     return;
@@ -70,7 +76,23 @@ const decreaseFontSize = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('set-font-size', String(fontSize - 1));
 };
 
+// A document that is not in the store is not an empty document. newFile stores '' and '[]' for a
+// new poem; undefined means the store was cleared (the window's close handler does that), and
+// writing that out as an empty document could replace a poem on disk with nothing.
+const storedDocument = () => {
+  const text = store.get('poem') as string | undefined;
+  const history = store.get('history') as string | undefined;
+  return text === undefined || history === undefined ? null : { text, history };
+};
+
 export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
+  const document = storedDocument();
+  if (document === null) {
+    log.error('save: no document in the store; nothing written');
+    mainWindow.webContents.send('cancel-save');
+    return;
+  }
+  const { text, history } = document;
   let filename: string | undefined = store.get('filename') as string;
   if (!filename) {
     filename = dialog.showSaveDialogSync(mainWindow, {
@@ -83,14 +105,14 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     });
   }
   if (filename) {
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    const text: string = store.get('poem') as string;
-    const history: string = store.get('history') as string;
     const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
       serializeDocument(text, history, meta)
     );
+    // Only once there is something to write: a document that cannot be serialized must not leave
+    // its intended filename behind in the store.
+    store.set('filename', filename);
+    store.set('baseFilename', path.basename(filename));
     if (darwin) {
       mainWindow.setDocumentEdited(false);
       mainWindow.setRepresentedFilename(filename);
@@ -114,6 +136,12 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
+  const document = storedDocument();
+  if (document === null) {
+    log.error('saveAs: no document in the store; nothing written');
+    return;
+  }
+  const { text, history } = document;
   const filename = dialog.showSaveDialogSync(mainWindow, {
     title: 'Save file as...',
     message: 'Save file as...',
@@ -124,14 +152,14 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   });
 
   if (filename) {
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    const text: string = store.get('poem') as string;
-    const history: string = store.get('history') as string;
     const meta = (store.get('meta') as string | undefined) ?? '';
     const fullContents = includeVersionInfo(
       serializeDocument(text, history, meta)
     );
+    // Only once there is something to write: a document that cannot be serialized must not leave
+    // its intended filename behind in the store.
+    store.set('filename', filename);
+    store.set('baseFilename', path.basename(filename));
     if (darwin) {
       mainWindow.setDocumentEdited(false);
       mainWindow.setRepresentedFilename(filename);

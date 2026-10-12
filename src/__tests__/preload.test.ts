@@ -166,6 +166,17 @@ describe('ipcRenderer.once', () => {
     listener({ sender: 'event-zq' }, 'xv', 'zq');
     expect(func).toHaveBeenCalledWith('xv', 'zq');
   });
+
+  it('returns an unsubscribe that removes the very listener it added', () => {
+    const api = loadPreload();
+    const unsubscribe = api.ipcRenderer.once('app-open', jest.fn());
+    const [, listener] = mockIpc.once.mock.calls[0];
+    expect(mockIpc.removeListener).not.toHaveBeenCalled();
+
+    unsubscribe();
+    expect(mockIpc.removeListener).toHaveBeenCalledTimes(1);
+    expect(mockIpc.removeListener).toHaveBeenCalledWith('app-open', listener);
+  });
 });
 
 describe('store', () => {

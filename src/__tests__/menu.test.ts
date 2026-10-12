@@ -192,6 +192,53 @@ describe('save', () => {
     expect(mockStore.get('filename')).toBe(target);
   });
 
+  it('writes a new, empty document as an empty document', async () => {
+    const target = path.join(dir, 'zq.midst');
+    seedDocument({ poem: '', history: '[]', filename: '' });
+    showSaveDialog.mockReturnValue(target);
+    await save(asWindow(makeWindow()), false);
+    await ioDone();
+    expect(readBack(target)).toBe(
+      `midstVersion: 1\n${JSON.stringify({ text: '', history: [] })}`
+    );
+  });
+
+  it('with no document in the store, asks nothing, writes nothing and says so', async () => {
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    const win = makeWindow();
+    await save(asWindow(win), false);
+    await ioDone();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBeUndefined();
+    expect(mockStore.get('baseFilename')).toBeUndefined();
+    expect(win.webContents.send.mock.calls).toEqual([['cancel-save']]);
+  });
+
+  it.each(['poem', 'history'])(
+    'leaves the file on disk alone when the stored %s is gone',
+    async (missing) => {
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'earlier work');
+      seedDocument({ filename: target });
+      mockStore.delete(missing);
+      await save(asWindow(makeWindow()), false);
+      await ioDone();
+      expect(readBack(target)).toBe('earlier work');
+      expect(mockStore.get('edited')).toBe('true');
+    }
+  );
+
+  it('does not keep the chosen filename when the document cannot be written', async () => {
+    seedDocument({ filename: '', history: '{not json' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    await expect(save(asWindow(makeWindow()), false)).rejects.toThrow();
+    await ioDone();
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBe('');
+    expect(mockStore.get('baseFilename')).toBeUndefined();
+  });
+
   it('when the poet cancels the dialog, writes nothing, keeps the edited state and says so', async () => {
     seedDocument({ filename: '' });
     showSaveDialog.mockReturnValue(undefined);
@@ -262,6 +309,34 @@ describe('saveAs', () => {
     await saveAs(asWindow(win), false);
     await ioDone();
     expect(win.setDocumentEdited).not.toHaveBeenCalled();
+  });
+
+  it.each(['poem', 'history'])(
+    'with the stored %s gone, asks nothing and writes nothing, even over a file the poet could pick',
+    async (missing) => {
+      const existing = path.join(dir, 'zq.midst');
+      fs.writeFileSync(existing, 'earlier work');
+      seedDocument({ filename: existing });
+      mockStore.delete(missing);
+      showSaveDialog.mockReturnValue(existing);
+      const win = makeWindow();
+      await saveAs(asWindow(win), false);
+      await ioDone();
+      expect(showSaveDialog).not.toHaveBeenCalled();
+      expect(readBack(existing)).toBe('earlier work');
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    }
+  );
+
+  it('does not keep the chosen filename when the document cannot be written', async () => {
+    const previous = path.join(dir, 'zq.midst');
+    seedDocument({ filename: previous, history: '{not json' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'xv.midst'));
+    await expect(saveAs(asWindow(makeWindow()), false)).rejects.toThrow();
+    await ioDone();
+    expect(dirListing()).toEqual([]);
+    expect(mockStore.get('filename')).toBe(previous);
   });
 
   it('when the poet cancels, changes nothing', async () => {
@@ -846,6 +921,39 @@ describe('the menu', () => {
       sub(build('linux', win), '&View', 'Decrease text size').click!();
       expect(win.webContents.send).not.toHaveBeenCalled();
       expect(mockStore.get('font-size')).toBe('0');
+    });
+
+    it('Increase and Decrease both store the size as a string, as the renderer does', () => {
+      const win = makeWindow();
+      const template = build('linux', win);
+      sub(template, '&View', 'Increase text size').click!();
+      expect(mockStore.get('font-size')).toBe('3');
+      sub(template, '&View', 'Decrease text size').click!();
+      expect(mockStore.get('font-size')).toBe('2');
+    });
+
+    it('reads a stored number 0 as size 0, not as unset', () => {
+      mockStore.set('font-size', 0);
+      const win = makeWindow();
+      const template = build('linux', win);
+      sub(template, '&View', 'Decrease text size').click!();
+      expect(win.webContents.send).not.toHaveBeenCalled();
+      sub(template, '&View', 'Increase text size').click!();
+      expect(win.webContents.send).toHaveBeenLastCalledWith(
+        'set-font-size',
+        '1'
+      );
+      expect(mockStore.get('font-size')).toBe('1');
+    });
+
+    it('reads an empty stored size as unset, so the default of 2 applies', () => {
+      mockStore.set('font-size', '');
+      const win = makeWindow();
+      sub(build('linux', win), '&View', 'Increase text size').click!();
+      expect(win.webContents.send).toHaveBeenLastCalledWith(
+        'set-font-size',
+        '3'
+      );
     });
 
     it('Increase reaches 4 from the default of 2 and then stops', () => {

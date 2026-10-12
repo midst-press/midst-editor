@@ -230,7 +230,13 @@ const createWindow = async () => {
     mainWindow = null;
   });
   mainWindow.on('close', (event) => {
-    const clearableStoreKeys = ['filename', 'baseFilename', 'poem', 'history'];
+    const clearableStoreKeys = [
+      'filename',
+      'baseFilename',
+      'poem',
+      'history',
+      'meta',
+    ];
     if (store.get('edited') === 'false') {
       clearableStoreKeys.forEach((keyName) => {
         store.delete(keyName);
