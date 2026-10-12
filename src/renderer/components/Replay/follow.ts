@@ -50,12 +50,35 @@ export function targetScrollTop(
   return Math.max(0, Math.min(scrollHeight - box.height, Math.round(centre)));
 }
 
-/** Glide duration: gentle for a short move, longer for a long one, but never slower than 1.5s. */
-export function glideMs(distance: number): number {
-  return Math.max(250, Math.min(1500, distance / 2.5));
+/**
+ * Peak glide speed, in viewports per second. Speed is set relative to the viewport, not in pixels,
+ * so a short window (the website's player) is not scrolled harder than a tall one (the editor):
+ * at 5 viewports/s a single 60Hz frame moves at most 1/12 of the view, and two frames landing in
+ * one sample at most 1/6. On the editor's ~900px view this is about the earlier fixed 5 px/ms peak.
+ */
+export const PEAK_VIEWPORTS_PER_S = 5;
+
+/**
+ * Glide duration for `distance` px in a view `viewport` px tall. The ease below peaks at twice its
+ * average speed, so the duration that keeps the peak at PEAK_VIEWPORTS_PER_S is
+ * 2 * distance / (PEAK * viewport) seconds. Never shorter than 250ms, so a small move still reads
+ * as a glide.
+ *
+ * No upper cap, and that is a trade: a gentle bound and a fixed cap cannot both hold for every
+ * distance, and playback waits for the glide. So a long jump pauses the timelapse in proportion to
+ * its length: at 5 viewports/s, 0.4s per view (5 views 2s, 20 views 8s, 50 views 20s). Measured
+ * jumps in Annelyse's Autoscroll Test Poem stay under 2 views. Whether a very long jump should
+ * instead jump most of the way and glide the rest is an open question for the editor
+ * (clement-7074f29f, midst-editor#24).
+ */
+export function glideMs(distance: number, viewport: number): number {
+  const ms =
+    (2 * distance * 1000) / (PEAK_VIEWPORTS_PER_S * Math.max(1, viewport));
+  return Math.max(250, ms);
 }
 
-const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+export const ease = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 
 export interface Glide {
   to: number;
@@ -65,6 +88,12 @@ export interface Glide {
 
 /** True while a glide is still moving. */
 export const gliding = (g: Glide | null) => !!g && !g.done;
+
+/**
+ * Views shorter than this are not glided: a collapsed or hidden scroller reports a height near 0,
+ * which would make glideMs enormous, and playback waits for every glide (clement-7074f29f, #24).
+ */
+export const MIN_GLIDE_VIEWPORT = 50;
 
 /** Glide `el` to `to`. Returns the glide, so the caller can tell whether it is already heading there. */
 export function glideTo(
@@ -77,7 +106,11 @@ export function glideTo(
   const from = el.scrollTop;
   const distance = Math.abs(to - from);
   if (distance < 2) return null;
-  const ms = glideMs(distance);
+  if (el.clientHeight < MIN_GLIDE_VIEWPORT) {
+    el.scrollTop = to;
+    return null;
+  }
+  const ms = glideMs(distance, el.clientHeight);
   const t0 = performance.now();
   const glide: Glide = { to, frame: 0, done: false };
   const tick = (now: number) => {

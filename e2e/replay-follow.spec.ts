@@ -185,9 +185,18 @@ export function verdict({ samples, viewport }: Rec) {
   let instant = 0;
   let wroteWhileGliding = 0;
   const glideDetail: string[] = [];
+  // Reported, not asserted: what the glides cost. Distances in viewports, durations in ms.
+  let moves = 0;
+  let maxMoveViewports = 0;
+  let maxGlideMs = 0;
+  let maxStepFraction = 0;
   for (let i = 1; i < tops.length; i += 1)
-    if (moving[i] && Math.abs(tops[i] - tops[i - 1]) > viewport / 3)
-      abrupt += 1;
+    if (moving[i]) {
+      const step = Math.abs(tops[i] - tops[i - 1]);
+      if (viewport > 0)
+        maxStepFraction = Math.max(maxStepFraction, step / viewport);
+      if (step > viewport / 3) abrupt += 1;
+    }
   // Movements: maximal runs of moving ticks.
   let i = 1;
   while (i < tops.length) {
@@ -198,6 +207,10 @@ export function verdict({ samples, viewport }: Rec) {
       while (j + 1 < tops.length && moving[j + 1]) j += 1;
       const distance = Math.abs(tops[j] - tops[i - 1]);
       if (distance > 50 && j - i + 1 < 3) instant += 1;
+      moves += 1;
+      if (viewport > 0)
+        maxMoveViewports = Math.max(maxMoveViewports, distance / viewport);
+      maxGlideMs = Math.max(maxGlideMs, samples[j][4] - samples[i - 1][4]);
       // STRICTLY inside: the glide's last frame and the next step can share one 20ms sample, which is
       // ordering the sampler cannot resolve, not the playback moving on mid-glide.
       for (let m = i + 1; m < j; m += 1)
@@ -221,15 +234,32 @@ export function verdict({ samples, viewport }: Rec) {
     wroteWhileGliding,
     glideDetail,
     viewport,
+    moves,
+    maxMoveViewports: +maxMoveViewports.toFixed(2),
+    maxGlideMs: Math.round(maxGlideMs),
+    maxStepFraction: +maxStepFraction.toFixed(3),
   };
 }
 
+// Window sizes every follow case runs at. The helper is copied verbatim into the website's player,
+// whose 720px-tall page leaves a much shorter scroller than the editor's default window, so the
+// verdict must hold at both (alden-ec2221c7 found a step of 162px in a 439px view on the website).
+const WINDOWS = [
+  { name: 'default', size: null },
+  { name: 'short', size: { width: 1280, height: 600 } },
+] as const;
+
 async function openReplay(
-  poemPath: string
+  poemPath: string,
+  size: { width: number; height: number } | null = null
 ): Promise<{ app: ElectronApplication; win: Page }> {
   const { app, userData } = await launch(join(poemPath, '..'));
   const win = await app.firstWindow();
   await win.waitForLoadState('domcontentloaded');
+  if (size)
+    await app.evaluate(({ BrowserWindow }, s) => {
+      BrowserWindow.getAllWindows()[0].setContentSize(s.width, s.height);
+    }, size);
   await openDocument(app, userData, poemPath, 'the poem');
   await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
   await win.getByRole('link', { name: 'Replay' }).click();
@@ -389,58 +419,62 @@ test('the recorder tells a forced clamp from a jump that rides along with a shri
   }
 });
 
-(['end', 'middle'] as const).forEach((at) => {
-  test(`replay follows jumping writing, gently (typing at the ${at} of a line)`, async () => {
-    const doc = makeJumpingMidst(at);
-    // CONTROL: the fixture reconstructs through the app's own step logic.
-    expect(reconstructHTML('', doc.history, doc.history.length - 1)).toBe(
-      doc.finalHtml
+WINDOWS.forEach((w) =>
+  (['end', 'middle'] as const).forEach((at) => {
+    test(`replay follows jumping writing, gently (typing at the ${at} of a line, ${w.name} window)`, async () => {
+      const doc = makeJumpingMidst(at);
+      // CONTROL: the fixture reconstructs through the app's own step logic.
+      expect(reconstructHTML('', doc.history, doc.history.length - 1)).toBe(
+        doc.finalHtml
+      );
+      const poemPath = join(
+        mkdtempSync(join(tmpdir(), 'midst-follow-')),
+        'jumping.midst'
+      );
+      writeFileSync(poemPath, doc.file);
+      const { app, win } = await openReplay(poemPath, w.size);
+      try {
+        const last = doc.targets[doc.targets.length - 1];
+        const rec = await record(win, async () => {
+          await win.locator('[data-testid="PlayArrowIcon"]').first().click();
+          await expect(
+            win.locator('.ReplayContainer .ProseMirror p').nth(last)
+          ).toContainText('z'.repeat(doc.typed), { timeout: 60_000 });
+          await win.waitForTimeout(SETTLE_MS + 200);
+        });
+        assertFollows(`synthetic, ${at}, ${w.name}`, verdict(rec));
+      } finally {
+        await app.close();
+      }
+    });
+  })
+);
+
+WINDOWS.forEach((w) =>
+  test(`replay follows Annelyse's Autoscroll Test Poem, gently (${w.name} window)`, async () => {
+    const src = process.env.MIDST_AUTOSCROLL_POEM;
+    test.skip(
+      !src || !existsSync(src),
+      'MIDST_AUTOSCROLL_POEM not set; poem files never live in this repository'
     );
     const poemPath = join(
       mkdtempSync(join(tmpdir(), 'midst-follow-')),
-      'jumping.midst'
+      'autoscroll.midst'
     );
-    writeFileSync(poemPath, doc.file);
-    const { app, win } = await openReplay(poemPath);
+    copyFileSync(src!, poemPath);
+    const { app, win } = await openReplay(poemPath, w.size);
     try {
-      const last = doc.targets[doc.targets.length - 1];
       const rec = await record(win, async () => {
         await win.locator('[data-testid="PlayArrowIcon"]').first().click();
+        // Played to the end when the play button comes back.
         await expect(
-          win.locator('.ReplayContainer .ProseMirror p').nth(last)
-        ).toContainText('z'.repeat(doc.typed), { timeout: 60_000 });
+          win.locator('[data-testid="PlayArrowIcon"]').first()
+        ).toBeVisible({ timeout: 300_000 });
         await win.waitForTimeout(SETTLE_MS + 200);
       });
-      assertFollows(`synthetic, ${at}`, verdict(rec));
+      assertFollows(`autoscroll test poem, ${w.name}`, verdict(rec));
     } finally {
       await app.close();
     }
-  });
-});
-
-test("replay follows Annelyse's Autoscroll Test Poem, gently", async () => {
-  const src = process.env.MIDST_AUTOSCROLL_POEM;
-  test.skip(
-    !src || !existsSync(src),
-    'MIDST_AUTOSCROLL_POEM not set; poem files never live in this repository'
-  );
-  const poemPath = join(
-    mkdtempSync(join(tmpdir(), 'midst-follow-')),
-    'autoscroll.midst'
-  );
-  copyFileSync(src!, poemPath);
-  const { app, win } = await openReplay(poemPath);
-  try {
-    const rec = await record(win, async () => {
-      await win.locator('[data-testid="PlayArrowIcon"]').first().click();
-      // Played to the end when the play button comes back.
-      await expect(
-        win.locator('[data-testid="PlayArrowIcon"]').first()
-      ).toBeVisible({ timeout: 300_000 });
-      await win.waitForTimeout(SETTLE_MS + 200);
-    });
-    assertFollows('autoscroll test poem', verdict(rec));
-  } finally {
-    await app.close();
-  }
-});
+  })
+);
