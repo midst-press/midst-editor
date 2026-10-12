@@ -338,6 +338,38 @@ describe('main process', () => {
       expect(store.get('edited')).toBe('true');
     });
 
+    it('clears the document meta too, so it cannot reach the next document', async () => {
+      const { store, fireWindow } = await boot();
+      store.set('edited', 'false');
+      store.set('meta', '{"fontSize":3}');
+
+      await fireWindow('close', closeEvent());
+
+      expect(store.get('meta')).toBeUndefined();
+    });
+
+    it('clears the document meta on Quit Anyway as well', async () => {
+      const { store, state, fireWindow } = await boot();
+      store.set('edited', 'true');
+      store.set('meta', '{"fontSize":3}');
+      state.dialogResponse = 0;
+
+      await fireWindow('close', closeEvent());
+
+      expect(store.get('meta')).toBeUndefined();
+    });
+
+    it('keeps the meta of an unsaved document when the poet cancels', async () => {
+      const { store, state, fireWindow } = await boot();
+      store.set('edited', 'true');
+      store.set('meta', '{"fontSize":3}');
+      state.dialogResponse = 1;
+
+      await fireWindow('close', closeEvent());
+
+      expect(store.get('meta')).toBe('{"fontSize":3}');
+    });
+
     it('discards the document and destroys the window only on Quit Anyway', async () => {
       const { store, state, fireWindow } = await boot();
       store.set('edited', 'true');
