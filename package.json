@@ -52,6 +52,12 @@
         "lines": 88,
         "statements": 88
       },
+      "./src/main/fontSize.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/main/logging.ts": {
         "branches": 100,
         "functions": 100,

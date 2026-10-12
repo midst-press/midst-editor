@@ -11,6 +11,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import store from './store';
+import { fontSizeFromStore } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
 import {
   fileVersionMatchesCurrent,
@@ -52,12 +53,7 @@ const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
-// The stored size is a string, as the renderer writes it. Only a missing or empty value is unset:
-// a 0 is the smallest size, whichever type it was stored as.
-const storedFontSize = () => {
-  const stored = store.get('font-size');
-  return stored === undefined || stored === '' ? 2 : Number(stored);
-};
+const storedFontSize = () => fontSizeFromStore(store.get('font-size'));
 const increaseFontSize = (mainWindow: BrowserWindow) => {
   const fontSize = storedFontSize();
   if (fontSize >= 4) {

@@ -6,6 +6,7 @@ import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
+import { fontSizeFromStore } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext } from 'renderer/context';
 import HandleTab from '../../HandleTab';
@@ -214,9 +215,9 @@ export default function Editor() {
     setMyEditor(editor);
   };
 
-  const restoreSizeClassSetting = window.electron.store.get('font-size')
-    ? Number(window.electron.store.get('font-size'))
-    : 2;
+  const restoreSizeClassSetting = fontSizeFromStore(
+    window.electron.store.get('font-size')
+  );
 
   const [sizeClass] = useState<number>(
     [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)

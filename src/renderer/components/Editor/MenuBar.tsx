@@ -7,6 +7,7 @@ import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { useState, useEffect } from 'react';
+import { fontSizeFromStore } from 'main/fontSize';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
@@ -15,9 +16,9 @@ function MenuBar() {
   // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
   // placing it above the hooks made the hook count conditional, which a tiptap change that renders
   // slotBefore eagerly would turn into a hard "Rendered more hooks than during the previous render".
-  const restoreSizeClassSetting = window.electron.store.get('font-size')
-    ? Number(window.electron.store.get('font-size'))
-    : 2;
+  const restoreSizeClassSetting = fontSizeFromStore(
+    window.electron.store.get('font-size')
+  );
   const [sizeClass, setSizeClass] = useState<number>(
     [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
       ? restoreSizeClassSetting
