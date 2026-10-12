@@ -95,6 +95,13 @@ export const gliding = (g: Glide | null) => !!g && !g.done;
  */
 export const MIN_GLIDE_VIEWPORT = 50;
 
+/**
+ * The most glide time one frame may advance: two 60Hz frames. At PEAK_VIEWPORTS_PER_S that is at
+ * most 1/6 of the view per frame, however long the frame actually took (midst-web#11's runner
+ * showed 150-226ms stalls, which moved a wall-clock glide a whole stall's worth in one frame).
+ */
+export const MAX_FRAME_MS = 2 * (1000 / 60);
+
 /** Glide `el` to `to`. Returns the glide, so the caller can tell whether it is already heading there. */
 export function glideTo(
   el: HTMLElement,
@@ -111,10 +118,15 @@ export function glideTo(
     return null;
   }
   const ms = glideMs(distance, el.clientHeight);
-  const t0 = performance.now();
+  let last = performance.now();
+  let progress = 0;
   const glide: Glide = { to, frame: 0, done: false };
   const tick = (now: number) => {
-    const t = Math.min(1, (now - t0) / ms);
+    // Advance by at most MAX_FRAME_MS per frame: after a stall (a slow phone, a busy machine) the
+    // glide resumes where it was rather than jumping ahead by the time it lost.
+    progress += Math.max(0, Math.min(now - last, MAX_FRAME_MS));
+    last = now;
+    const t = Math.min(1, progress / ms);
     el.scrollTop = from + (to - from) * ease(t);
     if (t < 1) glide.frame = requestAnimationFrame(tick);
     else glide.done = true;
