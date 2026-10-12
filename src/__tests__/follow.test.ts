@@ -1,6 +1,9 @@
 import {
   ease,
   glideMs,
+  glideTo,
+  gliding,
+  MIN_GLIDE_VIEWPORT,
   PEAK_VIEWPORTS_PER_S,
 } from '../renderer/components/Replay/follow';
 
@@ -42,4 +45,17 @@ describe('glideMs', () => {
   it('never glides for less than 250ms', () => {
     expect(glideMs(1, 568)).toBe(250);
   });
+});
+
+describe('glideTo', () => {
+  // Playback waits while gliding() is true, so a glide that never ends stalls the timelapse.
+  it.each([0, MIN_GLIDE_VIEWPORT - 1])(
+    'moves a %ipx-tall scroller at once rather than gliding',
+    (clientHeight) => {
+      const el = { clientHeight, scrollTop: 0 } as HTMLElement;
+      const glide = glideTo(el, 1000, null);
+      expect(gliding(glide)).toBe(false);
+      expect(el.scrollTop).toBe(1000);
+    }
+  );
 });

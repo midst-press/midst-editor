@@ -62,7 +62,14 @@ export const PEAK_VIEWPORTS_PER_S = 5;
  * Glide duration for `distance` px in a view `viewport` px tall. The ease below peaks at twice its
  * average speed, so the duration that keeps the peak at PEAK_VIEWPORTS_PER_S is
  * 2 * distance / (PEAK * viewport) seconds. Never shorter than 250ms, so a small move still reads
- * as a glide. No upper cap: a gentle bound and a fixed cap cannot both hold for every distance.
+ * as a glide.
+ *
+ * No upper cap, and that is a trade: a gentle bound and a fixed cap cannot both hold for every
+ * distance, and playback waits for the glide. So a long jump pauses the timelapse in proportion to
+ * its length: at 5 viewports/s, 0.4s per view (5 views 2s, 20 views 8s, 50 views 20s). Measured
+ * jumps in Annelyse's Autoscroll Test Poem stay under 2 views. Whether a very long jump should
+ * instead jump most of the way and glide the rest is an open question for the editor
+ * (clement-7074f29f, midst-editor#24).
  */
 export function glideMs(distance: number, viewport: number): number {
   const ms =
@@ -82,6 +89,12 @@ export interface Glide {
 /** True while a glide is still moving. */
 export const gliding = (g: Glide | null) => !!g && !g.done;
 
+/**
+ * Views shorter than this are not glided: a collapsed or hidden scroller reports a height near 0,
+ * which would make glideMs enormous, and playback waits for every glide (clement-7074f29f, #24).
+ */
+export const MIN_GLIDE_VIEWPORT = 50;
+
 /** Glide `el` to `to`. Returns the glide, so the caller can tell whether it is already heading there. */
 export function glideTo(
   el: HTMLElement,
@@ -93,6 +106,10 @@ export function glideTo(
   const from = el.scrollTop;
   const distance = Math.abs(to - from);
   if (distance < 2) return null;
+  if (el.clientHeight < MIN_GLIDE_VIEWPORT) {
+    el.scrollTop = to;
+    return null;
+  }
   const ms = glideMs(distance, el.clientHeight);
   const t0 = performance.now();
   const glide: Glide = { to, frame: 0, done: false };
