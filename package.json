@@ -88,6 +88,12 @@
         "lines": 99,
         "statements": 99
       },
+      "./src/renderer/HandleTab.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/renderer/components/Replay/follow.ts": {
         "branches": 100,
         "functions": 100,
