@@ -38,6 +38,19 @@
     ]
   },
   "jest": {
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}",
+      "!src/**/*.d.ts",
+      "!src/__tests__/**"
+    ],
+    "coverageThreshold": {
+      "./src/main/util.ts": {
+        "branches": 96,
+        "functions": 100,
+        "lines": 98,
+        "statements": 99
+      }
+    },
     "moduleDirectories": [
       "node_modules",
       "release/app/node_modules",
