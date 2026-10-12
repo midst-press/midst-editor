@@ -37,6 +37,11 @@ const configuration: webpack.Configuration = {
     library: {
       type: 'commonjs2',
     },
+    // COVERAGE=1 (midst-editor#29): name each source by its path on disk, so V8 coverage of the
+    // bundle maps back to src/... files that c8 can read. Normal builds keep webpack:// names.
+    ...(process.env.COVERAGE === '1'
+      ? { devtoolModuleFilenameTemplate: '[absolute-resource-path]' }
+      : {}),
   },
 
   /**

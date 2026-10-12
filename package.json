@@ -20,7 +20,8 @@
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "coverage": "cross-env COVERAGE=1 npm run build && jest --coverage --coverageProvider=v8 --coverageReporters=json --coverageDirectory=coverage/unit && node -e \"require('fs').rmSync('coverage/e2e',{recursive:true,force:true})\" && cross-env COVERAGE=1 playwright test && node scripts/coverage-merge.mjs"
   },
   "browserslist": [],
   "prettier": {
@@ -125,6 +126,7 @@
     "@typescript-eslint/eslint-plugin": "^5.59.8",
     "@typescript-eslint/parser": "^5.59.8",
     "browserslist-config-erb": "^0.0.3",
+    "c8": "12.0.0",
     "chalk": "^4.1.2",
     "concurrently": "^8.1.0",
     "core-js": "^3.30.2",
@@ -155,6 +157,7 @@
     "jest": "^29.5.0",
     "jest-environment-jsdom": "^29.5.0",
     "mini-css-extract-plugin": "^2.7.6",
+    "nyc": "18.0.0",
     "prettier": "^2.8.8",
     "react-refresh": "^0.14.0",
     "react-test-renderer": "^18.2.0",

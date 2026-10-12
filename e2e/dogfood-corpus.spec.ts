@@ -40,6 +40,7 @@ import {
   openDocument,
   readStore,
 } from './harness';
+import { collectCoverage, coverageEnv } from './coverage';
 
 interface Case {
   id: string; // P01..Pnn for poems, C-<kind> for controls. Never a title.
@@ -97,9 +98,13 @@ cases.forEach((c) => {
     seedStore(userData);
     const app = await electron.launch({
       args: [APP_DIR, `--user-data-dir=${userData}`],
-      env: { ...process.env, MIDST_LOG_DIR: work } as Record<string, string>,
+      env: (coverageEnv({ ...process.env, MIDST_LOG_DIR: work }) ?? {
+        ...process.env,
+        MIDST_LOG_DIR: work,
+      }) as Record<string, string>,
       timeout: 60_000,
     });
+    await collectCoverage(app);
     let rendererErrors = 0;
     const r: Record<string, unknown> = { id: c.id, mustFail: c.mustFail };
     try {
