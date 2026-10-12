@@ -50,12 +50,28 @@ export function targetScrollTop(
   return Math.max(0, Math.min(scrollHeight - box.height, Math.round(centre)));
 }
 
-/** Glide duration: gentle for a short move, longer for a long one, but never slower than 1.5s. */
-export function glideMs(distance: number): number {
-  return Math.max(250, Math.min(1500, distance / 2.5));
+/**
+ * Peak glide speed, in viewports per second. Speed is set relative to the viewport, not in pixels,
+ * so a short window (the website's player) is not scrolled harder than a tall one (the editor):
+ * at 5 viewports/s a single 60Hz frame moves at most 1/12 of the view, and two frames landing in
+ * one sample at most 1/6. On the editor's ~900px view this is about the earlier fixed 5 px/ms peak.
+ */
+export const PEAK_VIEWPORTS_PER_S = 5;
+
+/**
+ * Glide duration for `distance` px in a view `viewport` px tall. The ease below peaks at twice its
+ * average speed, so the duration that keeps the peak at PEAK_VIEWPORTS_PER_S is
+ * 2 * distance / (PEAK * viewport) seconds. Never shorter than 250ms, so a small move still reads
+ * as a glide. No upper cap: a gentle bound and a fixed cap cannot both hold for every distance.
+ */
+export function glideMs(distance: number, viewport: number): number {
+  const ms =
+    (2 * distance * 1000) / (PEAK_VIEWPORTS_PER_S * Math.max(1, viewport));
+  return Math.max(250, ms);
 }
 
-const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+export const ease = (t: number) =>
+  t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 
 export interface Glide {
   to: number;
@@ -77,7 +93,7 @@ export function glideTo(
   const from = el.scrollTop;
   const distance = Math.abs(to - from);
   if (distance < 2) return null;
-  const ms = glideMs(distance);
+  const ms = glideMs(distance, el.clientHeight);
   const t0 = performance.now();
   const glide: Glide = { to, frame: 0, done: false };
   const tick = (now: number) => {
