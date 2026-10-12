@@ -17,6 +17,7 @@ import StarterKit from '@tiptap/starter-kit';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
+import { fontSizeFromStore } from 'main/fontSize';
 import {
   scrollParent,
   targetScrollTop,
@@ -62,7 +63,7 @@ export default function Replay() {
     ? 'history-height-tall'
     : 'history-height-short';
 
-  const restoreSizeClassSetting = Number(
+  const restoreSizeClassSetting = fontSizeFromStore(
     window.electron.store.get('font-size')
   );
 
