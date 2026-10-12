@@ -46,11 +46,59 @@
     ],
     "coverageProvider": "v8",
     "coverageThreshold": {
+      "./src/main/convertedFile.ts": {
+        "branches": 90,
+        "functions": 100,
+        "lines": 88,
+        "statements": 88
+      },
+      "./src/main/logging.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/main/main.ts": {
+        "branches": 86,
+        "functions": 80,
+        "lines": 93,
+        "statements": 93
+      },
+      "./src/main/menu.ts": {
+        "branches": 93,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/main/preload.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/main/store.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/main/util.ts": {
         "branches": 95,
         "functions": 100,
         "lines": 99,
         "statements": 99
+      },
+      "./src/renderer/components/Replay/follow.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/tracking/utils.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
       }
     },
     "moduleDirectories": [
