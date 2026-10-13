@@ -188,6 +188,13 @@ jobs:
           a=$(lipo -archs release/build/mac-arm64/Midst.app/Contents/MacOS/Midst)
           echo "architecture: $a"
           [ "$a" = arm64 ]
+      # pkgbuild's default lets the installer update a copy of the app found anywhere on the Mac
+      # and put nothing in Applications, while reporting success (#57). package.json
+      # build.pkg.isRelocatable turns that off; this reads the built package to see that it did.
+      - name: check the installer puts the app where it says
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_not_relocatable.sh release/build/*.pkg
       - name: check what Gatekeeper will say
         if: steps.signing.outputs.signed == 'yes'
         shell: bash
