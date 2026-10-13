@@ -180,6 +180,9 @@ export default function Editor() {
       () => {
         setSpellcheckOn(!spellcheckOn);
         window.electron.store.set('spellcheck', (!spellcheckOn).toString());
+        // The reloaded window takes its text from the store, and a pending autosave dies with this
+        // page: save first, or the keystrokes of the last second are gone.
+        saveFileAndUpdateStore();
         window.location.reload();
       }
     );
