@@ -81,6 +81,10 @@ const storedDocument = () => {
   return text === undefined || history === undefined ? null : { text, history };
 };
 
+// The name the save dialog offers. Without one, macOS offers whatever name was last typed into any save
+// panel, which can be another application's file (midst-press/midst-editor#52).
+const UNTITLED = 'Untitled.midst';
+
 export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const document = storedDocument();
   if (document === null) {
@@ -94,6 +98,7 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     filename = dialog.showSaveDialogSync(mainWindow, {
       title: 'To begin, create a new Midst document.',
       message: 'To begin, create a new Midst document.',
+      defaultPath: UNTITLED,
       filters: [
         { name: 'Midst', extensions: ['midst'] },
         { name: 'All Files', extensions: ['*'] },
@@ -141,6 +146,7 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const filename = dialog.showSaveDialogSync(mainWindow, {
     title: 'Save file as...',
     message: 'Save file as...',
+    defaultPath: (store.get('filename') as string | undefined) || UNTITLED,
     filters: [
       { name: 'Midst', extensions: ['midst'] },
       { name: 'All Files', extensions: ['*'] },
