@@ -85,6 +85,18 @@ const storedDocument = () => {
 // panel, which can be another application's file (midst-press/midst-editor#52).
 const UNTITLED = 'Untitled.midst';
 
+// The folder a dialog opens in. From Electron 43 a dialog given no folder opens in Downloads, and the
+// system no longer remembers the last folder used, so the app remembers it: the folder of the last
+// poem opened or saved, or Documents before there is one (electron/electron docs/breaking-changes.md,
+// "Dialog methods default to Downloads directory").
+const LAST_FOLDER = 'lastFolder';
+const dialogFolder = (): string => {
+  const last = store.get(LAST_FOLDER) as string | undefined;
+  return last && fs.existsSync(last) ? last : app.getPath('documents');
+};
+const rememberFolder = (file: string) =>
+  store.set(LAST_FOLDER, path.dirname(file));
+
 export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const document = storedDocument();
   if (document === null) {
@@ -98,7 +110,7 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     filename = dialog.showSaveDialogSync(mainWindow, {
       title: 'To begin, create a new Midst document.',
       message: 'To begin, create a new Midst document.',
-      defaultPath: UNTITLED,
+      defaultPath: path.join(dialogFolder(), UNTITLED),
       filters: [
         { name: 'Midst', extensions: ['midst'] },
         { name: 'All Files', extensions: ['*'] },
@@ -114,6 +126,7 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
     // its intended filename behind in the store.
     store.set('filename', filename);
     store.set('baseFilename', path.basename(filename));
+    rememberFolder(filename);
     if (darwin) {
       mainWindow.setDocumentEdited(false);
       mainWindow.setRepresentedFilename(filename);
@@ -146,7 +159,9 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const filename = dialog.showSaveDialogSync(mainWindow, {
     title: 'Save file as...',
     message: 'Save file as...',
-    defaultPath: (store.get('filename') as string | undefined) || UNTITLED,
+    defaultPath:
+      (store.get('filename') as string | undefined) ||
+      path.join(dialogFolder(), UNTITLED),
     filters: [
       { name: 'Midst', extensions: ['midst'] },
       { name: 'All Files', extensions: ['*'] },
@@ -162,6 +177,7 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     // its intended filename behind in the store.
     store.set('filename', filename);
     store.set('baseFilename', path.basename(filename));
+    rememberFolder(filename);
     if (darwin) {
       mainWindow.setDocumentEdited(false);
       mainWindow.setRepresentedFilename(filename);
@@ -215,6 +231,7 @@ export const openFile = async (
   } else {
     filename = dialog.showOpenDialogSync(mainWindow, {
       title: 'Open...',
+      defaultPath: dialogFolder(),
       filters: [
         { name: 'Midst', extensions: ['midst'] },
         { name: 'All Files', extensions: ['*'] },
@@ -223,6 +240,7 @@ export const openFile = async (
   }
 
   if (filename?.length) {
+    rememberFolder(filename[0]);
     fs.readFile(filename[0], 'utf8', (_err, data) => {
       if (fileVersionMatchesCurrent(data)) {
         try {

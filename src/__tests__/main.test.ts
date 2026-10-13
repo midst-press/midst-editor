@@ -122,6 +122,8 @@ jest.mock('electron', () => {
   };
 });
 
+// electron-debug 5 is ESM only; main.ts calls it only when debugging.
+jest.mock('electron-debug', () => ({ __esModule: true, default: jest.fn() }));
 jest.mock('electron-updater', () => ({
   autoUpdater: { checkForUpdatesAndNotify: jest.fn(), logger: null },
 }));

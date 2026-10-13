@@ -21,6 +21,7 @@ import {
   IpcMainEvent,
   shell,
 } from 'electron';
+import debug from 'electron-debug';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import fs from 'fs';
@@ -67,7 +68,7 @@ const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 if (isDebug) {
-  require('electron-debug')();
+  debug();
 }
 
 const installExtensions = async () => {
