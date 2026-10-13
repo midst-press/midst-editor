@@ -40,9 +40,11 @@ changes only when the format does, never with a release.
    - The run's summary shows the version, whether macOS was signed and notarised, and each
      installer's file name.
    - The installers are under the run's **Artifacts**.
-4. **Test the candidate.** Download the artifacts, install them, and try them. If something is
-   wrong, fix it on a branch and merge it. Then build a new candidate from `main` at the same
-   version, because nothing has been released yet.
+4. **Test the candidate.** Download the artifacts, install them, and try them. For macOS, do the
+   three checks in [The macOS install test](#the-macos-install-test) below; **step 5 does not happen
+   until all three have passed on this candidate's package**. If something is wrong, fix it on a
+   branch and merge it. Then build a new candidate from `main` at the same version, because nothing
+   has been released yet, and test that one from the start.
 5. **Release the candidate that passed**: **Actions → release → Run workflow**, giving it that
    package run's number (the number at the end of the run's URL). It:
    - checks the candidate;
@@ -57,6 +59,52 @@ changes only when the format does, never with a release.
 
 Artifacts are deleted after the repository's retention period (90 days by default), so release a
 candidate before then, or build a new one.
+
+## The macOS install test
+
+Every macOS package gets these three checks before it is released. They exist because 0.2.0's first
+candidate reported "The installation was successful" and put nothing in Applications.
+
+**No `v<version>` tag is made until the script has passed and both manual steps are ticked, all on
+the package being released.** Nothing enforces this but the person running the release workflow.
+
+Use a Mac, or an account on one, that has no Midst installed.
+
+- [ ] **The script passes.** Anyone can run it; it needs no administrator password.
+
+  ```bash
+  gh run download <package run number> -R midst-press/midst-editor -p 'midst-macos-*' -D candidate
+  tools/check_installed_package.sh candidate/midst-macos-*/Midst-*-arm64.pkg
+  ```
+
+  It checks the package (signed, accepted by Gatekeeper, not relocatable, the right version),
+  installs it "for me only", confirms an older copy elsewhere on the Mac was left alone, launches the
+  app, opens a made-up poem, quits, and removes everything it installed. It prints one line per step
+  and ends `PASSED` (exit 0). `FAILED` (exit 1) means do not release. `CANNOT RUN` (exit 2) means it
+  proved nothing, most often because a Midst is already installed there; it will not touch one.
+  Midst's window appears for a few seconds while it runs.
+
+- [ ] **An "all users" install puts Midst in the main Applications folder.** This needs an
+      administrator password, and it is the path that failed for a poet. Double-click the package,
+      choose **Install for all users of this computer**, and finish. Then look for:
+
+  - `Midst` in `/Applications` (Finder: Go → Applications), not only in your home folder;
+  - **Get Info** on it shows the version being released;
+  - it opens from there.
+
+  If the installer says it succeeded and Midst is not in `/Applications`, do not release.
+
+- [ ] **The installer's windows read correctly.** While doing the step above, read each window:
+
+  - no warning that the package cannot be verified or is from an unidentified developer;
+  - the title and the version are Midst's;
+  - the destination window offers the choices you expect, and choosing **Install for me only**
+    instead (run the package a second time) puts Midst in `~/Applications`.
+
+  The script cannot see these windows: the command line skips them.
+
+Afterwards, delete the copies you installed by hand (`/Applications/Midst.app` and
+`~/Applications/Midst.app`), so the next candidate's test starts clean.
 
 ## What the release workflow refuses
 
