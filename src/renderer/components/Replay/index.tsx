@@ -1,5 +1,5 @@
 import './Replay.css';
-import { useState, useEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { reconstructHTML, ChangeObj } from 'renderer/tracking/utils';
 import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
@@ -7,7 +7,9 @@ import Zoom from '@mui/material/Zoom';
 import EditIcon from '@mui/icons-material/Edit';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import { Link, useNavigate } from 'react-router-dom';
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
+import BookmarksIcon from '@mui/icons-material/Bookmarks';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useTheme } from '@mui/material/styles';
 import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
@@ -18,6 +20,8 @@ import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
 import { fontSizeFromStore } from 'main/fontSize';
+import DraftDrawer from '../DraftMarkers/DraftDrawer';
+import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import {
   scrollParent,
   targetScrollTop,
@@ -45,12 +49,30 @@ export default function Replay() {
   const navigate = useNavigate();
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
-  const { setText: setHtmlString } = useContext(TextContext);
+  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const glide = useRef<Glide | null>(null);
 
   const [step, setStep] = useState(maxStep);
+
+  // Draft markers. A marker is saved with the text and history this view shows. The store can be
+  // behind them: the editor saves a second after the last keystroke, and coming here inside that
+  // second leaves the stored history shorter than this one. Saving the marker alone would then write
+  // a file whose marker points past its own history.
+  const saveDocument = useCallback(() => {
+    window.electron.store.set('poem', htmlString);
+    window.electron.store.set('history', JSON.stringify(poemHistory));
+    window.electron.ipcRenderer.sendMessage('save-file', []);
+  }, [htmlString, poemHistory]);
+  const drafts = useDraftMarkers(poemHistory.length, saveDocument);
+  // The editor sends the poet here to name a draft it has just marked.
+  const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
+    ?.nameDraftAt;
+  const [naming, setNaming] = useState<number | null>(nameOnArrival ?? null);
+  const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [showLabels, setShowLabels] = useState(true);
   const [playing, setPlaying] = useState(false);
   // A TIMER HANDLE, NOT RENDERED STATE. It is only ever created, cleared, and tested for
   // truthiness -- nothing displays it. Holding it in state bought nothing and cost a dependency:
@@ -211,6 +233,12 @@ export default function Replay() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      // While the drafts list is open, the keys belong to it and not to playback: Space and Enter
+      // would start the poem playing behind the list, and Escape is the list's own way to close.
+      // Focus sits on the drawer's panel when it opens, so this asks the drawer, not the focused element.
+      if (document.querySelector('.DraftDrawer')) return;
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea'))
+        return;
       if (e.key === 'Escape') {
         navigate('/editor');
       }
@@ -316,9 +344,78 @@ export default function Replay() {
               color: theme.palette.secondary.contrastText,
               marginRight: '15px',
               cursor: window.history.length ? undefined : 'not-allowed',
+              // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
+              // where there is room for it.
+              '& .MuiSlider-mark': {
+                height: '14px',
+                width: '2px',
+                backgroundColor: theme.palette.text.primary,
+                opacity: 0.7,
+              },
+              '& .MuiSlider-markLabel': {
+                top: '-34px',
+                fontSize: '0.75rem',
+                color: theme.palette.text.primary,
+                maxWidth: '140px',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              },
             }}
             onChange={handleStepChange}
+            marks={
+              showMarkers
+                ? drafts.markers.map(({ index, label }) => ({
+                    value: index,
+                    label: showLabels ? label : undefined,
+                  }))
+                : false
+            }
           />
+          <Tooltip
+            title="Mark this moment as a draft"
+            TransitionComponent={Zoom}
+            enterDelay={1000}
+            arrow
+            placement="top-end"
+            classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+          >
+            <span>
+              <button
+                aria-label="Mark this moment as a draft"
+                type="button"
+                className="control-bar-icon"
+                style={{ color: theme.palette.secondary.contrastText }}
+                disabled={!drafts.canCreateAt(step)}
+                onClick={() => {
+                  handleClickPause();
+                  if (drafts.create(step)) {
+                    setNaming(step);
+                    setDrawerOpen(true);
+                  }
+                }}
+              >
+                <BookmarkAddIcon fontSize="small" />
+              </button>
+            </span>
+          </Tooltip>
+          <Tooltip
+            title="Drafts"
+            TransitionComponent={Zoom}
+            enterDelay={1000}
+            arrow
+            placement="top-end"
+            classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+          >
+            <button
+              aria-label="Drafts"
+              type="button"
+              className="control-bar-icon"
+              style={{ color: theme.palette.secondary.contrastText }}
+              onClick={() => setDrawerOpen(true)}
+            >
+              <BookmarksIcon fontSize="small" />
+            </button>
+          </Tooltip>
           <Tooltip
             title="Edit"
             TransitionComponent={Zoom}
@@ -342,6 +439,26 @@ export default function Replay() {
           </Tooltip>
         </Box>
       </Grow>
+      <DraftDrawer
+        open={drawerOpen}
+        onClose={() => {
+          setNaming(null);
+          setDrawerOpen(false);
+        }}
+        markers={drafts.markers}
+        naming={naming}
+        setNaming={setNaming}
+        onJump={(index) => {
+          handleClickPause();
+          setStep(index);
+        }}
+        onRename={drafts.rename}
+        onDelete={drafts.remove}
+        showMarkers={showMarkers}
+        setShowMarkers={setShowMarkers}
+        showLabels={showLabels}
+        setShowLabels={setShowLabels}
+      />
     </div>
   );
 }

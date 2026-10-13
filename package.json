@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Jules",
     "url": "https://github.com/jshafto"
@@ -16,13 +16,15 @@
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
+    "prestart": "node tools/install-electron.cjs",
     "start": "ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",
     "start:main": "cross-env NODE_ENV=development electronmon -r ts-node/register/transpile-only .",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest",
+    "pree2e": "node tools/install-electron.cjs",
     "e2e": "playwright test",
-    "coverage": "cross-env COVERAGE=1 npm run build && jest --coverage --coverageProvider=v8 --coverageReporters=json --coverageDirectory=coverage/unit && node -e \"require('fs').rmSync('coverage/e2e',{recursive:true,force:true})\" && cross-env COVERAGE=1 playwright test && node scripts/coverage-merge.mjs"
+    "coverage": "cross-env COVERAGE=1 npm run build && jest --coverage --coverageProvider=v8 --coverageReporters=json --coverageDirectory=coverage/unit && node -e \"require('fs').rmSync('coverage/e2e',{recursive:true,force:true})\" && node tools/install-electron.cjs && cross-env COVERAGE=1 playwright test && node scripts/coverage-merge.mjs"
   },
   "browserslist": [],
   "prettier": {
@@ -102,6 +104,24 @@
         "statements": 100
       },
       "./src/renderer/components/Replay/follow.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/tracking/draftMarkers.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/components/DraftMarkers/useDraftMarkers.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/tracking/markerStore.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
@@ -264,6 +284,9 @@
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "gatekeeperAssess": false
+    },
+    "pkg": {
+      "isRelocatable": false
     },
     "dmg": {
       "contents": [
