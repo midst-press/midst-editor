@@ -26,6 +26,8 @@
     "e2e/**/*",
     "playwright.config.ts",
     // Test tooling outside src (midst-editor#29: scripts/coverage-merge.mjs).
-    "scripts/**/*"
+    "scripts/**/*",
+    // Release tooling and its tests (midst-editor#69: tools/prune_artifacts.cjs).
+    "tools/**/*"
   ]
 }
