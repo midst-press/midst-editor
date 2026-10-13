@@ -46,7 +46,10 @@ changes only when the format does, never with a release.
    branch and merge it. Then build a new candidate from `main` at the same version, because nothing
    has been released yet, and test that one from the start.
 5. **Release the candidate that passed**: **Actions → release → Run workflow**, giving it that
-   package run's number (the number at the end of the run's URL). It:
+   package run's number (the number at the end of the run's URL). The field can be left blank: it
+   then takes the latest successful package run on `main`, and refuses if another package run on
+   `main` at the same version still has artifacts, since only you know which one you tested. Either
+   way, the run's summary starts with the run it chose, its commit, version and build time. It:
    - checks the candidate;
    - tags its commit `v<version>`;
    - publishes a GitHub Release named `Midst <version>`, with the three installers, a
