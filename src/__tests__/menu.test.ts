@@ -309,6 +309,7 @@ describe('saveAs', () => {
     );
     expect(mockStore.get('filename')).toBe(chosen);
     expect(mockStore.get('baseFilename')).toBe('xv.midst');
+    expect(mockStore.get('lastFolder')).toBe(dir);
     expect(mockStore.get('edited')).toBe('false');
     expect(win.webContents.send).toHaveBeenCalledWith(
       'set-filename',

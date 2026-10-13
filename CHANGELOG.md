@@ -3,6 +3,10 @@
 - **About Midst says which version you have**: the version, the commit it was built from and when
   that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
   and in the Help menu on Windows and Linux.
+- **Midst now needs macOS 13 (Ventura) or later**, and Windows 10 or later. It runs on Electron 44,
+  which receives security fixes; the Electron it used before had none since December 2023.
+- **Open and Save start in the folder of the last poem you opened or saved**, or in Documents.
+- Under the hood: Electron 44 and electron-builder 26.
 
 # 0.2.1
 
