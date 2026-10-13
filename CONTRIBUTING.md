@@ -50,9 +50,10 @@ npm test -- --coverage        # unit tests (Jest), with the per-file coverage th
 npm run e2e                   # end-to-end tests (Playwright, launches the built app)
 ```
 
-**Known problem, being fixed:** with npm 12 (for example Homebrew's Node; check `npm --version`), `npm ci`
-leaves Electron without its binary, so `npm run e2e` stops with "Electron failed to install correctly". The other
-steps are unaffected. If you hit it, say so on your pull request rather than working around it.
+`npm run e2e`, `npm start` and `npm run coverage` first put Electron's binary in place
+(`tools/install-electron.cjs`; the first run downloads it). `npm ci` alone does not: Electron's own install step
+does not complete on Node 26 (seen on 26.7.0), whether or not npm runs it. If you see "Electron failed to install
+correctly", run `node tools/install-electron.cjs` and include what it prints in your report.
 
 - **Tests come with the change.** A bug fix carries a test that fails without it. Coverage thresholds are
   set per file in `package.json` (`jest.coverageThreshold`), so a drop fails CI.
