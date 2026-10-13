@@ -109,6 +109,12 @@
         "lines": 100,
         "statements": 100
       },
+      "./src/renderer/tracking/draftMarkers.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/renderer/tracking/utils.ts": {
         "branches": 100,
         "functions": 100,
