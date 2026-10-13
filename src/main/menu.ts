@@ -83,55 +83,74 @@ const storedDocument = () => {
 // panel, which can be another application's file (midst-press/midst-editor#52).
 const UNTITLED = 'Untitled.midst';
 
-export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
-  const document = storedDocument();
-  if (document === null) {
-    log.error('save: no document in the store; nothing written');
-    mainWindow.webContents.send('cancel-save');
+const SAVE_FILTERS = [
+  { name: 'Midst', extensions: ['midst'] },
+  { name: 'All Files', extensions: ['*'] },
+];
+
+// Writes the stored document to `filename`, and only when the write has succeeded records it as saved:
+// the filename, the window's title and edited dot, and `edited` in the store.
+//
+// The write is synchronous on purpose. `edited` is what New, Open and closing the window trust before
+// they discard the document, so it must not say "saved" before the bytes are in the file, nor after a
+// write that failed (#37). A callback would also let the poet type between the write and its
+// callback, and the callback would then mark those keystrokes as saved.
+//
+// When the write fails nothing is recorded: the document keeps its previous filename and stays
+// unsaved. The poet is told unless there was nothing unsaved and they did not just choose the file
+// (`asked`): the editor saves every document it opens, and opening a read-only poem to read it is
+// not a failure worth a dialog. `saveElsewhere` is what "Save As…" in that message does.
+const writeAndRecord = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  label: 'save' | 'saveAs',
+  { text, history }: { text: string; history: string },
+  filename: string,
+  asked: boolean,
+  saveElsewhere: () => Promise<void>
+) => {
+  const meta = (store.get('meta') as string | undefined) ?? '';
+  const fullContents = includeVersionInfo(
+    serializeDocument(text, history, meta)
+  );
+
+  // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
+  // newly-opened document beside the previously-loaded document's text. With this in the log,
+  // that defect is diagnosable from a user's log file rather than needing demonstration files.
+  log.debug(`${label}: writing document`, {
+    filename,
+    textChars: typeof text === 'string' ? text.length : 0,
+    historyChars: typeof history === 'string' ? history.length : 0,
+  });
+  try {
+    fs.writeFileSync(filename, fullContents);
+  } catch (err) {
+    const reason = (err as Error).message;
+    log.error(`${label}: the document was not written`, { filename, reason });
+    if (store.get('edited') === 'false' && !asked) return;
+    if (darwin) mainWindow.setDocumentEdited(true);
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'error',
+      title: 'Could not save',
+      message: `Midst could not save "${path.basename(filename)}".`,
+      detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
+      buttons: ['Save As…', 'OK'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) await saveElsewhere();
     return;
   }
-  const { text, history } = document;
-  let filename: string | undefined = store.get('filename') as string;
-  if (!filename) {
-    filename = dialog.showSaveDialogSync(mainWindow, {
-      title: 'To begin, create a new Midst document.',
-      message: 'To begin, create a new Midst document.',
-      defaultPath: UNTITLED,
-      filters: [
-        { name: 'Midst', extensions: ['midst'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    });
-  }
-  if (filename) {
-    const meta = (store.get('meta') as string | undefined) ?? '';
-    const fullContents = includeVersionInfo(
-      serializeDocument(text, history, meta)
-    );
-    // Only once there is something to write: a document that cannot be serialized must not leave
-    // its intended filename behind in the store.
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    if (darwin) {
-      mainWindow.setDocumentEdited(false);
-      mainWindow.setRepresentedFilename(filename);
-    }
-    mainWindow.setTitle(filename);
-    mainWindow.webContents.send('set-filename', path.basename(filename));
 
-    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
-    // newly-opened document beside the previously-loaded document's text. With this in the log,
-    // that defect is diagnosable from a user's log file rather than needing demonstration files.
-    log.debug('save: writing document', {
-      filename,
-      textChars: typeof text === 'string' ? text.length : 0,
-      historyChars: typeof history === 'string' ? history.length : 0,
-    });
-    fs.writeFile(filename, fullContents, () => {});
-    store.set('edited', JSON.stringify(false));
-  } else {
-    mainWindow.webContents.send('cancel-save');
+  store.set('filename', filename);
+  store.set('baseFilename', path.basename(filename));
+  if (darwin) {
+    mainWindow.setDocumentEdited(false);
+    mainWindow.setRepresentedFilename(filename);
   }
+  mainWindow.setTitle(filename);
+  mainWindow.webContents.send('set-filename', path.basename(filename));
+  store.set('edited', JSON.stringify(false));
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -140,43 +159,54 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     log.error('saveAs: no document in the store; nothing written');
     return;
   }
-  const { text, history } = document;
   const filename = dialog.showSaveDialogSync(mainWindow, {
     title: 'Save file as...',
     message: 'Save file as...',
     defaultPath: (store.get('filename') as string | undefined) || UNTITLED,
-    filters: [
-      { name: 'Midst', extensions: ['midst'] },
-      { name: 'All Files', extensions: ['*'] },
-    ],
+    filters: SAVE_FILTERS,
   });
 
   if (filename) {
-    const meta = (store.get('meta') as string | undefined) ?? '';
-    const fullContents = includeVersionInfo(
-      serializeDocument(text, history, meta)
-    );
-    // Only once there is something to write: a document that cannot be serialized must not leave
-    // its intended filename behind in the store.
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    if (darwin) {
-      mainWindow.setDocumentEdited(false);
-      mainWindow.setRepresentedFilename(filename);
-    }
-    mainWindow.setTitle(filename);
-    mainWindow.webContents.send('set-filename', path.basename(filename));
-
-    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
-    // newly-opened document beside the previously-loaded document's text. With this in the log,
-    // that defect is diagnosable from a user's log file rather than needing demonstration files.
-    log.debug('saveAs: writing document', {
+    await writeAndRecord(
+      mainWindow,
+      darwin,
+      'saveAs',
+      document,
       filename,
-      textChars: typeof text === 'string' ? text.length : 0,
-      historyChars: typeof history === 'string' ? history.length : 0,
+      true,
+      () => saveAs(mainWindow, darwin)
+    );
+  }
+};
+
+export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
+  const document = storedDocument();
+  if (document === null) {
+    log.error('save: no document in the store; nothing written');
+    mainWindow.webContents.send('cancel-save');
+    return;
+  }
+  const stored = store.get('filename') as string | undefined;
+  const filename =
+    stored ||
+    dialog.showSaveDialogSync(mainWindow, {
+      title: 'To begin, create a new Midst document.',
+      message: 'To begin, create a new Midst document.',
+      defaultPath: UNTITLED,
+      filters: SAVE_FILTERS,
     });
-    fs.writeFile(filename, fullContents, () => {});
-    store.set('edited', JSON.stringify(false));
+  if (filename) {
+    await writeAndRecord(
+      mainWindow,
+      darwin,
+      'save',
+      document,
+      filename,
+      !stored,
+      () => saveAs(mainWindow, darwin)
+    );
+  } else {
+    mainWindow.webContents.send('cancel-save');
   }
 };
 
