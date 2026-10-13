@@ -1,3 +1,11 @@
+# 0.3.0
+
+- **About Midst says which version you have**: the version, the commit it was built from and when
+  that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
+  and in the Help menu on Windows and Linux.
+- **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
+  screen, and it no longer loses the last second of typing.
+
 # 0.2.1
 
 - **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
@@ -6,8 +14,6 @@
 - **The app icon is the new artwork, and has no grey border on macOS 26.**
 - **Clicking Replay straight after typing no longer leaves the last second of typing out of the saved
   file.** Before, those keystrokes were saved only when you came back to the editor.
-- **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
-  screen, and it no longer loses the last second of typing.
 - **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
   while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
   the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.

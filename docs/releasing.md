@@ -23,6 +23,12 @@ tools/set_version.sh 0.2.0
 That sets all six places, then runs `tools/check_version.sh`. The same check runs in pre-commit and
 in CI, so a commit where they disagree cannot pass the gates.
 
+**About Midst** (the Midst menu on a Mac, Help elsewhere) shows that version as its release tag, with
+the commit the package was built from and that commit's date, for example
+`Version v0.2.1, commit a1b2c3d, committed 2026-10-13 20:30 UTC`. The commit is read from git when the
+main bundle is built (`.erb/scripts/build-identity.js`) and ends in `-dirty` if tracked files had
+uncommitted changes. Running from source shows `Development build`.
+
 Separately, `midstVersion` in `src/main/util.ts` is the version of the poem **file format**. It
 changes only when the format does, never with a release.
 
