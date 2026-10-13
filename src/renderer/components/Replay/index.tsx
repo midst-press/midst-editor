@@ -49,18 +49,22 @@ export default function Replay() {
   const navigate = useNavigate();
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
-  const { setText: setHtmlString } = useContext(TextContext);
+  const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const glide = useRef<Glide | null>(null);
 
   const [step, setStep] = useState(maxStep);
 
-  // Draft markers. Replay does not change the text, so writing the document is enough to save one.
-  const saveDocument = useCallback(
-    () => window.electron.ipcRenderer.sendMessage('save-file', []),
-    []
-  );
+  // Draft markers. A marker is saved with the text and history this view shows. The store can be
+  // behind them: the editor saves a second after the last keystroke, and coming here inside that
+  // second leaves the stored history shorter than this one. Saving the marker alone would then write
+  // a file whose marker points past its own history.
+  const saveDocument = useCallback(() => {
+    window.electron.store.set('poem', htmlString);
+    window.electron.store.set('history', JSON.stringify(poemHistory));
+    window.electron.ipcRenderer.sendMessage('save-file', []);
+  }, [htmlString, poemHistory]);
   const drafts = useDraftMarkers(poemHistory.length, saveDocument);
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)

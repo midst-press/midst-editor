@@ -136,6 +136,57 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
   }
 });
 
+// The editor saves a second after the last keystroke. Going to the replay inside that second leaves
+// the stored text behind what the replay shows, so a marker on the last moment must take the text and
+// history to the file with it, or the file holds a marker that points past its own history.
+test('a marker made in the replay straight after typing does not point past the saved history', async () => {
+  const doc = makePlayableMidst(LONG);
+  const work = mkdtempSync(join(tmpdir(), 'midst-drafts-typed-'));
+  const poemPath = join(work, 'typed.midst');
+  writeFileSync(poemPath, doc.file);
+  const savedDoc = () =>
+    JSON.parse(readFileSync(poemPath, 'utf8').split('\n').slice(1).join('\n'));
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the poem to type in');
+    const editor = win.locator('.ProseMirror');
+    await expect(editor).toBeVisible({ timeout: 25_000 });
+
+    await editor.click();
+    await win.keyboard.type('zqx');
+    await win.getByRole('link', { name: 'Replay' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+    await win.getByRole('button', { name: MARK }).click();
+    await expect(win.getByLabel('Draft name')).toBeVisible();
+
+    expect(
+      await waitUntil(
+        () => savedDoc().meta?.draftMarkers?.length === 1,
+        10_000
+      ),
+      'the marker never reached the file'
+    ).toBe(true);
+    const saved = savedDoc();
+    // CONTROL: the typing was recorded at all, so the marker is on a moment made after the open.
+    expect(saved.meta.draftMarkers[0].index).toBeGreaterThanOrEqual(
+      doc.history.length
+    );
+    expect(
+      saved.history.length,
+      'the file holds a marker that points past its own history'
+    ).toBeGreaterThan(saved.meta.draftMarkers[0].index);
+    expect(saved.meta.draftMarkers[0].index).toBe(saved.history.length - 1);
+    expect(saved.text).toContain('zqx');
+  } finally {
+    await app.close();
+  }
+});
+
 test('a poem with 50 or fewer changes cannot be marked yet', async () => {
   const doc = makePlayableMidst(SHORT);
   expect(doc.history.length).toBeLessThanOrEqual(50);
