@@ -9,6 +9,9 @@
 - **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
   while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
   the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.
+- **About Midst says which version you have**: the version, the commit it was built from and when
+  that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
+  and in the Help menu on Windows and Linux.
 - Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
   and Electron is put in place for development on Node 26.
 
