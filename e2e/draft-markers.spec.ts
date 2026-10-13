@@ -82,6 +82,30 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await expect(win.locator('.DraftDrawer')).toBeHidden();
     const mark = win.getByRole('button', { name: MARK });
     await expect(mark).toBeDisabled();
+
+    // With the list open and nothing in it touched yet, the keys still do not reach playback: Space
+    // and Enter used to start it behind the list, because focus sits on the drawer, not inside it.
+    const thumb = win.locator('.MuiSlider-thumb input');
+    await expect(thumb).toHaveValue(String(last));
+    await win.getByRole('button', { name: 'Drafts' }).click();
+    await expect(win.locator('.DraftDrawer')).toBeVisible();
+    // One key at a time: the two together would start playback and stop it again.
+    for (const key of ['Space', 'Enter']) {
+      await win.keyboard.press(key);
+      await win.waitForTimeout(700);
+      // Read once, not with a retrying expect: a retry would wait until the playback it is meant to
+      // catch had run to the end and put the slider back where it started.
+      expect(
+        [
+          await thumb.inputValue(),
+          await win.locator('[data-testid="PauseIcon"]').count(),
+        ],
+        `${key} started playback behind the open list`
+      ).toEqual([String(last), 0]);
+    }
+    await win.keyboard.press('Escape');
+    await expect(win.locator('.DraftDrawer')).toBeHidden();
+    await expect(win.locator('.ReplayContainer')).toBeVisible();
     await expect(win.locator('.MuiSlider-mark')).toHaveCount(1);
     await win.locator('.MuiSlider-thumb input').press('ArrowLeft');
     await expect(mark).toBeEnabled();

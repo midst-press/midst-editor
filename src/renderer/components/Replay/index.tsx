@@ -233,12 +233,11 @@ export default function Replay() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // In the drafts list, and while typing a draft's name, the keys belong there, not to playback.
-      if (
-        (e.target as HTMLElement | null)?.closest?.(
-          'input, textarea, .DraftDrawer'
-        )
-      )
+      // While the drafts list is open, the keys belong to it and not to playback: Space and Enter
+      // would start the poem playing behind the list, and Escape is the list's own way to close.
+      // Focus sits on the drawer's panel when it opens, so this asks the drawer, not the focused element.
+      if (document.querySelector('.DraftDrawer')) return;
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea'))
         return;
       if (e.key === 'Escape') {
         navigate('/editor');
