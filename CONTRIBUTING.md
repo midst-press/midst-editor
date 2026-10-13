@@ -50,8 +50,8 @@ npm test -- --coverage        # unit tests (Jest), with the per-file coverage th
 npm run e2e                   # end-to-end tests (Playwright, launches the built app)
 ```
 
-**Known problem, being fixed:** with npm 12 (the npm that comes with the Node in `.nvmrc`), `npm ci` leaves
-Electron without its binary, so `npm run e2e` stops with "Electron failed to install correctly". The other
+**Known problem, being fixed:** with npm 12 (for example Homebrew's Node; check `npm --version`), `npm ci`
+leaves Electron without its binary, so `npm run e2e` stops with "Electron failed to install correctly". The other
 steps are unaffected. If you hit it, say so on your pull request rather than working around it.
 
 - **Tests come with the change.** A bug fix carries a test that fails without it. Coverage thresholds are
