@@ -7,7 +7,7 @@ import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
 import themeObj from './theme';
-import { TextContext, HistoryContext } from './context';
+import { TextContext, HistoryContext, RETURN_TO } from './context';
 import { ChangeObj } from './tracking/utils';
 
 const theme = createTheme(themeObj);
@@ -18,6 +18,13 @@ export default function App() {
   // ZERO hooks, while a healthy launch called three -- react-hooks/rules-of-hooks. Optional chaining
   // covers the degraded case so the hook order is identical either way.
   const restoreText = window.electron?.store.get('poem') || '';
+  // After a reload the router would start at the opening screen again. If the editor asked to come
+  // back (it does before reloading for the spellcheck toggle), start there instead, once.
+  const [startAt] = useState(() => {
+    const returnTo = window.sessionStorage.getItem(RETURN_TO);
+    window.sessionStorage.removeItem(RETURN_TO);
+    return returnTo === '/editor' ? returnTo : '/';
+  });
   const [text, setText] = useState(restoreText);
   // Memoised so context consumers do not re-render on every App render.
   const textContextValue = useMemo(() => ({ text, setText }), [text]);
@@ -75,7 +82,7 @@ export default function App() {
       <ThemeProvider theme={theme}>
         <TextContext.Provider value={textContextValue}>
           <HistoryContext.Provider value={historyContextValue}>
-            <Router>
+            <Router initialEntries={[startAt]}>
               <Routes>
                 <Route path="/editor" element={<Editor />} />
                 <Route path="/replay" element={<Replay />} />
