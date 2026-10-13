@@ -122,7 +122,8 @@ const createWindow = async () => {
   ipcMain.on('save-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
-    save(mainWindow, darwin);
+    // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
+    save(mainWindow, darwin, false);
   });
   ipcMain.on('new-file', async () => {
     const darwin = process.platform === 'darwin';
