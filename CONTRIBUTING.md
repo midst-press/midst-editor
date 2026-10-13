@@ -36,13 +36,18 @@ npm start          # the app, in development mode
 
 ## Before you open a pull request
 
-The checks CI runs are defined once, in `.pre-commit-config.yaml`, and run the same on your machine:
+CI runs the pre-commit checks (defined in `.pre-commit-config.yaml`), the build, and the unit tests. The
+end-to-end tests are not in CI; run them yourself.
+
+`pre-commit` is a Python tool: `pipx install pre-commit==4.6.2` (the version CI uses; `uv tool install`
+works too). Then, from a clone where `npm ci` has run:
 
 ```
 pre-commit install            # once per clone
+npm run build                 # the tests need the built app; they stop with a message if it is missing
 pre-commit run --all-files    # formatting, type check, lint, and the poem-data and version rules
-npm test                      # unit tests (Jest)
-npm run e2e                   # end-to-end tests (Playwright, launches the app)
+npm test -- --coverage        # unit tests (Jest), with the per-file coverage thresholds, as CI runs them
+npm run e2e                   # end-to-end tests (Playwright, launches the built app)
 ```
 
 - **Tests come with the change.** A bug fix carries a test that fails without it. Coverage thresholds are
