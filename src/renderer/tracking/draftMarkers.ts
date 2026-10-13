@@ -23,6 +23,7 @@ export interface DraftMarker {
 export type MarkerRefusal =
   | 'not-a-history-position' // index is not a whole number inside the history
   | 'position-has-a-marker' // one draft marker per position
+  | 'no-draft-number-left' // the counter is at the largest number that can be counted exactly
   | 'no-marker-there'
   | 'markers-unreadable'; // meta.draftMarkers exists and is not a list: left alone
 
@@ -54,7 +55,9 @@ const highestNumber = (meta: Meta, list: unknown[]) => {
   list.forEach((entry) => {
     if (!isMarker(entry) || typeof entry.defaultName !== 'string') return;
     const numbered = DEFAULT_NAME.exec(entry.defaultName);
-    if (numbered) highest = Math.max(highest, Number(numbered[1]));
+    const number = numbered ? Number(numbered[1]) : 0;
+    // A number too large to count exactly is ignored, as a damaged counter is.
+    if (Number.isSafeInteger(number)) highest = Math.max(highest, number);
   });
   return highest;
 };
@@ -70,11 +73,19 @@ export const createMarker = (
 ): MarkerResult => {
   const list = storedList(meta);
   if (list === null) return { ok: false, reason: 'markers-unreadable' };
-  if (!Number.isSafeInteger(index) || index < 0 || index >= historyLength)
+  // The length is checked as the index is: a comparison with a missing or broken length is false.
+  if (
+    !Number.isSafeInteger(historyLength) ||
+    !Number.isSafeInteger(index) ||
+    index < 0 ||
+    index >= historyLength
+  )
     return { ok: false, reason: 'not-a-history-position' };
   if (positionOf(list, index) !== -1)
     return { ok: false, reason: 'position-has-a-marker' };
   const number = highestNumber(meta, list) + 1;
+  if (!Number.isSafeInteger(number))
+    return { ok: false, reason: 'no-draft-number-left' };
   const marker: DraftMarker = { index, defaultName: `Draft ${number}` };
   return {
     ok: true,

@@ -64,6 +64,27 @@ describe('createMarker', () => {
     );
   });
 
+  it.each([
+    ['not a number', NaN],
+    ['missing', undefined as unknown as number],
+    ['a fraction', 2.5],
+    ['infinite', Infinity],
+    ['negative', -1],
+  ])(
+    'refuses every position when the history length is %s',
+    (_what, length) => {
+      expect(refusal(createMarker({}, 0, length))).toBe(
+        'not-a-history-position'
+      );
+      expect(refusal(createMarker({}, 2, length))).toBe(
+        'not-a-history-position'
+      );
+      expect(refusal(createMarker({}, 5, length))).toBe(
+        'not-a-history-position'
+      );
+    }
+  );
+
   it('refuses a second marker at a position that has one', () => {
     const one = metaOf(createMarker({}, 4, 10));
     expect(refusal(createMarker(one, 4, 10))).toBe('position-has-a-marker');
@@ -167,6 +188,37 @@ describe('createMarker', () => {
         expect(metaOf(createMarker(meta, 2, 10)).highestDraftNumber).toBe(3);
       }
     );
+
+    it('when a default name holds a number too large to count exactly', () => {
+      let meta: Meta = {
+        draftMarkers: [
+          { index: 1, defaultName: 'Draft 9007199254740993' },
+          { index: 2, defaultName: 'Draft 3' },
+        ],
+      };
+      meta = metaOf(createMarker(meta, 4, 10));
+      meta = metaOf(createMarker(meta, 5, 10));
+      expect(
+        (meta.draftMarkers as { defaultName: string }[])
+          .slice(2)
+          .map((m) => m.defaultName)
+      ).toEqual(['Draft 4', 'Draft 5']);
+      expect(meta.highestDraftNumber).toBe(5);
+    });
+
+    it('by refusing when the counter is at the largest number that can be counted exactly', () => {
+      const meta = { highestDraftNumber: Number.MAX_SAFE_INTEGER };
+      expect(refusal(createMarker(meta, 1, 10))).toBe('no-draft-number-left');
+      expect(
+        refusal(
+          createMarker(
+            { highestDraftNumber: Number.MAX_SAFE_INTEGER - 1 },
+            1,
+            10
+          )
+        )
+      ).toBe('accepted');
+    });
 
     it('ignoring default names that are not "Draft <number>" and ones that are not text', () => {
       const meta = {
