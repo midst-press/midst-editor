@@ -115,6 +115,18 @@
         "lines": 100,
         "statements": 100
       },
+      "./src/renderer/components/DraftMarkers/useDraftMarkers.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/tracking/markerStore.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/renderer/tracking/utils.ts": {
         "branches": 100,
         "functions": 100,

@@ -1,3 +1,4 @@
+import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
@@ -10,6 +11,7 @@ import { fontSizeFromStore } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext } from 'renderer/context';
 import HandleTab from '../../HandleTab';
+import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
@@ -210,6 +212,17 @@ export default function Editor() {
     };
   }, [autosaveTimeout, navigate, saveFileAndUpdateStore]);
 
+  // A draft marker made while writing marks the poem as it is now: the latest recorded change. The
+  // text and history are stored with it, so the marker never points past what the file holds. The
+  // poet is then taken to the replay to name it, as the original editor opened the name at once.
+  const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
+  const latestMoment = poemHistory.length - 1;
+  const markThisMoment = () => {
+    clearTimeout(autosaveTimeout);
+    if (drafts.create(latestMoment))
+      navigate('/replay', { state: { nameDraftAt: latestMoment } });
+  };
+
   const onCreate = ({ editor }: { editor: EditorType }) => {
     editor.commands.focus();
     setMyEditor(editor);
@@ -248,6 +261,25 @@ export default function Editor() {
       />
 
       <div className="Spacer">
+        <Tooltip
+          title="Mark this moment as a draft"
+          TransitionComponent={Zoom}
+          enterDelay={1000}
+          arrow
+          placement="top-start"
+        >
+          <span>
+            <button
+              aria-label="Mark this moment as a draft"
+              type="button"
+              className="icon-button"
+              disabled={!drafts.canCreateAt(latestMoment)}
+              onClick={markThisMoment}
+            >
+              <BookmarkAddIcon fontSize="small" />
+            </button>
+          </span>
+        </Tooltip>
         <Tooltip
           title="Replay"
           TransitionComponent={Zoom}
