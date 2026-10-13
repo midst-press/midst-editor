@@ -4,6 +4,9 @@
   on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
 - **A new poem's save dialog offers `Untitled.midst`**, not the last file name used.
 - **The app icon is the new artwork, and has no grey border on macOS 26.**
+- **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
+  while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
+  the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.
 - Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
   and Electron is put in place for development on Node 26.
 
