@@ -45,6 +45,14 @@ test('the title bar spans the window top, and the content starts below it', asyn
         menubar: box('.cet-menubar'),
         menuButtons: document.querySelectorAll('.cet-menubar-menu-button')
           .length,
+        // The menu bar element stretches across the bar; its buttons are what could sit under the
+        // window controls, so measure where the last one ends.
+        menuButtonsEnd: Math.max(
+          0,
+          ...[...document.querySelectorAll('.cet-menubar-menu-button')].map(
+            (e) => e.getBoundingClientRect().right
+          )
+        ),
         controls,
         // titleBarOverlay: true asks Electron to draw the window controls natively (Window Controls
         // Overlay). Where it does, the library hides its own and leaves room for them.
@@ -81,7 +89,7 @@ test('the title bar spans the window top, and the content starts below it', asyn
           inner.width
         );
         expect(
-          layout.menubar!.x + layout.menubar!.width,
+          layout.menuButtonsEnd,
           'the menu does not run under the native window controls'
         ).toBeLessThanOrEqual(o.x + o.width + 1);
       } else {
