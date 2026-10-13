@@ -98,16 +98,22 @@ const SAVE_FILTERS = [
 // callback, and the callback would then mark those keystrokes as saved.
 //
 // When the write fails nothing is recorded: the document keeps its previous filename and stays
-// unsaved. The poet is told unless there was nothing unsaved and they did not just choose the file
-// (`asked`): the editor saves every document it opens, and opening a read-only poem to read it is
-// not a failure worth a dialog. `saveElsewhere` is what "Save As…" in that message does.
+// unsaved. Whether the poet is told depends on who started the save:
+//   - `byPoet`: they chose Save or Save As, or have just picked the file in a dialog. Always told.
+//   - otherwise it is one of the editor's own saves (on opening a document, a second after typing,
+//     on leaving for the replay). Not told when nothing was unsaved: opening a read-only poem to
+//     read it is not a failure worth a message. And told only ONCE per file while it keeps failing:
+//     an autosave follows every pause in typing, and a message after each one would make a poem in
+//     a read-only place impossible to work on. The macOS edited dot stays on throughout.
+// `saveElsewhere` is what "Save As…" in that message does.
+let toldCouldNotSave: string | undefined;
 const writeAndRecord = async (
   mainWindow: BrowserWindow,
   darwin: boolean,
   label: 'save' | 'saveAs',
   { text, history }: { text: string; history: string },
   filename: string,
-  asked: boolean,
+  byPoet: boolean,
   saveElsewhere: () => Promise<void>
 ) => {
   const meta = (store.get('meta') as string | undefined) ?? '';
@@ -128,8 +134,11 @@ const writeAndRecord = async (
   } catch (err) {
     const reason = (err as Error).message;
     log.error(`${label}: the document was not written`, { filename, reason });
-    if (store.get('edited') === 'false' && !asked) return;
-    if (darwin) mainWindow.setDocumentEdited(true);
+    const nothingUnsaved = store.get('edited') === 'false';
+    if (!byPoet && nothingUnsaved) return;
+    if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
+    if (!byPoet && toldCouldNotSave === filename) return;
+    toldCouldNotSave = filename;
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'error',
       title: 'Could not save',
@@ -143,6 +152,7 @@ const writeAndRecord = async (
     return;
   }
 
+  toldCouldNotSave = undefined;
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   if (darwin) {
@@ -180,7 +190,12 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   }
 };
 
-export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
+// `byPoet` is false for the editor's own saves (the 'save-file' message): see writeAndRecord.
+export const save = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  byPoet = true
+) => {
   const document = storedDocument();
   if (document === null) {
     log.error('save: no document in the store; nothing written');
@@ -203,7 +218,7 @@ export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
       'save',
       document,
       filename,
-      !stored,
+      byPoet || !stored,
       () => saveAs(mainWindow, darwin)
     );
   } else {

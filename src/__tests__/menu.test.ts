@@ -312,12 +312,13 @@ describe('save', () => {
     });
 
     it('a first save to a file that cannot be written says so and keeps the document without a file', async () => {
-      // A new document: nothing unsaved yet, but the poet has just chosen where it goes.
+      // A new document, saved by the editor as it opens: nothing unsaved yet, but the poet has just
+      // chosen where it goes.
       seedDocument({ filename: '', edited: 'false' });
       showSaveDialog.mockReturnValue(unwritable());
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
-      await save(asWindow(win), false);
+      await save(asWindow(win), false, false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('filename')).toBe('');
       expect(mockStore.get('baseFilename')).toBeUndefined();
@@ -325,14 +326,68 @@ describe('save', () => {
       expect(win.webContents.send).not.toHaveBeenCalled();
     });
 
-    it('says nothing when there was nothing unsaved and the poet did not choose the file', async () => {
+    it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
       // The editor saves each document it opens; a poem opened from a read-only place is not an error.
       seedDocument({ filename: unwritable(), edited: 'false' });
       const win = makeWindow();
-      await save(asWindow(win), true);
+      await save(asWindow(win), true, false);
       expect(showMessageBox).not.toHaveBeenCalled();
       expect(win.setDocumentEdited).not.toHaveBeenCalled();
       expect(mockStore.get('edited')).toBe('false');
+    });
+
+    it('the editor\u2019s own saves tell the poet once per file, not after every pause in typing', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true, false);
+      await save(asWindow(win), true, false);
+      await save(asWindow(win), true, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // Still unsaved, and still shown as unsaved, every time.
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.setDocumentEdited.mock.calls).toEqual([[true], [true], [true]]);
+    });
+
+    it('tells the poet again for another file, and again for the same file after a save that worked', async () => {
+      const first = unwritable();
+      const second = path.join(dir, 'also-missing', 'xv.midst');
+      showMessageBox.mockReturnValue(OK);
+      seedDocument({ filename: first });
+      await save(asWindow(makeWindow()), false, false);
+      seedDocument({ filename: second });
+      await save(asWindow(makeWindow()), false, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(2);
+
+      // The folder appears: the save works. Then it goes away again.
+      fs.mkdirSync(path.dirname(second));
+      await save(asWindow(makeWindow()), false, false);
+      expect(mockStore.get('edited')).toBe('false');
+      fs.rmSync(path.dirname(second), { recursive: true });
+      seedDocument({ filename: second });
+      await save(asWindow(makeWindow()), false, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(3);
+    });
+
+    it('a save the poet chooses always says so, even straight after they were told', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      await save(asWindow(makeWindow()), false, false);
+      await save(asWindow(makeWindow()), false);
+      await save(asWindow(makeWindow()), false);
+      expect(showMessageBox).toHaveBeenCalledTimes(3);
+    });
+
+    it('a save the poet chooses says so even when nothing was unsaved', async () => {
+      seedDocument({ filename: unwritable(), edited: 'false' });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // Nothing was unsaved, so the edited dot is not switched on.
+      expect(win.setDocumentEdited).not.toHaveBeenCalled();
     });
 
     it('leaves an existing file that cannot be replaced as it was', async () => {
