@@ -10,6 +10,9 @@
 #   - is for a version already released (or tagged) from a different commit;
 #   - has no CHANGELOG.md entry for its version (the entry becomes the release notes).
 # Artifacts expire after the repository's retention period, so a run must be promoted before then.
+# Once the release is published and checked to carry every installer, the artifacts of this package run
+# and of every earlier one are deleted (#69): GitHub Free holds 500 MB of artifacts per organisation, and
+# release assets have no limit. Newer runs are never touched; one may be a candidate under test.
 #
 # Where releases go: this repository by default. To publish elsewhere (a public downloads
 # repository, say) set the repository variable RELEASE_REPOSITORY to owner/name and the secret
@@ -25,7 +28,7 @@ on:
         type: string
 permissions:
   contents: write # the tag and, by default, the release
-  actions: read # to read the package run and download its artifacts
+  actions: write # to read the package run, download its artifacts, and delete released ones
 concurrency:
   group: release
   cancel-in-progress: false
@@ -129,3 +132,10 @@ jobs:
             cat candidate/release/SHA256SUMS
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: check the release carries every installer
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: node tools/prune_artifacts.cjs verify --repo "$RELEASE_REPO" --tag "v$VERSION" --dir candidate/release
+      - name: delete the artifacts of this package run and every earlier one
+        run: node tools/prune_artifacts.cjs prune --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" --summary "$GITHUB_STEP_SUMMARY"

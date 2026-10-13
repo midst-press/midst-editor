@@ -58,7 +58,26 @@ correctly", run `node tools/install-electron.cjs` and include what it prints in 
 - **Tests come with the change.** A bug fix carries a test that fails without it. Coverage thresholds are
   set per file in `package.json` (`jest.coverageThreshold`), so a drop fails CI.
 - **The version** is kept the same in every place that states it; the `version-consistent` hook checks
-  this. Releases follow `docs/releasing.md`, and a user-visible change gets a line in `CHANGELOG.md`.
+  this. Releases follow `docs/releasing.md`.
+- **A user-visible change gets a line in `CHANGELOG.md`**, as described next.
+
+## The changelog
+
+`CHANGELOG.md` has one entry per version, under a heading that is exactly `# <version>`, newest first.
+The release workflow (`.github/workflows/release.yml`) publishes that entry as the release notes.
+
+- **Where your line goes.** Under the heading for the version in `release/app/package.json`, which is
+  the next release. If that version is already released (a `v<version>` tag exists), or someone outside
+  the project already has a build of it, it is finished: run `tools/set_version.sh <next version>` and
+  start a new heading. Two different builds must never carry one version number.
+- **The entry must be complete before packaging.** The release workflow reads `CHANGELOG.md` at the
+  commit the installers were built from, not at the tip of `main`, and refuses a version with no entry
+  or an empty one. A line merged after the package run is not in that release's notes.
+- **An entry says what that build contains, and is not edited after release.** A fix that came later
+  goes under the later version, even if it was meant for the earlier one.
+- **Write for poets.** Say what changed for someone using Midst, in plain words, one bold lead sentence
+  per change. Internal changes (tests, tooling, CI, dependencies) are summarised in a single last line
+  beginning "Under the hood:".
 
 ## CI
 
