@@ -3,6 +3,8 @@
 - **About Midst says which version you have**: the version, the commit it was built from and when
   that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
   and in the Help menu on Windows and Linux.
+- **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
+  screen, and it no longer loses the last second of typing.
 - **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
   close the window, start a new poem or open another one used to have the button that discards the
   work as its default. The default is now Cancel.

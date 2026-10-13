@@ -30,3 +30,30 @@ jobs:
       # makes CI prove the application builds, which nothing else checked.
       - run: npm run build
       - run: npm test -- --coverage
+
+  # The end-to-end suite on Linux: Electron launched for real, headed under Xvfb. It is the only place
+  # the app runs on Linux before a release (Stuart, 14 Oct). It checks that the app works there, the
+  # title bar's layout included (e2e/titlebar.spec.ts); how a real desktop draws a frameless window is
+  # outside what Xvfb can show.
+  e2e-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself.
+      - run: npx playwright install --with-deps chromium
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chromium's sandbox uses, and Electron
+      # then fails to start. This lets the sandbox run; it does not turn it off.
+      - name: allow Chromium's sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: xvfb
+        run: command -v xvfb-run || (sudo apt-get update && sudo apt-get install -y xvfb)
+      # pree2e puts the Linux Electron in place (tools/install-electron.cjs).
+      - name: end-to-end tests, headed under Xvfb
+        run: xvfb-run -a --server-args="-screen 0 1440x1000x24" npm run e2e

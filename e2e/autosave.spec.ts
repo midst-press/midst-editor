@@ -166,3 +166,53 @@ test('going to the replay by its button straight after typing saves what was typ
     await app.close();
   }
 });
+
+// Toggling spellcheck reloads the window, and the reloaded editor takes its text from the store. An
+// autosave still pending when the reload happens dies with the page, so the keystrokes of the last
+// second used to be gone from the window and, once the reloaded editor saved, from the file (#79).
+test('toggling spellcheck straight after typing keeps what was typed', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-spellcheck-'));
+  const doc = makeMidst('SPELLCHECK', 0);
+  const poemPath = join(work, 'typed.midst');
+  writeFileSync(poemPath, doc.file);
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the poem to type in');
+    const editor = win.locator('.ProseMirror');
+    await expect(editor).toBeVisible({ timeout: 25_000 });
+
+    await editor.click();
+    await win.keyboard.type('zqx');
+    // What the View menu's spellcheck item sends.
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.send('toggle-spellcheck')
+    );
+    // CONTROL: the toggle took effect, so the window did reload.
+    expect(
+      await waitUntil(() => readStore(userData).spellcheck === 'true', 10_000),
+      'the spellcheck setting never changed, so nothing was reloaded'
+    ).toBe(true);
+
+    // The reload shows the opening screen, which reads the stored text when the poet goes on. So the
+    // store is what the reloaded window will show, and the file is what the poet keeps.
+    expect(
+      await waitUntil(
+        () => (readStore(userData).poem ?? '').includes('zqx'),
+        4_000
+      ),
+      'the stored text, which the reloaded window shows, is missing what was typed'
+    ).toBe(true);
+    expect(
+      await waitUntil(
+        () => readFileSync(poemPath, 'utf8').includes('zqx'),
+        4_000
+      ),
+      'the typed text is not in the file'
+    ).toBe(true);
+  } finally {
+    await app.close();
+  }
+});
