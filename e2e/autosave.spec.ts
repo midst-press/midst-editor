@@ -126,3 +126,43 @@ test('an autosave pending from one poem must not land in the next', async () => 
     await app.close();
   }
 });
+
+// The Replay button unmounts the editor, and the editor's clean-up cancels a pending autosave. Clicked
+// inside the second after a keystroke, it used to leave those keystrokes out of the file until the
+// poet came back to the editor, and for good if they quit from the replay (#77).
+test('going to the replay by its button straight after typing saves what was typed', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-replay-button-'));
+  const doc = makeMidst('REPLAY-BUTTON', 0);
+  const poemPath = join(work, 'typed.midst');
+  writeFileSync(poemPath, doc.file);
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the poem to type in');
+    const editor = win.locator('.ProseMirror');
+    await expect(editor).toBeVisible({ timeout: 25_000 });
+    const before = parseMidst(readFileSync(poemPath, 'utf8')).history.length;
+
+    await editor.click();
+    await win.keyboard.type('zqx');
+    await win.getByRole('link', { name: 'Replay' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+
+    // Longer than the autosave delay, so a save that was only delayed would have landed too.
+    const reached = await waitUntil(
+      () => readFileSync(poemPath, 'utf8').includes('zqx'),
+      4_000
+    );
+    expect(reached, 'the typed text never reached the file').toBe(true);
+    const saved = parseMidst(readFileSync(poemPath, 'utf8'));
+    expect(saved.history.length).toBeGreaterThan(before);
+    // The replay shows the same history the file now holds.
+    expect(readStore(userData).history).toBe(JSON.stringify(saved.history));
+  } finally {
+    await app.close();
+  }
+});
