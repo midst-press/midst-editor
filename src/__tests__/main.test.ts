@@ -315,7 +315,8 @@ describe('main process', () => {
           expect.objectContaining({
             type: 'warning',
             buttons: ['Quit Anyway', 'Cancel'],
-            defaultId: 0,
+            // Return must never be the button that discards the poem (#40).
+            defaultId: 1,
             cancelId: 1,
           })
         );

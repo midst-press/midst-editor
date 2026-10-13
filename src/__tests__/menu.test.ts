@@ -364,14 +364,15 @@ describe('saveAs', () => {
 });
 
 describe('newFile', () => {
-  it('with unsaved changes, warns with Proceed/Cancel, defaulting to Proceed', () => {
+  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
     newFile(asWindow(makeWindow()), false);
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const options = showMessageBox.mock.calls[0][1];
     expect(options.buttons).toEqual(['Proceed', 'Cancel']);
-    expect(options.defaultId).toBe(0);
+    // Return must never be the button that discards the poem (#40).
+    expect(options.defaultId).toBe(1);
     expect(options.cancelId).toBe(1);
     expect(options.type).toBe('warning');
   });

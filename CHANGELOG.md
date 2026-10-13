@@ -9,6 +9,9 @@
 - **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
   while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
   the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.
+- **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
+  close the window, start a new poem or open another one used to have the button that discards the
+  work as its default. The default is now Cancel.
 - Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
   and Electron is put in place for development on Node 26.
 
