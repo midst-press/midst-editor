@@ -60,6 +60,9 @@ correctly", run `node tools/install-electron.cjs` and include what it prints in 
 - **The version** is kept the same in every place that states it; the `version-consistent` hook checks
   this. Releases follow `docs/releasing.md`.
 - **A user-visible change gets a line in `CHANGELOG.md`**, as described next.
+- **Commit messages and pull-request titles say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
+  keyword there closes the issue the moment the commit reaches `main`, before anyone has checked the fix in
+  a release. The `commit-msg` hook that `pre-commit install` sets up refuses one.
 
 ## The changelog
 
