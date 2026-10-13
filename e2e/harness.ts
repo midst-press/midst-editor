@@ -49,7 +49,7 @@ export async function captureDialogs(app: ElectronApplication) {
     g.capturedDialogs = [];
     dialog.showMessageBoxSync = ((_w: unknown, opts: { message?: string }) => {
       g.capturedDialogs!.push(opts?.message ?? '(no message)');
-      return 0; // 'Proceed' -- defaultId in the app's own prompt
+      return 0; // 'Proceed', chosen deliberately: the app's own default is Cancel
     }) as typeof dialog.showMessageBoxSync;
   });
 }
