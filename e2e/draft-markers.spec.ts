@@ -89,20 +89,25 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await expect(thumb).toHaveValue(String(last));
     await win.getByRole('button', { name: 'Drafts' }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
-    // One key at a time: the two together would start playback and stop it again.
-    for (const key of ['Space', 'Enter']) {
+    // One key at a time: the two together would start playback and stop it again. Read once, not
+    // with a retrying expect: a retry would wait until the playback it is meant to catch had run to
+    // the end and put the slider back where it started.
+    const pressAndRead = async (key: string) => {
       await win.keyboard.press(key);
       await win.waitForTimeout(700);
-      // Read once, not with a retrying expect: a retry would wait until the playback it is meant to
-      // catch had run to the end and put the slider back where it started.
-      expect(
-        [
-          await thumb.inputValue(),
-          await win.locator('[data-testid="PauseIcon"]').count(),
-        ],
-        `${key} started playback behind the open list`
-      ).toEqual([String(last), 0]);
-    }
+      return [
+        await thumb.inputValue(),
+        await win.locator('[data-testid="PauseIcon"]').count(),
+      ];
+    };
+    expect(
+      await pressAndRead('Space'),
+      'Space started playback behind the open list'
+    ).toEqual([String(last), 0]);
+    expect(
+      await pressAndRead('Enter'),
+      'Enter started playback behind the open list'
+    ).toEqual([String(last), 0]);
     await win.keyboard.press('Escape');
     await expect(win.locator('.DraftDrawer')).toBeHidden();
     await expect(win.locator('.ReplayContainer')).toBeVisible();
