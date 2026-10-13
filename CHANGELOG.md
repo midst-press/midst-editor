@@ -1,3 +1,9 @@
+# 0.3.0
+
+- **About Midst says which version you have**: the version, the commit it was built from and when
+  that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
+  and in the Help menu on Windows and Linux.
+
 # 0.2.1
 
 - **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
