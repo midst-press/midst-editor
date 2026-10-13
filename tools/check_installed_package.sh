@@ -71,10 +71,13 @@ for path in "${residue[@]}"; do [ -e "$path" ] && before+=("$path"); done
 had_user_apps=no; [ -d "$user_apps" ] && had_user_apps=yes
 had_receipt=no; pkgutil --volume "$HOME" --pkg-info "$BUNDLE_ID" > /dev/null 2>&1 && had_receipt=yes
 
-work=$(mktemp -d)
+# Both are created, and checked, before the clean-up trap exists: with either one empty the
+# clean-up's paths would start at the root of the disk.
+work=$(mktemp -d) && [ -d "$work" ] || cannot "could not make a temporary directory"
 # Folders in the home directory, not under the temporary directory: the installer has to be able
 # to find the copies in them, as it would find a poet's old copy.
-elsewhere=$(mktemp -d "$HOME/midst-install-test.XXXXXX")
+elsewhere=$(mktemp -d "$HOME/midst-install-test.XXXXXX") && [ -d "$elsewhere" ] \
+  || { rm -rf "$work"; cannot "could not make a folder in $HOME (is the disk full?)"; }
 failures=0
 installed_by_test=no
 app_pid=
@@ -98,9 +101,13 @@ cleanup() {
   "$LSREGISTER" -u "$user_apps/MidstInstallControl.app" > /dev/null 2>&1
   rm -rf "$HOME/Applications/MidstInstallControl.app"
   pkgutil --volume "$HOME" --forget "$CONTROL_ID" > /dev/null 2>&1
-  for path in "$elsewhere"/*/*.app; do [ -e "$path" ] && "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
-  case "$elsewhere" in "$HOME"/midst-install-test.*) rm -rf "$elsewhere" ;; esac
-  rm -rf "$work"
+  case "$elsewhere" in
+    "$HOME"/midst-install-test.*)
+      for path in "$elsewhere"/*/*.app; do [ -e "$path" ] && "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
+      rm -rf "$elsewhere"
+      ;;
+  esac
+  [ -n "$work" ] && rm -rf "$work"
   for path in "${residue[@]}"; do
     case " ${before[*]-} " in *" $path "*) continue ;; esac
     case "$path" in "$HOME"/Library/*) rm -rf "$path" ;; esac
