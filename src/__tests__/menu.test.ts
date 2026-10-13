@@ -68,7 +68,8 @@ let dir: string;
 const pendingIo: Promise<void>[] = [];
 
 // Run the real fs call, and record when its callback has run so a test can wait on it exactly.
-const trackFsCallback = (name: 'readFile' | 'writeFile') => {
+// Only reads have a callback: saving writes synchronously (#37).
+const trackFsCallback = (name: 'readFile') => {
   const real = fs[name] as unknown as jest.Mock;
   jest.spyOn(fs, name).mockImplementation(((...args: unknown[]) => {
     const cb = args[args.length - 1] as jest.Mock;
@@ -96,7 +97,6 @@ beforeEach(() => {
   pendingIo.length = 0;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-test-'));
   trackFsCallback('readFile');
-  trackFsCallback('writeFile');
 });
 afterEach(() => {
   jest.restoreAllMocks();
@@ -105,6 +105,11 @@ afterEach(() => {
 
 const readBack = (p: string) => fs.readFileSync(p, 'utf8');
 const dirListing = () => fs.readdirSync(dir).sort();
+
+// A file that cannot be written: its folder does not exist.
+const unwritable = () => path.join(dir, 'no-such-folder', 'zq.midst');
+const SAVE_AS = 0;
+const OK = 1;
 
 const seedDocument = (over: Record<string, unknown> = {}) => {
   const values: Record<string, unknown> = {
@@ -257,6 +262,152 @@ describe('save', () => {
       expect.anything()
     );
   });
+
+  describe('when the file cannot be written (#37)', () => {
+    it('keeps the document unsaved, records nothing, and tells the poet which file', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target, baseFilename: 'zq.midst' });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true);
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
+      expect(win.setTitle).not.toHaveBeenCalled();
+      expect(win.setRepresentedFilename).not.toHaveBeenCalled();
+      expect(win.webContents.send).not.toHaveBeenCalled();
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      const options = showMessageBox.mock.calls[0][1];
+      expect(options.type).toBe('error');
+      expect(options.message).toBe('Midst could not save "zq.midst".');
+      expect(options.detail).toContain('ENOENT');
+      expect(options.detail).toContain('it has not been saved to that file');
+      expect(options.buttons).toEqual(['Save As…', 'OK']);
+      expect(options.cancelId).toBe(OK);
+      // OK asks for nothing more.
+      expect(showSaveDialog).not.toHaveBeenCalled();
+    });
+
+    it('does not touch the macOS edited dot elsewhere', async () => {
+      seedDocument({ filename: unwritable() });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false);
+      expect(win.setDocumentEdited).not.toHaveBeenCalled();
+      expect(mockStore.get('edited')).toBe('true');
+    });
+
+    it('on Save As…, asks for another file and saves there', async () => {
+      const elsewhere = path.join(dir, 'xv.midst');
+      seedDocument({ filename: unwritable() });
+      showMessageBox.mockReturnValue(SAVE_AS);
+      showSaveDialog.mockReturnValue(elsewhere);
+      const win = makeWindow();
+      await save(asWindow(win), false);
+      expect(readBack(elsewhere)).toContain('"text":"<p>xv</p>"');
+      expect(mockStore.get('filename')).toBe(elsewhere);
+      expect(mockStore.get('edited')).toBe('false');
+      expect(win.webContents.send.mock.calls).toEqual([
+        ['set-filename', 'xv.midst'],
+      ]);
+    });
+
+    it('a first save to a file that cannot be written says so and keeps the document without a file', async () => {
+      // A new document, saved by the editor as it opens: nothing unsaved yet, but the poet has just
+      // chosen where it goes.
+      seedDocument({ filename: '', edited: 'false' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      expect(mockStore.get('filename')).toBe('');
+      expect(mockStore.get('baseFilename')).toBeUndefined();
+      // The editor stays open: a cancelled save sends the poet back to the start, a failed one does not.
+      expect(win.webContents.send).not.toHaveBeenCalled();
+    });
+
+    it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
+      // The editor saves each document it opens; a poem opened from a read-only place is not an error.
+      seedDocument({ filename: unwritable(), edited: 'false' });
+      const win = makeWindow();
+      await save(asWindow(win), true, false);
+      expect(showMessageBox).not.toHaveBeenCalled();
+      expect(win.setDocumentEdited).not.toHaveBeenCalled();
+      expect(mockStore.get('edited')).toBe('false');
+    });
+
+    it('the editor\u2019s own saves tell the poet once per file, not after every pause in typing', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true, false);
+      await save(asWindow(win), true, false);
+      await save(asWindow(win), true, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // Still unsaved, and still shown as unsaved, every time.
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.setDocumentEdited.mock.calls).toEqual([
+        [true],
+        [true],
+        [true],
+      ]);
+    });
+
+    it('tells the poet again for another file, and again for the same file after a save that worked', async () => {
+      const first = unwritable();
+      const second = path.join(dir, 'also-missing', 'xv.midst');
+      showMessageBox.mockReturnValue(OK);
+      seedDocument({ filename: first });
+      await save(asWindow(makeWindow()), false, false);
+      seedDocument({ filename: second });
+      await save(asWindow(makeWindow()), false, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(2);
+
+      // The folder appears: the save works. Then it goes away again.
+      fs.mkdirSync(path.dirname(second));
+      await save(asWindow(makeWindow()), false, false);
+      expect(mockStore.get('edited')).toBe('false');
+      fs.rmSync(path.dirname(second), { recursive: true });
+      seedDocument({ filename: second });
+      await save(asWindow(makeWindow()), false, false);
+      expect(showMessageBox).toHaveBeenCalledTimes(3);
+    });
+
+    it('a save the poet chooses always says so, even straight after they were told', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      await save(asWindow(makeWindow()), false, false);
+      await save(asWindow(makeWindow()), false);
+      await save(asWindow(makeWindow()), false);
+      expect(showMessageBox).toHaveBeenCalledTimes(3);
+    });
+
+    it('a save the poet chooses says so even when nothing was unsaved', async () => {
+      seedDocument({ filename: unwritable(), edited: 'false' });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // Nothing was unsaved, so the edited dot is not switched on.
+      expect(win.setDocumentEdited).not.toHaveBeenCalled();
+    });
+
+    it('leaves an existing file that cannot be replaced as it was', async () => {
+      // Root may write to a read-only file, so there is nothing to observe as root.
+      if (process.getuid?.() === 0) return;
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'earlier work');
+      fs.chmodSync(target, 0o444);
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      await save(asWindow(makeWindow()), false);
+      expect(showMessageBox.mock.calls[0][1].detail).toMatch(/EACCES|EPERM/);
+      expect(readBack(target)).toBe('earlier work');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+  });
 });
 
 describe('saveAs', () => {
@@ -363,17 +514,60 @@ describe('saveAs', () => {
     expect(win.webContents.send).not.toHaveBeenCalled();
     expect(win.setTitle).not.toHaveBeenCalled();
   });
+
+  describe('when the chosen file cannot be written (#37)', () => {
+    it('keeps the previous file as the file of the document, keeps it unsaved, and says so', async () => {
+      const previous = path.join(dir, 'zq.midst');
+      seedDocument({ filename: previous, baseFilename: 'zq.midst' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await saveAs(asWindow(win), true);
+      expect(mockStore.get('filename')).toBe(previous);
+      expect(mockStore.get('baseFilename')).toBe('zq.midst');
+      expect(mockStore.get('edited')).toBe('true');
+      expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
+      expect(win.setTitle).not.toHaveBeenCalled();
+      expect(win.webContents.send).not.toHaveBeenCalled();
+      expect(showMessageBox.mock.calls[0][1].type).toBe('error');
+      expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    });
+
+    it('says so even when nothing was unsaved: the poet asked for this file', async () => {
+      seedDocument({ filename: path.join(dir, 'zq.midst'), edited: 'false' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      await saveAs(asWindow(makeWindow()), false);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+    });
+
+    it('on Save As…, asks again and saves to the next file chosen', async () => {
+      const good = path.join(dir, 'xv.midst');
+      seedDocument({ filename: '' });
+      showSaveDialog
+        .mockReturnValueOnce(unwritable())
+        .mockReturnValueOnce(good);
+      showMessageBox.mockReturnValue(SAVE_AS);
+      await saveAs(asWindow(makeWindow()), false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      expect(mockStore.get('filename')).toBe(good);
+      expect(mockStore.get('edited')).toBe('false');
+      expect(dirListing()).toEqual(['xv.midst']);
+    });
+  });
 });
 
 describe('newFile', () => {
-  it('with unsaved changes, warns with Proceed/Cancel, defaulting to Proceed', () => {
+  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
     newFile(asWindow(makeWindow()), false);
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const options = showMessageBox.mock.calls[0][1];
     expect(options.buttons).toEqual(['Proceed', 'Cancel']);
-    expect(options.defaultId).toBe(0);
+    // Return must never be the button that discards the poem (#40).
+    expect(options.defaultId).toBe(1);
     expect(options.cancelId).toBe(1);
     expect(options.type).toBe('warning');
   });

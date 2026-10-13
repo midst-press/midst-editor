@@ -315,7 +315,8 @@ describe('main process', () => {
           expect.objectContaining({
             type: 'warning',
             buttons: ['Quit Anyway', 'Cancel'],
-            defaultId: 0,
+            // Return must never be the button that discards the poem (#40).
+            defaultId: 1,
             cancelId: 1,
           })
         );
@@ -418,7 +419,9 @@ describe('main process', () => {
         const { menu, win, fireIpc } = await boot();
         await fireIpc(channel);
         expect(menu[fn]).toHaveBeenCalledTimes(1);
-        expect(menu[fn]).toHaveBeenCalledWith(win(), darwin);
+        // A save from the renderer is one of the editor's own, not the poet choosing Save (#37).
+        const extra = fn === 'save' ? [false] : [];
+        expect(menu[fn]).toHaveBeenCalledWith(win(), darwin, ...extra);
       }
     );
 

@@ -122,7 +122,8 @@ const createWindow = async () => {
   ipcMain.on('save-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
-    save(mainWindow, darwin);
+    // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
+    save(mainWindow, darwin, false);
   });
   ipcMain.on('new-file', async () => {
     const darwin = process.platform === 'darwin';
@@ -255,11 +256,9 @@ const createWindow = async () => {
       message:
         'Current document contains unsaved changes. Are you sure you want to proceed?',
       buttons: ['Quit Anyway', 'Cancel'],
-      // Sets the first option as the default option
-      // if the user hits the Return key
-      defaultId: 0,
-      // Sets the second button as the button selected
-      // if the user dismisses the message box.
+      // Return keeps the work: the default button is Cancel, never the one that discards (#40).
+      defaultId: 1,
+      // Dismissing the message box is Cancel too.
       cancelId: 1,
     });
 

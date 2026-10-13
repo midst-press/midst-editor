@@ -5,6 +5,13 @@
   and in the Help menu on Windows and Linux.
 - **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
   screen, and it no longer loses the last second of typing.
+- **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
+  close the window, start a new poem or open another one used to have the button that discards the
+  work as its default. The default is now Cancel.
+- **If a poem cannot be saved, Midst now says so and keeps it marked as unsaved.** Before, a save that
+  failed (a full disk, a folder you cannot write to, a drive that had gone away) looked like a save that
+  worked, and closing the window afterwards discarded the poem without a warning. The message offers
+  **Save As…** so you can put the poem somewhere else.
 
 # 0.2.1
 
