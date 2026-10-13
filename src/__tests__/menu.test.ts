@@ -347,7 +347,11 @@ describe('save', () => {
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       // Still unsaved, and still shown as unsaved, every time.
       expect(mockStore.get('edited')).toBe('true');
-      expect(win.setDocumentEdited.mock.calls).toEqual([[true], [true], [true]]);
+      expect(win.setDocumentEdited.mock.calls).toEqual([
+        [true],
+        [true],
+        [true],
+      ]);
     });
 
     it('tells the poet again for another file, and again for the same file after a save that worked', async () => {
