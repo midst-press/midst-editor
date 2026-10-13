@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { app, dialog, Menu, shell } from 'electron';
 import MenuBuilder, { newFile, openFile, save, saveAs } from '../main/menu';
+import { showAbout } from '../main/about';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -20,6 +21,7 @@ jest.mock('electron', () => ({
   shell: { openExternal: jest.fn() },
   BrowserWindow: jest.fn(),
 }));
+jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
 jest.mock('electron-log', () => ({
   __esModule: true,
   default: { debug: jest.fn(), info: jest.fn(), error: jest.fn() },
@@ -885,6 +887,17 @@ describe('the menu', () => {
       expect(shell.openExternal).toHaveBeenLastCalledWith(
         'https://github.com/jshafto/midst-app'
       );
+    });
+
+    it('About Midst opens the About box on this window, from the menu this platform expects', () => {
+      const win = makeWindow();
+      const template = build(platform, win);
+      sub(template, isMac ? 'Midst' : helpTop, 'About Midst').click!();
+      expect(showAbout).toHaveBeenCalledTimes(1);
+      expect(showAbout).toHaveBeenCalledWith(win);
+      // One About per platform: macOS has it in the application menu only.
+      const other = find(template, isMac ? helpTop : fileLabels.top).submenu!;
+      expect(other.map((i) => i.label)).not.toContain('About Midst');
     });
 
     it('production View menu has no Reload or Developer Tools', () => {
