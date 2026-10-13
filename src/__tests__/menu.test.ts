@@ -188,6 +188,8 @@ describe('save', () => {
       { name: 'Midst', extensions: ['midst'] },
       { name: 'All Files', extensions: ['*'] },
     ]);
+    // Not whatever name the last save panel was given (midst-press/midst-editor#52).
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe('Untitled.midst');
     expect(readBack(target)).toContain('"text":"<p>xv</p>"');
     expect(mockStore.get('filename')).toBe(target);
   });
@@ -256,6 +258,13 @@ describe('save', () => {
 });
 
 describe('saveAs', () => {
+  it('offers Untitled.midst for a document that has no file yet', async () => {
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(undefined);
+    await saveAs(asWindow(makeWindow()), false);
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe('Untitled.midst');
+  });
+
   it('always asks, writes to the chosen file and leaves the previous file untouched', async () => {
     const previous = path.join(dir, 'zq.midst');
     const chosen = path.join(dir, 'xv.midst');
@@ -266,6 +275,7 @@ describe('saveAs', () => {
     await saveAs(asWindow(win), false);
     await ioDone();
     expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(previous);
     expect(readBack(previous)).toBe('earlier work');
     expect(readBack(chosen)).toBe(
       `midstVersion: 1\n${JSON.stringify({ text: '<p>xv</p>', history })}`
