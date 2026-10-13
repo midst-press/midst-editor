@@ -3,7 +3,8 @@
 - **About Midst says which version you have**: the version, the commit it was built from and when
   that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
   and in the Help menu on Windows and Linux.
-- **Switching spellcheck on or off straight after typing no longer loses the last second of typing.**
+- **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
+  screen, and it no longer loses the last second of typing.
 
 # 0.2.1
 
