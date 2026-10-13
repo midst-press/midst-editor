@@ -265,6 +265,9 @@
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "gatekeeperAssess": false
     },
+    "pkg": {
+      "isRelocatable": false
+    },
     "dmg": {
       "contents": [
         {

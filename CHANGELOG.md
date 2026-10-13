@@ -9,6 +9,8 @@
 - **Saving refuses when no poem is loaded** instead of writing an empty file over one on disk.
 - **New and Open ask before discarding unsaved work** even when that state was not recorded.
 - **The text-size setting reads the same in every part of the app**, including the smallest size.
+- **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
+  on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
 - **Licence: AGPL-3.0-or-later** (was MIT; the earlier notice is kept in `LICENSE-MIT`).
 - Under the hood: Jest 30 with coverage, Node 26, current GitHub Actions, installers built without
   third-party install scripts, and a latent edge case in comparing identical versions closed.
