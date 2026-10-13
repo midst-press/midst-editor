@@ -1,3 +1,12 @@
+# 0.2.1
+
+- **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
+  on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
+- **A new poem's save dialog offers `Untitled.midst`**, not the last file name used.
+- **The app icon is the new artwork, and has no grey border on macOS 26.**
+- Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
+  and Electron is put in place for development on Node 26.
+
 # 0.2.0
 
 - **Old poems convert to the new format with their font, size, title and draft markers kept**, and the
@@ -9,8 +18,6 @@
 - **Saving refuses when no poem is loaded** instead of writing an empty file over one on disk.
 - **New and Open ask before discarding unsaved work** even when that state was not recorded.
 - **The text-size setting reads the same in every part of the app**, including the smallest size.
-- **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
-  on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
 - **Licence: AGPL-3.0-or-later** (was MIT; the earlier notice is kept in `LICENSE-MIT`).
 - Under the hood: Jest 30 with coverage, Node 26, current GitHub Actions, installers built without
   third-party install scripts, and a latent edge case in comparing identical versions closed.
