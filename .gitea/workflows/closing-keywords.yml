@@ -48,4 +48,12 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         # Against the base branch as it is now, not as it was when the pull request was opened: a branch that
         # has merged main in must not be judged on main's own commits.
-        run: python3 tools/closing_refs.py --range "origin/$BASE_REF..$HEAD_SHA" --title-env PR_TITLE
+        run: |
+          # A pull request has at least one commit of its own. None here means the range was not what it
+          # should be, and the pass below would be for the title alone.
+          count="$(git rev-list --count "origin/$BASE_REF..$HEAD_SHA")"
+          if [ "$count" -lt 1 ]; then
+            echo "no commits in origin/$BASE_REF..$HEAD_SHA, so no commit message was checked" >&2
+            exit 1
+          fi
+          python3 tools/closing_refs.py --range "origin/$BASE_REF..$HEAD_SHA" --title-env PR_TITLE
