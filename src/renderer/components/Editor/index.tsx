@@ -287,7 +287,9 @@ export default function Editor() {
           arrow
           placement="top-start"
         >
-          <Link to="/replay">
+          {/* Saves first, as the menu's toggle-edit-mode does. Leaving the editor cancels a pending
+              autosave, so without this the keystrokes of the last second are not in the file. */}
+          <Link to="/replay" onClick={() => saveFileAndUpdateStore()}>
             <button aria-label="Replay" type="button" className="icon-button">
               <HistoryIcon fontSize="small" />
             </button>

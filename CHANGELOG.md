@@ -4,6 +4,8 @@
   on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
 - **A new poem's save dialog offers `Untitled.midst`**, not the last file name used.
 - **The app icon is the new artwork, and has no grey border on macOS 26.**
+- **Clicking Replay straight after typing no longer leaves the last second of typing out of the saved
+  file.** Before, those keystrokes were saved only when you came back to the editor.
 - **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
   while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
   the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.
