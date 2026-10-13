@@ -7,7 +7,10 @@ const { spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const crypto = require('crypto');
 const { checkRelease, selectArtifacts } = require('../prune_artifacts.cjs');
+
+const sha = (text) => crypto.createHash('sha256').update(text).digest('hex');
 
 const SCRIPT = path.join(__dirname, '..', 'prune_artifacts.cjs');
 const PKG = '.github/workflows/package.yml';
@@ -23,18 +26,46 @@ const art = (id, runId, extra = {}) => ({
 
 describe('checkRelease', () => {
   const files = [
-    { name: 'Midst-0.2.1-arm64.pkg', size: 10 },
-    { name: 'SHA256SUMS', size: 3 },
+    { name: 'Midst-0.2.1-arm64.pkg', size: 10, sha256: 'aa' },
+    { name: 'SHA256SUMS', size: 3, sha256: 'bb' },
   ];
-  it('passes when every file is on the release at its size', () => {
-    expect(checkRelease([...files, { name: 'extra', size: 1 }], files)).toEqual(
-      []
-    );
+  const asset = (f, extra = {}) => ({
+    name: f.name,
+    size: f.size,
+    digest: `sha256:${f.sha256}`,
+    state: 'uploaded',
+    ...extra,
+  });
+  it('passes when every file is on the release, uploaded, at its size and digest', () => {
+    const assets = [...files.map((f) => asset(f)), { name: 'extra', size: 1 }];
+    expect(checkRelease(assets, files)).toEqual([]);
   });
   it('names a missing file and a size that differs', () => {
-    expect(checkRelease([{ name: 'SHA256SUMS', size: 4 }], files)).toEqual([
+    expect(checkRelease([asset(files[1], { size: 4 })], files)).toEqual([
       'Midst-0.2.1-arm64.pkg is not on the release',
       'SHA256SUMS is 4 bytes on the release, 3 here',
+    ]);
+  });
+  it('refuses a same-size asset with a different digest', () => {
+    expect(
+      checkRelease(
+        [asset(files[0], { digest: 'sha256:cc' }), asset(files[1])],
+        files
+      )
+    ).toEqual(['Midst-0.2.1-arm64.pkg has a different SHA-256 on the release']);
+  });
+  it('refuses an asset with no digest, or one not uploaded', () => {
+    expect(
+      checkRelease(
+        [
+          asset(files[0], { digest: undefined }),
+          asset(files[1], { state: 'starter' }),
+        ],
+        files
+      )
+    ).toEqual([
+      'Midst-0.2.1-arm64.pkg has no digest on the release',
+      "SHA256SUMS is 'starter' on the release, not uploaded",
     ]);
   });
   it('refuses an empty list rather than passing it', () => {
@@ -166,8 +197,18 @@ esac
       path.join(dir, 'release.json'),
       JSON.stringify({
         assets: [
-          { name: 'Midst.pkg', size: 5 },
-          { name: 'SHA256SUMS', size: 2 },
+          {
+            name: 'Midst.pkg',
+            size: 5,
+            state: 'uploaded',
+            digest: `sha256:${sha('12345')}`,
+          },
+          {
+            name: 'SHA256SUMS',
+            size: 2,
+            state: 'uploaded',
+            digest: `sha256:${sha('ab')}`,
+          },
         ],
       })
     );

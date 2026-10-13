@@ -4,7 +4,8 @@
 // package run is about 254 MB). Two commands, run by release.yml as separate steps:
 //
 //   node tools/prune_artifacts.cjs verify --repo <owner/name> --tag <tag> --dir <dir>
-//       Exits 0 only if release <tag> in <repo> carries every file in <dir>, by name and byte size.
+//       Exits 0 only if release <tag> in <repo> carries every file in <dir>: same name, same size, and an
+//       uploaded asset whose SHA-256 digest matches the file's. An asset without a digest is refused.
 //
 //   node tools/prune_artifacts.cjs prune --repo <owner/name> --run <package run id> [--dry-run] [--summary <file>]
 //       Deletes the artifacts of package run <run> and of every package run with a smaller id. Never a
@@ -16,6 +17,7 @@
 // Exit: 0 done; 1 refused (release incomplete, or the run is not a package run); 2 usage; 3 an API call failed.
 
 const { execFileSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -23,17 +25,21 @@ const PACKAGE_WORKFLOW = '.github/workflows/package.yml';
 
 /** Problems with a release against the files it should carry: [] means every file is there at its size. */
 function checkRelease(assets, files) {
-  const byName = new Map(assets.map((a) => [a.name, a.size]));
+  const byName = new Map(assets.map((a) => [a.name, a]));
   const problems = [];
   if (files.length === 0) problems.push('no files to check against');
   for (const f of files) {
-    if (!byName.has(f.name)) problems.push(`${f.name} is not on the release`);
-    else if (byName.get(f.name) !== f.size)
+    const a = byName.get(f.name);
+    if (!a) problems.push(`${f.name} is not on the release`);
+    else if (a.state !== 'uploaded')
+      problems.push(`${f.name} is '${a.state}' on the release, not uploaded`);
+    else if (a.size !== f.size)
       problems.push(
-        `${f.name} is ${byName.get(f.name)} bytes on the release, ${
-          f.size
-        } here`
+        `${f.name} is ${a.size} bytes on the release, ${f.size} here`
       );
+    else if (!a.digest) problems.push(`${f.name} has no digest on the release`);
+    else if (a.digest !== `sha256:${f.sha256}`)
+      problems.push(`${f.name} has a different SHA-256 on the release`);
   }
   return problems;
 }
@@ -88,7 +94,11 @@ function verify({ repo, tag, dir }) {
   const files = fs
     .readdirSync(dir)
     .filter((n) => fs.statSync(path.join(dir, n)).isFile())
-    .map((name) => ({ name, size: fs.statSync(path.join(dir, name)).size }));
+    .map((name) => {
+      const bytes = fs.readFileSync(path.join(dir, name));
+      const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
+      return { name, size: bytes.length, sha256 };
+    });
   const release = JSON.parse(
     gh(['release', 'view', tag, '--repo', repo, '--json', 'assets'])
   );
@@ -98,7 +108,7 @@ function verify({ repo, tag, dir }) {
     return 1;
   }
   console.log(
-    `release ${tag} carries all ${files.length} files at their sizes`
+    `release ${tag} carries all ${files.length} files at their sizes and SHA-256`
   );
   return 0;
 }

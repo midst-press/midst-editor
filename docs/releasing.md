@@ -49,7 +49,7 @@ changes only when the format does, never with a release.
    - tags its commit `v<version>`;
    - publishes a GitHub Release named `Midst <version>`, with the three installers, a
      `SHA256SUMS` file, and the changelog entry as its notes.
-   - checks the release carries every installer at its size, then deletes the Actions artifacts
+   - checks the release carries every installer at its size and SHA-256, then deletes the Actions artifacts
      of that package run and of every earlier package run (never a newer one, which may be a
      candidate under test). GitHub Free holds only 500 MB of artifacts, about two package runs;
      release assets have no limit. The run's summary lists what was deleted. To see the list
