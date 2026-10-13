@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Puts a runnable Electron in node_modules/electron, for `npm run e2e` and `npm start`. Issue #8.
+// Puts a runnable Electron in node_modules/electron. Issue #8.
 //
-//     node tools/install-electron.cjs      (also runs before `npm run e2e`)
+//     node tools/install-electron.cjs      (runs before `npm run e2e` and `npm start`, and inside
+//                                           `npm run coverage` before its end-to-end pass)
 //
 // Why this exists. Electron's own install script (node_modules/electron/install.js) does not finish
 // on the Node this project pins: it unpacks with extract-zip 2.0.1, whose promise never settles on
