@@ -1,3 +1,16 @@
+# 0.3.0
+
+- **About Midst says which version you have**: the version, the commit it was built from and when
+  that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
+  and in the Help menu on Windows and Linux.
+- **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
+  close the window, start a new poem or open another one used to have the button that discards the
+  work as its default. The default is now Cancel.
+- **If a poem cannot be saved, Midst now says so and keeps it marked as unsaved.** Before, a save that
+  failed (a full disk, a folder you cannot write to, a drive that had gone away) looked like a save that
+  worked, and closing the window afterwards discarded the poem without a warning. The message offers
+  **Save As…** so you can put the poem somewhere else.
+
 # 0.2.1
 
 - **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else
@@ -9,13 +22,6 @@
 - **You can mark a draft.** The bookmark button marks the poem as it is at that moment, while writing or
   while watching the replay, once a poem has more than 50 changes. Name it, rename it or delete it from
   the Drafts list in the replay; markers show on the timeline, and choosing one takes you to that moment.
-- **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
-  close the window, start a new poem or open another one used to have the button that discards the
-  work as its default. The default is now Cancel.
-- **If a poem cannot be saved, Midst now says so and keeps it marked as unsaved.** Before, a save that
-  failed (a full disk, a folder you cannot write to, a drive that had gone away) looked like a save that
-  worked, and closing the window afterwards discarded the poem without a warning. The message offers
-  **Save As…** so you can put the poem somewhere else.
 - Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
   and Electron is put in place for development on Node 26.
 

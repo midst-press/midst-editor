@@ -13,6 +13,7 @@ import fs from 'fs';
 import store from './store';
 import { fontSizeFromStore } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
+import { showAbout } from './about';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
@@ -343,6 +344,13 @@ export default class MenuBuilder {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
       label: 'Midst',
       submenu: [
+        {
+          label: 'About Midst',
+          click: () => {
+            showAbout(this.mainWindow);
+          },
+        },
+        { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
         {
@@ -688,6 +696,12 @@ export default class MenuBuilder {
             label: 'Documentation',
             click() {
               shell.openExternal('https://github.com/jshafto/midst-app');
+            },
+          },
+          {
+            label: 'About Midst',
+            click: () => {
+              showAbout(this.mainWindow);
             },
           },
         ],
