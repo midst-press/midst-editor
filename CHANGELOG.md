@@ -4,6 +4,8 @@
   on the Mac.** Before, it could update that other copy, report success, and leave Applications empty.
 - **A new poem's save dialog offers `Untitled.midst`**, not the last file name used.
 - **The app icon is the new artwork, and has no grey border on macOS 26.**
+- **Clicking Replay straight after typing no longer leaves the last second of typing out of the saved
+  file.** Before, those keystrokes were saved only when you came back to the editor.
 - Under the hood: every macOS installer is installed and checked on a real Mac before it is released,
   and Electron is put in place for development on Node 26.
 
