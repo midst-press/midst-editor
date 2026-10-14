@@ -11,7 +11,12 @@ import { showAbout } from '../main/about';
 
 const mockStore = new Map<string, unknown>();
 jest.mock('electron', () => ({
-  app: { quit: jest.fn(), emit: jest.fn(), addRecentDocument: jest.fn() },
+  app: {
+    quit: jest.fn(),
+    emit: jest.fn(),
+    addRecentDocument: jest.fn(),
+    getPath: (name: string) => `/test-home/${name}`,
+  },
   dialog: {
     showMessageBoxSync: jest.fn(),
     showSaveDialogSync: jest.fn(),
@@ -196,8 +201,12 @@ describe('save', () => {
       { name: 'All Files', extensions: ['*'] },
     ]);
     // Not whatever name the last save panel was given (midst-press/midst-editor#52).
-    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe('Untitled.midst');
+    // In Documents before any poem has been opened or saved, not Downloads (Electron 43 and later).
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.midst')
+    );
     expect(readBack(target)).toContain('"text":"<p>xv</p>"');
+    expect(mockStore.get('lastFolder')).toBe(dir);
     expect(mockStore.get('filename')).toBe(target);
   });
 
@@ -415,7 +424,23 @@ describe('saveAs', () => {
     seedDocument({ filename: '' });
     showSaveDialog.mockReturnValue(undefined);
     await saveAs(asWindow(makeWindow()), false);
-    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe('Untitled.midst');
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.midst')
+    );
+  });
+
+  it('offers the folder of the last poem opened or saved, while that folder exists', async () => {
+    seedDocument({ filename: '', lastFolder: dir });
+    showSaveDialog.mockReturnValue(undefined);
+    await saveAs(asWindow(makeWindow()), false);
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join(dir, 'Untitled.midst')
+    );
+    seedDocument({ filename: '', lastFolder: path.join(dir, 'gone') });
+    await saveAs(asWindow(makeWindow()), false);
+    expect(showSaveDialog.mock.calls[1][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.midst')
+    );
   });
 
   it('always asks, writes to the chosen file and leaves the previous file untouched', async () => {
@@ -435,6 +460,7 @@ describe('saveAs', () => {
     );
     expect(mockStore.get('filename')).toBe(chosen);
     expect(mockStore.get('baseFilename')).toBe('xv.midst');
+    expect(mockStore.get('lastFolder')).toBe(dir);
     expect(mockStore.get('edited')).toBe('false');
     expect(win.webContents.send).toHaveBeenCalledWith(
       'set-filename',
@@ -700,7 +726,11 @@ describe('openFile', () => {
       name: 'Midst',
       extensions: ['midst'],
     });
+    expect(showOpenDialog.mock.calls[0][1].defaultPath).toBe(
+      '/test-home/documents'
+    );
     expect(mockStore.get('filename')).toBe(target);
+    expect(mockStore.get('lastFolder')).toBe(dir);
   });
 
   it('when the poet cancels the open dialog, reads nothing and changes nothing', async () => {
