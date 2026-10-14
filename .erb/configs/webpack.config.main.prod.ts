@@ -11,9 +11,12 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
+import buildIdentity from '../scripts/build-identity';
 
 checkNodeEnv('production');
 deleteSourceMaps();
+
+const identity = buildIdentity();
 
 const configuration: webpack.Configuration = {
   devtool: 'source-map',
@@ -62,6 +65,10 @@ const configuration: webpack.Configuration = {
       NODE_ENV: 'production',
       DEBUG_PROD: false,
       START_MINIMIZED: false,
+      // What the About box shows. Read from git here, at build time; either can be set in the
+      // environment instead.
+      MIDST_BUILD_COMMIT: identity.commit,
+      MIDST_BUILD_COMMITTED_AT: identity.committedAt,
     }),
 
     new webpack.DefinePlugin({

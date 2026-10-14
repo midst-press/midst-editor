@@ -2,7 +2,10 @@
 # run's own artifacts, checked byte-for-byte against the SHA-256 each build recorded.
 #
 # Actions -> release -> Run workflow, with the number of the package run that was tested (the
-# number in that run's URL). It refuses, before tagging or publishing anything, a run that:
+# number in that run's URL), or blank for the latest successful package run on main. Blank is refused
+# when another package run on main at the same version still has artifacts: only a person knows which
+# was tested. The chosen run's number, commit, version and build time head the job summary.
+# It refuses, before tagging or publishing anything, a run that:
 #   - is not a successful package run started from main;
 #   - lacks build-info for macOS, Windows and Linux, at one version and one commit;
 #   - has a macOS installer that was not signed and notarised, or any installer whose bytes differ
@@ -23,11 +26,13 @@ on:
   workflow_dispatch:
     inputs:
       run_id:
-        description: The package run to release (the number in its URL)
-        required: true
+        description: The package run to release (the number in its URL). Blank means the latest successful package run on main.
+        required: false
+        default: ''
         type: string
 permissions:
   contents: write # the tag and, by default, the release
+  issues: write # the last step: the issues this release fixes go to the verifier
   actions: write # to read the package run, download its artifacts, and delete released ones
 concurrency:
   group: release
@@ -37,10 +42,13 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: ${{ inputs.run_id }}
+      RUN_ID_INPUT: ${{ inputs.run_id }}
       RELEASE_REPO: ${{ vars.RELEASE_REPOSITORY || github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: choose the package run, and say which before anything is tagged
+        # RUN_ID reaches every later step through GITHUB_ENV, and only from here (#82).
+        run: node tools/package_run.cjs --repo "$GITHUB_REPOSITORY" --run "$RUN_ID_INPUT" --summary "$GITHUB_STEP_SUMMARY" >> "$GITHUB_ENV"
       - name: check the run is a successful package run from main
         id: run
         run: |
@@ -139,3 +147,20 @@ jobs:
         run: node tools/prune_artifacts.cjs verify --repo "$RELEASE_REPO" --tag "v$VERSION" --dir candidate/release
       - name: delete the artifacts of this package run and every earlier one
         run: node tools/prune_artifacts.cjs prune --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" --summary "$GITHUB_STEP_SUMMARY"
+      # Here and not left to issue-flow.yml: a release published with this repository's own token does
+      # not start other workflows, so that one would never hear of it. Last, so that a failure here
+      # leaves a complete release; it can be done again from issue-flow.yml ("Run workflow", with the tag).
+      - name: hand the issues this release fixes to the verifier
+        env:
+          RELEASE_VIEW_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          VERIFIER: ${{ vars.MIDST_VERIFIER }}
+        run: |
+          url="$(GH_TOKEN="$RELEASE_VIEW_TOKEN" gh release view "v$VERSION" --repo "$RELEASE_REPO" --json url --jq .url)"
+          # Not through a pipe: the step must fail when the script does, and say what it said either way.
+          out="$(mktemp)"
+          rc=0
+          GH_REPO="$GITHUB_REPOSITORY" TAG="v$VERSION" RELEASE_URL="$url" python3 tools/issue_flow.py released > "$out" || rc=$?
+          cat "$out"
+          cat "$out" >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"

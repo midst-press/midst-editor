@@ -1,3 +1,27 @@
+# 0.3.0
+
+- **Need Help?** on the opening screen opens the help on the Midst website. A beta of the editor
+  (below 1.0.0, or a pre-release) opens the help on the beta site.
+- **Midst has a user guide.** It goes through everything in the app: writing, saving, Replay, draft
+  markers, spellcheck and every keyboard shortcut on each platform. Open it from **Help** >
+  **Documentation**, or from the **User Guide** button in About Midst.
+- **About Midst says which version you have**: the version, the commit it was built from and when
+  that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
+  and in the Help menu on Windows and Linux.
+- **Switching spellcheck on or off keeps you in your poem**, where before it took you back to the opening
+  screen, and it no longer loses the last second of typing.
+- **Pressing Return on an "Unsaved changes" warning now keeps your poem.** The warning shown when you
+  close the window, start a new poem or open another one used to have the button that discards the
+  work as its default. The default is now Cancel.
+- **If a poem cannot be saved, Midst now says so and keeps it marked as unsaved.** Before, a save that
+  failed (a full disk, a folder you cannot write to, a drive that had gone away) looked like a save that
+  worked, and closing the window afterwards discarded the poem without a warning. The message offers
+  **Save As…** so you can put the poem somewhere else.
+- **Midst now needs macOS 13 (Ventura) or later**, and Windows 10 or later. It runs on Electron 44,
+  which receives security fixes; the Electron it used before had none since December 2023.
+- **Open and Save start in the folder of the last poem you opened or saved**, or in Documents.
+- Under the hood: Electron 44 and electron-builder 26.
+
 # 0.2.1
 
 - **The macOS installer puts Midst in Applications even when another copy of Midst is somewhere else

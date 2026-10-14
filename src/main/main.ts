@@ -21,6 +21,7 @@ import {
   IpcMainEvent,
   shell,
 } from 'electron';
+import debug from 'electron-debug';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import fs from 'fs';
@@ -28,6 +29,7 @@ import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
 import MenuBuilder, { save, newFile, openFile } from './menu';
 import store from './store';
+import { helpUrl } from '../shared/helpUrl';
 import { writeConvertedFile } from './convertedFile';
 import {
   fileVersionMatchesCurrent,
@@ -67,7 +69,7 @@ const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 if (isDebug) {
-  require('electron-debug')();
+  debug();
 }
 
 const installExtensions = async () => {
@@ -122,7 +124,8 @@ const createWindow = async () => {
   ipcMain.on('save-file', async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
-    save(mainWindow, darwin);
+    // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
+    save(mainWindow, darwin, false);
   });
   ipcMain.on('new-file', async () => {
     const darwin = process.platform === 'darwin';
@@ -133,6 +136,11 @@ const createWindow = async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     openFile(mainWindow, darwin);
+  });
+
+  // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
+  ipcMain.on('open-help', () => {
+    shell.openExternal(helpUrl(app.getVersion()));
   });
 
   ipcMain.on('app-open', (filename: IpcMainEvent) => {
@@ -255,11 +263,9 @@ const createWindow = async () => {
       message:
         'Current document contains unsaved changes. Are you sure you want to proceed?',
       buttons: ['Quit Anyway', 'Cancel'],
-      // Sets the first option as the default option
-      // if the user hits the Return key
-      defaultId: 0,
-      // Sets the second button as the button selected
-      // if the user dismisses the message box.
+      // Return keeps the work: the default button is Cancel, never the one that discards (#40).
+      defaultId: 1,
+      // Dismissing the message box is Cancel too.
       cancelId: 1,
     });
 

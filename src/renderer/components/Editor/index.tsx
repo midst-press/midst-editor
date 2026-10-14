@@ -9,7 +9,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeFromStore } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
-import { TextContext, HistoryContext } from 'renderer/context';
+import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
 import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
@@ -180,6 +180,12 @@ export default function Editor() {
       () => {
         setSpellcheckOn(!spellcheckOn);
         window.electron.store.set('spellcheck', (!spellcheckOn).toString());
+        // The reloaded window takes its text from the store, and a pending autosave dies with this
+        // page: save first, or the keystrokes of the last second are gone.
+        saveFileAndUpdateStore();
+        // The reload makes the whole text be checked again, and would otherwise leave the poet at
+        // the opening screen instead of in their poem.
+        window.sessionStorage.setItem(RETURN_TO, '/editor');
         window.location.reload();
       }
     );

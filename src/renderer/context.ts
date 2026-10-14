@@ -30,6 +30,10 @@ const initialFilenameState = {
   },
 };
 
+// Where the app starts after it reloads its own window (the spellcheck toggle does). Held in the
+// window's session storage, so it is gone when the app is quit: a fresh start shows the opening screen.
+export const RETURN_TO = 'midst-return-to';
+
 export const TextContext = createContext(initialTextState);
 export const HistoryContext = createContext(initialHistoryState);
 export const FilenameContext = createContext(initialFilenameState);

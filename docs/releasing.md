@@ -23,6 +23,12 @@ tools/set_version.sh 0.2.0
 That sets all six places, then runs `tools/check_version.sh`. The same check runs in pre-commit and
 in CI, so a commit where they disagree cannot pass the gates.
 
+**About Midst** (the Midst menu on a Mac, Help elsewhere) shows that version as its release tag, with
+the commit the package was built from and that commit's date, for example
+`Version v0.2.1, commit a1b2c3d, committed 2026-10-13 20:30 UTC`. The commit is read from git when the
+main bundle is built (`.erb/scripts/build-identity.js`) and ends in `-dirty` if tracked files had
+uncommitted changes. Running from source shows `Development build`.
+
 Separately, `midstVersion` in `src/main/util.ts` is the version of the poem **file format**. It
 changes only when the format does, never with a release.
 
@@ -46,7 +52,10 @@ changes only when the format does, never with a release.
    branch and merge it. Then build a new candidate from `main` at the same version, because nothing
    has been released yet, and test that one from the start.
 5. **Release the candidate that passed**: **Actions → release → Run workflow**, giving it that
-   package run's number (the number at the end of the run's URL). It:
+   package run's number (the number at the end of the run's URL). The field can be left blank: it
+   then takes the latest successful package run on `main`, and refuses if another package run on
+   `main` at the same version still has artifacts, since only you know which one you tested. Either
+   way, the run's summary starts with the run it chose, its commit, version and build time. It:
    - checks the candidate;
    - tags its commit `v<version>`;
    - publishes a GitHub Release named `Midst <version>`, with the three installers, a
@@ -56,6 +65,11 @@ changes only when the format does, never with a release.
      candidate under test). GitHub Free holds only 500 MB of artifacts, about two package runs;
      release assets have no limit. The run's summary lists what was deleted. To see the list
      without deleting anything: `node tools/prune_artifacts.cjs prune --repo <owner/name> --run <id> --dry-run`.
+   - hands the issues this release fixes to the verifier: each open issue labelled `awaiting release`
+     whose fix is in the release is labelled `needs verifying`, put on the release's milestone, assigned
+     to the verifier (the repository variable `MIDST_VERIFIER`) and told which release to check. The
+     run's summary lists them, and any it left behind with the reason. If this step fails the release is
+     still complete; run the `issue-flow` workflow by hand with the tag to do it again.
 
 Artifacts are deleted after the repository's retention period (90 days by default), so release a
 candidate before then, or build a new one.
@@ -97,7 +111,9 @@ Use a Mac, or an account on one, that has no Midst installed.
 - [ ] **The installer's windows read correctly.** While doing the step above, read each window:
 
   - no warning that the package cannot be verified or is from an unidentified developer;
-  - the title and the version are Midst's;
+  - the installer names the package `Midst <version>`, with the version being released. That name is
+    the only place the installer shows a version; it has no separate title or version line. For the
+    version of what was installed, use **Get Info** on the app, as in the step above;
   - the destination window offers the choices you expect, and choosing **Install for me only**
     instead (run the package a second time) puts Midst in `~/Applications`.
 

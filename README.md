@@ -4,6 +4,8 @@ This is a cross-platform reimplementation of the [Midst](https://midst.press) po
 
 It is based on the [Electron React Boilerplate](https://electron-react-boilerplate.js.org/), used under the [MIT license](https://github.com/electron-react-boilerplate/electron-react-boilerplate/blob/main/LICENSE).
 
+To learn how to write in Midst, read the [user guide](docs/user-guide.md).
+
 To contribute, see [CONTRIBUTING.md](CONTRIBUTING.md): the checks, the tests, and the rules about poem content.
 
 ## Install

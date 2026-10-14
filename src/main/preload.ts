@@ -17,6 +17,7 @@ export type Channels =
   | 'new-file'
   | 'new-file-from-menu'
   | 'button-open-file'
+  | 'open-help'
   | 'enable-save'
   | 'disable-save'
   | 'cancel-save'

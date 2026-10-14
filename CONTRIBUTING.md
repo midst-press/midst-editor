@@ -40,10 +40,13 @@ CI runs the pre-commit checks (defined in `.pre-commit-config.yaml`), the build,
 end-to-end tests are not in CI; run them yourself.
 
 `pre-commit` is a Python tool: `pipx install pre-commit==4.6.2` (the version CI uses; `uv tool install`
-works too). Then, from a clone where `npm ci` has run:
+works too). Install it before `npm ci`: `npm ci` installs this clone's git hooks for you
+(`tools/install-hooks.cjs`) and fails if it cannot, and `npm test` does not run in a clone without them. A
+commit made without the hooks skips every check below and the rule about closing keywords.
+
+Then, from a clone where `npm ci` has run:
 
 ```
-pre-commit install            # once per clone
 npm run build                 # the tests need the built app; they stop with a message if it is missing
 pre-commit run --all-files    # formatting, type check, lint, and the poem-data and version rules
 npm test -- --coverage        # unit tests (Jest), with the per-file coverage thresholds, as CI runs them
@@ -60,6 +63,25 @@ correctly", run `node tools/install-electron.cjs` and include what it prints in 
 - **The version** is kept the same in every place that states it; the `version-consistent` hook checks
   this. Releases follow `docs/releasing.md`.
 - **A user-visible change gets a line in `CHANGELOG.md`**, as described next.
+- **Titles, descriptions and commit messages say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
+  keyword closes the issue the moment the commit reaches `main`, before anyone has checked the fix in a
+  release. The `commit-msg` hook that `pre-commit install` sets up refuses one, and so does a check on the
+  pull request. In the pull request that finishes an issue, write `Completes #12`: see the next section.
+
+## How an issue gets closed
+
+An issue is closed by the person who checks the fix in a released version, not by the merge.
+
+1. A pull request whose title or description says `Completes #12` merges. Issue 12 is labelled
+   `awaiting release`. `Refs #12` is only a link, for a pull request that is part of the work.
+2. A release that contains that merge is published. The issue is labelled `needs verifying`, put on the
+   release's milestone and assigned to the verifier, with a comment naming the release and quoting the
+   issue's own "How will we know this works?" steps.
+3. The verifier installs the release and follows the steps. If it works they close the issue, saying
+   what they did and saw. If not, they say what happened and it stays open.
+
+An issue closed while it is still `awaiting release` is reopened, with a comment saying why. The
+workflow is `.github/workflows/issue-flow.yml`; the verifier is the repository variable `MIDST_VERIFIER`.
 
 ## The changelog
 

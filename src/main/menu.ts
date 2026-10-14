@@ -13,6 +13,8 @@ import fs from 'fs';
 import store from './store';
 import { fontSizeFromStore } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
+import { showAbout } from './about';
+import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
@@ -32,11 +34,9 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
     message:
       'Current document contains unsaved changes. Are you sure you want to proceed?',
     buttons: ['Proceed', 'Cancel'],
-    // Sets the first option as the default option
-    // if the user hits the Return key
-    defaultId: 0,
-    // Sets the second button as the button selected
-    // if the user dismisses the message box.
+    // Return keeps the work: the default button is Cancel, never the one that discards (#40).
+    defaultId: 1,
+    // Dismissing the message box is Cancel too.
     cancelId: 1,
   });
 
@@ -85,55 +85,97 @@ const storedDocument = () => {
 // panel, which can be another application's file (midst-press/midst-editor#52).
 const UNTITLED = 'Untitled.midst';
 
-export const save = async (mainWindow: BrowserWindow, darwin: boolean) => {
-  const document = storedDocument();
-  if (document === null) {
-    log.error('save: no document in the store; nothing written');
-    mainWindow.webContents.send('cancel-save');
+// The folder a dialog opens in. From Electron 43 a dialog given no folder opens in Downloads, and the
+// system no longer remembers the last folder used, so the app remembers it: the folder of the last
+// poem opened or saved, or Documents before there is one (electron/electron docs/breaking-changes.md,
+// "Dialog methods default to Downloads directory").
+const LAST_FOLDER = 'lastFolder';
+const dialogFolder = (): string => {
+  const last = store.get(LAST_FOLDER) as string | undefined;
+  return last && fs.existsSync(last) ? last : app.getPath('documents');
+};
+const rememberFolder = (file: string) =>
+  store.set(LAST_FOLDER, path.dirname(file));
+
+const SAVE_FILTERS = [
+  { name: 'Midst', extensions: ['midst'] },
+  { name: 'All Files', extensions: ['*'] },
+];
+
+// Writes the stored document to `filename`, and only when the write has succeeded records it as saved:
+// the filename, the window's title and edited dot, and `edited` in the store.
+//
+// The write is synchronous on purpose. `edited` is what New, Open and closing the window trust before
+// they discard the document, so it must not say "saved" before the bytes are in the file, nor after a
+// write that failed (#37). A callback would also let the poet type between the write and its
+// callback, and the callback would then mark those keystrokes as saved.
+//
+// When the write fails nothing is recorded: the document keeps its previous filename and stays
+// unsaved. Whether the poet is told depends on who started the save:
+//   - `byPoet`: they chose Save or Save As, or have just picked the file in a dialog. Always told.
+//   - otherwise it is one of the editor's own saves (on opening a document, a second after typing,
+//     on leaving for the replay). Not told when nothing was unsaved: opening a read-only poem to
+//     read it is not a failure worth a message. And told only ONCE per file while it keeps failing:
+//     an autosave follows every pause in typing, and a message after each one would make a poem in
+//     a read-only place impossible to work on. The macOS edited dot stays on throughout.
+// `saveElsewhere` is what "Save As…" in that message does.
+let toldCouldNotSave: string | undefined;
+const writeAndRecord = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  label: 'save' | 'saveAs',
+  { text, history }: { text: string; history: string },
+  filename: string,
+  byPoet: boolean,
+  saveElsewhere: () => Promise<void>
+) => {
+  const meta = (store.get('meta') as string | undefined) ?? '';
+  const fullContents = includeVersionInfo(
+    serializeDocument(text, history, meta)
+  );
+
+  // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
+  // newly-opened document beside the previously-loaded document's text. With this in the log,
+  // that defect is diagnosable from a user's log file rather than needing demonstration files.
+  log.debug(`${label}: writing document`, {
+    filename,
+    textChars: typeof text === 'string' ? text.length : 0,
+    historyChars: typeof history === 'string' ? history.length : 0,
+  });
+  try {
+    fs.writeFileSync(filename, fullContents);
+  } catch (err) {
+    const reason = (err as Error).message;
+    log.error(`${label}: the document was not written`, { filename, reason });
+    const nothingUnsaved = store.get('edited') === 'false';
+    if (!byPoet && nothingUnsaved) return;
+    if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
+    if (!byPoet && toldCouldNotSave === filename) return;
+    toldCouldNotSave = filename;
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'error',
+      title: 'Could not save',
+      message: `Midst could not save "${path.basename(filename)}".`,
+      detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
+      buttons: ['Save As…', 'OK'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) await saveElsewhere();
     return;
   }
-  const { text, history } = document;
-  let filename: string | undefined = store.get('filename') as string;
-  if (!filename) {
-    filename = dialog.showSaveDialogSync(mainWindow, {
-      title: 'To begin, create a new Midst document.',
-      message: 'To begin, create a new Midst document.',
-      defaultPath: UNTITLED,
-      filters: [
-        { name: 'Midst', extensions: ['midst'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
-    });
-  }
-  if (filename) {
-    const meta = (store.get('meta') as string | undefined) ?? '';
-    const fullContents = includeVersionInfo(
-      serializeDocument(text, history, meta)
-    );
-    // Only once there is something to write: a document that cannot be serialized must not leave
-    // its intended filename behind in the store.
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    if (darwin) {
-      mainWindow.setDocumentEdited(false);
-      mainWindow.setRepresentedFilename(filename);
-    }
-    mainWindow.setTitle(filename);
-    mainWindow.webContents.send('set-filename', path.basename(filename));
 
-    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
-    // newly-opened document beside the previously-loaded document's text. With this in the log,
-    // that defect is diagnosable from a user's log file rather than needing demonstration files.
-    log.debug('save: writing document', {
-      filename,
-      textChars: typeof text === 'string' ? text.length : 0,
-      historyChars: typeof history === 'string' ? history.length : 0,
-    });
-    fs.writeFile(filename, fullContents, () => {});
-    store.set('edited', JSON.stringify(false));
-  } else {
-    mainWindow.webContents.send('cancel-save');
+  toldCouldNotSave = undefined;
+  store.set('filename', filename);
+  store.set('baseFilename', path.basename(filename));
+  rememberFolder(filename);
+  if (darwin) {
+    mainWindow.setDocumentEdited(false);
+    mainWindow.setRepresentedFilename(filename);
   }
+  mainWindow.setTitle(filename);
+  mainWindow.webContents.send('set-filename', path.basename(filename));
+  store.set('edited', JSON.stringify(false));
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -142,43 +184,61 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     log.error('saveAs: no document in the store; nothing written');
     return;
   }
-  const { text, history } = document;
   const filename = dialog.showSaveDialogSync(mainWindow, {
     title: 'Save file as...',
     message: 'Save file as...',
-    defaultPath: (store.get('filename') as string | undefined) || UNTITLED,
-    filters: [
-      { name: 'Midst', extensions: ['midst'] },
-      { name: 'All Files', extensions: ['*'] },
-    ],
+    defaultPath:
+      (store.get('filename') as string | undefined) ||
+      path.join(dialogFolder(), UNTITLED),
+    filters: SAVE_FILTERS,
   });
 
   if (filename) {
-    const meta = (store.get('meta') as string | undefined) ?? '';
-    const fullContents = includeVersionInfo(
-      serializeDocument(text, history, meta)
-    );
-    // Only once there is something to write: a document that cannot be serialized must not leave
-    // its intended filename behind in the store.
-    store.set('filename', filename);
-    store.set('baseFilename', path.basename(filename));
-    if (darwin) {
-      mainWindow.setDocumentEdited(false);
-      mainWindow.setRepresentedFilename(filename);
-    }
-    mainWindow.setTitle(filename);
-    mainWindow.webContents.send('set-filename', path.basename(filename));
-
-    // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
-    // newly-opened document beside the previously-loaded document's text. With this in the log,
-    // that defect is diagnosable from a user's log file rather than needing demonstration files.
-    log.debug('saveAs: writing document', {
+    await writeAndRecord(
+      mainWindow,
+      darwin,
+      'saveAs',
+      document,
       filename,
-      textChars: typeof text === 'string' ? text.length : 0,
-      historyChars: typeof history === 'string' ? history.length : 0,
+      true,
+      () => saveAs(mainWindow, darwin)
+    );
+  }
+};
+
+// `byPoet` is false for the editor's own saves (the 'save-file' message): see writeAndRecord.
+export const save = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  byPoet = true
+) => {
+  const document = storedDocument();
+  if (document === null) {
+    log.error('save: no document in the store; nothing written');
+    mainWindow.webContents.send('cancel-save');
+    return;
+  }
+  const stored = store.get('filename') as string | undefined;
+  const filename =
+    stored ||
+    dialog.showSaveDialogSync(mainWindow, {
+      title: 'To begin, create a new Midst document.',
+      message: 'To begin, create a new Midst document.',
+      defaultPath: path.join(dialogFolder(), UNTITLED),
+      filters: SAVE_FILTERS,
     });
-    fs.writeFile(filename, fullContents, () => {});
-    store.set('edited', JSON.stringify(false));
+  if (filename) {
+    await writeAndRecord(
+      mainWindow,
+      darwin,
+      'save',
+      document,
+      filename,
+      byPoet || !stored,
+      () => saveAs(mainWindow, darwin)
+    );
+  } else {
+    mainWindow.webContents.send('cancel-save');
   }
 };
 
@@ -215,6 +275,7 @@ export const openFile = async (
   } else {
     filename = dialog.showOpenDialogSync(mainWindow, {
       title: 'Open...',
+      defaultPath: dialogFolder(),
       filters: [
         { name: 'Midst', extensions: ['midst'] },
         { name: 'All Files', extensions: ['*'] },
@@ -223,6 +284,7 @@ export const openFile = async (
   }
 
   if (filename?.length) {
+    rememberFolder(filename[0]);
     fs.readFile(filename[0], 'utf8', (_err, data) => {
       if (fileVersionMatchesCurrent(data)) {
         try {
@@ -315,6 +377,13 @@ export default class MenuBuilder {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
       label: 'Midst',
       submenu: [
+        {
+          label: 'About Midst',
+          click: () => {
+            showAbout(this.mainWindow);
+          },
+        },
+        { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
         {
@@ -499,7 +568,7 @@ export default class MenuBuilder {
         {
           label: 'Documentation',
           click() {
-            shell.openExternal('https://github.com/jshafto/midst-app');
+            shell.openExternal(USER_GUIDE_URL);
           },
         },
       ],
@@ -659,7 +728,13 @@ export default class MenuBuilder {
           {
             label: 'Documentation',
             click() {
-              shell.openExternal('https://github.com/jshafto/midst-app');
+              shell.openExternal(USER_GUIDE_URL);
+            },
+          },
+          {
+            label: 'About Midst',
+            click: () => {
+              showAbout(this.mainWindow);
             },
           },
         ],
