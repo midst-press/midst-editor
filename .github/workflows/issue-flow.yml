@@ -4,7 +4,12 @@
 #                                     "awaiting release", and the merge commit is recorded on it
 #   a release is published            each "awaiting release" issue whose recorded commit is in the release
 #                                     is labelled "needs verifying", put on the release's milestone, assigned
-#                                     to the verifier, and told which release to check and how
+#                                     to the verifier, and told which release to check and how.
+#                                     NOT STARTED BY release.yml: GitHub does not start a workflow from an
+#                                     event another workflow caused with the repository's own token, so
+#                                     release.yml runs the same step itself, last. The trigger here is for
+#                                     a release published by hand, and "Run workflow" with a tag is for
+#                                     doing it again: the step is safe to run twice.
 #   an issue is closed                if it was "awaiting release" and closed as completed, it is reopened:
 #                                     its fix is not in a release yet
 #
@@ -26,6 +31,12 @@ on:
     types: [published]
   issues:
     types: [closed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag whose issues should go to the verifier, for example v0.3.0.
+        required: true
+        type: string
 permissions:
   contents: read
   issues: write
@@ -45,15 +56,15 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: python3 tools/issue_flow.py merged
   released:
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
       - env:
-          TAG: ${{ github.event.release.tag_name }}
-          RELEASE_URL: ${{ github.event.release.html_url }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_URL: ${{ github.event.release.html_url || format('{0}/{1}/releases/tag/{2}', github.server_url, github.repository, inputs.tag) }}
           VERIFIER: ${{ vars.MIDST_VERIFIER }}
         run: python3 tools/issue_flow.py released
   closed:

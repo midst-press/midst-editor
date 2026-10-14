@@ -9,8 +9,9 @@
 # The checker is run from the base branch, never from the pull request: the pull request's commits are
 # fetched to be read, and nothing in them is executed.
 #
-# The push-up branch (gitea-main) is left alone. Its commits were checked before they were pushed, by
-# tools that can ask which numbers are open here.
+# The push-up branch (gitea-main in this repository) is left alone. Its commits were checked before they
+# were pushed, by tools that can ask which numbers are open here. A branch of that name in a fork is
+# checked like any other: the name alone is something anyone can choose.
 name: closing-keywords
 on:
   pull_request:
@@ -22,7 +23,9 @@ permissions:
   contents: read
 jobs:
   check:
-    if: github.head_ref != 'gitea-main'
+    if: >-
+      !(github.head_ref == 'gitea-main' &&
+        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

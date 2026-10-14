@@ -32,6 +32,7 @@ on:
         type: string
 permissions:
   contents: write # the tag and, by default, the release
+  issues: write # the last step: the issues this release fixes go to the verifier
   actions: write # to read the package run, download its artifacts, and delete released ones
 concurrency:
   group: release
@@ -146,3 +147,20 @@ jobs:
         run: node tools/prune_artifacts.cjs verify --repo "$RELEASE_REPO" --tag "v$VERSION" --dir candidate/release
       - name: delete the artifacts of this package run and every earlier one
         run: node tools/prune_artifacts.cjs prune --repo "$GITHUB_REPOSITORY" --run "$RUN_ID" --summary "$GITHUB_STEP_SUMMARY"
+      # Here and not left to issue-flow.yml: a release published with this repository's own token does
+      # not start other workflows, so that one would never hear of it. Last, so that a failure here
+      # leaves a complete release; it can be done again from issue-flow.yml ("Run workflow", with the tag).
+      - name: hand the issues this release fixes to the verifier
+        env:
+          RELEASE_VIEW_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          VERSION: ${{ steps.verify.outputs.version }}
+          VERIFIER: ${{ vars.MIDST_VERIFIER }}
+        run: |
+          url="$(GH_TOKEN="$RELEASE_VIEW_TOKEN" gh release view "v$VERSION" --repo "$RELEASE_REPO" --json url --jq .url)"
+          # Not through a pipe: the step must fail when the script does, and say what it said either way.
+          out="$(mktemp)"
+          rc=0
+          GH_REPO="$GITHUB_REPOSITORY" TAG="v$VERSION" RELEASE_URL="$url" python3 tools/issue_flow.py released > "$out" || rc=$?
+          cat "$out"
+          cat "$out" >> "$GITHUB_STEP_SUMMARY"
+          exit "$rc"
