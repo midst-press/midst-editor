@@ -16,10 +16,10 @@
 // redundant. The workflow runs prune only after verify has passed. gh is the GitHub CLI; GH overrides it.
 // Exit: 0 done; 1 refused (release incomplete, or the run is not a package run); 2 usage; 3 an API call failed.
 
-const { execFileSync } = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { gh } = require('./lib/gh.cjs');
 
 const PACKAGE_WORKFLOW = '.github/workflows/package.yml';
 
@@ -64,23 +64,6 @@ function selectArtifacts(runs, artifacts, runId) {
 }
 
 const mb = (bytes) => (bytes / 1e6).toFixed(1);
-
-function gh(args) {
-  try {
-    return execFileSync(process.env.GH || 'gh', args, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (e) {
-    const err = new Error(
-      `gh ${args.slice(0, 3).join(' ')} failed: ${(e.stderr || e.message)
-        .toString()
-        .trim()}`
-    );
-    err.api = true;
-    throw err;
-  }
-}
 
 /** Every item of a paginated list endpoint. --jq prints each item as one line of JSON. */
 function list(endpoint, key) {
