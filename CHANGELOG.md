@@ -1,7 +1,8 @@
 # 0.4.0
 
-- **A file that cannot be read says so.** Opening one from **File** > **Open**, **Open Recent**, or by
-  opening Midst with it, now tells you it could not be read. Before, Midst offered to convert it.
+- **A file that cannot be read says so.** Opening one from **File** > **Open**, from your recent
+  documents, or by opening Midst with it, now tells you it could not be read. Before, Midst offered to
+  convert it.
 - **Replay stays paused when you pause it.** Pressing play on a poem's last frame starts it again from
   the beginning a moment later; pausing or leaving Replay in that moment no longer lets it start anyway.
 - Under the hood: Replay, the editor's autosave, the menus, the window's setup and the font size each
