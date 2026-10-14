@@ -4,23 +4,9 @@ import path from 'path';
 import { compareStrings } from 'renderer/tracking/utils';
 import { URL } from 'url';
 import { generateJSON, generateHTML } from '@tiptap/html';
-import StarterKit from '@tiptap/starter-kit';
 import { JSONContent } from '@tiptap/core';
+import poemExtensions from '../shared/poemExtensions';
 import store from './store';
-
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-];
 
 interface OldMidstTimelineFrame {
   content: string;
@@ -145,12 +131,12 @@ export const convertMidstFile = (oldMidst: string) => {
     // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
     const jsonContentAtFrame = generateJSON(
       dropTrailingBreaks(el.content),
-      extensions,
+      poemExtensions,
       {
         preserveWhitespace: true,
       }
     );
-    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, extensions);
+    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     // get the slice of the content before the line number
     const truncatedJsonContentAtFrame = {
       ...jsonContentAtFrame,

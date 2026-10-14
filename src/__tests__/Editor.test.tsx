@@ -305,6 +305,11 @@ describe('Editor: on entering and leaving', () => {
     ].forEach((channel) => expect(bridge.activeListeners(channel)).toBe(0));
   });
 
+  it('listens for cancel-save once', () => {
+    mount();
+    expect(bridge.activeListeners('cancel-save')).toBe(1);
+  });
+
   it('goes to the opening screen when the main process cancels a save', () => {
     mount();
     bridge.emit('cancel-save');
@@ -515,6 +520,15 @@ describe('Editor: spellcheck toggle', () => {
         message: expect.stringContaining('navigation'),
       })
     );
+    errors.mockRestore();
+  });
+
+  it('does not re-register the open-file listener', () => {
+    const errors = stubReload();
+    mount();
+    bridge.removed.splice(0);
+    bridge.emit('toggle-spellcheck');
+    expect(bridge.removed).not.toContain('open-file');
     errors.mockRestore();
   });
 
