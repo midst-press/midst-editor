@@ -1,16 +1,18 @@
 /** @jest-environment node */
-import { app, clipboard, dialog } from 'electron';
+import { app, clipboard, dialog, shell } from 'electron';
 import { aboutLine, showAbout } from '../main/about';
 
 jest.mock('electron', () => ({
   app: { isPackaged: true, getVersion: jest.fn(() => '0.3.0-beta.1') },
   clipboard: { writeText: jest.fn() },
   dialog: { showMessageBox: jest.fn() },
+  shell: { openExternal: jest.fn() },
   BrowserWindow: jest.fn(),
 }));
 
 const showMessageBox = dialog.showMessageBox as unknown as jest.Mock;
 const writeText = clipboard.writeText as jest.Mock;
+const openExternal = shell.openExternal as jest.Mock;
 const setPackaged = (packaged: boolean) => {
   (app as { isPackaged: boolean }).isPackaged = packaged;
 };
@@ -55,7 +57,7 @@ describe('showAbout', () => {
     const [parent, options] = showMessageBox.mock.calls[0];
     expect(parent).toBe(fakeWindow);
     expect(options.detail).toBe(LINE);
-    expect(options.buttons).toEqual(['OK', 'Copy']);
+    expect(options.buttons).toEqual(['OK', 'Copy', 'User Guide']);
     // Return and Escape both close it without copying.
     expect(options.defaultId).toBe(0);
     expect(options.cancelId).toBe(0);
@@ -65,11 +67,21 @@ describe('showAbout', () => {
     showMessageBox.mockResolvedValue({ response: 0 });
     await showAbout(fakeWindow);
     expect(writeText).not.toHaveBeenCalled();
+    expect(openExternal).not.toHaveBeenCalled();
   });
 
   it('puts the line on the clipboard when Copy is chosen', async () => {
     showMessageBox.mockResolvedValue({ response: 1 });
     await showAbout(fakeWindow);
     expect(writeText).toHaveBeenCalledWith(LINE);
+  });
+
+  it('opens the user guide in the browser when User Guide is chosen, and copies nothing', async () => {
+    showMessageBox.mockResolvedValue({ response: 2 });
+    await showAbout(fakeWindow);
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
+    );
+    expect(writeText).not.toHaveBeenCalled();
   });
 });

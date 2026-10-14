@@ -1,5 +1,8 @@
 # 0.3.0
 
+- **Midst has a user guide.** It goes through everything in the app: writing, saving, Replay, draft
+  markers, spellcheck and every keyboard shortcut on each platform. Open it from **Help** >
+  **Documentation**, or from the **User Guide** button in About Midst.
 - **About Midst says which version you have**: the version, the commit it was built from and when
   that commit was made, with a Copy button for pasting into a report. It is in the Midst menu on a Mac
   and in the Help menu on Windows and Linux.
