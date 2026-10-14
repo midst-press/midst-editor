@@ -128,28 +128,28 @@ Each shortcut is written as the names on the keys, joined with +. Hold the first
 
 <!-- shortcuts:start. This table is made from src/main/menu.ts. Do not edit it by hand: run UPDATE_GUIDE=1 npx jest src/__tests__/userGuide.test.ts -->
 
-| To do this | macOS | Windows and Linux | In the menus |
-| --- | --- | --- | --- |
-| Hide Midst | Command+H | – | Midst > Hide Midst (macOS only) |
-| Hide every other app | Command+Shift+H | – | Midst > Hide Others (macOS only) |
-| Quit Midst | Command+Q | – | Midst > Quit (macOS only) |
-| Start a new poem | Command+N | Ctrl+N | File > New |
-| Save the poem | Command+S | Ctrl+S | File > Save |
-| Save the poem as a new file | Command+Shift+S | Ctrl+Shift+S | File > Save As |
-| Open a poem | Command+O | Ctrl+O | File > Open |
-| Undo | Command+Z | Ctrl+Z | Edit > Undo |
-| Redo | Command+Shift+Z | Ctrl+Shift+Z | Edit > Redo |
-| Cut | Command+X | Ctrl+X | Edit > Cut |
-| Copy | Command+C | Ctrl+C | Edit > Copy |
-| Paste | Command+V | Ctrl+V | Edit > Paste |
-| Select the whole poem | Command+A | Ctrl+A | Edit > Select All |
-| Switch between writing and Replay | Command+E | Ctrl+E | Edit > Toggle Edit Mode |
-| Turn spellcheck on or off | Command+; | Ctrl+; | Edit > Show/hide spellcheck on macOS; Edit > Toggle Spellcheck on Windows and Linux |
-| Fill the screen with Midst, or stop | Command+Control+F | F11 | View > Toggle Full Screen |
-| Make the text larger | Command+Shift+= | Ctrl+= | View > Increase text size |
-| Make the text smaller | Command+Shift+- | Ctrl+- | View > Decrease text size |
-| Put the window away in the Dock | Command+M | – | Window > Minimize (macOS only) |
-| Close the window | Command+W | Ctrl+W | Window > Close on macOS; File > Close on Windows and Linux |
+| To do this                          | macOS             | Windows and Linux | In the menus                                                                        |
+| ----------------------------------- | ----------------- | ----------------- | ----------------------------------------------------------------------------------- |
+| Hide Midst                          | Command+H         | –                 | Midst > Hide Midst (macOS only)                                                     |
+| Hide every other app                | Command+Shift+H   | –                 | Midst > Hide Others (macOS only)                                                    |
+| Quit Midst                          | Command+Q         | –                 | Midst > Quit (macOS only)                                                           |
+| Start a new poem                    | Command+N         | Ctrl+N            | File > New                                                                          |
+| Save the poem                       | Command+S         | Ctrl+S            | File > Save                                                                         |
+| Save the poem as a new file         | Command+Shift+S   | Ctrl+Shift+S      | File > Save As                                                                      |
+| Open a poem                         | Command+O         | Ctrl+O            | File > Open                                                                         |
+| Undo                                | Command+Z         | Ctrl+Z            | Edit > Undo                                                                         |
+| Redo                                | Command+Shift+Z   | Ctrl+Shift+Z      | Edit > Redo                                                                         |
+| Cut                                 | Command+X         | Ctrl+X            | Edit > Cut                                                                          |
+| Copy                                | Command+C         | Ctrl+C            | Edit > Copy                                                                         |
+| Paste                               | Command+V         | Ctrl+V            | Edit > Paste                                                                        |
+| Select the whole poem               | Command+A         | Ctrl+A            | Edit > Select All                                                                   |
+| Switch between writing and Replay   | Command+E         | Ctrl+E            | Edit > Toggle Edit Mode                                                             |
+| Turn spellcheck on or off           | Command+;         | Ctrl+;            | Edit > Show/hide spellcheck on macOS; Edit > Toggle Spellcheck on Windows and Linux |
+| Fill the screen with Midst, or stop | Command+Control+F | F11               | View > Toggle Full Screen                                                           |
+| Make the text larger                | Command+Shift+=   | Ctrl+=            | View > Increase text size                                                           |
+| Make the text smaller               | Command+Shift+-   | Ctrl+-            | View > Decrease text size                                                           |
+| Put the window away in the Dock     | Command+M         | –                 | Window > Minimize (macOS only)                                                      |
+| Close the window                    | Command+W         | Ctrl+W            | Window > Close on macOS; File > Close on Windows and Linux                          |
 
 <!-- shortcuts:end -->
 

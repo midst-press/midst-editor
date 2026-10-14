@@ -151,23 +151,30 @@ const where = (row: Row) => {
   return `${mac} on macOS; ${other} on Windows and Linux`;
 };
 
-/** The table as Markdown. A platform whose menus have no such shortcut shows a dash. */
+/**
+ * The table as Markdown, with its columns padded as prettier pads them, so the formatter and this
+ * function agree on every byte. A platform whose menus have no such shortcut shows a dash.
+ */
 export function shortcutTable(
   macTemplate: TemplateItem[],
   otherTemplate: TemplateItem[]
 ): string {
-  const lines = [
-    '| To do this | macOS | Windows and Linux | In the menus |',
-    '| --- | --- | --- | --- |',
+  const cells = [
+    ['To do this', 'macOS', 'Windows and Linux', 'In the menus'],
+    ...shortcutRows(macTemplate, otherTemplate).map((row) => [
+      row.what,
+      row.mac.join(', ') || '–',
+      row.other.join(', ') || '–',
+      where(row),
+    ]),
   ];
-  shortcutRows(macTemplate, otherTemplate).forEach((row) => {
-    lines.push(
-      `| ${row.what} | ${row.mac.join(', ') || '–'} | ${
-        row.other.join(', ') || '–'
-      } | ${where(row)} |`
-    );
-  });
-  return lines.join('\n');
+  const widths = cells[0].map((_, column) =>
+    Math.max(...cells.map((row) => row[column].length))
+  );
+  const line = (row: string[]) =>
+    `| ${row.map((cell, column) => cell.padEnd(widths[column])).join(' | ')} |`;
+  const rule = `| ${widths.map((width) => '-'.repeat(width)).join(' | ')} |`;
+  return [line(cells[0]), rule, ...cells.slice(1).map(line)].join('\n');
 }
 
 export const TABLE_START =

@@ -83,14 +83,14 @@ describe('the shortcut table', () => {
       sample('&Save', 'Ctrl+S')
     );
     expect(table.split('\n')[2]).toBe(
-      '| Save the poem | Command+S | Ctrl+S | File > Save |'
+      '| Save the poem | Command+S | Ctrl+S            | File > Save  |'
     );
   });
 
   it('shows a dash, and says which platform, for an item only one has', () => {
     const table = shortcutTable(sample('Quit', 'Command+Q', 'Midst'), []);
     expect(table.split('\n')[2]).toBe(
-      '| Quit Midst | Command+Q | – | Midst > Quit (macOS only) |'
+      '| Quit Midst | Command+Q | –                 | Midst > Quit (macOS only) |'
     );
   });
 
@@ -150,7 +150,8 @@ describe('the user guide', () => {
             .split('\n')
             .find((line) => line.includes(`${entry.menu} > ${entry.label}`));
           expect(row).toBeDefined();
-          expect(row!.split('|')[isMac ? 2 : 3]).toContain(
+          const keys = row!.split('|')[isMac ? 2 : 3].split(', ');
+          expect(keys.map((key) => key.trim())).toContain(
             keysFor(entry.accelerator!, isMac)
           );
         });
