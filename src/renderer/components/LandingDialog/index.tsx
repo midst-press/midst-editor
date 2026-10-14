@@ -55,7 +55,11 @@ export default function LandingDialog() {
             Open File...
           </button>
         </div>
-        <Link className="help-link" target="_blank" to="https://midst.press">
+        <Link
+          className="help-link"
+          target="_blank"
+          to="https://www.midst.press/app#help"
+        >
           Need Help?
         </Link>
       </div>

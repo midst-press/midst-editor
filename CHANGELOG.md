@@ -1,5 +1,6 @@
 # 0.3.0
 
+- **Need Help?** on the opening screen opens the help on the Midst website.
 - **Midst has a user guide.** It goes through everything in the app: writing, saving, Replay, draft
   markers, spellcheck and every keyboard shortcut on each platform. Open it from **Help** >
   **Documentation**, or from the **User Guide** button in About Midst.
