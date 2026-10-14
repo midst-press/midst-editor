@@ -7,7 +7,7 @@ import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import poemExtensions from 'shared/poemExtensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { fontSizeFromStore } from 'main/fontSize';
+import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
@@ -190,14 +190,9 @@ export default function Editor() {
     setMyEditor(editor);
   };
 
-  const restoreSizeClassSetting = fontSizeFromStore(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
+  // The size the editor opens at. MenuBar changes the class on the editor itself after that.
+  const [sizeClass] = useState(() =>
+    fontSizeOrDefault(window.electron.store.get('font-size'))
   );
 
   return (

@@ -11,7 +11,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import store from './store';
-import { fontSizeFromStore } from './fontSize';
+import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
 import { showAbout } from './about';
 import { USER_GUIDE_URL } from '../shared/userGuide';
@@ -53,10 +53,10 @@ const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
-const storedFontSize = () => fontSizeFromStore(store.get('font-size'));
+const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
 const increaseFontSize = (mainWindow: BrowserWindow) => {
   const fontSize = storedFontSize();
-  if (fontSize >= 4) {
+  if (fontSize >= MAX_FONT_SIZE) {
     return;
   }
   store.set('font-size', String(fontSize + 1));
@@ -65,7 +65,7 @@ const increaseFontSize = (mainWindow: BrowserWindow) => {
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
   const fontSize = storedFontSize();
 
-  if (fontSize <= 0) {
+  if (fontSize <= MIN_FONT_SIZE) {
     return;
   }
   store.set('font-size', String(fontSize - 1));

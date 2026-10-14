@@ -1207,6 +1207,14 @@ describe('the menu', () => {
       expect(mockStore.get('font-size')).toBe('4');
     });
 
+    it('a stored size that is not a size is read as the default, not stepped into NaN', () => {
+      mockStore.set('font-size', 'abc');
+      const win = makeWindow();
+      sub(build('linux', win), '&View', 'Increase text size').click!();
+      expect(mockStore.get('font-size')).toBe('3');
+      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '3');
+    });
+
     it('Decrease stops at 0', () => {
       mockStore.set('font-size', '0');
       const win = makeWindow();
