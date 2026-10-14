@@ -65,6 +65,11 @@ changes only when the format does, never with a release.
      candidate under test). GitHub Free holds only 500 MB of artifacts, about two package runs;
      release assets have no limit. The run's summary lists what was deleted. To see the list
      without deleting anything: `node tools/prune_artifacts.cjs prune --repo <owner/name> --run <id> --dry-run`.
+   - hands the issues this release fixes to the verifier: each open issue labelled `awaiting release`
+     whose fix is in the release is labelled `needs verifying`, put on the release's milestone, assigned
+     to the verifier (the repository variable `MIDST_VERIFIER`) and told which release to check. The
+     run's summary lists them, and any it left behind with the reason. If this step fails the release is
+     still complete; run the `issue-flow` workflow by hand with the tag to do it again.
 
 Artifacts are deleted after the repository's retention period (90 days by default), so release a
 candidate before then, or build a new one.

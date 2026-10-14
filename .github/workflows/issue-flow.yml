@@ -1,0 +1,79 @@
+# Moves issues along "merged, released, verified" with no person involved. See CONTRIBUTING.md.
+#
+#   a pull request merges into main   each issue it names with "Completes" and the number is labelled
+#                                     "awaiting release", and the merge commit is recorded on it
+#   a release is published            each "awaiting release" issue whose recorded commit is in the release
+#                                     is labelled "needs verifying", put on the release's milestone, assigned
+#                                     to the verifier, and told which release to check and how.
+#                                     NOT STARTED BY release.yml: GitHub does not start a workflow from an
+#                                     event another workflow caused with the repository's own token, so
+#                                     release.yml runs the same step itself, last. The trigger here is for
+#                                     a release published by hand, and "Run workflow" with a tag is for
+#                                     doing it again: the step is safe to run twice.
+#   an issue is closed                if it was "awaiting release" and closed as completed, it is reopened:
+#                                     its fix is not in a release yet
+#
+# The logic is tools/issue_flow.py, a tested copy of the script in midst-infra. Every job runs the copy
+# on the default branch and never checks out a pull request's code: pull_request_target is used so that
+# a pull request from a fork can be acted on, and that event runs with a token that can write.
+#
+# The verifier is the repository variable MIDST_VERIFIER (a GitHub login). Changing who verifies is a
+# setting, not a code change. With no variable, nobody is assigned and the rest still happens.
+#
+# The script trusts its own markers only in comments written by github-actions[bot], which is who the
+# token below writes as. If these jobs are ever given another token, set ISSUE_FLOW_AUTHOR to that
+# login in the same change, or no marker is read and every issue is left for a person at each release.
+name: issue-flow
+on:
+  pull_request_target:
+    types: [closed]
+  release:
+    types: [published]
+  issues:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The release tag whose issues should go to the verifier, for example v0.3.0.
+        required: true
+        type: string
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+env:
+  GH_TOKEN: ${{ github.token }}
+  GH_REPO: ${{ github.repository }}
+jobs:
+  merged:
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - env:
+          PR: ${{ github.event.pull_request.number }}
+        run: python3 tools/issue_flow.py merged
+  released:
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          RELEASE_URL: ${{ github.event.release.html_url || format('{0}/{1}/releases/tag/{2}', github.server_url, github.repository, inputs.tag) }}
+          VERIFIER: ${{ vars.MIDST_VERIFIER }}
+        run: python3 tools/issue_flow.py released
+  closed:
+    if: github.event_name == 'issues'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - env:
+          ISSUE: ${{ github.event.issue.number }}
+        run: python3 tools/issue_flow.py closed
