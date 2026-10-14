@@ -72,9 +72,9 @@ In Replay you cannot type. Watching does not change the poem.
 
 **To play the poem**, press the play button (a triangle). It turns into a pause button (two bars); press it to stop where you are. The page follows the place where you were writing.
 
-When the poem reaches the end, it stops. Pressing play at the end starts again from the empty page.
+When the poem reaches the end, it stops. Pressing play at the end starts again from the beginning.
 
-**The timeline** is the line along the bottom. Its left end is the empty page and its right end is the poem as it is now. The dot shows where you are. Drag the dot, or click anywhere on the line, to go to that moment. While you point at the dot or drag it, a small label shows the time and date you made that change.
+**The timeline** is the line along the bottom. Its left end is the first thing you put on the page and its right end is the poem as it is now. The dot shows where you are. Drag the dot, or click anywhere on the line, to go to that moment. While you point at the dot or drag it, a small label shows the time and date you made that change.
 
 ## Draft markers
 
