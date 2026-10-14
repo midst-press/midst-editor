@@ -5,7 +5,7 @@ import Zoom from '@mui/material/Zoom';
 import { useTheme } from '@mui/material/styles';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import poemExtensions from 'shared/poemExtensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeFromStore } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
@@ -17,36 +17,22 @@ import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-  HandleTab,
-];
+const extensions = [...poemExtensions, HandleTab];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
   const theme = useTheme();
   const navigate = useNavigate();
-  const [edited, setEdited] = useState<Boolean>(false);
+  const [edited, setEdited] = useState<boolean>(false);
 
-  const restoreSpellcheckSetting = window.electron.store.get('spellcheck');
-  const [spellcheckOn, setSpellcheckOn] = useState<boolean>(
-    restoreSpellcheckSetting === 'true'
+  // Read once: toggling it reloads the window, which reads it again.
+  const [spellcheckOn] = useState<boolean>(
+    () => window.electron.store.get('spellcheck') === 'true'
   );
   const heightClass = window.electron.versions.isMac
     ? 'editor-height-tall'
     : 'editor-height-short';
 
-  // const { filename, setFilename } = useContext(FilenameContext);
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
 
@@ -123,12 +109,6 @@ export default function Editor() {
   };
 
   useEffect(() => {
-    const removeCancelSave = window.electron.ipcRenderer.on(
-      'cancel-save',
-      () => {
-        navigate('/');
-      }
-    );
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
@@ -154,11 +134,19 @@ export default function Editor() {
         navigate('/editor');
       }
     );
+    return removeOpen;
+  }, [
+    myEditor,
+    navigate,
+    saveFileAndUpdateStore,
+    setHtmlString,
+    setPoemHistory,
+  ]);
 
-    const removeToggleSpellcheckHandler = window.electron.ipcRenderer.on(
+  useEffect(() => {
+    const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        setSpellcheckOn(!spellcheckOn);
         window.electron.store.set('spellcheck', (!spellcheckOn).toString());
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
@@ -170,19 +158,8 @@ export default function Editor() {
       }
     );
 
-    return () => {
-      removeCancelSave();
-      removeOpen();
-      removeToggleSpellcheckHandler();
-    };
-  }, [
-    myEditor,
-    navigate,
-    saveFileAndUpdateStore,
-    setHtmlString,
-    setPoemHistory,
-    spellcheckOn,
-  ]);
+    return removeToggleSpellcheck;
+  }, [saveFileAndUpdateStore, spellcheckOn]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
