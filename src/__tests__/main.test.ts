@@ -2,6 +2,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { helpUrl } from '../shared/helpUrl';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst exist only inside a
 // temporary directory and are removed after each test.
@@ -39,6 +40,7 @@ interface FakeElectron {
   mockState: ElectronState;
   app: {
     quit: jest.Mock;
+    addRecentDocument: jest.Mock;
     applicationMenu: { getMenuItemById: jest.Mock } | undefined;
   };
   dialog: { showMessageBoxSync: jest.Mock };
@@ -95,7 +97,9 @@ jest.mock('electron', () => {
     mockState: state,
     app: {
       isPackaged: false,
+      getVersion: () => '9.9.9',
       quit: jest.fn(),
+      addRecentDocument: jest.fn(),
       on: (event: string, fn: Handler) =>
         record(state.appHandlers as Map<string, Handler[]>, event, fn),
       whenReady: () => state.ready,
@@ -163,6 +167,13 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  // A file handed over at launch is opened by the real openPath: the launch tests below exercise it.
+  openPath: jest.fn(
+    (...args: Parameters<typeof import('../main/menu').openPath>) =>
+      jest
+        .requireActual<typeof import('../main/menu')>('../main/menu')
+        .openPath(...args)
+  ),
 }));
 
 // Everything a test needs from the freshly imported module registry.
@@ -575,6 +586,38 @@ describe('main process', () => {
       reads.restore();
     });
 
+    it('a requested file that cannot be read is reported with the reason, with no conversion offered (#114)', async () => {
+      const file = path.join(dir, 'gone.midst');
+      const reads = trackReadFile();
+      const { store, electron, state, win, fireApp, fireWindow } = await boot({
+        ready: false,
+      });
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      state.resolveReady();
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+      const shown = electron.dialog.showMessageBoxSync.mock.calls[0][1];
+      expect(shown.type).toBe('error');
+      expect(shown.message).toContain(file);
+      expect(shown.message).toContain('ENOENT');
+      expect(shown.buttons).toBeUndefined();
+      expect(store.get('filename')).toBeUndefined();
+      expect(win().webContents.send).not.toHaveBeenCalledWith(
+        'open-file',
+        expect.anything(),
+        expect.anything(),
+        expect.anything()
+      );
+      // Path consumed even on failure.
+      await fireWindow('ready-to-show');
+      expect(reads.calls()).toBe(1);
+      reads.restore();
+    });
+
     describe('old-format file', () => {
       const openOld = async (response: number) => {
         const file = path.join(dir, 'zq.midst');
@@ -618,7 +661,9 @@ describe('main process', () => {
       });
 
       it('Convert File writes a new file beside the original and opens that', async () => {
-        const { file, original, store, win, reads } = await openOld(1);
+        const { electron, file, original, store, win, reads } = await openOld(
+          1
+        );
         const converted = path.join(dir, 'zq-converted.midst');
         expect(fs.readdirSync(dir).sort()).toEqual([
           'zq-converted.midst',
@@ -630,6 +675,8 @@ describe('main process', () => {
         expect(JSON.parse(written.split('\n')[1]).text).toContain('zq');
         expect(store.get('filename')).toBe(converted);
         expect(store.get('baseFilename')).toBe('zq-converted.midst');
+        // As File > Open does: the converted file is the one to find again.
+        expect(electron.app.addRecentDocument).toHaveBeenCalledWith(converted);
         expect(win().webContents.send).toHaveBeenCalledWith(
           'open-file',
           expect.stringContaining('zq'),
@@ -736,6 +783,14 @@ describe('main process', () => {
       });
       expect(electron.shell.openExternal).toHaveBeenCalledWith(
         'https://example.invalid/zq'
+      );
+    });
+
+    it('"Need Help?" opens the help page for this version of the app', async () => {
+      const { electron, fireIpc } = await boot();
+      await fireIpc('open-help');
+      expect(electron.shell.openExternal).toHaveBeenCalledWith(
+        helpUrl('9.9.9')
       );
     });
 

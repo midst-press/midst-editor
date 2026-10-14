@@ -260,6 +260,64 @@ export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
   }
 };
 
+// Read a .midst file into the workspace, offering to convert one of an older version. File > Open,
+// Open Recent and a file handed to the app at launch all come here, so they behave the same.
+export const openPath = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  filePath: string
+) => {
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (mainWindow.isDestroyed?.()) {
+      return;
+    }
+    if (err) {
+      // A missing or unreadable file, or a folder: say so. It is not a file of another version (#114).
+      dialog.showMessageBoxSync(mainWindow, {
+        title: `Error`,
+        type: 'error',
+        message: `The file ${filePath} could not be opened: ${err.message}`,
+      });
+      return;
+    }
+    if (fileVersionMatchesCurrent(data)) {
+      try {
+        loadDataIntoWorkspace(filePath, data, mainWindow, darwin);
+      } catch {
+        dialog.showMessageBoxSync(mainWindow, {
+          title: `Error`,
+          type: 'error',
+          message: `The file ${filePath} could not be opened. File may be corrupted. Please select another file and try again.`,
+        });
+      }
+    } else {
+      const response = dialog.showMessageBoxSync(mainWindow, {
+        type: 'warning',
+        message: `Version not recognized. If this file is from an
+           older version of Midst, it may be possible to convert it.
+           This will create a new file. Would you like to proceed?`,
+        buttons: ['Cancel', 'Convert File'],
+        defaultId: 1,
+        cancelId: 0,
+      });
+      if (response === 1) {
+        const newFileContents = convertMidstFile(data);
+        const newFilename = writeConvertedFile(
+          filePath,
+          includeVersionInfo(newFileContents)
+        );
+        app.addRecentDocument(newFilename);
+        loadDataIntoWorkspace(
+          newFilename,
+          includeVersionInfo(newFileContents),
+          mainWindow,
+          darwin
+        );
+      }
+    }
+  });
+};
+
 export const openFile = async (
   mainWindow: BrowserWindow,
   darwin: boolean,
@@ -285,45 +343,7 @@ export const openFile = async (
 
   if (filename?.length) {
     rememberFolder(filename[0]);
-    fs.readFile(filename[0], 'utf8', (_err, data) => {
-      if (fileVersionMatchesCurrent(data)) {
-        try {
-          loadDataIntoWorkspace(filename![0], data, mainWindow, darwin);
-        } catch {
-          dialog.showMessageBoxSync(mainWindow, {
-            title: `Error`,
-            type: 'error',
-            message: `The file ${
-              filename![0]
-            } could not be opened. File may be corrupted. Please select another file and try again.`,
-          });
-        }
-      } else {
-        const response = dialog.showMessageBoxSync(mainWindow, {
-          type: 'warning',
-          message: `Version not recognized. If this file is from an
-           older version of Midst, it may be possible to convert it.
-           This will create a new file. Would you like to proceed?`,
-          buttons: ['Cancel', 'Convert File'],
-          defaultId: 1,
-          cancelId: 0,
-        });
-        if (response === 1) {
-          const newFileContents = convertMidstFile(data);
-          const newFilename = writeConvertedFile(
-            filename![0],
-            includeVersionInfo(newFileContents)
-          );
-          app.addRecentDocument(newFilename);
-          loadDataIntoWorkspace(
-            newFilename,
-            includeVersionInfo(newFileContents),
-            mainWindow,
-            darwin
-          );
-        }
-      }
-    });
+    openPath(mainWindow, darwin, filename[0]);
   }
 };
 
