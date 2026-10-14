@@ -76,10 +76,10 @@
         "statements": 100
       },
       "./src/main/main.ts": {
-        "branches": 86,
-        "functions": 80,
-        "lines": 93,
-        "statements": 93
+        "branches": 93,
+        "functions": 100,
+        "lines": 98,
+        "statements": 98
       },
       "./src/main/menu.ts": {
         "branches": 93,
