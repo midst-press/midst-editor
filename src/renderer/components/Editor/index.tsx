@@ -15,6 +15,7 @@ import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
+import useAutosave from './useAutosave';
 
 const extensions = [
   StarterKit.configure({
@@ -36,10 +37,6 @@ export default function Editor() {
   const theme = useTheme();
   const navigate = useNavigate();
   const [edited, setEdited] = useState<Boolean>(false);
-
-  const [autosaveTimeout, setAutostateTimeout] = useState<
-    NodeJS.Timeout | number | undefined
-  >(undefined); // create interval for autosaving
 
   const restoreSpellcheckSetting = window.electron.store.get('spellcheck');
   const [spellcheckOn, setSpellcheckOn] = useState<boolean>(
@@ -86,6 +83,7 @@ export default function Editor() {
     },
     []
   );
+  const autosave = useAutosave(latest, saveFileAndUpdateStore);
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(
@@ -116,25 +114,7 @@ export default function Editor() {
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
-    // Cancel the pending autosave and schedule a new one. The generation captured here identifies
-    // the document being typed into: if an open lands before the timer fires, `gen` has moved on and
-    // the write is abandoned rather than carrying this poem's text to the newly opened file's path.
-    // There is no lock and nothing to release, so this cannot wedge saving -- the worst case is a
-    // write that proceeds, which is the behaviour without the check.
-    clearTimeout(autosaveTimeout);
-    const genAtSchedule = latest.current.gen;
-    const newTimeout = setTimeout(() => {
-      if (latest.current.gen !== genAtSchedule) {
-        window.electron.log.warn(
-          'autosave abandoned: the document changed after the save was scheduled'
-        );
-        return;
-      }
-      // No arguments, so the ref supplies the document as it stands when the timer fires. Passing
-      // the function straight to setTimeout saved the text from BEFORE the last keystroke.
-      saveFileAndUpdateStore();
-    }, 1000);
-    setAutostateTimeout(newTimeout);
+    autosave.schedule();
   };
   const onBlur = ({ editor }: { editor: EditorType }) => {
     if (window.electron.versions.isMac) {
@@ -214,9 +194,8 @@ export default function Editor() {
     );
     return () => {
       removeToggleEdit();
-      clearTimeout(autosaveTimeout);
     };
-  }, [autosaveTimeout, navigate, saveFileAndUpdateStore]);
+  }, [navigate, saveFileAndUpdateStore]);
 
   // A draft marker made while writing marks the poem as it is now: the latest recorded change. The
   // text and history are stored with it, so the marker never points past what the file holds. The
@@ -224,7 +203,7 @@ export default function Editor() {
   const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
   const latestMoment = poemHistory.length - 1;
   const markThisMoment = () => {
-    clearTimeout(autosaveTimeout);
+    autosave.cancel();
     if (drafts.create(latestMoment))
       navigate('/replay', { state: { nameDraftAt: latestMoment } });
   };
