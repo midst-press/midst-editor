@@ -305,6 +305,15 @@ describe('save', () => {
       expect(mockStore.get('edited')).toBe('true');
     });
 
+    it('does not move the folder the next dialog opens in', async () => {
+      const target = unwritable();
+      expect(path.dirname(target)).not.toBe(dir);
+      seedDocument({ filename: target, lastFolder: dir });
+      showMessageBox.mockReturnValue(OK);
+      await save(asWindow(makeWindow()), false);
+      expect(mockStore.get('lastFolder')).toBe(dir);
+    });
+
     it('on Save As…, asks for another file and saves there', async () => {
       const elsewhere = path.join(dir, 'xv.midst');
       seedDocument({ filename: unwritable() });
