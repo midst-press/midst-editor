@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import poemExtensions from 'shared/poemExtensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
@@ -24,20 +24,6 @@ import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
 import usePlayback from './usePlayback';
-
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-];
 
 export default function Replay() {
   const theme = useTheme();
@@ -83,7 +69,7 @@ export default function Replay() {
   );
 
   const editor = useEditor({
-    extensions,
+    extensions: poemExtensions,
     content: reconstructHTML('', poemHistory, step),
     editable: false,
     parseOptions: {

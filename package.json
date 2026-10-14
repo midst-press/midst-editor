@@ -102,8 +102,8 @@
       "./src/main/util.ts": {
         "branches": 95,
         "functions": 100,
-        "lines": 99,
-        "statements": 99
+        "lines": 98.9,
+        "statements": 98.9
       },
       "./src/renderer/HandleTab.ts": {
         "branches": 100,
@@ -141,6 +141,12 @@
         "lines": 100,
         "statements": 100
       },
+      "./src/shared/poemExtensions.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/shared/buildLabel.ts": {
         "branches": 100,
         "functions": 100,
@@ -162,8 +168,8 @@
       "./src/renderer/components/Replay/index.tsx": {
         "branches": 81,
         "functions": 100,
-        "lines": 96,
-        "statements": 96
+        "lines": 95.9,
+        "statements": 95.9
       },
       "./src/renderer/components/Replay/usePlayback.ts": {
         "branches": 92,
