@@ -61,7 +61,8 @@ correctly", run `node tools/install-electron.cjs` and include what it prints in 
 - **Tests come with the change.** A bug fix carries a test that fails without it. Coverage thresholds are
   set per file in `package.json` (`jest.coverageThreshold`), so a drop fails CI.
 - **The version** is kept the same in every place that states it; the `version-consistent` hook checks
-  this. Releases follow `docs/releasing.md`.
+  this. Change it only with `tools/set_version.sh <MAJOR.MINOR.PATCH>`, which sets every place and checks
+  them. Releases follow `docs/releasing.md`.
 - **A user-visible change gets a line in `CHANGELOG.md`**, as described next.
 - **Titles, descriptions and commit messages say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
   keyword closes the issue the moment the commit reaches `main`, before anyone has checked the fix in a
