@@ -1,5 +1,11 @@
 /** @jest-environment node */
-import { DEFAULT_FONT_SIZE, fontSizeFromStore } from '../main/fontSize';
+import {
+  DEFAULT_FONT_SIZE,
+  fontSizeFromStore,
+  fontSizeOrDefault,
+  MAX_FONT_SIZE,
+  MIN_FONT_SIZE,
+} from '../main/fontSize';
 
 describe('fontSizeFromStore', () => {
   it('reads a missing, null or empty value as unset', () => {
@@ -24,4 +30,20 @@ describe('fontSizeFromStore', () => {
   it('gives NaN for a value that is not a size, for the caller to reject', () => {
     expect(fontSizeFromStore('zq')).toBeNaN();
   });
+});
+
+describe('fontSizeOrDefault', () => {
+  it('keeps every size there is a class for, stored as a string or a number', () => {
+    expect([MIN_FONT_SIZE, MAX_FONT_SIZE]).toEqual([0, 4]);
+    ['0', '1', '2', '3', '4', 0, 4].forEach((stored) =>
+      expect(fontSizeOrDefault(stored)).toBe(Number(stored))
+    );
+  });
+
+  it.each([[undefined], [''], ['5'], ['-1'], ['2.5'], ['abc'], [9]])(
+    'reads %p as the default',
+    (stored) => {
+      expect(fontSizeOrDefault(stored)).toBe(DEFAULT_FONT_SIZE);
+    }
+  );
 });

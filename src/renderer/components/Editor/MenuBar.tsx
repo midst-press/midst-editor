@@ -6,8 +6,9 @@ import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import { useState, useEffect } from 'react';
-import { fontSizeFromStore } from 'main/fontSize';
+import { useEffect } from 'react';
+import useFontSize from '../../fontSize/useFontSize';
+import setEditorSizeClass from '../../fontSize/setEditorSizeClass';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
@@ -16,104 +17,15 @@ function MenuBar() {
   // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
   // placing it above the hooks made the hook count conditional, which a tiptap change that renders
   // slotBefore eagerly would turn into a hard "Rendered more hooks than during the previous render".
-  const restoreSizeClassSetting = fontSizeFromStore(
-    window.electron.store.get('font-size')
-  );
-  const [sizeClass, setSizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
-  );
-
+  const fontSize = useFontSize();
+  // The size class lives on the editor surface, which tiptap owns.
   useEffect(() => {
-    if (!editor) {
-      return undefined;
-    }
-    const removeSetFontSize = window.electron.ipcRenderer.on(
-      'set-font-size',
-      (newSize) => {
-        setSizeClass(Number(newSize));
-        // @ts-ignore
-        const existingClasses = editor.options.editorProps.attributes?.class;
-        const existingClassesList = existingClasses.split(' ');
-        const newClasses = existingClassesList.filter(
-          (item: string) => !item.includes('size')
-        );
-        newClasses.push(`size-${newSize}`);
-        editor.setOptions({
-          editorProps: {
-            // @ts-ignore
-            attributes: {
-              ...editor.options.editorProps.attributes,
-              class: newClasses.join(' '),
-            },
-          },
-        });
-      }
-    );
-    return () => {
-      removeSetFontSize();
-    };
-    // `editor` is created once per mount by useEditor, and this component is tiptap's slotBefore so
-    // it does not mount until the editor exists -- so listing it here is inert, not a timing change.
-  }, [editor]);
+    if (editor) setEditorSizeClass(editor, fontSize.size);
+  }, [editor, fontSize.size]);
 
   if (!editor) {
     return null;
   }
-
-  // These are plain handlers, not hooks, so they belong BELOW the guard: TypeScript narrows
-  // `editor` to non-null only after it, and the buttons that call them render only after it.
-  const decreaseSize = () => {
-    if (sizeClass <= 0) {
-      return;
-    }
-    window.electron.store.set('font-size', String(sizeClass - 1));
-
-    // @ts-ignore
-    const existingClasses = editor.options.editorProps.attributes?.class;
-    const existingClassesList = existingClasses.split(' ');
-    const newClasses = existingClassesList.filter(
-      (item: string) => !item.includes('size')
-    );
-    newClasses.push(`size-${sizeClass - 1}`);
-    editor.setOptions({
-      editorProps: {
-        // @ts-ignore
-        attributes: {
-          ...editor.options.editorProps.attributes,
-          class: newClasses.join(' '),
-        },
-      },
-    });
-
-    setSizeClass(sizeClass - 1);
-  };
-  const increaseSize = () => {
-    if (sizeClass >= 4) {
-      return;
-    }
-
-    window.electron.store.set('font-size', String(sizeClass + 1));
-    // @ts-ignore
-    const existingClasses = editor.options.editorProps.attributes?.class;
-    const existingClassesList = existingClasses.split(' ');
-
-    const newClasses = existingClassesList.filter(
-      (item: string) => !item.includes('size')
-    );
-    newClasses.push(`size-${sizeClass + 1}`);
-    editor.setOptions({
-      editorProps: {
-        // @ts-ignore
-        attributes: {
-          ...editor.options.editorProps.attributes,
-          class: newClasses.join(' '),
-        },
-      },
-    });
-    setSizeClass(sizeClass + 1);
-  };
 
   return (
     <div className="TopButtons">
@@ -127,8 +39,8 @@ function MenuBar() {
           <button
             aria-label="Increase text size"
             type="button"
-            onClick={increaseSize}
-            disabled={sizeClass >= 4}
+            onClick={fontSize.increase}
+            disabled={!fontSize.canIncrease}
             className="icon-button size-icon"
           >
             <TextIncreaseIcon fontSize="small" />
@@ -145,9 +57,9 @@ function MenuBar() {
           <button
             aria-label="Decrease text size"
             type="button"
-            disabled={sizeClass <= 0}
+            disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
-            onClick={decreaseSize}
+            onClick={fontSize.decrease}
           >
             <TextDecreaseIcon fontSize="small" />
           </button>

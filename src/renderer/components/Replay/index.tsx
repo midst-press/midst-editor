@@ -19,7 +19,7 @@ import poemExtensions from 'shared/poemExtensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { fontSizeFromStore } from 'main/fontSize';
+import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
@@ -58,15 +58,7 @@ export default function Replay() {
     ? 'history-height-tall'
     : 'history-height-short';
 
-  const restoreSizeClassSetting = fontSizeFromStore(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass, setSizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
-  );
+  const fontSize = useFontSize();
 
   const editor = useEditor({
     extensions: poemExtensions,
@@ -149,17 +141,9 @@ export default function Replay() {
       }
     );
 
-    const removeFontSizeHandler = window.electron.ipcRenderer.on(
-      'set-font-size',
-      (newSize) => {
-        setSizeClass(Number(newSize));
-      }
-    );
-
     return () => {
       removeOpen();
       removeToggleEditHandler();
-      removeFontSizeHandler();
     };
   }, [navigate, setHtmlString, setPoemHistory, pause]);
 
@@ -186,23 +170,6 @@ export default function Replay() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [navigate]);
-  const decreaseSize = () => {
-    if (sizeClass <= 0) {
-      return;
-    }
-    window.electron.store.set('font-size', String(sizeClass - 1));
-
-    setSizeClass(sizeClass - 1);
-  };
-  const increaseSize = () => {
-    if (sizeClass >= 4) {
-      return;
-    }
-
-    window.electron.store.set('font-size', String(sizeClass + 1));
-    setSizeClass(sizeClass + 1);
-  };
-
   return (
     <div style={{ backgroundColor: theme.palette.background.default }}>
       <div className="TopButtons">
@@ -215,8 +182,8 @@ export default function Replay() {
           <button
             aria-label="Increase text size"
             type="button"
-            onClick={increaseSize}
-            disabled={sizeClass >= 4}
+            onClick={fontSize.increase}
+            disabled={!fontSize.canIncrease}
             className="icon-button size-icon"
           >
             <TextIncreaseIcon fontSize="small" />
@@ -231,15 +198,15 @@ export default function Replay() {
           <button
             aria-label="Decrease text size"
             type="button"
-            disabled={sizeClass <= 0}
+            disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
-            onClick={decreaseSize}
+            onClick={fontSize.decrease}
           >
             <TextDecreaseIcon fontSize="small" />
           </button>
         </Tooltip>
       </div>
-      <div className={`ReplayContainer size-${sizeClass}`}>
+      <div className={`ReplayContainer size-${fontSize.size}`}>
         <EditorContent editor={editor} />
       </div>
       <Grow mountOnEnter in>
