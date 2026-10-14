@@ -15,15 +15,17 @@ export const step = (initial: string, change: ChangeObj) => {
   );
 };
 
+// The change that turns `str` into `next`. `t` is when it happened: now, for an edit as it is made;
+// the frame's own time when an old file's frames are converted into a history (main/util.ts).
 export const compareStrings = (
   str: string,
   next: string,
-  pos: number
+  pos: number,
+  t: Date = new Date()
 ): ChangeObj => {
   let inserted = '';
   let front = 0;
   let end = 0;
-  const t = new Date();
   // Nothing changed: a change that keeps the whole text. `front` must be the full length, because
   // step() keeps what lies before `front` and after `end`; front 0 with end 0 would erase the text.
   if (str === next) return { inserted, front: str.length, end, t, pos };

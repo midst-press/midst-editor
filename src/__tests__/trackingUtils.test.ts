@@ -107,6 +107,19 @@ describe('step', () => {
   });
 });
 
+describe('compareStrings with a given time', () => {
+  it('records the time it is given, as converting an old file does', () => {
+    const when = new Date('2020-11-20T20:23:29.127Z');
+    expect(compareStrings('zq', 'zqxv', 2, when)).toEqual({
+      inserted: 'xv',
+      front: 2,
+      end: 0,
+      t: when,
+      pos: 2,
+    });
+  });
+});
+
 describe('round trip: compareStrings then step', () => {
   const pairs: [string, string, string][] = [
     ['insert at start', 'xv', 'zqxv'],
