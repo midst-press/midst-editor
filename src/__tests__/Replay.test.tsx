@@ -186,6 +186,11 @@ describe('Replay: initial frame and slider', () => {
     expect(slider()).toHaveAttribute('aria-valuemax', '0');
   });
 
+  it('offers no playback for an empty history (#111)', () => {
+    mount([]);
+    expect(playButton()).toBeDisabled();
+  });
+
   it('shows the frame the slider is moved to', () => {
     const { container } = mount();
     seek(9);
@@ -231,6 +236,11 @@ describe('Replay: playback', () => {
     expect(slider()).toHaveValue(String(LONG - 1));
     expect(playButton()).toBeInTheDocument();
     expect(live.size).toBe(0);
+    // It stopped ON the last frame, not past it: a draft marked now is at the last index.
+    markDraft();
+    expect(bridge.meta().draftMarkers).toEqual([
+      { index: LONG - 1, defaultName: 'Draft 1' },
+    ]);
   });
 
   it('plays from the start when started on the last frame, after a 250 ms wait', () => {
@@ -266,6 +276,26 @@ describe('Replay: playback', () => {
     fireEvent.keyDown(field, { key: ' ' });
     expect(playButton()).toBeInTheDocument();
     field.remove();
+  });
+
+  it('stays paused when paused during the wait before playing from the start (#110)', () => {
+    const { container } = mount();
+    fireEvent.click(playButton());
+    advance(100);
+    fireEvent.click(pauseButton());
+    advance(150 + 60 * 5);
+    expect(shown(container)).toBe('a');
+    expect(playButton()).toBeInTheDocument();
+  });
+
+  it('leaves no timer running once unmounted during the wait before playing from the start (#110)', () => {
+    const live = watchIntervals();
+    const view = mount();
+    fireEvent.click(playButton());
+    advance(100);
+    view.unmount();
+    advance(500);
+    expect(live.size).toBe(0);
   });
 
   it('leaves no timer running once unmounted after playback has started', () => {
