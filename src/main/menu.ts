@@ -120,14 +120,74 @@ const SAVE_FILTERS = [
 //     a read-only place impossible to work on. The macOS edited dot stays on throughout.
 // `saveElsewhere` is what "Save As…" in that message does.
 let toldCouldNotSave: string | undefined;
+
+// The write succeeded: the document is now this file, and saved.
+const recordSaved = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  filename: string
+) => {
+  toldCouldNotSave = undefined;
+  store.set('filename', filename);
+  store.set('baseFilename', path.basename(filename));
+  rememberFolder(filename);
+  if (darwin) {
+    mainWindow.setDocumentEdited(false);
+    mainWindow.setRepresentedFilename(filename);
+  }
+  mainWindow.setTitle(filename);
+  mainWindow.webContents.send('set-filename', path.basename(filename));
+  store.set('edited', JSON.stringify(false));
+};
+
+// The write failed: nothing is recorded, and the poet is told when the rules above say so.
+const reportCouldNotSave = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  {
+    filename,
+    reason,
+    byPoet,
+    saveElsewhere,
+  }: {
+    filename: string;
+    reason: string;
+    byPoet: boolean;
+    saveElsewhere: () => Promise<void>;
+  }
+) => {
+  const nothingUnsaved = store.get('edited') === 'false';
+  if (!byPoet && nothingUnsaved) return;
+  if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
+  if (!byPoet && toldCouldNotSave === filename) return;
+  toldCouldNotSave = filename;
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type: 'error',
+    title: 'Could not save',
+    message: `Midst could not save "${path.basename(filename)}".`,
+    detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
+    buttons: ['Save As…', 'OK'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (choice === 0) await saveElsewhere();
+};
+
 const writeAndRecord = async (
   mainWindow: BrowserWindow,
   darwin: boolean,
-  label: 'save' | 'saveAs',
   { text, history }: { text: string; history: string },
-  filename: string,
-  byPoet: boolean,
-  saveElsewhere: () => Promise<void>
+  {
+    label,
+    filename,
+    byPoet,
+    saveElsewhere,
+  }: {
+    label: 'save' | 'saveAs';
+    filename: string;
+    byPoet: boolean;
+    saveElsewhere: () => Promise<void>;
+  }
 ) => {
   const meta = (store.get('meta') as string | undefined) ?? '';
   const fullContents = includeVersionInfo(
@@ -147,35 +207,15 @@ const writeAndRecord = async (
   } catch (err) {
     const reason = (err as Error).message;
     log.error(`${label}: the document was not written`, { filename, reason });
-    const nothingUnsaved = store.get('edited') === 'false';
-    if (!byPoet && nothingUnsaved) return;
-    if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
-    if (!byPoet && toldCouldNotSave === filename) return;
-    toldCouldNotSave = filename;
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'error',
-      title: 'Could not save',
-      message: `Midst could not save "${path.basename(filename)}".`,
-      detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
-      buttons: ['Save As…', 'OK'],
-      defaultId: 0,
-      cancelId: 1,
+    await reportCouldNotSave(mainWindow, darwin, {
+      filename,
+      reason,
+      byPoet,
+      saveElsewhere,
     });
-    if (choice === 0) await saveElsewhere();
     return;
   }
-
-  toldCouldNotSave = undefined;
-  store.set('filename', filename);
-  store.set('baseFilename', path.basename(filename));
-  rememberFolder(filename);
-  if (darwin) {
-    mainWindow.setDocumentEdited(false);
-    mainWindow.setRepresentedFilename(filename);
-  }
-  mainWindow.setTitle(filename);
-  mainWindow.webContents.send('set-filename', path.basename(filename));
-  store.set('edited', JSON.stringify(false));
+  recordSaved(mainWindow, darwin, filename);
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -194,15 +234,12 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   });
 
   if (filename) {
-    await writeAndRecord(
-      mainWindow,
-      darwin,
-      'saveAs',
-      document,
+    await writeAndRecord(mainWindow, darwin, document, {
+      label: 'saveAs',
       filename,
-      true,
-      () => saveAs(mainWindow, darwin)
-    );
+      byPoet: true,
+      saveElsewhere: () => saveAs(mainWindow, darwin),
+    });
   }
 };
 
@@ -228,15 +265,12 @@ export const save = async (
       filters: SAVE_FILTERS,
     });
   if (filename) {
-    await writeAndRecord(
-      mainWindow,
-      darwin,
-      'save',
-      document,
+    await writeAndRecord(mainWindow, darwin, document, {
+      label: 'save',
       filename,
-      byPoet || !stored,
-      () => saveAs(mainWindow, darwin)
-    );
+      byPoet: byPoet || !stored,
+      saveElsewhere: () => saveAs(mainWindow, darwin),
+    });
   } else {
     mainWindow.webContents.send('cancel-save');
   }
