@@ -29,6 +29,7 @@ import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
 import MenuBuilder, { save, newFile, openFile } from './menu';
 import store from './store';
+import { helpUrl } from '../shared/helpUrl';
 import { writeConvertedFile } from './convertedFile';
 import {
   fileVersionMatchesCurrent,
@@ -135,6 +136,11 @@ const createWindow = async () => {
     const darwin = process.platform === 'darwin';
     if (mainWindow === null) return;
     openFile(mainWindow, darwin);
+  });
+
+  // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
+  ipcMain.on('open-help', () => {
+    shell.openExternal(helpUrl(app.getVersion()));
   });
 
   ipcMain.on('app-open', (filename: IpcMainEvent) => {

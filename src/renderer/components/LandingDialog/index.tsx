@@ -1,5 +1,5 @@
 import { useEffect, useContext } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { HistoryContext, TextContext } from 'renderer/context';
 import { ChangeObj } from 'renderer/tracking/utils';
 import './LandingDialog.css';
@@ -18,6 +18,11 @@ export default function LandingDialog() {
 
   const openFile = () => {
     window.electron.ipcRenderer.sendMessage('button-open-file', []);
+  };
+
+  // The main process opens the help in the poet's browser: the beta site for a beta (issue #105).
+  const openHelp = () => {
+    window.electron.ipcRenderer.sendMessage('open-help', []);
   };
 
   useEffect(() => {
@@ -55,13 +60,9 @@ export default function LandingDialog() {
             Open File...
           </button>
         </div>
-        <Link
-          className="help-link"
-          target="_blank"
-          to="https://www.midst.press/app#help"
-        >
+        <button type="button" className="help-link" onClick={openHelp}>
           Need Help?
-        </Link>
+        </button>
       </div>
     </div>
   );
