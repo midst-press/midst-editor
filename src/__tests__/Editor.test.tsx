@@ -373,6 +373,15 @@ describe('Editor: recording an edit', () => {
 });
 
 describe('Editor: autosave', () => {
+  it('typing does not re-register the toggle-edit-mode listener (the autosave timer is not state)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.removed.splice(0);
+    typeText('a');
+    typeText('b');
+    typeText('c');
+    expect(bridge.removed).not.toContain('toggle-edit-mode');
+  });
+
   it('stores poem and history, then sends save-file, one second after the last edit', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
