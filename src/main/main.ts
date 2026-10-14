@@ -24,20 +24,12 @@ import {
 import debug from 'electron-debug';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
-import fs from 'fs';
 import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
-import MenuBuilder, { save, newFile, openFile } from './menu';
+import MenuBuilder, { save, newFile, openFile, openPath } from './menu';
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
-import { writeConvertedFile } from './convertedFile';
-import {
-  fileVersionMatchesCurrent,
-  convertMidstFile,
-  includeVersionInfo,
-  loadDataIntoWorkspace,
-  resolveHtmlPath,
-} from './util';
+import { resolveHtmlPath } from './util';
 
 class AppUpdater {
   constructor() {
@@ -190,47 +182,8 @@ const createWindow = async () => {
 
     const darwin = process.platform === 'darwin';
     if (earlyPath !== '') {
-      fs.readFile(earlyPath, 'utf8', (_err, data) => {
-        if (fileVersionMatchesCurrent(data)) {
-          try {
-            if (mainWindow === null) return;
-            loadDataIntoWorkspace(earlyPath, data, mainWindow, darwin);
-          } catch {
-            if (mainWindow === null) return;
-            dialog.showMessageBoxSync(mainWindow, {
-              title: `Error`,
-              type: 'error',
-              message: `The file ${earlyPath} could not be opened. File may be corrupted. Please select another file and try again.`,
-            });
-          }
-          earlyPath = '';
-        } else {
-          if (mainWindow === null) return;
-          const response = dialog.showMessageBoxSync(mainWindow, {
-            type: 'warning',
-            message: `Version not recognized. If this file is from an
-             older version of Midst, it may be possible to convert it.
-             This will create a new file. Would you like to proceed?`,
-            buttons: ['Cancel', 'Convert File'],
-            defaultId: 1,
-            cancelId: 0,
-          });
-          if (response === 1) {
-            const newFileContents = convertMidstFile(data);
-            const newFilename = writeConvertedFile(
-              earlyPath,
-              includeVersionInfo(newFileContents)
-            );
-            loadDataIntoWorkspace(
-              newFilename,
-              includeVersionInfo(newFileContents),
-              mainWindow,
-              darwin
-            );
-          }
-          earlyPath = '';
-        }
-      });
+      openPath(mainWindow, darwin, earlyPath);
+      earlyPath = '';
     }
   });
 

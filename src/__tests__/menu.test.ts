@@ -787,6 +787,42 @@ describe('openFile', () => {
     expect(win.webContents.send).not.toHaveBeenCalled();
   });
 
+  describe('a file that cannot be read (#114)', () => {
+    it.each([
+      ['does not exist', (d: string) => path.join(d, 'gone.midst'), 'ENOENT'],
+      ['is a folder', (d: string) => d, 'EISDIR'],
+    ])(
+      'when the path %s, says it could not be opened, with the reason, and offers no conversion',
+      async (_case, target, code) => {
+        seedDocument({ edited: 'false' });
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target(dir)]);
+        await ioDone();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        const shown = showMessageBox.mock.calls[0][1];
+        expect(shown.type).toBe('error');
+        expect(shown.message).toContain(target(dir));
+        expect(shown.message).toContain(code);
+        expect(shown.buttons).toBeUndefined();
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      }
+    );
+  });
+
+  it('loads nothing and shows nothing when the window has closed while the file was read', async () => {
+    seedDocument({ edited: 'false' });
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile());
+    const win = { ...makeWindow(), isDestroyed: jest.fn(() => true) };
+    await openFile(asWindow(win), false, [target]);
+    await ioDone();
+    expect(win.isDestroyed).toHaveBeenCalled();
+    expect(showMessageBox).not.toHaveBeenCalled();
+    expect(mockStore.get('poem')).toBe('<p>xv</p>');
+    expect(win.webContents.send).not.toHaveBeenCalled();
+  });
+
   describe('a file of an older version', () => {
     const oldFile = JSON.stringify({
       editorTimelineFrames: [
