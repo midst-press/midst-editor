@@ -11,27 +11,10 @@
 // stderr and, with --summary, to that file. Everything else about the run is checked by release.yml.
 // Exit: 0 chosen; 1 refused; 2 usage; 3 an API call failed. gh is the GitHub CLI; GH overrides it.
 
-const { execFileSync } = require('child_process');
 const fs = require('fs');
+const { gh } = require('./lib/gh.cjs');
 
 const PACKAGE_WORKFLOW = '.github/workflows/package.yml';
-
-function gh(args) {
-  try {
-    return execFileSync(process.env.GH || 'gh', args, {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } catch (e) {
-    const err = new Error(
-      `gh ${args.slice(0, 3).join(' ')} failed: ${(e.stderr || e.message)
-        .toString()
-        .trim()}`
-    );
-    err.api = true;
-    throw err;
-  }
-}
 
 const json = (args) => JSON.parse(gh(args));
 
