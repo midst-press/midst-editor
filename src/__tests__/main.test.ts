@@ -128,6 +128,14 @@ jest.mock('electron', () => {
 
 // electron-debug 5 is ESM only; main.ts calls it only when debugging.
 jest.mock('electron-debug', () => ({ __esModule: true, default: jest.fn() }));
+const mockInstallExtension = jest.fn<Promise<void>, unknown[]>(() =>
+  Promise.resolve()
+);
+jest.mock('electron-devtools-assembler', () => ({
+  __esModule: true,
+  default: (...args: unknown[]) => mockInstallExtension(...args),
+  REACT_DEVELOPER_TOOLS: 'react-devtools',
+}));
 jest.mock('electron-updater', () => ({
   autoUpdater: { checkForUpdatesAndNotify: jest.fn(), logger: null },
 }));
@@ -167,6 +175,10 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  isDevelopment: () =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .isDevelopment(),
   // A file handed over at launch is opened by the real openPath: the launch tests below exercise it.
   openPath: jest.fn(
     (...args: Parameters<typeof import('../main/menu').openPath>) =>
@@ -800,6 +812,61 @@ describe('main process', () => {
       expect(state.windows).toHaveLength(1);
       await fireApp('activate', {}, false);
       expect(state.windows).toHaveLength(2);
+    });
+
+    it('a second window does not add a second set of renderer handlers', async () => {
+      const { menu, win, fireApp, fireIpc } = await boot();
+      await fireApp('activate', {}, false);
+      await fireIpc('save-file');
+      await fireIpc('new-file');
+      await fireIpc('button-open-file');
+      expect(menu.save).toHaveBeenCalledTimes(1);
+      expect(menu.newFile).toHaveBeenCalledTimes(1);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      expect(menu.save).toHaveBeenCalledWith(win(), expect.anything(), false);
+    });
+
+    describe('in development (DEBUG_PROD=true)', () => {
+      const realDebugProd = process.env.DEBUG_PROD;
+      beforeEach(() => {
+        process.env.DEBUG_PROD = 'true';
+        mockInstallExtension.mockClear();
+      });
+      afterEach(() => {
+        if (realDebugProd === undefined) delete process.env.DEBUG_PROD;
+        else process.env.DEBUG_PROD = realDebugProd;
+      });
+
+      it('turns on electron-debug and installs the React devtools before making the window', async () => {
+        const { state } = await boot();
+        const debug = (await import('electron-debug')).default as jest.Mock;
+        expect(debug).toHaveBeenCalledTimes(1);
+        expect(mockInstallExtension).toHaveBeenCalledWith(['react-devtools'], {
+          loadExtensionOptions: { allowFileAccess: true },
+          forceDownload: false,
+        });
+        expect(state.windows).toHaveLength(1);
+      });
+
+      it('still makes the window when the devtools cannot be installed, and logs why', async () => {
+        mockInstallExtension.mockImplementationOnce(() =>
+          Promise.reject(new Error('offline'))
+        );
+        const { state, log } = await boot();
+        expect(state.windows).toHaveLength(1);
+        expect(log.warn).toHaveBeenCalledWith(
+          'failed to install devtools extension',
+          expect.any(Error)
+        );
+      });
+    });
+
+    it('in production, neither electron-debug nor the devtools', async () => {
+      mockInstallExtension.mockClear();
+      await boot();
+      const debug = (await import('electron-debug')).default as jest.Mock;
+      expect(debug).not.toHaveBeenCalled();
+      expect(mockInstallExtension).not.toHaveBeenCalled();
     });
 
     it('quits when all windows are closed', async () => {
