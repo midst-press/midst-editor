@@ -14,6 +14,7 @@ import store from './store';
 import { fontSizeFromStore } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
 import { showAbout } from './about';
+import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
@@ -567,7 +568,7 @@ export default class MenuBuilder {
         {
           label: 'Documentation',
           click() {
-            shell.openExternal('https://github.com/jshafto/midst-app');
+            shell.openExternal(USER_GUIDE_URL);
           },
         },
       ],
@@ -727,7 +728,7 @@ export default class MenuBuilder {
           {
             label: 'Documentation',
             click() {
-              shell.openExternal('https://github.com/jshafto/midst-app');
+              shell.openExternal(USER_GUIDE_URL);
             },
           },
           {

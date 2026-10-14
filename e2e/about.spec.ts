@@ -46,7 +46,7 @@ test('About Midst is in the menu, shows which build this is, and Copy copies it'
     expect(seen.shown).toHaveLength(1);
     expect(seen.shown[0].title).toBe('About Midst');
     expect(seen.shown[0].detail).toBe('Development build');
-    expect(seen.shown[0].buttons).toEqual(['OK', 'Copy']);
+    expect(seen.shown[0].buttons).toEqual(['OK', 'Copy', 'User Guide']);
     expect(seen.copied).toEqual(['Development build']);
   } finally {
     await app.close();

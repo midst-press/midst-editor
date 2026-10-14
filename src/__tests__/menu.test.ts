@@ -1117,7 +1117,7 @@ describe('the menu', () => {
       );
       sub(template, helpTop, 'Documentation').click!();
       expect(shell.openExternal).toHaveBeenLastCalledWith(
-        'https://github.com/jshafto/midst-app'
+        'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
       );
     });
 
