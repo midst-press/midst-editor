@@ -164,6 +164,12 @@
         "functions": 100,
         "lines": 96,
         "statements": 96
+      },
+      "./src/renderer/components/Replay/usePlayback.ts": {
+        "branches": 92,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
       }
     },
     "moduleDirectories": [
