@@ -40,10 +40,13 @@ CI runs the pre-commit checks (defined in `.pre-commit-config.yaml`), the build,
 end-to-end tests are not in CI; run them yourself.
 
 `pre-commit` is a Python tool: `pipx install pre-commit==4.6.2` (the version CI uses; `uv tool install`
-works too). Then, from a clone where `npm ci` has run:
+works too). Install it before `npm ci`: `npm ci` installs this clone's git hooks for you
+(`tools/install-hooks.cjs`) and fails if it cannot, and `npm test` does not run in a clone without them. A
+commit made without the hooks skips every check below and the rule about closing keywords.
+
+Then, from a clone where `npm ci` has run:
 
 ```
-pre-commit install            # once per clone
 npm run build                 # the tests need the built app; they stop with a message if it is missing
 pre-commit run --all-files    # formatting, type check, lint, and the poem-data and version rules
 npm test -- --coverage        # unit tests (Jest), with the per-file coverage thresholds, as CI runs them
