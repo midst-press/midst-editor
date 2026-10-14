@@ -381,6 +381,11 @@ export const openFile = async (
   }
 };
 
+// The development menus (Reload, Developer Tools, Inspect element) also show in a packaged build
+// started with DEBUG_PROD=true.
+export const isDevelopment = () =>
+  process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
   submenu?: DarwinMenuItemConstructorOptions[] | Menu;
@@ -394,10 +399,7 @@ export default class MenuBuilder {
   }
 
   buildMenu(): Menu {
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-    ) {
+    if (isDevelopment()) {
       this.setupDevelopmentEnvironment();
     }
 
@@ -427,24 +429,115 @@ export default class MenuBuilder {
     });
   }
 
+  // The items both platforms have. Labels and accelerators are passed in because they differ: '&'
+  // marks the Alt-key letter on Windows and Linux, and macOS uses Command where they use Ctrl.
+
+  private reloadItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () => this.mainWindow.webContents.reload(),
+    };
+  }
+
+  private fullScreenItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () =>
+        this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen()),
+    };
+  }
+
+  private devToolsItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () => this.mainWindow.webContents.toggleDevTools(),
+    };
+  }
+
+  private textSizeItems(increase: string, decrease: string) {
+    return [
+      {
+        label: 'Increase text size',
+        accelerator: increase,
+        click: () => increaseFontSize(this.mainWindow),
+      },
+      {
+        label: 'Decrease text size',
+        accelerator: decrease,
+        click: () => decreaseFontSize(this.mainWindow),
+      },
+    ];
+  }
+
+  private modeItems(modifier: string, spellcheckLabel: string) {
+    return [
+      {
+        label: 'Toggle Edit Mode',
+        accelerator: `${modifier}+E`,
+        click: () => toggleEditMode(this.mainWindow),
+      },
+      {
+        label: spellcheckLabel,
+        accelerator: `${modifier}+;`,
+        click: () => toggleSpellcheck(this.mainWindow),
+      },
+    ];
+  }
+
+  private saveItems(
+    saveLabel: string,
+    saveAsLabel: string,
+    keys: [string, string],
+    darwin: boolean
+  ) {
+    // Disabled until the editor sends enable-save; main.ts finds them by id.
+    return [
+      {
+        id: 'save',
+        label: saveLabel,
+        accelerator: keys[0],
+        click: () => save(this.mainWindow, darwin),
+        enabled: false,
+      },
+      {
+        id: 'save-as',
+        label: saveAsLabel,
+        accelerator: keys[1],
+        click: () => saveAs(this.mainWindow, darwin),
+        enabled: false,
+      },
+    ];
+  }
+
+  private aboutItem() {
+    return { label: 'About Midst', click: () => showAbout(this.mainWindow) };
+  }
+
+  private static helpItems(): MenuItemConstructorOptions[] {
+    return [
+      {
+        label: 'Learn More',
+        click: () => shell.openExternal('https://midst.press'),
+      },
+      {
+        label: 'Documentation',
+        click: () => shell.openExternal(USER_GUIDE_URL),
+      },
+    ];
+  }
+
   buildDarwinTemplate(): MenuItemConstructorOptions[] {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
       label: 'Midst',
       submenu: [
-        {
-          label: 'About Midst',
-          click: () => {
-            showAbout(this.mainWindow);
-          },
-        },
+        this.aboutItem(),
         { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
-        {
-          label: 'Hide Midst',
-          accelerator: 'Command+H',
-          selector: 'hide:',
-        },
+        { label: 'Hide Midst', accelerator: 'Command+H', selector: 'hide:' },
         {
           label: 'Hide Others',
           accelerator: 'Command+Shift+H',
@@ -452,13 +545,7 @@ export default class MenuBuilder {
         },
         { label: 'Show All', selector: 'unhideAllApplications:' },
         { type: 'separator' },
-        {
-          label: 'Quit',
-          accelerator: 'Command+Q',
-          click: () => {
-            app.quit();
-          },
-        },
+        { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() },
       ],
     };
     const subMenuFile: DarwinMenuItemConstructorOptions = {
@@ -480,20 +567,12 @@ export default class MenuBuilder {
             }
           },
         },
-        {
-          id: 'save',
-          label: 'Save',
-          accelerator: 'Command+S',
-          click: () => save(this.mainWindow, true),
-          enabled: false,
-        },
-        {
-          id: 'save-as',
-          label: 'Save As',
-          accelerator: 'Command+S+Shift',
-          click: () => saveAs(this.mainWindow, true),
-          enabled: false,
-        },
+        ...this.saveItems(
+          'Save',
+          'Save As',
+          ['Command+S', 'Command+S+Shift'],
+          true
+        ),
         {
           label: 'Open',
           accelerator: 'Command+O',
@@ -527,75 +606,26 @@ export default class MenuBuilder {
           accelerator: 'Command+A',
           selector: 'selectAll:',
         },
-        {
-          label: 'Toggle Edit Mode',
-          accelerator: 'Command+E',
-          click: () => toggleEditMode(this.mainWindow),
-        },
-        {
-          label: 'Show/hide spellcheck',
-          accelerator: 'Command+;',
-          click: () => toggleSpellcheck(this.mainWindow),
-        },
+        ...this.modeItems('Command', 'Show/hide spellcheck'),
       ],
     };
-    const subMenuViewDev: MenuItemConstructorOptions = {
+    const fullScreen = this.fullScreenItem(
+      'Toggle Full Screen',
+      'Ctrl+Command+F'
+    );
+    const subMenuView: MenuItemConstructorOptions = {
       label: 'View',
-      submenu: [
-        {
-          label: 'Reload',
-          accelerator: 'Command+R',
-          click: () => {
-            this.mainWindow.webContents.reload();
-          },
-        },
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Toggle Developer Tools',
-          accelerator: 'Alt+Command+I',
-          click: () => {
-            this.mainWindow.webContents.toggleDevTools();
-          },
-        },
-        {
-          label: 'Increase text size',
-          accelerator: 'Command+=',
-          click: () => increaseFontSize(this.mainWindow),
-        },
-        {
-          label: 'Decrease text size',
-          accelerator: 'Command+-',
-          click: () => decreaseFontSize(this.mainWindow),
-        },
-      ],
-    };
-    const subMenuViewProd: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Increase text size',
-          accelerator: 'Command+Shift+=',
-          click: () => increaseFontSize(this.mainWindow),
-        },
-        {
-          label: 'Decrease text size',
-          accelerator: 'Command+Shift+-',
-          click: () => decreaseFontSize(this.mainWindow),
-        },
-      ],
+      submenu: isDevelopment()
+        ? [
+            this.reloadItem('Reload', 'Command+R'),
+            fullScreen,
+            this.devToolsItem('Toggle Developer Tools', 'Alt+Command+I'),
+            ...this.textSizeItems('Command+=', 'Command+-'),
+          ]
+        : [
+            fullScreen,
+            ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+          ],
     };
     const subMenuWindow: DarwinMenuItemConstructorOptions = {
       label: 'Window',
@@ -612,27 +642,8 @@ export default class MenuBuilder {
     };
     const subMenuHelp: MenuItemConstructorOptions = {
       label: 'Help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click() {
-            shell.openExternal('https://midst.press');
-          },
-        },
-        {
-          label: 'Documentation',
-          click() {
-            shell.openExternal(USER_GUIDE_URL);
-          },
-        },
-      ],
+      submenu: MenuBuilder.helpItems(),
     };
-
-    const subMenuView =
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-        ? subMenuViewDev
-        : subMenuViewProd;
 
     return [
       subMenuAbout,
@@ -644,25 +655,18 @@ export default class MenuBuilder {
     ];
   }
 
-  buildDefaultTemplate() {
-    const templateDefault = [
+  buildDefaultTemplate(): MenuItemConstructorOptions[] {
+    const fullScreen = this.fullScreenItem('Toggle &Full Screen', 'F11');
+    return [
       {
         label: '&File',
         submenu: [
-          {
-            id: 'save',
-            label: '&Save',
-            accelerator: 'Ctrl+S',
-            click: () => save(this.mainWindow, false),
-            enabled: false,
-          },
-          {
-            id: 'save-as',
-            label: '&Save As',
-            accelerator: 'Ctrl+Shift+S',
-            click: () => saveAs(this.mainWindow, false),
-            enabled: false,
-          },
+          ...this.saveItems(
+            '&Save',
+            '&Save As',
+            ['Ctrl+S', 'Ctrl+Shift+S'],
+            false
+          ),
           {
             label: '&New',
             accelerator: 'Ctrl+N',
@@ -676,9 +680,7 @@ export default class MenuBuilder {
           {
             label: '&Close',
             accelerator: 'Ctrl+W',
-            click: () => {
-              this.mainWindow.close();
-            },
+            click: () => this.mainWindow.close(),
           },
         ],
       },
@@ -695,106 +697,25 @@ export default class MenuBuilder {
             label: 'Select All',
             accelerator: 'Ctrl+A',
             selector: 'selectall',
-          },
-          {
-            label: 'Toggle Edit Mode',
-            accelerator: 'Ctrl+E',
-            click: () => toggleEditMode(this.mainWindow),
-          },
-          {
-            label: 'Toggle Spellcheck',
-            accelerator: 'Ctrl+;',
-            click: () => toggleSpellcheck(this.mainWindow),
-          },
-        ] as MenuItemConstructorOptions[],
+          } as MenuItemConstructorOptions,
+          ...this.modeItems('Ctrl', 'Toggle Spellcheck'),
+        ],
       },
       {
         label: '&View',
-        submenu:
-          process.env.NODE_ENV === 'development' ||
-          process.env.DEBUG_PROD === 'true'
-            ? [
-                {
-                  label: '&Reload',
-                  accelerator: 'Ctrl+R',
-                  click: () => {
-                    this.mainWindow.webContents.reload();
-                  },
-                },
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen()
-                    );
-                  },
-                },
-                {
-                  label: 'Toggle &Developer Tools',
-                  accelerator: 'Alt+Ctrl+I',
-                  click: () => {
-                    this.mainWindow.webContents.toggleDevTools();
-                  },
-                },
-                {
-                  label: 'Increase text size',
-                  accelerator: 'Ctrl+=',
-                  click: () => increaseFontSize(this.mainWindow),
-                },
-                {
-                  label: 'Decrease text size',
-                  accelerator: 'Ctrl+-',
-                  click: () => decreaseFontSize(this.mainWindow),
-                },
-              ]
-            : [
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen()
-                    );
-                  },
-                },
-                {
-                  label: 'Increase text size',
-                  accelerator: 'Ctrl+=',
-                  click: () => increaseFontSize(this.mainWindow),
-                },
-                {
-                  label: 'Decrease text size',
-                  accelerator: 'Ctrl+-',
-                  click: () => decreaseFontSize(this.mainWindow),
-                },
-              ],
+        submenu: isDevelopment()
+          ? [
+              this.reloadItem('&Reload', 'Ctrl+R'),
+              fullScreen,
+              this.devToolsItem('Toggle &Developer Tools', 'Alt+Ctrl+I'),
+              ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
+            ]
+          : [fullScreen, ...this.textSizeItems('Ctrl+=', 'Ctrl+-')],
       },
       {
         label: 'Help',
-        submenu: [
-          {
-            label: 'Learn More',
-            click() {
-              shell.openExternal('https://midst.press');
-            },
-          },
-          {
-            label: 'Documentation',
-            click() {
-              shell.openExternal(USER_GUIDE_URL);
-            },
-          },
-          {
-            label: 'About Midst',
-            click: () => {
-              showAbout(this.mainWindow);
-            },
-          },
-        ],
+        submenu: [...MenuBuilder.helpItems(), this.aboutItem()],
       },
     ];
-
-    return templateDefault;
   }
 }
