@@ -298,6 +298,15 @@ describe('Replay: playback', () => {
     expect(live.size).toBe(0);
   });
 
+  it('does not start playing a one-frame history, which has nothing to play through (review of #118)', () => {
+    const live = watchIntervals();
+    mount(makeHistory(1));
+    fireEvent.click(playButton());
+    advance(250 + 60 * 5);
+    expect(playButton()).toBeInTheDocument();
+    expect(live.size).toBe(0);
+  });
+
   it('leaves no timer running once unmounted after playback has started', () => {
     const live = watchIntervals();
     const view = mount();

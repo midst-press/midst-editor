@@ -50,6 +50,9 @@ export default function usePlayback(
   };
 
   const play = () => {
+    // One frame has nothing to play through. Starting would never stop: the step is already the
+    // last, so nothing changes for the stop at the end to see (review of #118).
+    if (maxStep <= 0) return;
     clearTimers();
     setPlaying(true);
     if (step >= maxStep) {
