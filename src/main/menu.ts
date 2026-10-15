@@ -11,7 +11,7 @@ import {
 import path from 'path';
 import fs from 'fs';
 import store from './store';
-import { fontSizeFromStore } from './fontSize';
+import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
 import { showAbout } from './about';
 import { USER_GUIDE_URL } from '../shared/userGuide';
@@ -53,10 +53,10 @@ const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
-const storedFontSize = () => fontSizeFromStore(store.get('font-size'));
+const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
 const increaseFontSize = (mainWindow: BrowserWindow) => {
   const fontSize = storedFontSize();
-  if (fontSize >= 4) {
+  if (fontSize >= MAX_FONT_SIZE) {
     return;
   }
   store.set('font-size', String(fontSize + 1));
@@ -65,7 +65,7 @@ const increaseFontSize = (mainWindow: BrowserWindow) => {
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
   const fontSize = storedFontSize();
 
-  if (fontSize <= 0) {
+  if (fontSize <= MIN_FONT_SIZE) {
     return;
   }
   store.set('font-size', String(fontSize - 1));
@@ -120,14 +120,74 @@ const SAVE_FILTERS = [
 //     a read-only place impossible to work on. The macOS edited dot stays on throughout.
 // `saveElsewhere` is what "Save As…" in that message does.
 let toldCouldNotSave: string | undefined;
+
+// The write succeeded: the document is now this file, and saved.
+const recordSaved = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  filename: string
+) => {
+  toldCouldNotSave = undefined;
+  store.set('filename', filename);
+  store.set('baseFilename', path.basename(filename));
+  rememberFolder(filename);
+  if (darwin) {
+    mainWindow.setDocumentEdited(false);
+    mainWindow.setRepresentedFilename(filename);
+  }
+  mainWindow.setTitle(filename);
+  mainWindow.webContents.send('set-filename', path.basename(filename));
+  store.set('edited', JSON.stringify(false));
+};
+
+// The write failed: nothing is recorded, and the poet is told when the rules above say so.
+const reportCouldNotSave = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  {
+    filename,
+    reason,
+    byPoet,
+    saveElsewhere,
+  }: {
+    filename: string;
+    reason: string;
+    byPoet: boolean;
+    saveElsewhere: () => Promise<void>;
+  }
+) => {
+  const nothingUnsaved = store.get('edited') === 'false';
+  if (!byPoet && nothingUnsaved) return;
+  if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
+  if (!byPoet && toldCouldNotSave === filename) return;
+  toldCouldNotSave = filename;
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type: 'error',
+    title: 'Could not save',
+    message: `Midst could not save "${path.basename(filename)}".`,
+    detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
+    buttons: ['Save As…', 'OK'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (choice === 0) await saveElsewhere();
+};
+
 const writeAndRecord = async (
   mainWindow: BrowserWindow,
   darwin: boolean,
-  label: 'save' | 'saveAs',
   { text, history }: { text: string; history: string },
-  filename: string,
-  byPoet: boolean,
-  saveElsewhere: () => Promise<void>
+  {
+    label,
+    filename,
+    byPoet,
+    saveElsewhere,
+  }: {
+    label: 'save' | 'saveAs';
+    filename: string;
+    byPoet: boolean;
+    saveElsewhere: () => Promise<void>;
+  }
 ) => {
   const meta = (store.get('meta') as string | undefined) ?? '';
   const fullContents = includeVersionInfo(
@@ -147,35 +207,15 @@ const writeAndRecord = async (
   } catch (err) {
     const reason = (err as Error).message;
     log.error(`${label}: the document was not written`, { filename, reason });
-    const nothingUnsaved = store.get('edited') === 'false';
-    if (!byPoet && nothingUnsaved) return;
-    if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
-    if (!byPoet && toldCouldNotSave === filename) return;
-    toldCouldNotSave = filename;
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'error',
-      title: 'Could not save',
-      message: `Midst could not save "${path.basename(filename)}".`,
-      detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
-      buttons: ['Save As…', 'OK'],
-      defaultId: 0,
-      cancelId: 1,
+    await reportCouldNotSave(mainWindow, darwin, {
+      filename,
+      reason,
+      byPoet,
+      saveElsewhere,
     });
-    if (choice === 0) await saveElsewhere();
     return;
   }
-
-  toldCouldNotSave = undefined;
-  store.set('filename', filename);
-  store.set('baseFilename', path.basename(filename));
-  rememberFolder(filename);
-  if (darwin) {
-    mainWindow.setDocumentEdited(false);
-    mainWindow.setRepresentedFilename(filename);
-  }
-  mainWindow.setTitle(filename);
-  mainWindow.webContents.send('set-filename', path.basename(filename));
-  store.set('edited', JSON.stringify(false));
+  recordSaved(mainWindow, darwin, filename);
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -194,15 +234,12 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
   });
 
   if (filename) {
-    await writeAndRecord(
-      mainWindow,
-      darwin,
-      'saveAs',
-      document,
+    await writeAndRecord(mainWindow, darwin, document, {
+      label: 'saveAs',
       filename,
-      true,
-      () => saveAs(mainWindow, darwin)
-    );
+      byPoet: true,
+      saveElsewhere: () => saveAs(mainWindow, darwin),
+    });
   }
 };
 
@@ -228,15 +265,12 @@ export const save = async (
       filters: SAVE_FILTERS,
     });
   if (filename) {
-    await writeAndRecord(
-      mainWindow,
-      darwin,
-      'save',
-      document,
+    await writeAndRecord(mainWindow, darwin, document, {
+      label: 'save',
       filename,
-      byPoet || !stored,
-      () => saveAs(mainWindow, darwin)
-    );
+      byPoet: byPoet || !stored,
+      saveElsewhere: () => saveAs(mainWindow, darwin),
+    });
   } else {
     mainWindow.webContents.send('cancel-save');
   }
@@ -258,6 +292,64 @@ export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
     mainWindow.setRepresentedFilename('Untitled');
     mainWindow.setTitle('Untitled');
   }
+};
+
+// Read a .midst file into the workspace, offering to convert one of an older version. File > Open,
+// Open Recent and a file handed to the app at launch all come here, so they behave the same.
+export const openPath = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  filePath: string
+) => {
+  fs.readFile(filePath, 'utf8', (err, data) => {
+    if (mainWindow.isDestroyed?.()) {
+      return;
+    }
+    if (err) {
+      // A missing or unreadable file, or a folder: say so. It is not a file of another version (#114).
+      dialog.showMessageBoxSync(mainWindow, {
+        title: `Error`,
+        type: 'error',
+        message: `The file ${filePath} could not be opened: ${err.message}`,
+      });
+      return;
+    }
+    if (fileVersionMatchesCurrent(data)) {
+      try {
+        loadDataIntoWorkspace(filePath, data, mainWindow, darwin);
+      } catch {
+        dialog.showMessageBoxSync(mainWindow, {
+          title: `Error`,
+          type: 'error',
+          message: `The file ${filePath} could not be opened. File may be corrupted. Please select another file and try again.`,
+        });
+      }
+    } else {
+      const response = dialog.showMessageBoxSync(mainWindow, {
+        type: 'warning',
+        message: `Version not recognized. If this file is from an
+           older version of Midst, it may be possible to convert it.
+           This will create a new file. Would you like to proceed?`,
+        buttons: ['Cancel', 'Convert File'],
+        defaultId: 1,
+        cancelId: 0,
+      });
+      if (response === 1) {
+        const newFileContents = convertMidstFile(data);
+        const newFilename = writeConvertedFile(
+          filePath,
+          includeVersionInfo(newFileContents)
+        );
+        app.addRecentDocument(newFilename);
+        loadDataIntoWorkspace(
+          newFilename,
+          includeVersionInfo(newFileContents),
+          mainWindow,
+          darwin
+        );
+      }
+    }
+  });
 };
 
 export const openFile = async (
@@ -285,47 +377,14 @@ export const openFile = async (
 
   if (filename?.length) {
     rememberFolder(filename[0]);
-    fs.readFile(filename[0], 'utf8', (_err, data) => {
-      if (fileVersionMatchesCurrent(data)) {
-        try {
-          loadDataIntoWorkspace(filename![0], data, mainWindow, darwin);
-        } catch {
-          dialog.showMessageBoxSync(mainWindow, {
-            title: `Error`,
-            type: 'error',
-            message: `The file ${
-              filename![0]
-            } could not be opened. File may be corrupted. Please select another file and try again.`,
-          });
-        }
-      } else {
-        const response = dialog.showMessageBoxSync(mainWindow, {
-          type: 'warning',
-          message: `Version not recognized. If this file is from an
-           older version of Midst, it may be possible to convert it.
-           This will create a new file. Would you like to proceed?`,
-          buttons: ['Cancel', 'Convert File'],
-          defaultId: 1,
-          cancelId: 0,
-        });
-        if (response === 1) {
-          const newFileContents = convertMidstFile(data);
-          const newFilename = writeConvertedFile(
-            filename![0],
-            includeVersionInfo(newFileContents)
-          );
-          app.addRecentDocument(newFilename);
-          loadDataIntoWorkspace(
-            newFilename,
-            includeVersionInfo(newFileContents),
-            mainWindow,
-            darwin
-          );
-        }
-      }
-    });
+    openPath(mainWindow, darwin, filename[0]);
   }
 };
+
+// The development menus (Reload, Developer Tools, Inspect element) also show in a packaged build
+// started with DEBUG_PROD=true.
+export const isDevelopment = () =>
+  process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 interface DarwinMenuItemConstructorOptions extends MenuItemConstructorOptions {
   selector?: string;
@@ -340,10 +399,7 @@ export default class MenuBuilder {
   }
 
   buildMenu(): Menu {
-    if (
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-    ) {
+    if (isDevelopment()) {
       this.setupDevelopmentEnvironment();
     }
 
@@ -373,24 +429,115 @@ export default class MenuBuilder {
     });
   }
 
+  // The items both platforms have. Labels and accelerators are passed in because they differ: '&'
+  // marks the Alt-key letter on Windows and Linux, and macOS uses Command where they use Ctrl.
+
+  private reloadItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () => this.mainWindow.webContents.reload(),
+    };
+  }
+
+  private fullScreenItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () =>
+        this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen()),
+    };
+  }
+
+  private devToolsItem(label: string, accelerator: string) {
+    return {
+      label,
+      accelerator,
+      click: () => this.mainWindow.webContents.toggleDevTools(),
+    };
+  }
+
+  private textSizeItems(increase: string, decrease: string) {
+    return [
+      {
+        label: 'Increase text size',
+        accelerator: increase,
+        click: () => increaseFontSize(this.mainWindow),
+      },
+      {
+        label: 'Decrease text size',
+        accelerator: decrease,
+        click: () => decreaseFontSize(this.mainWindow),
+      },
+    ];
+  }
+
+  private modeItems(modifier: string, spellcheckLabel: string) {
+    return [
+      {
+        label: 'Toggle Edit Mode',
+        accelerator: `${modifier}+E`,
+        click: () => toggleEditMode(this.mainWindow),
+      },
+      {
+        label: spellcheckLabel,
+        accelerator: `${modifier}+;`,
+        click: () => toggleSpellcheck(this.mainWindow),
+      },
+    ];
+  }
+
+  private saveItems(
+    saveLabel: string,
+    saveAsLabel: string,
+    keys: [string, string],
+    darwin: boolean
+  ) {
+    // Disabled until the editor sends enable-save; main.ts finds them by id.
+    return [
+      {
+        id: 'save',
+        label: saveLabel,
+        accelerator: keys[0],
+        click: () => save(this.mainWindow, darwin),
+        enabled: false,
+      },
+      {
+        id: 'save-as',
+        label: saveAsLabel,
+        accelerator: keys[1],
+        click: () => saveAs(this.mainWindow, darwin),
+        enabled: false,
+      },
+    ];
+  }
+
+  private aboutItem() {
+    return { label: 'About Midst', click: () => showAbout(this.mainWindow) };
+  }
+
+  private static helpItems(): MenuItemConstructorOptions[] {
+    return [
+      {
+        label: 'Learn More',
+        click: () => shell.openExternal('https://midst.press'),
+      },
+      {
+        label: 'Documentation',
+        click: () => shell.openExternal(USER_GUIDE_URL),
+      },
+    ];
+  }
+
   buildDarwinTemplate(): MenuItemConstructorOptions[] {
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
       label: 'Midst',
       submenu: [
-        {
-          label: 'About Midst',
-          click: () => {
-            showAbout(this.mainWindow);
-          },
-        },
+        this.aboutItem(),
         { type: 'separator' },
         { label: 'Services', submenu: [] },
         { type: 'separator' },
-        {
-          label: 'Hide Midst',
-          accelerator: 'Command+H',
-          selector: 'hide:',
-        },
+        { label: 'Hide Midst', accelerator: 'Command+H', selector: 'hide:' },
         {
           label: 'Hide Others',
           accelerator: 'Command+Shift+H',
@@ -398,13 +545,7 @@ export default class MenuBuilder {
         },
         { label: 'Show All', selector: 'unhideAllApplications:' },
         { type: 'separator' },
-        {
-          label: 'Quit',
-          accelerator: 'Command+Q',
-          click: () => {
-            app.quit();
-          },
-        },
+        { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() },
       ],
     };
     const subMenuFile: DarwinMenuItemConstructorOptions = {
@@ -426,20 +567,12 @@ export default class MenuBuilder {
             }
           },
         },
-        {
-          id: 'save',
-          label: 'Save',
-          accelerator: 'Command+S',
-          click: () => save(this.mainWindow, true),
-          enabled: false,
-        },
-        {
-          id: 'save-as',
-          label: 'Save As',
-          accelerator: 'Command+S+Shift',
-          click: () => saveAs(this.mainWindow, true),
-          enabled: false,
-        },
+        ...this.saveItems(
+          'Save',
+          'Save As',
+          ['Command+S', 'Command+S+Shift'],
+          true
+        ),
         {
           label: 'Open',
           accelerator: 'Command+O',
@@ -473,75 +606,26 @@ export default class MenuBuilder {
           accelerator: 'Command+A',
           selector: 'selectAll:',
         },
-        {
-          label: 'Toggle Edit Mode',
-          accelerator: 'Command+E',
-          click: () => toggleEditMode(this.mainWindow),
-        },
-        {
-          label: 'Show/hide spellcheck',
-          accelerator: 'Command+;',
-          click: () => toggleSpellcheck(this.mainWindow),
-        },
+        ...this.modeItems('Command', 'Show/hide spellcheck'),
       ],
     };
-    const subMenuViewDev: MenuItemConstructorOptions = {
+    const fullScreen = this.fullScreenItem(
+      'Toggle Full Screen',
+      'Ctrl+Command+F'
+    );
+    const subMenuView: MenuItemConstructorOptions = {
       label: 'View',
-      submenu: [
-        {
-          label: 'Reload',
-          accelerator: 'Command+R',
-          click: () => {
-            this.mainWindow.webContents.reload();
-          },
-        },
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Toggle Developer Tools',
-          accelerator: 'Alt+Command+I',
-          click: () => {
-            this.mainWindow.webContents.toggleDevTools();
-          },
-        },
-        {
-          label: 'Increase text size',
-          accelerator: 'Command+=',
-          click: () => increaseFontSize(this.mainWindow),
-        },
-        {
-          label: 'Decrease text size',
-          accelerator: 'Command+-',
-          click: () => decreaseFontSize(this.mainWindow),
-        },
-      ],
-    };
-    const subMenuViewProd: MenuItemConstructorOptions = {
-      label: 'View',
-      submenu: [
-        {
-          label: 'Toggle Full Screen',
-          accelerator: 'Ctrl+Command+F',
-          click: () => {
-            this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen());
-          },
-        },
-        {
-          label: 'Increase text size',
-          accelerator: 'Command+Shift+=',
-          click: () => increaseFontSize(this.mainWindow),
-        },
-        {
-          label: 'Decrease text size',
-          accelerator: 'Command+Shift+-',
-          click: () => decreaseFontSize(this.mainWindow),
-        },
-      ],
+      submenu: isDevelopment()
+        ? [
+            this.reloadItem('Reload', 'Command+R'),
+            fullScreen,
+            this.devToolsItem('Toggle Developer Tools', 'Alt+Command+I'),
+            ...this.textSizeItems('Command+=', 'Command+-'),
+          ]
+        : [
+            fullScreen,
+            ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+          ],
     };
     const subMenuWindow: DarwinMenuItemConstructorOptions = {
       label: 'Window',
@@ -558,27 +642,8 @@ export default class MenuBuilder {
     };
     const subMenuHelp: MenuItemConstructorOptions = {
       label: 'Help',
-      submenu: [
-        {
-          label: 'Learn More',
-          click() {
-            shell.openExternal('https://midst.press');
-          },
-        },
-        {
-          label: 'Documentation',
-          click() {
-            shell.openExternal(USER_GUIDE_URL);
-          },
-        },
-      ],
+      submenu: MenuBuilder.helpItems(),
     };
-
-    const subMenuView =
-      process.env.NODE_ENV === 'development' ||
-      process.env.DEBUG_PROD === 'true'
-        ? subMenuViewDev
-        : subMenuViewProd;
 
     return [
       subMenuAbout,
@@ -590,25 +655,18 @@ export default class MenuBuilder {
     ];
   }
 
-  buildDefaultTemplate() {
-    const templateDefault = [
+  buildDefaultTemplate(): MenuItemConstructorOptions[] {
+    const fullScreen = this.fullScreenItem('Toggle &Full Screen', 'F11');
+    return [
       {
         label: '&File',
         submenu: [
-          {
-            id: 'save',
-            label: '&Save',
-            accelerator: 'Ctrl+S',
-            click: () => save(this.mainWindow, false),
-            enabled: false,
-          },
-          {
-            id: 'save-as',
-            label: '&Save As',
-            accelerator: 'Ctrl+Shift+S',
-            click: () => saveAs(this.mainWindow, false),
-            enabled: false,
-          },
+          ...this.saveItems(
+            '&Save',
+            '&Save As',
+            ['Ctrl+S', 'Ctrl+Shift+S'],
+            false
+          ),
           {
             label: '&New',
             accelerator: 'Ctrl+N',
@@ -622,9 +680,7 @@ export default class MenuBuilder {
           {
             label: '&Close',
             accelerator: 'Ctrl+W',
-            click: () => {
-              this.mainWindow.close();
-            },
+            click: () => this.mainWindow.close(),
           },
         ],
       },
@@ -641,106 +697,25 @@ export default class MenuBuilder {
             label: 'Select All',
             accelerator: 'Ctrl+A',
             selector: 'selectall',
-          },
-          {
-            label: 'Toggle Edit Mode',
-            accelerator: 'Ctrl+E',
-            click: () => toggleEditMode(this.mainWindow),
-          },
-          {
-            label: 'Toggle Spellcheck',
-            accelerator: 'Ctrl+;',
-            click: () => toggleSpellcheck(this.mainWindow),
-          },
-        ] as MenuItemConstructorOptions[],
+          } as MenuItemConstructorOptions,
+          ...this.modeItems('Ctrl', 'Toggle Spellcheck'),
+        ],
       },
       {
         label: '&View',
-        submenu:
-          process.env.NODE_ENV === 'development' ||
-          process.env.DEBUG_PROD === 'true'
-            ? [
-                {
-                  label: '&Reload',
-                  accelerator: 'Ctrl+R',
-                  click: () => {
-                    this.mainWindow.webContents.reload();
-                  },
-                },
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen()
-                    );
-                  },
-                },
-                {
-                  label: 'Toggle &Developer Tools',
-                  accelerator: 'Alt+Ctrl+I',
-                  click: () => {
-                    this.mainWindow.webContents.toggleDevTools();
-                  },
-                },
-                {
-                  label: 'Increase text size',
-                  accelerator: 'Ctrl+=',
-                  click: () => increaseFontSize(this.mainWindow),
-                },
-                {
-                  label: 'Decrease text size',
-                  accelerator: 'Ctrl+-',
-                  click: () => decreaseFontSize(this.mainWindow),
-                },
-              ]
-            : [
-                {
-                  label: 'Toggle &Full Screen',
-                  accelerator: 'F11',
-                  click: () => {
-                    this.mainWindow.setFullScreen(
-                      !this.mainWindow.isFullScreen()
-                    );
-                  },
-                },
-                {
-                  label: 'Increase text size',
-                  accelerator: 'Ctrl+=',
-                  click: () => increaseFontSize(this.mainWindow),
-                },
-                {
-                  label: 'Decrease text size',
-                  accelerator: 'Ctrl+-',
-                  click: () => decreaseFontSize(this.mainWindow),
-                },
-              ],
+        submenu: isDevelopment()
+          ? [
+              this.reloadItem('&Reload', 'Ctrl+R'),
+              fullScreen,
+              this.devToolsItem('Toggle &Developer Tools', 'Alt+Ctrl+I'),
+              ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
+            ]
+          : [fullScreen, ...this.textSizeItems('Ctrl+=', 'Ctrl+-')],
       },
       {
         label: 'Help',
-        submenu: [
-          {
-            label: 'Learn More',
-            click() {
-              shell.openExternal('https://midst.press');
-            },
-          },
-          {
-            label: 'Documentation',
-            click() {
-              shell.openExternal(USER_GUIDE_URL);
-            },
-          },
-          {
-            label: 'About Midst',
-            click: () => {
-              showAbout(this.mainWindow);
-            },
-          },
-        ],
+        submenu: [...MenuBuilder.helpItems(), this.aboutItem()],
       },
     ];
-
-    return templateDefault;
   }
 }

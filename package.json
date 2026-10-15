@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "author": {
     "name": "Jules",
     "url": "https://github.com/jshafto"
@@ -76,10 +76,10 @@
         "statements": 100
       },
       "./src/main/main.ts": {
-        "branches": 86,
-        "functions": 80,
-        "lines": 93,
-        "statements": 93
+        "branches": 93,
+        "functions": 100,
+        "lines": 98,
+        "statements": 98
       },
       "./src/main/menu.ts": {
         "branches": 93,
@@ -102,8 +102,8 @@
       "./src/main/util.ts": {
         "branches": 95,
         "functions": 100,
-        "lines": 99,
-        "statements": 99
+        "lines": 98.9,
+        "statements": 98.9
       },
       "./src/renderer/HandleTab.ts": {
         "branches": 100,
@@ -141,7 +141,55 @@
         "lines": 100,
         "statements": 100
       },
+      "./src/shared/poemExtensions.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/fontSize/useFontSize.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/fontSize/setEditorSizeClass.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/shared/buildLabel.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/components/Editor/index.tsx": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/components/Editor/MenuBar.tsx": {
+        "branches": 80,
+        "functions": 100,
+        "lines": 95,
+        "statements": 95
+      },
+      "./src/renderer/components/Replay/index.tsx": {
+        "branches": 81,
+        "functions": 100,
+        "lines": 95.9,
+        "statements": 95.9
+      },
+      "./src/renderer/components/Replay/usePlayback.ts": {
+        "branches": 92,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/components/Editor/useAutosave.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
@@ -192,7 +240,6 @@
     "@tiptap/react": "^2.5.4",
     "@tiptap/starter-kit": "^2.5.4",
     "date-fns": "^2.30.0",
-    "dompurify": "^3.1.6",
     "electron-log": "^4.4.8",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
@@ -210,7 +257,6 @@
     "@teamsupercell/typings-for-css-modules-loader": "^2.5.2",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
-    "@types/dompurify": "^3.0.2",
     "@types/jest": "^30.0.0",
     "@types/node": "22.13.10",
     "@types/react": "^18.2.8",

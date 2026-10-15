@@ -15,34 +15,15 @@ import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import poemExtensions from 'shared/poemExtensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { fontSizeFromStore } from 'main/fontSize';
+import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
-import {
-  scrollParent,
-  targetScrollTop,
-  glideTo,
-  gliding,
-  Glide,
-} from './follow';
-
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-];
+import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
+import usePlayback from './usePlayback';
 
 export default function Replay() {
   const theme = useTheme();
@@ -54,7 +35,7 @@ export default function Replay() {
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const glide = useRef<Glide | null>(null);
 
-  const [step, setStep] = useState(maxStep);
+  const { step, setStep, playing, play, pause } = usePlayback(maxStep, glide);
 
   // Draft markers. A marker is saved with the text and history this view shows. The store can be
   // behind them: the editor saves a second after the last keystroke, and coming here inside that
@@ -73,30 +54,14 @@ export default function Replay() {
   const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
-  const [playing, setPlaying] = useState(false);
-  // A TIMER HANDLE, NOT RENDERED STATE. It is only ever created, cleared, and tested for
-  // truthiness -- nothing displays it. Holding it in state bought nothing and cost a dependency:
-  // react-hooks/exhaustive-deps requires it in every effect that clears it, so the IPC-listener
-  // effect below would re-register its three listeners on every play and every pause.
-  const playingInterval = useRef<ReturnType<typeof setInterval> | undefined>(
-    undefined
-  );
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
 
-  const restoreSizeClassSetting = fontSizeFromStore(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass, setSizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
-  );
+  const fontSize = useFontSize();
 
   const editor = useEditor({
-    extensions,
+    extensions: poemExtensions,
     content: reconstructHTML('', poemHistory, step),
     editable: false,
     parseOptions: {
@@ -116,10 +81,6 @@ export default function Replay() {
     setStep(newStep);
   };
   useEffect(() => {
-    if (step >= maxStep) {
-      clearInterval(playingInterval.current);
-      setPlaying(false);
-    }
     if (!editor) return;
     const before = editor.state.doc;
     const newContent = reconstructHTML('', poemHistory, step);
@@ -142,9 +103,6 @@ export default function Replay() {
   }, [maxStep, step, poemHistory, editor]);
 
   useEffect(() => {
-    // The cleanup clears the playback timer on unmount. The handle is a ref, so it is read when the
-    // cleanup runs and is not a dependency of this effect.
-    //
     // 🚨 `editor` is narrowed EXPLICITLY here rather than reached through `editor?.commands`, and
     // that is load-bearing. With the optional chain, react-hooks/exhaustive-deps asks for
     // `editor?.commands` as the dependency -- and `commands` is a GETTER returning a fresh object
@@ -154,36 +112,9 @@ export default function Replay() {
     // about. Narrowing first makes the dependency `editor`, which useEditor creates once per mount,
     // so the rule is satisfied by a dependency that is genuinely stable. Do not reintroduce the
     // optional chain here.
-    if (!editor) return undefined;
+    if (!editor) return;
     editor.commands.focus();
-    return () => {
-      if (playingInterval.current) {
-        clearInterval(playingInterval.current);
-      }
-    };
   }, [editor]);
-
-  const handleClickPlay = async () => {
-    clearInterval(playingInterval.current);
-    setPlaying(true);
-    if (step >= maxStep) {
-      setStep(0);
-      // the slider needs time to move back to 0
-      // so there is a 250ms delay
-      // there might be a more elegant way to do this with async/await
-      setTimeout(() => {
-        const interval = setInterval(() => {
-          setStep((val) => (gliding(glide.current) ? val : val + 1));
-        }, 60);
-        playingInterval.current = interval;
-      }, 250);
-    } else {
-      const interval = setInterval(() => {
-        setStep((val) => (gliding(glide.current) ? val : val + 1));
-      }, 60);
-      playingInterval.current = interval;
-    }
-  };
 
   const labelFormatter = (x: number) => {
     if (x > maxStep) return '';
@@ -191,18 +122,11 @@ export default function Replay() {
       ? format(new Date(poemHistory[x].t), 'p\n MM/dd/yy')
       : '';
   };
-  const handleClickPause = () => {
-    clearInterval(playingInterval.current);
-    setPlaying(false);
-  };
-
   useEffect(() => {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
-        clearInterval(playingInterval.current);
-        setPlaying(false);
-        // const typeHistory = savedHistory as ChangeObj[];
+        pause();
         setHtmlString(savedPoem as string);
         setPoemHistory(savedHistory as ChangeObj[]);
         window.electron.titlebar.updateTitle(savedFilename as string);
@@ -217,19 +141,11 @@ export default function Replay() {
       }
     );
 
-    const removeFontSizeHandler = window.electron.ipcRenderer.on(
-      'set-font-size',
-      (newSize) => {
-        setSizeClass(Number(newSize));
-      }
-    );
-
     return () => {
       removeOpen();
       removeToggleEditHandler();
-      removeFontSizeHandler();
     };
-  }, [navigate, setHtmlString, setPoemHistory]);
+  }, [navigate, setHtmlString, setPoemHistory, pause]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -254,23 +170,6 @@ export default function Replay() {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [navigate]);
-  const decreaseSize = () => {
-    if (sizeClass <= 0) {
-      return;
-    }
-    window.electron.store.set('font-size', String(sizeClass - 1));
-
-    setSizeClass(sizeClass - 1);
-  };
-  const increaseSize = () => {
-    if (sizeClass >= 4) {
-      return;
-    }
-
-    window.electron.store.set('font-size', String(sizeClass + 1));
-    setSizeClass(sizeClass + 1);
-  };
-
   return (
     <div style={{ backgroundColor: theme.palette.background.default }}>
       <div className="TopButtons">
@@ -283,8 +182,8 @@ export default function Replay() {
           <button
             aria-label="Increase text size"
             type="button"
-            onClick={increaseSize}
-            disabled={sizeClass >= 4}
+            onClick={fontSize.increase}
+            disabled={!fontSize.canIncrease}
             className="icon-button size-icon"
           >
             <TextIncreaseIcon fontSize="small" />
@@ -299,15 +198,15 @@ export default function Replay() {
           <button
             aria-label="Decrease text size"
             type="button"
-            disabled={sizeClass <= 0}
+            disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
-            onClick={decreaseSize}
+            onClick={fontSize.decrease}
           >
             <TextDecreaseIcon fontSize="small" />
           </button>
         </Tooltip>
       </div>
-      <div className={`ReplayContainer size-${sizeClass}`}>
+      <div className={`ReplayContainer size-${fontSize.size}`}>
         <EditorContent editor={editor} />
       </div>
       <Grow mountOnEnter in>
@@ -322,8 +221,8 @@ export default function Replay() {
             type="button"
             ref={playPauseButton}
             style={{ color: theme.palette.secondary.contrastText }}
-            onClick={playing ? handleClickPause : handleClickPlay}
-            disabled={!window.history.length}
+            onClick={playing ? pause : play}
+            disabled={!poemHistory.length}
             className="control-bar-icon control-icon-gap"
           >
             {playing ? (
@@ -339,11 +238,11 @@ export default function Replay() {
             step={1}
             size="small"
             valueLabelFormat={labelFormatter}
-            valueLabelDisplay={window.history.length ? 'auto' : undefined}
+            valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
             sx={{
               color: theme.palette.secondary.contrastText,
               marginRight: '15px',
-              cursor: window.history.length ? undefined : 'not-allowed',
+              cursor: poemHistory.length ? undefined : 'not-allowed',
               // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
               // where there is room for it.
               '& .MuiSlider-mark': {
@@ -387,7 +286,7 @@ export default function Replay() {
                 style={{ color: theme.palette.secondary.contrastText }}
                 disabled={!drafts.canCreateAt(step)}
                 onClick={() => {
-                  handleClickPause();
+                  pause();
                   if (drafts.create(step)) {
                     setNaming(step);
                     setDrawerOpen(true);
@@ -449,7 +348,7 @@ export default function Replay() {
         naming={naming}
         setNaming={setNaming}
         onJump={(index) => {
-          handleClickPause();
+          pause();
           setStep(index);
         }}
         onRename={drafts.rename}

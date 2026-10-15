@@ -1,26 +1,12 @@
 /* eslint import/prefer-default-export: off */
 import { BrowserWindow } from 'electron';
 import path from 'path';
-import { ChangeObj } from 'renderer/tracking/utils';
+import { compareStrings } from 'renderer/tracking/utils';
 import { URL } from 'url';
 import { generateJSON, generateHTML } from '@tiptap/html';
-import StarterKit from '@tiptap/starter-kit';
 import { JSONContent } from '@tiptap/core';
+import poemExtensions from '../shared/poemExtensions';
 import store from './store';
-
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-];
 
 interface OldMidstTimelineFrame {
   content: string;
@@ -33,38 +19,6 @@ interface NewFrames {
   pos: number;
   t: Date;
 }
-
-const compareStrings = (
-  str: string,
-  next: string,
-  t: Date,
-  pos?: number
-): ChangeObj => {
-  // fix to use position
-  let inserted = '';
-  let front = 0;
-  let end = 0;
-
-  //   if (str === next) return { inserted, front, end, t };
-  while (str[front] === next[front] && front < str.length) {
-    front += 1;
-  }
-
-  // you could definitely do this just by shortening the while loop but okay
-  const choppedStr = str.slice(front);
-  const choppedNext = next.slice(front);
-  while (
-    choppedStr[choppedStr.length - end - 1] ===
-      choppedNext[choppedNext.length - end - 1] &&
-    end < choppedStr.length
-  ) {
-    end += 1;
-  }
-
-  inserted = next.slice(front, next.length - end);
-  const returnFrame = { inserted, front, end, t, pos };
-  return returnFrame;
-};
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -177,12 +131,12 @@ export const convertMidstFile = (oldMidst: string) => {
     // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
     const jsonContentAtFrame = generateJSON(
       dropTrailingBreaks(el.content),
-      extensions,
+      poemExtensions,
       {
         preserveWhitespace: true,
       }
     );
-    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, extensions);
+    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     // get the slice of the content before the line number
     const truncatedJsonContentAtFrame = {
       ...jsonContentAtFrame,
@@ -198,9 +152,9 @@ export const convertMidstFile = (oldMidst: string) => {
   });
   const history = newFrames.map((el: NewFrames, ind: number) => {
     if (ind === 0) {
-      return compareStrings('', el.content, el.t, el.pos);
+      return compareStrings('', el.content, el.pos, el.t);
     }
-    return compareStrings(newFrames[ind - 1].content, el.content, el.t, el.pos);
+    return compareStrings(newFrames[ind - 1].content, el.content, el.pos, el.t);
   });
   const text = newFrames[newFrames.length - 1].content;
 

@@ -5,9 +5,9 @@ import Zoom from '@mui/material/Zoom';
 import { useTheme } from '@mui/material/styles';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
+import poemExtensions from 'shared/poemExtensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { fontSizeFromStore } from 'main/fontSize';
+import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
@@ -15,41 +15,24 @@ import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
+import useAutosave from './useAutosave';
 
-const extensions = [
-  StarterKit.configure({
-    bulletList: false,
-    orderedList: false,
-    blockquote: false,
-    code: false,
-    codeBlock: false,
-    heading: false,
-    horizontalRule: false,
-    listItem: false,
-    strike: false,
-  }),
-  HandleTab,
-];
+const extensions = [...poemExtensions, HandleTab];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
   const theme = useTheme();
   const navigate = useNavigate();
-  const [edited, setEdited] = useState<Boolean>(false);
+  const [edited, setEdited] = useState<boolean>(false);
 
-  const [autosaveTimeout, setAutostateTimeout] = useState<
-    NodeJS.Timeout | number | undefined
-  >(undefined); // create interval for autosaving
-
-  const restoreSpellcheckSetting = window.electron.store.get('spellcheck');
-  const [spellcheckOn, setSpellcheckOn] = useState<boolean>(
-    restoreSpellcheckSetting === 'true'
+  // Read once: toggling it reloads the window, which reads it again.
+  const [spellcheckOn] = useState<boolean>(
+    () => window.electron.store.get('spellcheck') === 'true'
   );
   const heightClass = window.electron.versions.isMac
     ? 'editor-height-tall'
     : 'editor-height-short';
 
-  // const { filename, setFilename } = useContext(FilenameContext);
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
 
@@ -86,6 +69,7 @@ export default function Editor() {
     },
     []
   );
+  const autosave = useAutosave(latest, saveFileAndUpdateStore);
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(
@@ -116,25 +100,7 @@ export default function Editor() {
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
-    // Cancel the pending autosave and schedule a new one. The generation captured here identifies
-    // the document being typed into: if an open lands before the timer fires, `gen` has moved on and
-    // the write is abandoned rather than carrying this poem's text to the newly opened file's path.
-    // There is no lock and nothing to release, so this cannot wedge saving -- the worst case is a
-    // write that proceeds, which is the behaviour without the check.
-    clearTimeout(autosaveTimeout);
-    const genAtSchedule = latest.current.gen;
-    const newTimeout = setTimeout(() => {
-      if (latest.current.gen !== genAtSchedule) {
-        window.electron.log.warn(
-          'autosave abandoned: the document changed after the save was scheduled'
-        );
-        return;
-      }
-      // No arguments, so the ref supplies the document as it stands when the timer fires. Passing
-      // the function straight to setTimeout saved the text from BEFORE the last keystroke.
-      saveFileAndUpdateStore();
-    }, 1000);
-    setAutostateTimeout(newTimeout);
+    autosave.schedule();
   };
   const onBlur = ({ editor }: { editor: EditorType }) => {
     if (window.electron.versions.isMac) {
@@ -143,12 +109,6 @@ export default function Editor() {
   };
 
   useEffect(() => {
-    const removeCancelSave = window.electron.ipcRenderer.on(
-      'cancel-save',
-      () => {
-        navigate('/');
-      }
-    );
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (savedPoem, savedHistory, savedFilename) => {
@@ -174,11 +134,19 @@ export default function Editor() {
         navigate('/editor');
       }
     );
+    return removeOpen;
+  }, [
+    myEditor,
+    navigate,
+    saveFileAndUpdateStore,
+    setHtmlString,
+    setPoemHistory,
+  ]);
 
-    const removeToggleSpellcheckHandler = window.electron.ipcRenderer.on(
+  useEffect(() => {
+    const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        setSpellcheckOn(!spellcheckOn);
         window.electron.store.set('spellcheck', (!spellcheckOn).toString());
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
@@ -190,19 +158,8 @@ export default function Editor() {
       }
     );
 
-    return () => {
-      removeCancelSave();
-      removeOpen();
-      removeToggleSpellcheckHandler();
-    };
-  }, [
-    myEditor,
-    navigate,
-    saveFileAndUpdateStore,
-    setHtmlString,
-    setPoemHistory,
-    spellcheckOn,
-  ]);
+    return removeToggleSpellcheck;
+  }, [saveFileAndUpdateStore, spellcheckOn]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
@@ -214,9 +171,8 @@ export default function Editor() {
     );
     return () => {
       removeToggleEdit();
-      clearTimeout(autosaveTimeout);
     };
-  }, [autosaveTimeout, navigate, saveFileAndUpdateStore]);
+  }, [navigate, saveFileAndUpdateStore]);
 
   // A draft marker made while writing marks the poem as it is now: the latest recorded change. The
   // text and history are stored with it, so the marker never points past what the file holds. The
@@ -224,7 +180,7 @@ export default function Editor() {
   const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
   const latestMoment = poemHistory.length - 1;
   const markThisMoment = () => {
-    clearTimeout(autosaveTimeout);
+    autosave.cancel();
     if (drafts.create(latestMoment))
       navigate('/replay', { state: { nameDraftAt: latestMoment } });
   };
@@ -234,14 +190,9 @@ export default function Editor() {
     setMyEditor(editor);
   };
 
-  const restoreSizeClassSetting = fontSizeFromStore(
-    window.electron.store.get('font-size')
-  );
-
-  const [sizeClass] = useState<number>(
-    [0, 1, 2, 3, 4].includes(restoreSizeClassSetting)
-      ? restoreSizeClassSetting
-      : 2
+  // The size the editor opens at. MenuBar changes the class on the editor itself after that.
+  const [sizeClass] = useState(() =>
+    fontSizeOrDefault(window.electron.store.get('font-size'))
   );
 
   return (

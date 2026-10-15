@@ -11,3 +11,17 @@ export const fontSizeFromStore = (stored: unknown): number =>
   stored === undefined || stored === null || stored === ''
     ? DEFAULT_FONT_SIZE
     : Number(stored);
+
+// The sizes there are classes for: size-0 to size-4.
+export const MIN_FONT_SIZE = 0;
+export const MAX_FONT_SIZE = 4;
+
+// The stored size if it is one of those, else the default.
+export const fontSizeOrDefault = (stored: unknown): number => {
+  const size = fontSizeFromStore(stored);
+  return Number.isInteger(size) &&
+    size >= MIN_FONT_SIZE &&
+    size <= MAX_FONT_SIZE
+    ? size
+    : DEFAULT_FONT_SIZE;
+};

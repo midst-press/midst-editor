@@ -24,20 +24,18 @@ import {
 import debug from 'electron-debug';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
-import fs from 'fs';
 import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
-import MenuBuilder, { save, newFile, openFile } from './menu';
+import MenuBuilder, {
+  isDevelopment,
+  save,
+  newFile,
+  openFile,
+  openPath,
+} from './menu';
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
-import { writeConvertedFile } from './convertedFile';
-import {
-  fileVersionMatchesCurrent,
-  convertMidstFile,
-  includeVersionInfo,
-  loadDataIntoWorkspace,
-  resolveHtmlPath,
-} from './util';
+import { resolveHtmlPath } from './util';
 
 class AppUpdater {
   constructor() {
@@ -65,8 +63,8 @@ if (process.env.NODE_ENV === 'production') {
   sourceMapSupport.install();
 }
 
-const isDebug =
-  process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
+const isDebug = isDevelopment();
+const isDarwin = () => process.platform === 'darwin';
 
 if (isDebug) {
   debug();
@@ -85,6 +83,14 @@ const installExtensions = async () => {
     loadExtensionOptions: { allowFileAccess: true },
     forceDownload,
   }).catch((err) => log.warn('failed to install devtools extension', err));
+};
+
+// The document the window held, removed from the store when the window closes.
+const clearDocument = () => {
+  ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
+    store.delete(key)
+  );
+  store.set('edited', 'false');
 };
 
 const createWindow = async () => {
@@ -121,61 +127,6 @@ const createWindow = async () => {
     titleBarOverlay: true,
   });
 
-  ipcMain.on('save-file', async () => {
-    const darwin = process.platform === 'darwin';
-    if (mainWindow === null) return;
-    // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
-    save(mainWindow, darwin, false);
-  });
-  ipcMain.on('new-file', async () => {
-    const darwin = process.platform === 'darwin';
-    if (mainWindow === null) return;
-    newFile(mainWindow, darwin);
-  });
-  ipcMain.on('button-open-file', async () => {
-    const darwin = process.platform === 'darwin';
-    if (mainWindow === null) return;
-    openFile(mainWindow, darwin);
-  });
-
-  // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
-  ipcMain.on('open-help', () => {
-    shell.openExternal(helpUrl(app.getVersion()));
-  });
-
-  ipcMain.on('app-open', (filename: IpcMainEvent) => {
-    const darwin = process.platform === 'darwin';
-    // The open/save pairing is where a document was once written to another document's path
-    // (#12), so which file the OS asked us to open is worth having in the log.
-    log.info('os requested open', { filename });
-    if (mainWindow === null) return;
-    openFile(mainWindow, darwin, filename as unknown as string[]);
-  });
-
-  ipcMain.on('enable-save', async () => {
-    if (mainWindow === null) return;
-    const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
-    if (saveMenuItem) {
-      saveMenuItem.enabled = true;
-    }
-    const saveAsMenuItem = app.applicationMenu?.getMenuItemById('save-as');
-    if (saveAsMenuItem) {
-      saveAsMenuItem.enabled = true;
-    }
-  });
-
-  ipcMain.on('disable-save', async () => {
-    if (mainWindow === null) return;
-    const saveMenuItem = app.applicationMenu?.getMenuItemById('save');
-    if (saveMenuItem) {
-      saveMenuItem.enabled = false;
-    }
-    const saveAsMenuItem = app.applicationMenu?.getMenuItemById('save-as');
-    if (saveAsMenuItem) {
-      saveAsMenuItem.enabled = false;
-    }
-  });
-
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
   mainWindow.on('ready-to-show', () => {
@@ -188,49 +139,9 @@ const createWindow = async () => {
       mainWindow.show();
     }
 
-    const darwin = process.platform === 'darwin';
     if (earlyPath !== '') {
-      fs.readFile(earlyPath, 'utf8', (_err, data) => {
-        if (fileVersionMatchesCurrent(data)) {
-          try {
-            if (mainWindow === null) return;
-            loadDataIntoWorkspace(earlyPath, data, mainWindow, darwin);
-          } catch {
-            if (mainWindow === null) return;
-            dialog.showMessageBoxSync(mainWindow, {
-              title: `Error`,
-              type: 'error',
-              message: `The file ${earlyPath} could not be opened. File may be corrupted. Please select another file and try again.`,
-            });
-          }
-          earlyPath = '';
-        } else {
-          if (mainWindow === null) return;
-          const response = dialog.showMessageBoxSync(mainWindow, {
-            type: 'warning',
-            message: `Version not recognized. If this file is from an
-             older version of Midst, it may be possible to convert it.
-             This will create a new file. Would you like to proceed?`,
-            buttons: ['Cancel', 'Convert File'],
-            defaultId: 1,
-            cancelId: 0,
-          });
-          if (response === 1) {
-            const newFileContents = convertMidstFile(data);
-            const newFilename = writeConvertedFile(
-              earlyPath,
-              includeVersionInfo(newFileContents)
-            );
-            loadDataIntoWorkspace(
-              newFilename,
-              includeVersionInfo(newFileContents),
-              mainWindow,
-              darwin
-            );
-          }
-          earlyPath = '';
-        }
-      });
+      openPath(mainWindow, isDarwin(), earlyPath);
+      earlyPath = '';
     }
   });
 
@@ -238,18 +149,8 @@ const createWindow = async () => {
     mainWindow = null;
   });
   mainWindow.on('close', (event) => {
-    const clearableStoreKeys = [
-      'filename',
-      'baseFilename',
-      'poem',
-      'history',
-      'meta',
-    ];
     if (store.get('edited') === 'false') {
-      clearableStoreKeys.forEach((keyName) => {
-        store.delete(keyName);
-      });
-      store.set('edited', 'false');
+      clearDocument();
       return;
     }
 
@@ -272,10 +173,7 @@ const createWindow = async () => {
     if (choice === 0) {
       // If the user selects "Quit Anyway", forces the window to close
       // and removes the file from the store
-      clearableStoreKeys.forEach((keyName) => {
-        store.delete(keyName);
-      });
-      store.set('edited', 'false');
+      clearDocument();
       if (mainWindow === null) return;
       mainWindow.destroy();
     }
@@ -295,6 +193,47 @@ const createWindow = async () => {
   // eslint-disable-next-line
   new AppUpdater();
 };
+
+// The renderer's requests. Registered once, here: createWindow runs again on activate, and while
+// these were registered inside it each new window added another handler, so one save-file saved
+// twice.
+ipcMain.on('save-file', () => {
+  if (mainWindow === null) return;
+  // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
+  save(mainWindow, isDarwin(), false);
+});
+ipcMain.on('new-file', () => {
+  if (mainWindow === null) return;
+  newFile(mainWindow, isDarwin());
+});
+ipcMain.on('button-open-file', () => {
+  if (mainWindow === null) return;
+  openFile(mainWindow, isDarwin());
+});
+
+// "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
+ipcMain.on('open-help', () => {
+  shell.openExternal(helpUrl(app.getVersion()));
+});
+
+ipcMain.on('app-open', (filename: IpcMainEvent) => {
+  // The open/save pairing is where a document was once written to another document's path
+  // (#12), so which file the OS asked us to open is worth having in the log.
+  log.info('os requested open', { filename });
+  if (mainWindow === null) return;
+  openFile(mainWindow, isDarwin(), filename as unknown as string[]);
+});
+
+// Save and Save As are enabled only while the editor is showing.
+const setSaveEnabled = (enabled: boolean) => {
+  if (mainWindow === null) return;
+  ['save', 'save-as'].forEach((id) => {
+    const item = app.applicationMenu?.getMenuItemById(id);
+    if (item) item.enabled = enabled;
+  });
+};
+ipcMain.on('enable-save', () => setSaveEnabled(true));
+ipcMain.on('disable-save', () => setSaveEnabled(false));
 
 // IPC listener
 ipcMain.on('electron-store-get', async (event, val) => {
