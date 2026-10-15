@@ -22,14 +22,6 @@ export const CSS_VARS = {
     name: '--midst-primary-dark',
     from: (t: Theme) => t.palette.primary.dark,
   },
-  secondaryLight: {
-    name: '--midst-secondary-light',
-    from: (t: Theme) => t.palette.secondary.light,
-  },
-  secondaryContrastText: {
-    name: '--midst-secondary-contrast-text',
-    from: (t: Theme) => t.palette.secondary.contrastText,
-  },
   errorLight: {
     name: '--midst-error-light',
     from: (t: Theme) => t.palette.error.light,
@@ -38,8 +30,15 @@ export const CSS_VARS = {
     name: '--midst-text-primary',
     from: (t: Theme) => t.palette.text.primary,
   },
-  // Text on --midst-primary: what the light scheme inherits there; dark on the pink in the dark scheme.
-  onPrimary: { name: '--midst-on-primary' },
+  // Replay's control bar, its icons and their hover. Pink in the light scheme, dark rose in the dark.
+  controlBar: { name: '--midst-control-bar' },
+  onControlBar: { name: '--midst-on-control-bar' },
+  controlBarHover: { name: '--midst-control-bar-hover' },
+  // The opening screen's welcome card, what is written on it, and its logo. Pink in the light scheme,
+  // dark rose in the dark, so the card is never a bright block in a dark window.
+  card: { name: '--midst-card' },
+  onCard: { name: '--midst-on-card' },
+  logo: { name: '--midst-logo' },
   // Title bar drop-down menus, the replay slider's value label, its custom tooltips.
   surface: { name: '--midst-surface' },
   // The window title and the editor's icon buttons.

@@ -93,7 +93,7 @@
 
 .control-bar-icon:hover {
   /* theme.palette.secondary.light */
-  background-color: var(--midst-secondary-light);
+  background-color: var(--midst-control-bar-hover);
 }
 
 .MuiTooltip-tooltip.custom {

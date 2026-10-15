@@ -1,9 +1,10 @@
 import { test, expect } from '@playwright/test';
 import type { ElectronApplication, Page } from 'playwright';
-import { mkdtempSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { launch, readStore } from './harness';
+import { makePlayableMidst } from './fixtures';
+import { launch, openDocument, readStore } from './harness';
 
 // GitHub #16: View > Appearance switches the editor's interface between light and dark. This drives the
 // real menu item in the main process, then reads the custom properties the renderer actually resolved at
@@ -78,7 +79,7 @@ test('View > Appearance switches the interface between light and dark', async ()
         text: 'rgb(255, 255, 255)',
         surface: '#2b2427',
         body: 'rgb(31, 26, 28)',
-        button: 'rgba(255, 255, 255, 0.87) on rgb(58, 50, 54)',
+        button: 'rgba(255, 255, 255, 0.87) on rgb(43, 36, 39)',
       });
     expect(readStore(userData).appearance).toBe('dark');
     await win.screenshot({ path: testInfo.outputPath('appearance-dark.png') });
@@ -111,4 +112,48 @@ test('the stored choice is in force when the app next opens', async () => {
   } finally {
     await second.app.close();
   }
+});
+
+// The editor and Replay in each scheme, with a synthetic poem of invented words, for a person to look at.
+// It asserts only that each view rendered in the scheme chosen; the screenshots are the check.
+(['Light', 'Dark'] as const).forEach((scheme) => {
+  test(`the editor and Replay in the ${scheme.toLowerCase()} scheme`, async () => {
+    const testInfo = test.info();
+    const doc = makePlayableMidst('zq vex lumb orrin taf quell');
+    const work = mkdtempSync(join(tmpdir(), 'midst-appearance-views-'));
+    const poemPath = join(work, 'synthetic.midst');
+    writeFileSync(poemPath, doc.file);
+    const { app, userData } = await launch(work, { followAppearance: true });
+    try {
+      const win = await app.firstWindow();
+      await expect(win.locator('.message-container')).toBeVisible();
+      await choose(app, scheme);
+      const expected = scheme === 'Dark' ? 'dark' : 'light';
+      await expect
+        .poll(async () => (await rootColours(win)).scheme)
+        .toBe(expected);
+
+      await openDocument(app, userData, poemPath, 'the synthetic poem');
+      await expect(win.locator('.ProseMirror')).toBeVisible({
+        timeout: 25_000,
+      });
+      // Past any background fade before the picture is taken.
+      await win.waitForTimeout(500);
+      await win.screenshot({
+        path: testInfo.outputPath(`editor-${expected}.png`),
+      });
+
+      await win.getByRole('link', { name: 'Replay' }).click();
+      await expect(win.locator('.ReplayContainer')).toBeVisible({
+        timeout: 25_000,
+      });
+      await win.waitForTimeout(500);
+      await win.screenshot({
+        path: testInfo.outputPath(`replay-${expected}.png`),
+      });
+      expect((await rootColours(win)).scheme).toBe(expected);
+    } finally {
+      await app.close();
+    }
+  });
 });

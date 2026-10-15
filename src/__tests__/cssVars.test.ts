@@ -184,21 +184,24 @@ describe('the dark scheme meets WCAG AA', () => {
     ['find-problem', 'background'],
     ['text-primary', 'search-match'],
     ['text-primary', 'search-match-current'],
-    ['secondary-contrast-text', 'primary-dark'],
+    ['on-control-bar', 'control-bar'],
+    ['on-control-bar', 'control-bar-hover'],
     ['tooltip-text', 'primary-dark'],
     ['primary-dark', 'surface'],
-    ['on-primary', 'primary'],
-    ['link', 'primary'],
+    ['on-card', 'card'],
+    ['link', 'card'],
     ['button-text', 'button-background'],
     ['button-text', 'button-hover'],
   ])('%s on %s is at least 4.5:1', (fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('the find field’s border is at least 3:1 against the find bar', () => {
-    expect(contrast('find-input-border', 'background')).toBeGreaterThanOrEqual(
-      3
-    );
+  // Graphics and control boundaries: the find field's border on the find bar, the logo on its card.
+  it.each([
+    ['find-input-border', 'background'],
+    ['logo', 'card'],
+  ])('%s on %s is at least 3:1', (fg, bg) => {
+    expect(contrast(fg, bg)).toBeGreaterThanOrEqual(3);
   });
 
   it('measures a known pair correctly', () => {

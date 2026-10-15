@@ -16,8 +16,8 @@
 }
 
 .message-container {
-  background-color: var(--midst-primary);
-  color: var(--midst-on-primary);
+  background-color: var(--midst-card);
+  color: var(--midst-on-card);
   width: 80%;
   max-width: 400px;
   display: flex;
@@ -28,6 +28,7 @@
 }
 
 .logo-thin {
+  fill: var(--midst-logo);
   margin-top: 50px;
   margin-bottom: 18px;
   width: 100%;
