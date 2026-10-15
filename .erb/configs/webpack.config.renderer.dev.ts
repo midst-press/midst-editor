@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import { merge } from 'webpack-merge';
 import { execSync, spawn } from 'child_process';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
+import { injectRefreshTransform } from './inject-refresh-transform';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
@@ -210,4 +211,14 @@ const configuration: webpack.Configuration = {
   },
 };
 
-export default merge(baseConfig, configuration);
+const merged = merge(baseConfig, configuration);
+
+// Inject the refresh transformer into the ts-loader rule from base.
+// webpack-merge concatenates rule references, so we build a NEW rules array with a
+// COPIED rule and COPIED options — base's own config object is never written.
+const { rules: patchedRules } = injectRefreshTransform(
+  (merged.module?.rules ?? []) as any[]
+);
+merged.module = { ...merged.module, rules: patchedRules };
+
+export default merged;
