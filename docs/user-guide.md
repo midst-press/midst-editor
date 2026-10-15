@@ -134,6 +134,10 @@ To turn it on or off while you are writing, choose **Edit** > **Show/hide spellc
 
 To fill the whole screen with Midst, choose **View** > **Toggle Full Screen**. Choose it again to go back.
 
+## Light and dark
+
+Midst can be light or dark. Choose **View** > **Appearance**, then **Light** or **Dark**. Until you choose, Midst follows your computer's setting, and **Follow System** goes back to that. This changes how Midst looks on your screen. It does not change the poem, and Midst remembers what you chose.
+
 ## Keyboard shortcuts
 
 Each shortcut is written as the names on the keys, joined with +. Hold the first keys down and press the last.

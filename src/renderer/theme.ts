@@ -56,3 +56,29 @@ const themeObj: ThemeOptions = {
 };
 
 export default themeObj;
+
+// The dark scheme (GitHub #16): the same pinks, on a warm near-black, with dark text where the light
+// scheme put white on pink. A proposal for Annelyse to adjust; a test holds every text and control
+// colour in it to WCAG AA contrast.
+export const darkThemeObj: ThemeOptions = {
+  typography: themeObj.typography,
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#FFCED4',
+      dark: '#FFA4B9',
+    },
+    background: {
+      default: '#1F1A1C',
+      paper: '#2B2427',
+    },
+    action: {
+      selected: 'rgba(255, 164, 185, 0.32)',
+      hover: 'rgba(255, 164, 185, 0.16)',
+    },
+    secondary: {
+      main: '#FFA4B9',
+      contrastText: '#1F1A1C',
+    },
+  },
+};

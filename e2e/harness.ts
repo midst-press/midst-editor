@@ -83,9 +83,16 @@ export function waitUntil(pred: () => boolean, ms: number): Promise<boolean> {
 // WHY global-setup copies a preload: main.ts:107 picks the preload path on app.isPackaged, which is
 // false for a built-but-unpackaged launch, so it looks for a dev preload `npm run build` never
 // creates. Without it window.electron is undefined and React never mounts.
+//
+// Playwright emulates prefers-color-scheme: light in Electron unless told otherwise, which pins the
+// renderer to the light scheme whatever View > Appearance chooses. `followAppearance` turns the
+// emulation off, so the scheme is the one the app sets through nativeTheme (GitHub #16).
 export async function launch(
   work: string,
-  { seed = true }: { seed?: boolean } = {}
+  {
+    seed = true,
+    followAppearance = false,
+  }: { seed?: boolean; followAppearance?: boolean } = {}
 ) {
   const userData = join(work, 'userdata');
   if (seed) seedStore(userData);
@@ -93,6 +100,7 @@ export async function launch(
     args: [APP_DIR, `--user-data-dir=${userData}`],
     env: coverageEnv(),
     timeout: 60_000,
+    ...(followAppearance ? { colorScheme: null } : {}),
   });
   await captureDialogs(app);
   await collectCoverage(app);

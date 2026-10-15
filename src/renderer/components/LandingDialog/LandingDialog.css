@@ -16,7 +16,8 @@
 }
 
 .message-container {
-  background-color: var(--midst-primary);
+  background-color: var(--midst-card);
+  color: var(--midst-on-card);
   width: 80%;
   max-width: 400px;
   display: flex;
@@ -27,6 +28,7 @@
 }
 
 .logo-thin {
+  fill: var(--midst-logo);
   margin-top: 50px;
   margin-bottom: 18px;
   width: 100%;
@@ -57,13 +59,13 @@
   font-weight: lighter;
   border: none;
   border-radius: 3px;
-  background-color: rgba(240, 240, 240, 1);
-  color: rgba(77, 77, 77, 0.9);
+  background-color: var(--midst-button-background);
+  color: var(--midst-button-text);
   transition: background-color ease-in-out 100ms;
 }
 
 .file-button-container button:hover {
-  background-color: rgba(230, 230, 230, 0.85);
+  background-color: var(--midst-button-hover);
 }
 
 .help-link {
@@ -74,13 +76,13 @@
   font: inherit;
   cursor: pointer;
   text-decoration-line: underline;
-  color: dodgerblue;
+  color: var(--midst-link);
   text-decoration-color: rgba(0, 0, 0, 0);
   transition: text-decoration-color ease-in-out 100ms;
   margin-bottom: 20px;
 }
 .help-link:hover {
-  text-decoration-color: dodgerblue;
+  text-decoration-color: var(--midst-link);
 }
 
 .svg.hide {

@@ -262,13 +262,13 @@ export default function Replay() {
           component="div"
           className="ControlBar"
           style={{
-            backgroundColor: cssVar('primaryDark'),
+            backgroundColor: cssVar('controlBar'),
           }}
         >
           <button
             type="button"
             ref={playPauseButton}
-            style={{ color: cssVar('secondaryContrastText') }}
+            style={{ color: cssVar('onControlBar') }}
             onClick={playing ? pause : play}
             disabled={!poemHistory.length}
             className="control-bar-icon control-icon-gap"
@@ -288,7 +288,7 @@ export default function Replay() {
             valueLabelFormat={labelFormatter}
             valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
             sx={{
-              color: cssVar('secondaryContrastText'),
+              color: cssVar('onControlBar'),
               marginRight: '15px',
               cursor: poemHistory.length ? undefined : 'not-allowed',
               // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
@@ -335,7 +335,7 @@ export default function Replay() {
                 type="button"
                 className="control-bar-icon"
                 style={{
-                  color: cssVar('secondaryContrastText'),
+                  color: cssVar('onControlBar'),
                   ...(draftReason ? UNAVAILABLE_STYLE : {}),
                 }}
                 disabled={draftReason !== null}
@@ -370,7 +370,7 @@ export default function Replay() {
               aria-label="Drafts"
               type="button"
               className="control-bar-icon"
-              style={{ color: cssVar('secondaryContrastText') }}
+              style={{ color: cssVar('onControlBar') }}
               onClick={() => setDrawerOpen(true)}
             >
               <BookmarksIcon fontSize="small" />
@@ -390,7 +390,7 @@ export default function Replay() {
                 type="button"
                 className="control-bar-icon"
                 style={{
-                  color: cssVar('secondaryContrastText'),
+                  color: cssVar('onControlBar'),
                 }}
               >
                 <EditIcon fontSize="small" />
