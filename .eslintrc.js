@@ -1,5 +1,7 @@
 module.exports = {
-  extends: 'erb',
+  // react-hooks 7's recommended rules (GitHub #44): the classic two that erb already enables, plus the React
+  // Compiler team's (purity, refs, immutability, set-state-in-effect, static-components and others).
+  extends: ['erb', 'plugin:react-hooks/recommended'],
   rules: {
     // A temporary hack related to IDE not resolving correct package.json
     'import/no-extraneous-dependencies': 'off',
