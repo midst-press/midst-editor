@@ -1100,10 +1100,26 @@ describe('the menu', () => {
       expect(mockStore.get('poem')).toBe('<p>zq</p>');
     });
 
-    it('Toggle Edit Mode and the spellcheck toggle message the renderer', () => {
+    it('Toggle Timeline is on Command+T or Ctrl+T, and no two items share a shortcut (GitHub #21)', () => {
+      const template = build(platform);
+      expect(sub(template, editTop, 'Toggle Timeline').accelerator).toBe(
+        isMac ? 'Command+T' : 'Ctrl+T'
+      );
+      const accelerators: string[] = [];
+      const walk = (items: Item[]) =>
+        items.forEach((i) => {
+          if (i.accelerator) accelerators.push(i.accelerator);
+          if (i.submenu) walk(i.submenu);
+        });
+      walk(template);
+      expect(accelerators.length).toBeGreaterThan(10);
+      expect(new Set(accelerators).size).toBe(accelerators.length);
+    });
+
+    it('Toggle Timeline and the spellcheck toggle message the renderer', () => {
       const win = makeWindow();
       const template = build(platform, win);
-      sub(template, editTop, 'Toggle Edit Mode').click!();
+      sub(template, editTop, 'Toggle Timeline').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith('toggle-edit-mode');
       sub(
         template,

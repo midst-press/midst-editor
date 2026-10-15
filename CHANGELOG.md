@@ -1,5 +1,8 @@
 # 0.4.0
 
+- **Edit** > **Toggle Edit Mode** is now **Toggle Timeline**, and its shortcut is Command+T on a Mac
+  and Ctrl+T on Windows and Linux (it was Command+E and Ctrl+E). It still switches between writing and
+  Replay.
 - **A file that cannot be read says so.** Opening one from **File** > **Open**, from your recent
   documents, or by opening Midst with it, now tells you it could not be read. Before, Midst offered to
   convert it.
