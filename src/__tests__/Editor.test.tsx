@@ -639,6 +639,38 @@ describe('Editor: draft marker button', () => {
     ).toBeDisabled();
   });
 
+  it('says why it is disabled while the history is short, and looks unavailable (GitHub #66)', () => {
+    mount({ initialHistory: [change(1)] });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription(
+      'A draft can be marked once the poem has more than 50 changes. This one has 1.'
+    );
+    expect(button).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('says a moment already has a draft when that is why it is disabled', () => {
+    bridge = installBridge({
+      meta: JSON.stringify({
+        draftMarkers: [{ index: 59, defaultName: 'Draft 1' }],
+      }),
+    });
+    mount({ initialHistory: LONG_HISTORY });
+    expect(
+      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+    ).toHaveAccessibleDescription('This moment already has a draft.');
+  });
+
+  it('has no reason and looks available when a draft can be marked', () => {
+    mount({ initialHistory: LONG_HISTORY });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription('');
+    expect(button).not.toHaveStyle({ opacity: '0.38' });
+  });
+
   it('stays on the editor when the stored meta cannot be read', () => {
     bridge = installBridge({ meta: 'not json' });
     mount({ initialHistory: LONG_HISTORY });

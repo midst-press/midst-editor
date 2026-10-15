@@ -21,7 +21,9 @@ import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
-import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
+import useDraftMarkers, {
+  UNAVAILABLE_STYLE,
+} from '../DraftMarkers/useDraftMarkers';
 import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
 import usePlayback from './usePlayback';
 
@@ -47,6 +49,7 @@ export default function Replay() {
     window.electron.ipcRenderer.sendMessage('save-file', []);
   }, [htmlString, poemHistory]);
   const drafts = useDraftMarkers(poemHistory.length, saveDocument);
+  const draftReason = drafts.reasonAt(step);
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
     ?.nameDraftAt;
@@ -271,7 +274,7 @@ export default function Replay() {
             }
           />
           <Tooltip
-            title="Mark this moment as a draft"
+            title={draftReason ?? 'Mark this moment as a draft'}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
@@ -281,10 +284,16 @@ export default function Replay() {
             <span>
               <button
                 aria-label="Mark this moment as a draft"
+                aria-describedby={
+                  draftReason ? 'replay-draft-reason' : undefined
+                }
                 type="button"
                 className="control-bar-icon"
-                style={{ color: theme.palette.secondary.contrastText }}
-                disabled={!drafts.canCreateAt(step)}
+                style={{
+                  color: theme.palette.secondary.contrastText,
+                  ...(draftReason ? UNAVAILABLE_STYLE : {}),
+                }}
+                disabled={draftReason !== null}
                 onClick={() => {
                   pause();
                   if (drafts.create(step)) {
@@ -295,6 +304,11 @@ export default function Replay() {
               >
                 <BookmarkAddIcon fontSize="small" />
               </button>
+              {draftReason && (
+                <span id="replay-draft-reason" hidden>
+                  {draftReason}
+                </span>
+              )}
             </span>
           </Tooltip>
           <Tooltip
