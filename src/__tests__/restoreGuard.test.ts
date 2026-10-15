@@ -19,6 +19,7 @@ jest.mock('../renderer/tracking/utils', () => {
   };
 });
 
+const POS = 7;
 const t = new Date('2020-01-01T00:00:00.000Z');
 const history: ChangeObj[] = [
   { inserted: '<p>zq</p>', front: 0, end: 0, t, pos: 0 },
@@ -30,7 +31,7 @@ describe('restoreFrame integrity check', () => {
     const before = JSON.stringify(history);
     let thrown: unknown;
     try {
-      restoreFrame(history, 0, t);
+      restoreFrame(history, 0, POS, t);
     } catch (e) {
       thrown = e;
     }

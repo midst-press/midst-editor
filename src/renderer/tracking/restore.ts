@@ -34,20 +34,23 @@ export function wouldChange(history: ChangeObj[], index: number): boolean {
 
 // The history with the restore appended. The input is never modified. The result is checked before it is
 // returned: if replaying it does not end in the chosen frame's text, nothing is returned at all.
+//
+// `pos` is supplied by the caller, as it is for every edit (compareStrings never computes it): the
+// editor's ProseMirror cursor position in the document AFTER the change (Editor's onUpdate passes
+// selection.$anchor.pos). It is not an offset into the HTML string, so it cannot be derived from the
+// change here; the caller, which holds the editor, works it out.
 export function restoreFrame(
   history: ChangeObj[],
   index: number,
+  pos: number,
   t: Date = new Date()
 ): ChangeObj[] {
   checkIndex(history, index);
+  if (!Number.isSafeInteger(pos) || pos < 0)
+    throw new RestoreError('the cursor position is not a document position');
   const target = textAt(history, index);
   const current = textAt(history, history.length - 1);
-  const change = compareStrings(current, target, 0, t);
-  // The cursor after a restore sits at the end of what it put back, as it would after typing it.
-  const restored = [
-    ...history,
-    { ...change, pos: change.front + change.inserted.length },
-  ];
+  const restored = [...history, compareStrings(current, target, pos, t)];
   if (textAt(restored, restored.length - 1) !== target)
     throw new RestoreError(
       'the restored history does not replay to the chosen frame'
