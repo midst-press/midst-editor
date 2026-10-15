@@ -25,7 +25,11 @@ import debug from 'electron-debug';
 import log from 'electron-log';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
-import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
+import {
+  applyLogLevel,
+  LOG_LEVEL_KEY,
+  registerUncaughtHandlers,
+} from './logging';
 import MenuBuilder, {
   applyStoredAppearance,
   isDevelopment,
@@ -251,26 +255,35 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
   }
 });
 
+// Errors nothing caught are logged (name and frames only) and the poet is told; the app keeps running.
+registerUncaughtHandlers(process, (name) =>
+  dialog.showErrorBox(
+    'Midst hit an unexpected error',
+    `${name}. It has been recorded in the log.`
+  )
+);
+
 // Renderer diagnostics, forwarded from the preload's window.electron.log. The level is matched
-// explicitly rather than by indexing `log` with a string off the wire.
+// explicitly rather than by indexing `log` with a string off the wire. They are written through
+// the 'renderer' scope, which the file format records as "source":"renderer".
+const rendererLog = log.scope('renderer');
 ipcMain.on(
   'log-message',
   (_event, level: string, message: string, meta?: unknown) => {
     // An if-chain rather than a lookup table: a table needs a function TYPE annotation, whose
     // mandatory parameter names the base no-unused-vars rule misreads as unused bindings. This
     // keeps `log` from ever being indexed by a string off the wire, with no rule turned off.
-    const text = `[renderer] ${message}`;
     if (level === 'error') {
-      if (meta === undefined) log.error(text);
-      else log.error(text, meta);
+      if (meta === undefined) rendererLog.error(message);
+      else rendererLog.error(message, meta);
     } else if (level === 'warn') {
-      if (meta === undefined) log.warn(text);
-      else log.warn(text, meta);
+      if (meta === undefined) rendererLog.warn(message);
+      else rendererLog.warn(message, meta);
     } else if (level === 'debug') {
-      if (meta === undefined) log.debug(text);
-      else log.debug(text, meta);
-    } else if (meta === undefined) log.info(text);
-    else log.info(text, meta);
+      if (meta === undefined) rendererLog.debug(message);
+      else rendererLog.debug(message, meta);
+    } else if (meta === undefined) rendererLog.info(message);
+    else rendererLog.info(message, meta);
   }
 );
 
