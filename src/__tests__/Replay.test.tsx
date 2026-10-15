@@ -247,6 +247,18 @@ describe('Replay: playback', () => {
     ]);
   });
 
+  it('stops when the slider is moved to the last frame while playing', () => {
+    const live = watchIntervals();
+    mount();
+    seek(10);
+    fireEvent.click(playButton());
+    advance(60 * 2);
+    seek(LONG - 1);
+    expect(playButton()).toBeInTheDocument();
+    expect(live.size).toBe(0);
+    expect(slider()).toHaveValue(String(LONG - 1));
+  });
+
   it('plays from the start when started on the last frame, after a 250 ms wait', () => {
     const { container } = mount();
     fireEvent.click(playButton());

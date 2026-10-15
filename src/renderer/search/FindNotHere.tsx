@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './FindBar.css';
 
 // Edit > Find is in the menu on every screen, but only the writing window has a find bar. A screen
@@ -13,24 +13,22 @@ export const FIND_BEFORE_OPEN = 'Find works once a poem is open.';
 export const SHOWN_FOR = 8000;
 
 export default function FindNotHere({ message }: { message: string }) {
-  // Counts the times Edit > Find was chosen, so choosing it again restarts the timer.
-  const [asked, setAsked] = useState(0);
   const [shown, setShown] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  useEffect(
-    () =>
-      window.electron.ipcRenderer.on('find-in-poem', () =>
-        setAsked((n) => n + 1)
-      ),
-    []
-  );
-
+  // Shown when Edit > Find is chosen, from the handler itself rather than an effect (GitHub #44). Choosing it
+  // again restarts the time.
   useEffect(() => {
-    if (!asked) return undefined;
-    setShown(true);
-    const timer = setTimeout(() => setShown(false), SHOWN_FOR);
-    return () => clearTimeout(timer);
-  }, [asked]);
+    const stop = window.electron.ipcRenderer.on('find-in-poem', () => {
+      clearTimeout(timer.current);
+      setShown(true);
+      timer.current = setTimeout(() => setShown(false), SHOWN_FOR);
+    });
+    return () => {
+      stop();
+      clearTimeout(timer.current);
+    };
+  }, []);
 
   if (!shown) return null;
   return (

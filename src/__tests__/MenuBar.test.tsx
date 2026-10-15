@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider, useCurrentEditor } from '@tiptap/react';
+import { useEffect } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import type { ElectronHandler } from 'main/preload';
 import MenuBar from '../renderer/components/Editor/MenuBar';
@@ -79,9 +80,10 @@ afterEach(() => {
 
 function Capture() {
   const { editor: current } = useCurrentEditor();
-  if (current) {
-    editor = current;
-  }
+  // In an effect, not during render (react-hooks/globals).
+  useEffect(() => {
+    if (current) editor = current;
+  }, [current]);
   return null;
 }
 
