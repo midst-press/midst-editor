@@ -475,8 +475,8 @@ export default class MenuBuilder {
   private modeItems(modifier: string, spellcheckLabel: string) {
     return [
       {
-        label: 'Toggle Edit Mode',
-        accelerator: `${modifier}+E`,
+        label: 'Toggle Timeline',
+        accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
       {
