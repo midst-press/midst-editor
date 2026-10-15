@@ -1,8 +1,10 @@
 /** @jest-environment node */
 import path from 'path';
+import { reconstruct } from '../renderer/tracking/utils';
 import {
   convertMidstFile,
   dropTrailingBreaks,
+  dropZeroWidthOnlyElements,
   fileVersionMatchesCurrent,
   getFileVersion,
   includeVersionInfo,
@@ -278,6 +280,127 @@ describe('a <br> that ends a paragraph', () => {
 
   it('takes only the last of two, since the first is a real blank line', () => {
     expect(dropTrailingBreaks('<p>zq<br><br></p>')).toBe('<p>zq<br></p>');
+  });
+});
+
+describe('a selection marker left in an old file', () => {
+  // Rangy's marker, as the old editor saved it: invisible, and nothing the poet wrote.
+  const RANGY =
+    '<span id="selectionBoundary_1_2" class="rangySelectionBoundary" style="line-height: 0; display: none;">&#xFEFF;</span>';
+  const ZERO_WIDTH = /\uFEFF|\u200B|\u200C|\u200D|\u2060/g;
+  const T0 = 1605903809127;
+
+  const convert = (contents: string[]) =>
+    JSON.parse(
+      convertMidstFile(
+        JSON.stringify({
+          editorTimelineFrames: contents.map((content, i) => ({
+            content,
+            lineNumber: '0',
+            timestamp: T0 + i * 100,
+          })),
+        })
+      )
+    );
+
+  // The text of each <p>, in order, tags stripped.
+  const paragraphs = (html: string) =>
+    [...html.matchAll(/<p[^>]*>(.*?)<\/p>/g)].map((m) =>
+      m[1].replace(/<[^>]*>/g, '')
+    );
+  const zeroWidthOnly = (html: string) =>
+    paragraphs(html).filter(
+      (t) => t.length > 0 && t.replace(ZERO_WIDTH, '') === ''
+    );
+  // What the poet wrote: no tag, no marker, no zero-width character, no space; one character per entry.
+  const authored = (html: string) =>
+    html
+      .split(RANGY)
+      .join('')
+      .replace(/<[^>]*>/g, '')
+      .replace(ZERO_WIDTH, '')
+      .replace(/&#xFEFF;/gi, '')
+      .replace(/\s/g, '')
+      .split('');
+  const count = (chars: string[]) =>
+    chars.reduce(
+      (m, c) => m.set(c, (m.get(c) ?? 0) + 1),
+      new Map<string, number>()
+    );
+
+  // Every frame of the history, replayed from nothing, as the editor's Replay rebuilds it.
+  const replay = (c: { history: Parameters<typeof reconstruct>[1] }) =>
+    c.history.map((_, i) => reconstruct('', c.history, i));
+
+  const FRAMES = [
+    `${RANGY}<p data-line-number="0">zq</p>`,
+    `<p data-line-number="0">zq</p>${RANGY}<p data-line-number="1">xv</p>`,
+    `${RANGY}<p data-line-number="0">zq</p><p data-line-number="1">xv${RANGY}</p><p data-line-number="2">kj</p>`,
+  ];
+
+  it('leaves no paragraph of zero-width characters, and the poem as written', () => {
+    const c = convert(FRAMES);
+    expect(zeroWidthOnly(c.text)).toEqual([]);
+    expect(paragraphs(c.text)).toEqual(['zq', 'xv', 'kj']);
+  });
+
+  it('leaves no such paragraph at any step, and loses no authored character at any step', () => {
+    const c = convert(FRAMES);
+    const steps = replay(c);
+    expect(steps).toHaveLength(FRAMES.length);
+    steps.forEach((html, i) => {
+      expect(zeroWidthOnly(html)).toEqual([]);
+      const have = count(authored(html));
+      count(authored(FRAMES[i])).forEach((n, ch) => {
+        expect(have.get(ch) ?? 0).toBeGreaterThanOrEqual(n);
+      });
+    });
+    expect(steps[steps.length - 1]).toBe(c.text);
+  });
+
+  it('keeps a line the poet left blank', () => {
+    const c = convert([`${RANGY}<p>zq</p><p><br></p><p></p><p>xv</p>`]);
+    expect(paragraphs(c.text)).toEqual(['zq', '', '', 'xv']);
+  });
+
+  it('keeps the paragraph and its text when the marker sits inside it, and drops the marker', () => {
+    const c = convert([`<p>ab${RANGY}cd</p>`]);
+    expect(c.text).toBe('<p>abcd</p>');
+    expect(c.text).not.toMatch(/\uFEFF/);
+  });
+
+  it('leaves a zero-width character beside visible text in the text', () => {
+    const html = '<p>ab﻿cd</p>';
+    expect(dropZeroWidthOnlyElements(html)).toBe(html);
+  });
+
+  it.each([
+    ['U+200B', '&#x200B;'],
+    ['U+200C', '&#x200c;'],
+    ['U+200D', '&#8205;'],
+    ['U+2060', '&#x2060;'],
+    ['a literal U+FEFF', '﻿'],
+    ['several in a row', '&#xFEFF;​'],
+  ])('is removed whatever it holds: %s', (_name, held) => {
+    expect(dropZeroWidthOnlyElements(`<span>${held}</span><p>zq</p>`)).toBe(
+      '<p>zq</p>'
+    );
+  });
+
+  it('is removed when wrapped in another marker, leaving only an empty wrapper', () => {
+    expect(
+      dropZeroWidthOnlyElements('<span><span>&#xFEFF;</span></span><p>zq</p>')
+    ).toBe('<span></span><p>zq</p>');
+  });
+
+  it.each([
+    ['a span with a word in it', '<span>zq&#xFEFF;</span>'],
+    ['a span with a break in it', '<span>&#xFEFF;<br></span>'],
+    ['an empty span', '<span></span>'],
+    ['a blank paragraph', '<p><br></p>'],
+    ['an empty paragraph', '<p></p>'],
+  ])('is not removed with %s', (_name, html) => {
+    expect(dropZeroWidthOnlyElements(html)).toBe(html);
   });
 });
 
