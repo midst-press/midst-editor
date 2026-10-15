@@ -188,6 +188,37 @@ describe('restore', () => {
     );
   });
 
+  // The appended change is the minimal one, so its pos marks where the restore changed the text. pos is
+  // saved in the poem file (midst-web reads it as the frame's cursorPosition): a change rebuilt from an empty
+  // base would replay to the same text but record the edit at the END of the poem. (Review of #143.)
+  it.each([0, 1, 2, 3, 4])(
+    'RS-AC-3 the appended change is compareStrings(current, chosen) in front, end and inserted (frame %i)',
+    (k) => {
+      const result = restoreFrame(h6, k);
+      const expected = compareStrings(
+        reconstruct('', h6, h6.length - 1),
+        reconstruct('', h6, k),
+        0,
+        T
+      );
+      const { front, end, inserted } = result[last(result)];
+      expect({ front, end, inserted }).toEqual({
+        front: expected.front,
+        end: expected.end,
+        inserted: expected.inserted,
+      });
+    }
+  );
+
+  it('RS-AC-4 a restore that changes only the start of a long text records its pos near the start', () => {
+    const tail = '<p>qv</p>'.repeat(50);
+    const history = buildHistory([`<p>zq</p>${tail}`, `<p>xv</p>${tail}`]);
+    const restored = restoreFrame(history, 0, T)[2];
+    expect(restored.front).toBe(3);
+    expect(restored.inserted).toBe('zq');
+    expect(restored.pos).toBe(5);
+  });
+
   describe('wouldChange', () => {
     it('RS-WC-1 false for the last frame, true for each earlier differing frame', () => {
       expect(wouldChange(h6, 5)).toBe(false);
