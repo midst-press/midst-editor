@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useContext, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import Replay from '../renderer/components/Replay';
 import RestartIcon from '../renderer/components/Replay/restartIcon';
@@ -124,7 +124,10 @@ function Arrival() {
   const { text } = useContext(TextContext);
   const { poemHistory } = useContext(HistoryContext);
   events.push(['editor-arrived', text, poemHistory.length]);
-  finalState = { text, history: poemHistory };
+  // In an effect, not during render (react-hooks/globals). It runs after every render, so it holds the last.
+  useEffect(() => {
+    finalState = { text, history: poemHistory };
+  });
   return <div>EDITOR PAGE</div>;
 }
 
