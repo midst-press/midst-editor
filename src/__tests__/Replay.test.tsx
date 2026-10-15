@@ -454,6 +454,26 @@ describe('Replay: marking a draft', () => {
     expect(bridge.calls).toEqual([]);
   });
 
+  it('says why in a short history, and looks unavailable despite its fixed colour (GitHub #66)', () => {
+    mount(makeHistory(SHORT));
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription(
+      `A draft can be marked once the poem has more than 50 changes. This one has ${SHORT}.`
+    );
+    expect(button).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('has no reason and looks available where a draft can be marked', () => {
+    mount();
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription('');
+    expect(button).not.toHaveStyle({ opacity: '0.38' });
+  });
+
   it('refuses a marker when the stored meta cannot be read, changing nothing', () => {
     bridge = installBridge({ 'font-size': '2', meta: '[1,2]' });
     mount();

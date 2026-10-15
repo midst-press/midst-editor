@@ -11,7 +11,9 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
-import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
+import useDraftMarkers, {
+  UNAVAILABLE_STYLE,
+} from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
 import './Editor.css';
 import MenuBar from './MenuBar';
@@ -179,6 +181,7 @@ export default function Editor() {
   // poet is then taken to the replay to name it, as the original editor opened the name at once.
   const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
   const latestMoment = poemHistory.length - 1;
+  const draftReason = drafts.reasonAt(latestMoment);
   const markThisMoment = () => {
     autosave.cancel();
     if (drafts.create(latestMoment))
@@ -219,7 +222,7 @@ export default function Editor() {
 
       <div className="Spacer">
         <Tooltip
-          title="Mark this moment as a draft"
+          title={draftReason ?? 'Mark this moment as a draft'}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -228,13 +231,20 @@ export default function Editor() {
           <span>
             <button
               aria-label="Mark this moment as a draft"
+              aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
-              disabled={!drafts.canCreateAt(latestMoment)}
+              style={draftReason ? UNAVAILABLE_STYLE : undefined}
+              disabled={draftReason !== null}
               onClick={markThisMoment}
             >
               <BookmarkAddIcon fontSize="small" />
             </button>
+            {draftReason && (
+              <span id="editor-draft-reason" hidden>
+                {draftReason}
+              </span>
+            )}
           </span>
         </Tooltip>
         <Tooltip
