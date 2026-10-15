@@ -159,7 +159,7 @@
         "lines": 100,
         "statements": 100
       },
-      "./src/renderer/tracking/restore.ts": {
+      "./src/renderer/tracking/restartFrom.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,

@@ -1,9 +1,9 @@
 /** @jest-environment node */
 import {
-  RestoreError,
-  restoreFrame,
+  RestartFromError,
+  restartFrom,
   wouldChange,
-} from '../renderer/tracking/restore';
+} from '../renderer/tracking/restartFrom';
 import {
   ChangeObj,
   compareStrings,
@@ -33,10 +33,10 @@ const H6_TEXTS = [
 ];
 
 const last = (h: ChangeObj[]) => h.length - 1;
-const NO_HISTORY = 'there is no history to restore from';
-const NOT_IN_HISTORY = 'the frame to restore is not in the history';
+const NO_HISTORY = 'there is no history to restart from';
+const NOT_IN_HISTORY = 'the frame to restart from is not in the history';
 
-describe('restore', () => {
+describe('restartFrom', () => {
   let h6: ChangeObj[];
   beforeEach(() => {
     h6 = buildHistory(H6_TEXTS);
@@ -49,20 +49,20 @@ describe('restore', () => {
   });
 
   describe('partitions and boundaries', () => {
-    it('RS-EP-1 empty history throws RestoreError', () => {
-      expect(() => restoreFrame([], 0, POS)).toThrow(RestoreError);
-      expect(() => restoreFrame([], 0, POS)).toThrow(NO_HISTORY);
-      expect(() => wouldChange([], 0)).toThrow(RestoreError);
+    it('RS-EP-1 empty history throws RestartFromError', () => {
+      expect(() => restartFrom([], 0, POS)).toThrow(RestartFromError);
+      expect(() => restartFrom([], 0, POS)).toThrow(NO_HISTORY);
+      expect(() => wouldChange([], 0)).toThrow(RestartFromError);
       expect(() => wouldChange([], 0)).toThrow(NO_HISTORY);
     });
 
     it.each([[null], [undefined], [{}]])(
-      'RS-EP-2 history %p (not an array) throws RestoreError',
+      'RS-EP-2 history %p (not an array) throws RestartFromError',
       (bad) => {
         const h = bad as unknown as ChangeObj[];
-        expect(() => restoreFrame(h, 0, POS)).toThrow(RestoreError);
-        expect(() => restoreFrame(h, 0, POS)).toThrow(NO_HISTORY);
-        expect(() => wouldChange(h, 0)).toThrow(RestoreError);
+        expect(() => restartFrom(h, 0, POS)).toThrow(RestartFromError);
+        expect(() => restartFrom(h, 0, POS)).toThrow(NO_HISTORY);
+        expect(() => wouldChange(h, 0)).toThrow(RestartFromError);
         expect(() => wouldChange(h, 0)).toThrow(NO_HISTORY);
       }
     );
@@ -70,9 +70,9 @@ describe('restore', () => {
     it.each([[-1], [6], [7]])(
       'RS-BVA-1 index %p is outside the history',
       (index) => {
-        expect(() => restoreFrame(h6, index, POS)).toThrow(RestoreError);
-        expect(() => restoreFrame(h6, index, POS)).toThrow(NOT_IN_HISTORY);
-        expect(() => wouldChange(h6, index)).toThrow(RestoreError);
+        expect(() => restartFrom(h6, index, POS)).toThrow(RestartFromError);
+        expect(() => restartFrom(h6, index, POS)).toThrow(NOT_IN_HISTORY);
+        expect(() => wouldChange(h6, index)).toThrow(RestartFromError);
         expect(() => wouldChange(h6, index)).toThrow(NOT_IN_HISTORY);
       }
     );
@@ -81,23 +81,23 @@ describe('restore', () => {
       'RS-BVA-2 index %p is not an integer',
       (index) => {
         const i = index as unknown as number;
-        expect(() => restoreFrame(h6, i, POS)).toThrow(RestoreError);
-        expect(() => restoreFrame(h6, i, POS)).toThrow(NOT_IN_HISTORY);
-        expect(() => wouldChange(h6, i)).toThrow(RestoreError);
+        expect(() => restartFrom(h6, i, POS)).toThrow(RestartFromError);
+        expect(() => restartFrom(h6, i, POS)).toThrow(NOT_IN_HISTORY);
+        expect(() => wouldChange(h6, i)).toThrow(RestartFromError);
         expect(() => wouldChange(h6, i)).toThrow(NOT_IN_HISTORY);
       }
     );
 
     it('RS-BVA-3 index 0 and index length-1 are accepted', () => {
-      expect(() => restoreFrame(h6, 0, POS)).not.toThrow();
-      expect(() => restoreFrame(h6, last(h6), POS)).not.toThrow();
+      expect(() => restartFrom(h6, 0, POS)).not.toThrow();
+      expect(() => restartFrom(h6, last(h6), POS)).not.toThrow();
       expect(() => wouldChange(h6, 0)).not.toThrow();
       expect(() => wouldChange(h6, last(h6))).not.toThrow();
     });
 
-    it('RS-EP-3 single-frame history restores to a length-2 history of the same text', () => {
+    it('RS-EP-3 single-frame history restarts to a length-2 history of the same text', () => {
       const h = buildHistory(['<p>zq</p>']);
-      const result = restoreFrame(h, 0, POS);
+      const result = restartFrom(h, 0, POS);
       expect(result).toHaveLength(2);
       expect(reconstruct('', result, last(result))).toBe('<p>zq</p>');
     });
@@ -105,34 +105,34 @@ describe('restore', () => {
 
   describe('content', () => {
     it.each([0, 1, 2, 3, 4, 5])(
-      'RS-C-1 restoring frame %i replays to that frame text',
+      'RS-C-1 restarting from frame %i replays to that frame text',
       (k) => {
-        const result = restoreFrame(h6, k, POS);
+        const result = restartFrom(h6, k, POS);
         expect(reconstruct('', result, last(result))).toBe(H6_TEXTS[k]);
       }
     );
 
-    it('RS-C-2 restoring the last frame appends a change and leaves the text unchanged', () => {
-      const result = restoreFrame(h6, 5, POS);
+    it('RS-C-2 restarting from the last frame appends a change and leaves the text unchanged', () => {
+      const result = restartFrom(h6, 5, POS);
       expect(result).toHaveLength(h6.length + 1);
       expect(reconstruct('', result, last(result))).toBe(H6_TEXTS[5]);
     });
 
-    it('RS-C-3 repeated restores address original frames and keep the first restore', () => {
-      const first = restoreFrame(h6, 1, POS);
-      const second = restoreFrame(first, 4, POS);
+    it('RS-C-3 repeated restarts address original frames and keep the first restart', () => {
+      const first = restartFrom(h6, 1, POS);
+      const second = restartFrom(first, 4, POS);
       expect(reconstruct('', second, last(second))).toBe(H6_TEXTS[4]);
       expect(second).toHaveLength(8);
       expect(reconstruct('', second, 6)).toBe(H6_TEXTS[1]);
     });
 
     it('RS-C-4 whitespace, emoji and accented letter survive exactly', () => {
-      const withTab = restoreFrame(h6, 3, POS);
+      const withTab = restartFrom(h6, 3, POS);
       const tabText = reconstruct('', withTab, last(withTab));
       expect(tabText).toBe('<p>xz\tq</p><p>qv</p>');
       expect(tabText).toContain('\t');
 
-      const emojiText = reconstruct('', restoreFrame(h6, 5, POS), 6);
+      const emojiText = reconstruct('', restartFrom(h6, 5, POS), 6);
       expect(emojiText).toBe('<p>x</p><p>qv 🙂 é</p>');
       expect(emojiText).toContain('🙂');
       expect(emojiText).toContain('é');
@@ -143,13 +143,13 @@ describe('restore', () => {
     it('RS-ND-1 the input array is not modified', () => {
       const before = JSON.parse(JSON.stringify(h6));
       const { length } = h6;
-      restoreFrame(h6, 2, POS);
+      restartFrom(h6, 2, POS);
       expect(JSON.parse(JSON.stringify(h6))).toEqual(before);
       expect(h6).toHaveLength(length);
     });
 
     it('RS-ND-2 result is one longer and shares earlier change objects', () => {
-      const result = restoreFrame(h6, 2, POS);
+      const result = restartFrom(h6, 2, POS);
       expect(result).toHaveLength(h6.length + 1);
       h6.forEach((c, i) => {
         expect(result[i]).toBe(c);
@@ -157,7 +157,7 @@ describe('restore', () => {
     });
 
     it('RS-ND-3 every earlier frame still replays to its original text', () => {
-      const result = restoreFrame(h6, 2, POS);
+      const result = restartFrom(h6, 2, POS);
       H6_TEXTS.forEach((text, k) => {
         expect(reconstruct('', result, k)).toBe(text);
       });
@@ -167,13 +167,13 @@ describe('restore', () => {
   describe('the appended change', () => {
     it('RS-AC-1 carries the supplied date', () => {
       const when = new Date('2021-01-02T03:04:05.006Z');
-      const result = restoreFrame(h6, 1, POS, when);
+      const result = restartFrom(h6, 1, POS, when);
       expect(result[last(result)].t).toEqual(when);
     });
 
     it('RS-AC-1 defaults to a date within the run window', () => {
       const lo = Date.now();
-      const result = restoreFrame(h6, 1, POS);
+      const result = restartFrom(h6, 1, POS);
       const hi = Date.now();
       const { t } = result[last(result)];
       expect(t).toBeInstanceOf(Date);
@@ -186,8 +186,8 @@ describe('restore', () => {
     it.each([0, 1, 2, 3, 4, 5])(
       'RS-AC-2 pos is exactly the position the caller passed (frame %i)',
       (k) => {
-        expect(restoreFrame(h6, k, POS)[h6.length].pos).toBe(POS);
-        expect(restoreFrame(h6, k, 0)[h6.length].pos).toBe(0);
+        expect(restartFrom(h6, k, POS)[h6.length].pos).toBe(POS);
+        expect(restartFrom(h6, k, 0)[h6.length].pos).toBe(0);
       }
     );
   });
@@ -198,7 +198,7 @@ describe('restore', () => {
   it.each([0, 1, 2, 3, 4])(
     'RS-AC-3 the appended change is compareStrings(current, chosen) in front, end and inserted (frame %i)',
     (k) => {
-      const result = restoreFrame(h6, k, POS);
+      const result = restartFrom(h6, k, POS);
       const expected = compareStrings(
         reconstruct('', h6, h6.length - 1),
         reconstruct('', h6, k),
@@ -214,21 +214,21 @@ describe('restore', () => {
     }
   );
 
-  it('RS-AC-4 a restore that changes only the start of a long text records a change at the start', () => {
+  it('RS-AC-4 a restart that changes only the start of a long text records a change at the start', () => {
     const tail = '<p>qv</p>'.repeat(50);
     const history = buildHistory([`<p>zq</p>${tail}`, `<p>xv</p>${tail}`]);
-    const restored = restoreFrame(history, 0, POS, T)[2];
-    expect(restored.front).toBe(3);
-    expect(restored.end).toBe(4 + tail.length);
-    expect(restored.inserted).toBe('zq');
+    const appended = restartFrom(history, 0, POS, T)[2];
+    expect(appended.front).toBe(3);
+    expect(appended.end).toBe(4 + tail.length);
+    expect(appended.inserted).toBe('zq');
   });
 
   it.each([[-1], [1.5], [NaN], [Infinity], ['3'], [undefined]])(
     'RS-POS-1 a cursor position %p that is not a document position is refused, and nothing changes',
     (pos) => {
       const before = JSON.stringify(h6);
-      expect(() => restoreFrame(h6, 0, pos as unknown as number)).toThrow(
-        new RestoreError('the cursor position is not a document position')
+      expect(() => restartFrom(h6, 0, pos as unknown as number)).toThrow(
+        new RestartFromError('the cursor position is not a document position')
       );
       expect(JSON.stringify(h6)).toBe(before);
     }
@@ -258,15 +258,15 @@ describe('restore', () => {
   });
 
   describe('errors', () => {
-    it('RS-ERR-1 errors are RestoreError, named, and never quote the history', () => {
+    it('RS-ERR-1 errors are RestartFromError, named, and never quote the history', () => {
       const h = buildHistory(['<p>zq</p>', '<p>zq qv</p>']);
       const calls: Array<() => unknown> = [
-        () => restoreFrame([], 0, POS),
+        () => restartFrom([], 0, POS),
         () => wouldChange([], 0),
-        () => restoreFrame(null as unknown as ChangeObj[], 0, POS),
-        () => restoreFrame(h, -1, POS),
-        () => restoreFrame(h, 2, POS),
-        () => restoreFrame(h, 0.5, POS),
+        () => restartFrom(null as unknown as ChangeObj[], 0, POS),
+        () => restartFrom(h, -1, POS),
+        () => restartFrom(h, 2, POS),
+        () => restartFrom(h, 0.5, POS),
         () => wouldChange(h, 99),
         () => wouldChange(h, '1' as unknown as number),
       ];
@@ -277,9 +277,9 @@ describe('restore', () => {
         } catch (e) {
           caught = e;
         }
-        expect(caught).toBeInstanceOf(RestoreError);
-        const err = caught as RestoreError;
-        expect(err.name).toBe('RestoreError');
+        expect(caught).toBeInstanceOf(RestartFromError);
+        const err = caught as RestartFromError;
+        expect(err.name).toBe('RestartFromError');
         expect(err.message).not.toContain('zq');
         expect(err.message).not.toContain('qv');
       });
