@@ -20,7 +20,9 @@ export default function usePlayback(
   maxStep: number,
   glide: MutableRefObject<Glide | null>
 ) {
-  const [step, setStep] = useState(maxStep);
+  const [step, setStepState] = useState(maxStep);
+  // The step as last set, for the interval and play to read without a state updater.
+  const current = useRef(maxStep);
   const [playing, setPlaying] = useState(false);
   const interval = useRef<ReturnType<typeof setInterval> | undefined>(
     undefined
@@ -39,13 +41,23 @@ export default function usePlayback(
     setPlaying(false);
   }, []);
 
+  // Every change of step comes here, from playing, the slider or the drafts list, and reaching the last
+  // frame stops playback. This is where that stop happens, not an effect watching the step (GitHub #44).
+  const setStep = useCallback(
+    (next: number) => {
+      current.current = next;
+      setStepState(next);
+      if (next >= maxStep) pause();
+    },
+    [maxStep, pause]
+  );
+
   const advance = () => {
     interval.current = setInterval(() => {
       // Never past the last frame: a step beyond it is no frame at all, and a draft cannot be
       // marked there, so the last frame was unmarkable once playback had ended.
-      setStep((val) =>
-        gliding(glide.current) ? val : Math.min(val + 1, maxStep)
-      );
+      if (!gliding(glide.current))
+        setStep(Math.min(current.current + 1, maxStep));
     }, FRAME_MS);
   };
 
@@ -55,7 +67,7 @@ export default function usePlayback(
     if (maxStep <= 0) return;
     clearTimers();
     setPlaying(true);
-    if (step >= maxStep) {
+    if (current.current >= maxStep) {
       setStep(0);
       rewind.current = setTimeout(() => {
         rewind.current = undefined;
@@ -65,10 +77,6 @@ export default function usePlayback(
       advance();
     }
   };
-
-  useEffect(() => {
-    if (step >= maxStep) pause();
-  }, [step, maxStep, pause]);
 
   // The handles are refs, read when the cleanup runs.
   useEffect(() => clearTimers, []);
