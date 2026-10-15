@@ -27,6 +27,7 @@ import useDraftMarkers, {
 import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
+import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
 
 export default function Replay() {
   const theme = useTheme();
@@ -374,6 +375,7 @@ export default function Replay() {
         showLabels={showLabels}
         setShowLabels={setShowLabels}
       />
+      <FindNotHere message={FIND_IN_REPLAY(window.electron.versions.isMac)} />
     </div>
   );
 }

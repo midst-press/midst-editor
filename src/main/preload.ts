@@ -14,6 +14,7 @@ export type Channels =
   | 'toggle-edit-mode'
   | 'save-file'
   | 'toggle-spellcheck'
+  | 'find-in-poem'
   | 'new-file'
   | 'new-file-from-menu'
   | 'button-open-file'
