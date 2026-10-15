@@ -111,6 +111,31 @@ describe('useDraftMarkers', () => {
     expect(longer.result.current.canCreateAt(10)).toBe(true);
   });
 
+  it('says why a draft cannot be marked: more than 50 changes are needed, so 50 refuses and 51 allows (GitHub #66)', () => {
+    install(undefined);
+    const save = jest.fn();
+    const fifty = renderHook(() =>
+      useDraftMarkers(FRAMES_BEFORE_MARKERS, save)
+    );
+    expect(fifty.result.current.reasonAt(10)).toBe(
+      'A draft can be marked once the poem has more than 50 changes. This one has 50.'
+    );
+    const fiftyOne = renderHook(() =>
+      useDraftMarkers(FRAMES_BEFORE_MARKERS + 1, save)
+    );
+    expect(fiftyOne.result.current.reasonAt(10)).toBeNull();
+  });
+
+  it('says which reason applies: a moment that already has a draft, or no moment there', () => {
+    install({ draftMarkers: [{ index: 5, defaultName: 'Draft 1' }] });
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    expect(result.current.reasonAt(5)).toBe('This moment already has a draft.');
+    expect(result.current.reasonAt(LONG)).toBe(
+      'There is no moment here to mark.'
+    );
+    expect(result.current.reasonAt(6)).toBeNull();
+  });
+
   it('allows one marker per moment, and only inside the history', () => {
     install({ draftMarkers: [{ index: 5, defaultName: 'Draft 1' }] });
     const save = jest.fn();
