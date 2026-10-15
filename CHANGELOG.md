@@ -24,8 +24,8 @@
   so far), or the moment already has a draft. Hold the pointer over it to see.
 - **When a draft marker cannot be added, renamed or deleted, Midst says why**, and the Drafts list shows
   what the poem actually holds.
-- **Converting an old poem no longer adds a blank line.** Invisible markers left by the old editor were
-  turned into an empty paragraph.
+- **Converting an old poem no longer adds a blank line where the old editor left an invisible marker.**
+  Those markers were turned into an empty paragraph.
 - **About Midst names the people who make it**: the director, Annelyse Gelman, and the developers, under
   the version line.
 
