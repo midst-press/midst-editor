@@ -10,7 +10,6 @@ import PauseIcon from '@mui/icons-material/Pause';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import BookmarksIcon from '@mui/icons-material/Bookmarks';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useTheme } from '@mui/material/styles';
 import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
@@ -20,6 +19,7 @@ import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';
 import { HistoryContext, TextContext } from 'renderer/context';
+import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
@@ -39,7 +39,6 @@ import RestartFromButton from './RestartFromButton';
 import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
 
 export default function Replay() {
-  const theme = useTheme();
   const navigate = useNavigate();
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
@@ -199,7 +198,7 @@ export default function Replay() {
     };
   }, [navigate]);
   return (
-    <div style={{ backgroundColor: theme.palette.background.default }}>
+    <div style={{ backgroundColor: cssVar('background') }}>
       <div className="TopButtons">
         <Tooltip
           title="Increase text size"
@@ -263,13 +262,13 @@ export default function Replay() {
           component="div"
           className="ControlBar"
           style={{
-            backgroundColor: theme.palette.primary.dark,
+            backgroundColor: cssVar('primaryDark'),
           }}
         >
           <button
             type="button"
             ref={playPauseButton}
-            style={{ color: theme.palette.secondary.contrastText }}
+            style={{ color: cssVar('secondaryContrastText') }}
             onClick={playing ? pause : play}
             disabled={!poemHistory.length}
             className="control-bar-icon control-icon-gap"
@@ -289,7 +288,7 @@ export default function Replay() {
             valueLabelFormat={labelFormatter}
             valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
             sx={{
-              color: theme.palette.secondary.contrastText,
+              color: cssVar('secondaryContrastText'),
               marginRight: '15px',
               cursor: poemHistory.length ? undefined : 'not-allowed',
               // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
@@ -297,13 +296,13 @@ export default function Replay() {
               '& .MuiSlider-mark': {
                 height: '14px',
                 width: '2px',
-                backgroundColor: theme.palette.text.primary,
+                backgroundColor: cssVar('textPrimary'),
                 opacity: 0.7,
               },
               '& .MuiSlider-markLabel': {
                 top: '-34px',
                 fontSize: '0.75rem',
-                color: theme.palette.text.primary,
+                color: cssVar('textPrimary'),
                 maxWidth: '140px',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -336,7 +335,7 @@ export default function Replay() {
                 type="button"
                 className="control-bar-icon"
                 style={{
-                  color: theme.palette.secondary.contrastText,
+                  color: cssVar('secondaryContrastText'),
                   ...(draftReason ? UNAVAILABLE_STYLE : {}),
                 }}
                 disabled={draftReason !== null}
@@ -371,7 +370,7 @@ export default function Replay() {
               aria-label="Drafts"
               type="button"
               className="control-bar-icon"
-              style={{ color: theme.palette.secondary.contrastText }}
+              style={{ color: cssVar('secondaryContrastText') }}
               onClick={() => setDrawerOpen(true)}
             >
               <BookmarksIcon fontSize="small" />
@@ -391,7 +390,7 @@ export default function Replay() {
                 type="button"
                 className="control-bar-icon"
                 style={{
-                  color: theme.palette.secondary.contrastText,
+                  color: cssVar('secondaryContrastText'),
                 }}
               >
                 <EditIcon fontSize="small" />

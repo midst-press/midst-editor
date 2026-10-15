@@ -2,7 +2,6 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import { useTheme } from '@mui/material/styles';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import poemExtensions from 'shared/poemExtensions';
@@ -10,6 +9,7 @@ import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
+import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
@@ -26,7 +26,6 @@ const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
-  const theme = useTheme();
   const navigate = useNavigate();
   // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
   // arrival, in an effect, then changes nothing React renders (GitHub #44).
@@ -215,7 +214,7 @@ export default function Editor() {
   return (
     <div
       style={{
-        backgroundColor: theme.palette.background.default,
+        backgroundColor: cssVar('background'),
       }}
     >
       <EditorProvider

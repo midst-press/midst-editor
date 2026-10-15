@@ -117,14 +117,14 @@
 }
 
 .MuiTooltip-tooltip {
-  background-color: #ffa4b9 !important;
+  background-color: var(--midst-primary-dark) !important;
   border-radius: 5px !important;
   margin-top: 10px !important;
   margin-bottom: 6px !important;
 }
 
 .MuiTooltip-arrow {
-  color: #ffa4b9 !important;
+  color: var(--midst-primary-dark) !important;
 }
 .svg {
   /* removes squiggle m */

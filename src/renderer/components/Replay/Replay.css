@@ -67,8 +67,8 @@
   border-radius: 5px !important;
   width: 68px !important;
   background-color: white !important;
-  color: #ffa4b9 !important;
-  border: #ffa4b9 solid 1px !important;
+  color: var(--midst-primary-dark) !important;
+  border: var(--midst-primary-dark) solid 1px !important;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif !important;
 }
@@ -93,13 +93,13 @@
 
 .control-bar-icon:hover {
   /* theme.palette.secondary.light */
-  background-color: rgb(255, 182, 199);
+  background-color: var(--midst-secondary-light);
 }
 
 .MuiTooltip-tooltip.custom {
   background-color: white !important;
-  color: #ffa4b9 !important;
-  border: #ffa4b9 solid 1px !important;
+  color: var(--midst-primary-dark) !important;
+  border: var(--midst-primary-dark) solid 1px !important;
   margin-bottom: 6px !important;
 }
 
