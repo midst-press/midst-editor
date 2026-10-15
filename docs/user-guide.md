@@ -58,6 +58,8 @@ To save at once, choose **File** > **Save**. To keep a second copy under another
 
 If Midst cannot save, it tells you in a message called **Could not save**. Your poem stays open. Press **Save As…** in that message to save it somewhere else.
 
+To put the poem as it is now into a file a word processor can open, choose **File** > **Export as RTF…**. Its line breaks, stanza breaks, spacing, bold and italic go with it; its history does not. If Midst cannot export the poem, it tells you why in a message called **Could not export**, and writes no file.
+
 If you start a new poem, open another one or close the window while something is unsaved, Midst warns you. **Cancel** keeps your poem. **Proceed** goes on without saving it.
 
 ## Opening a poem
