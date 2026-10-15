@@ -376,6 +376,18 @@ describe('Editor: recording an edit', () => {
     expect(bridge.sets('edited')).toHaveLength(1);
   });
 
+  it('after an autosave, the next keystroke marks the document edited again', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('a');
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    typeText('b');
+    expect(bridge.sets('edited')).toHaveLength(2);
+  });
+
   it('records nothing when the content did not change', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
