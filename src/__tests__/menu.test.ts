@@ -1108,7 +1108,11 @@ describe('the menu', () => {
       const accelerators: string[] = [];
       const walk = (items: Item[]) =>
         items.forEach((i) => {
-          if (i.accelerator) accelerators.push(i.accelerator);
+          // One shortcut however it is written: Shift+Command+Z is Command+Shift+Z.
+          if (i.accelerator)
+            accelerators.push(
+              i.accelerator.toLowerCase().split('+').sort().join('+')
+            );
           if (i.submenu) walk(i.submenu);
         });
       walk(template);
