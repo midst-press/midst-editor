@@ -5,6 +5,7 @@ import {
   TitlebarColor,
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { TITLEBAR_BACKGROUND } from './appearance';
 
 export type Channels =
   | 'ipc-example'
@@ -27,11 +28,17 @@ export type Channels =
 let titlebar: CustomTitlebar | null = null;
 
 window.addEventListener('DOMContentLoaded', () => {
+  // The title bar takes the page background of the scheme in force, and changes with it (GitHub #16).
+  const darkScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
+  const titlebarBackground = () =>
+    TitlebarColor.fromHex(
+      darkScheme?.matches ? TITLEBAR_BACKGROUND.dark : TITLEBAR_BACKGROUND.light
+    );
   // Title bar implementation
   // eslint-disable-next-line no-new, no-import-assign
   titlebar = new CustomTitlebar({
     // itemBackgroundColor: TitlebarColor.fromHex('#FFF'),
-    backgroundColor: TitlebarColor.fromHex('#FFF5EE'),
+    backgroundColor: titlebarBackground(),
     unfocusEffect: false,
     menuPosition: 'left',
     titleHorizontalAlignment: 'center',
@@ -43,6 +50,9 @@ window.addEventListener('DOMContentLoaded', () => {
     titlebar.updateMenuPosition('bottom');
     titlebar.updateTitleAlignment('left');
   }
+  darkScheme?.addEventListener('change', () =>
+    titlebar?.updateBackground(titlebarBackground())
+  );
 });
 
 window.addEventListener('DOMContentLoaded', () => {

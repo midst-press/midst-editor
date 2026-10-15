@@ -2,8 +2,9 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, Menu, shell } from 'electron';
+import { app, dialog, Menu, nativeTheme, shell } from 'electron';
 import MenuBuilder, {
+  applyStoredAppearance,
   exportRtf,
   newFile,
   openFile,
@@ -30,6 +31,7 @@ jest.mock('electron', () => ({
   },
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
   shell: { openExternal: jest.fn() },
+  nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
@@ -1436,5 +1438,85 @@ describe('the menu', () => {
       sub(build('linux', win), '&File', '&Close').click!();
       expect(win.close).toHaveBeenCalledTimes(1);
     });
+  });
+
+  describe('View > Appearance (GitHub #16)', () => {
+    type Radio = Item & { type?: string; checked?: boolean };
+    const appearance = (platform: string) => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      const template = build(platform);
+      return sub(
+        template,
+        platform === 'darwin' ? 'View' : '&View',
+        'Appearance'
+      ).submenu as Radio[];
+    };
+
+    beforeEach(() => {
+      nativeTheme.themeSource = 'system';
+    });
+
+    it.each(['darwin', 'linux'])(
+      'offers Follow System, Light and Dark as one choice on %s',
+      (platform) => {
+        const items = appearance(platform);
+        expect(items.map((i) => [i.label, i.type])).toEqual([
+          ['Follow System', 'radio'],
+          ['Light', 'radio'],
+          ['Dark', 'radio'],
+        ]);
+      }
+    );
+
+    it('is also in the development View menu', () => {
+      process.env.NODE_ENV = 'development';
+      const template = build('darwin');
+      expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
+    });
+
+    it.each([
+      [undefined, 'Follow System'],
+      ['light', 'Light'],
+      ['dark', 'Dark'],
+      ['system', 'Follow System'],
+      ['purple', 'Follow System'],
+    ])('with %p stored, checks %s', (stored, label) => {
+      if (stored !== undefined) mockStore.set('appearance', stored);
+      expect(
+        appearance('darwin')
+          .filter((i) => i.checked)
+          .map((i) => i.label)
+      ).toEqual([label]);
+    });
+
+    it.each([
+      ['Dark', 'dark'],
+      ['Light', 'light'],
+      ['Follow System', 'system'],
+    ])('choosing %s stores it and sets the scheme', (label, value) => {
+      mockStore.set(
+        'appearance',
+        label === 'Follow System' ? 'dark' : 'system'
+      );
+      find(appearance('linux'), label).click!();
+      expect(mockStore.get('appearance')).toBe(value);
+      expect(nativeTheme.themeSource).toBe(value);
+    });
+  });
+});
+
+describe('applyStoredAppearance (GitHub #16)', () => {
+  it.each([
+    [undefined, 'system'],
+    ['dark', 'dark'],
+    ['light', 'light'],
+    ['', 'system'],
+    ['Dark', 'system'],
+  ])('with %p stored, sets the scheme to %s', (stored, expected) => {
+    nativeTheme.themeSource = 'light';
+    if (stored !== undefined) mockStore.set('appearance', stored);
+    applyStoredAppearance();
+    expect(nativeTheme.themeSource).toBe(expected);
   });
 });

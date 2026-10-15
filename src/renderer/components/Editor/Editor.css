@@ -80,7 +80,7 @@
   /* theme.palette.secondary.light */
   background-color: transparent;
   /* theme.palette.secondary.contrastText */
-  color: rgba(77, 77, 77, 0.6);
+  color: var(--midst-muted-text);
   cursor: pointer;
   transition: background-color 0.1s ease;
   border: none;
@@ -118,6 +118,7 @@
 
 .MuiTooltip-tooltip {
   background-color: var(--midst-primary-dark) !important;
+  color: var(--midst-tooltip-text) !important;
   border-radius: 5px !important;
   margin-top: 10px !important;
   margin-bottom: 6px !important;
