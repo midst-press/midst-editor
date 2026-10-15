@@ -11,6 +11,7 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
+import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
@@ -245,6 +246,7 @@ export default function Editor() {
                 {draftReason}
               </span>
             )}
+            <RefusalAlert message={drafts.refusal} />
           </span>
         </Tooltip>
         <Tooltip

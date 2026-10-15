@@ -21,6 +21,7 @@ import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import { HistoryContext, TextContext } from 'renderer/context';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
+import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
@@ -309,6 +310,7 @@ export default function Replay() {
                   {draftReason}
                 </span>
               )}
+              <RefusalAlert message={drafts.refusal} />
             </span>
           </Tooltip>
           <Tooltip
@@ -367,6 +369,7 @@ export default function Replay() {
         }}
         onRename={drafts.rename}
         onDelete={drafts.remove}
+        refusal={drafts.refusal}
         showMarkers={showMarkers}
         setShowMarkers={setShowMarkers}
         showLabels={showLabels}

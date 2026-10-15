@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
+import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 import type { ChangeObj } from '../renderer/tracking/utils';
@@ -28,6 +29,7 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
   const calls: Call[] = [];
   const listeners: Record<string, Listener[]> = {};
   const removed: string[] = [];
+  const logError = jest.fn();
   (window as unknown as { electron: unknown }).electron = {
     versions: { isMac: true },
     store: {
@@ -52,9 +54,10 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
     titlebar: {
       updateTitle: (name: string) => calls.push(['titlebar', name]),
     },
-    log: jest.fn(),
+    log: { error: logError },
   };
   return {
+    logError,
     values,
     calls,
     removed,
@@ -480,6 +483,15 @@ describe('Replay: marking a draft', () => {
     markDraft();
     expect(bridge.calls).toEqual([]);
     expect(screen.queryByRole('textbox', { name: 'Draft name' })).toBeNull();
+    expect(bridge.logError).toHaveBeenCalledWith(REFUSED_LOG, {
+      reason: 'meta-unreadable',
+      action: 'create',
+      index: expect.any(Number),
+      historyLength: expect.any(Number),
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The drafts of this poem could not be read, so nothing was changed.'
+    );
   });
 });
 

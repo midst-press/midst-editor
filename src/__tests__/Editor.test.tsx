@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
 import Editor from '../renderer/components/Editor';
+import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
 import { ChangeObj } from '../renderer/tracking/utils';
 
@@ -46,7 +47,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     titlebar: {
       updateTitle: (name: string) => record('title', name),
     },
-    log: { warn: (m: string) => record('log.warn', m) },
+    log: {
+      warn: (m: string) => record('log.warn', m),
+      error: (m: string, meta: unknown) => record('log.error', m, meta),
+    },
   };
   return {
     values,
@@ -679,6 +683,23 @@ describe('Editor: draft marker button', () => {
     );
     expect(screen.getByTestId('where')).toHaveTextContent('/editor');
     expect(bridge.values.meta).toBe('not json');
+    expect(bridge.calls.filter((c) => c.kind === 'log.error')).toEqual([
+      {
+        kind: 'log.error',
+        args: [
+          REFUSED_LOG,
+          {
+            reason: 'meta-unreadable',
+            action: 'create',
+            index: 59,
+            historyLength: 60,
+          },
+        ],
+      },
+    ]);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The drafts of this poem could not be read, so nothing was changed.'
+    );
   });
 });
 
