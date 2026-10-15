@@ -3,7 +3,13 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { app, dialog, Menu, shell } from 'electron';
-import MenuBuilder, { newFile, openFile, save, saveAs } from '../main/menu';
+import MenuBuilder, {
+  exportRtf,
+  newFile,
+  openFile,
+  save,
+  saveAs,
+} from '../main/menu';
 import { showAbout } from '../main/about';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
@@ -593,6 +599,101 @@ describe('saveAs', () => {
   });
 });
 
+describe('exportRtf (GitHub #26)', () => {
+  const ERROR_TITLE = 'Could not export';
+
+  it('offers the poem’s own name and folder, as .rtf', () => {
+    seedDocument({ filename: path.join(dir, 'zq.midst') });
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join(dir, 'zq.rtf')
+    );
+    expect(showSaveDialog.mock.calls[0][1].filters[0].extensions).toEqual([
+      'rtf',
+    ]);
+  });
+
+  it('offers Untitled.rtf in the dialog folder for a poem with no file', () => {
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.rtf')
+    );
+  });
+
+  it('writes the RTF, and changes nothing about the poem or its file', () => {
+    const poemFile = path.join(dir, 'zq.midst');
+    const chosen = path.join(dir, 'zq.rtf');
+    seedDocument({ filename: poemFile, poem: '<p><strong>xv</strong></p>' });
+    showSaveDialog.mockReturnValue(chosen);
+    const win = makeWindow();
+    exportRtf(asWindow(win));
+    expect(readBack(chosen)).toContain('{\\b xv}\\par');
+    expect(dirListing()).toEqual(['zq.rtf']);
+    expect(mockStore.get('filename')).toBe(poemFile);
+    expect(mockStore.get('edited')).toBe('true');
+    expect(win.webContents.send).not.toHaveBeenCalled();
+    expect(win.setTitle).not.toHaveBeenCalled();
+    expect(showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('an empty poem: says why, and asks for no file', () => {
+    seedDocument({ poem: '<p></p>' });
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showMessageBox.mock.calls[0][1]).toMatchObject({
+      type: 'error',
+      title: ERROR_TITLE,
+      detail: 'The poem is empty, so there is nothing to export.',
+    });
+  });
+
+  it('no poem in the store: says so, and asks for no file', () => {
+    seedDocument();
+    mockStore.delete('poem');
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showMessageBox.mock.calls[0][1].detail).toBe(
+      'There is no poem open to export.'
+    );
+  });
+
+  it('when the poet cancels, writes nothing and says nothing', () => {
+    seedDocument();
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(dirListing()).toEqual([]);
+    expect(showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('a file that cannot be written: says why, and leaves no part of a file', () => {
+    seedDocument();
+    showSaveDialog.mockReturnValue(unwritable().replace(/midst$/, 'rtf'));
+    exportRtf(asWindow(makeWindow()));
+    expect(showMessageBox.mock.calls[0][1].title).toBe(ERROR_TITLE);
+    expect(showMessageBox.mock.calls[0][1].detail).toContain(
+      'No file was written.'
+    );
+    expect(dirListing()).toEqual([]);
+  });
+
+  it('a write that fails partway leaves an existing file of that name as it was', () => {
+    const chosen = path.join(dir, 'zq.rtf');
+    fs.writeFileSync(chosen, 'earlier export');
+    seedDocument();
+    showSaveDialog.mockReturnValue(chosen);
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw new Error('EIO: zq');
+    });
+    exportRtf(asWindow(makeWindow()));
+    expect(readBack(chosen)).toBe('earlier export');
+    expect(dirListing()).toEqual(['zq.rtf']);
+    expect(showMessageBox.mock.calls[0][1].detail).toContain('EIO: zq');
+  });
+});
+
 describe('newFile', () => {
   it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
     seedDocument({ edited: 'true' });
@@ -1057,6 +1158,14 @@ describe('the menu', () => {
       await ioDone();
       expect(readBack(target)).toContain('"text":"<p>xv</p>"');
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
+    });
+
+    it('Export as RTF… asks for a file and writes the poem there as RTF', () => {
+      const chosen = path.join(dir, 'zq.rtf');
+      seedDocument();
+      showSaveDialog.mockReturnValue(chosen);
+      sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
     });
 
     // The document already has a file, so plain Save would write there without asking. Save As

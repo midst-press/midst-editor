@@ -9,7 +9,7 @@ import { mkdtempSync, writeFileSync, copyFileSync, existsSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeJumpingMidst } from './fixtures';
-import { launch, openDocument } from './harness';
+import { launch, openDocument, readStore } from './harness';
 import { reconstructHTML } from '../src/renderer/tracking/utils';
 
 // Does Replay keep the WRITING on screen, and get there gently?
@@ -251,9 +251,10 @@ const WINDOWS = [
 
 async function openReplay(
   poemPath: string,
-  size: { width: number; height: number } | null = null
-): Promise<{ app: ElectronApplication; win: Page }> {
-  const { app, userData } = await launch(join(poemPath, '..'));
+  size: { width: number; height: number } | null = null,
+  seed = true
+): Promise<{ app: ElectronApplication; win: Page; userData: string }> {
+  const { app, userData } = await launch(join(poemPath, '..'), { seed });
   const win = await app.firstWindow();
   await win.waitForLoadState('domcontentloaded');
   if (size)
@@ -266,7 +267,7 @@ async function openReplay(
   await expect(win.locator('.ReplayContainer')).toBeVisible({
     timeout: 25_000,
   });
-  return { app, win };
+  return { app, win, userData };
 }
 
 function assertFollows(name: string, v: ReturnType<typeof verdict>) {
@@ -449,6 +450,56 @@ WINDOWS.forEach((w) =>
     });
   })
 );
+
+// "Follow the writing" turned off (GitHub #23): the page stays where the poet put it while the writing goes
+// off screen, the choice survives a restart, and turning it back on follows again.
+test('with Follow the writing off, replay does not scroll; on again after a restart, it follows', async () => {
+  const doc = makeJumpingMidst('end');
+  const poemPath = join(
+    mkdtempSync(join(tmpdir(), 'midst-follow-off-')),
+    'jumping.midst'
+  );
+  writeFileSync(poemPath, doc.file);
+  const last = doc.targets[doc.targets.length - 1];
+  const playToEnd = (win: Page) =>
+    record(win, async () => {
+      await win.locator('[data-testid="PlayArrowIcon"]').first().click();
+      await expect(
+        win.locator('.ReplayContainer .ProseMirror p').nth(last)
+      ).toContainText('z'.repeat(doc.typed), { timeout: 60_000 });
+      await win.waitForTimeout(SETTLE_MS + 200);
+    });
+  const follow = (win: Page) =>
+    win.getByRole('button', { name: 'Follow the writing' });
+
+  const first = await openReplay(poemPath);
+  try {
+    await expect(follow(first.win)).toHaveAttribute('aria-pressed', 'true');
+    await follow(first.win).click();
+    await expect(follow(first.win)).toHaveAttribute('aria-pressed', 'false');
+    const off = verdict(await playToEnd(first.win));
+    // eslint-disable-next-line no-console -- the measurement is the report
+    console.log(`replay follow [off]: ${JSON.stringify(off)}`);
+    // CONTROLS: the poem scrolls, and writing ended off screen, so following would have had to move.
+    expect(off.viewport).toBeGreaterThan(0);
+    expect(off.unfollowed, 'no writing ended off screen').toBeGreaterThan(0);
+    expect(off.moves, 'scroll movements while following was off').toBe(0);
+  } finally {
+    await first.app.close();
+  }
+  // The choice is in the settings file the app relies on. Relaunch WITHOUT re-seeding it, as a poet's restart would.
+  expect(readStore(first.userData)['replay-autoscroll']).toBe('false');
+
+  const second = await openReplay(poemPath, null, false);
+  try {
+    await expect(follow(second.win)).toHaveAttribute('aria-pressed', 'false');
+    await follow(second.win).click();
+    await expect(follow(second.win)).toHaveAttribute('aria-pressed', 'true');
+    assertFollows('on again', verdict(await playToEnd(second.win)));
+  } finally {
+    await second.app.close();
+  }
+});
 
 WINDOWS.forEach((w) =>
   test(`replay follows Annelyse's Autoscroll Test Poem, gently (${w.name} window)`, async () => {
