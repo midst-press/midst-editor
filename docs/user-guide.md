@@ -46,9 +46,9 @@ Everything you do goes into the timelapse, including what you undo.
 
 To find words in the poem while you are writing, choose **Edit** > **Find**, or press Command+F on a Mac or Ctrl+F on Windows and Linux. Type the words in **Find in the poem**. Midst marks every place they appear and selects the first one. Capital and small letters count as the same.
 
-Press Enter, or **Next match**, to go to the next one, and Shift+Enter, or **Previous match**, to go back. Midst shows which one you are on, such as "2 of 5", or says "No matches". To stop, press Escape or **Close find**. You go back to the poem with the last match selected.
+Press Enter, or **Next match**, to go to the next one, and Shift+Enter, or **Previous match**, to go back. Midst shows which one you are on, such as "2 of 5", or says "No matches". To stop, press Escape or **Close find**. You go back to the poem with the cursor just after the last match.
 
-Find looks in the poem as it is now, not in the timelapse. Words are not found across the end of a line.
+Find looks in the poem as it is now, not in the timelapse, so it works while you are writing; in Replay, Midst tells you so. Words are not found across the end of a line.
 
 ## Saving
 

@@ -8,6 +8,8 @@ import FindBar, {
   NOT_READY,
   SEARCH_FAILED,
   SEARCH_FAILED_LOG,
+  CLEAR_FAILED_LOG,
+  TYPE_FIRST,
 } from '../renderer/search/FindBar';
 import findInText from '../renderer/search/findInText';
 import SearchHighlight, {
@@ -322,7 +324,7 @@ describe('FindBar: closing', () => {
       () => fireEvent.click(screen.getByRole('button', { name: 'Close find' })),
     ],
   ])(
-    'FB-C-1 %s closes, clears the marks and leaves the last match selected',
+    'FB-C-1 %s closes, clears the marks and puts the cursor just after the last match',
     (_, closeIt) => {
       const editor = makeEditor(TWO);
       render(<FindBar editor={editor} />);
@@ -334,9 +336,37 @@ describe('FindBar: closing', () => {
       });
       expect(screen.queryByRole('search')).toBeNull();
       expect(highlights(editor)).toHaveLength(0);
-      expect(selected(editor)).toEqual({ from: 8, to: 10, text: 'qv' });
+      // Collapsed, so the next keystroke does not replace the match.
+      expect(selected(editor)).toEqual({ from: 10, to: 10, text: '' });
     }
   );
+});
+
+describe('FindBar: closing with nothing found', () => {
+  it('FB-C-2 leaves the cursor where it was', () => {
+    const editor = makeEditor(TWO);
+    render(<FindBar editor={editor} />);
+    bridge.openBar();
+    const before = selected(editor);
+    type('zz');
+    key('Escape');
+    expect(selected(editor)).toEqual(before);
+  });
+});
+
+describe('FindBar: why the arrows are unavailable', () => {
+  it('FB-A-1 before anything is typed they say to type first; after, the status says why', () => {
+    render(<FindBar editor={makeEditor(TWO)} />);
+    bridge.openBar();
+    const next = screen.getByRole('button', { name: 'Next match' });
+    expect(next).toBeDisabled();
+    expect(next).toHaveAccessibleDescription(TYPE_FIRST);
+    type('zz');
+    expect(next).toHaveAccessibleDescription(NO_MATCHES);
+    expect(
+      screen.getByRole('button', { name: 'Previous match' })
+    ).toHaveAccessibleDescription(NO_MATCHES);
+  });
 });
 
 describe('FindBar: when it cannot search', () => {
@@ -367,6 +397,8 @@ describe('FindBar: when it cannot search', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(SEARCH_FAILED);
     expect(bridge.errors).toEqual([
       { message: SEARCH_FAILED_LOG, meta: { error: 'TypeError' } },
+      // The broken editor cannot be cleared either: that is logged too, not thrown.
+      { message: CLEAR_FAILED_LOG, meta: { error: 'TypeError' } },
     ]);
     expect(JSON.stringify(bridge.errors)).not.toContain('zq');
     expect(status()).toBeEmptyDOMElement();
@@ -387,18 +419,24 @@ describe('FindBar: when it cannot search', () => {
     type('qv');
     expect(bridge.errors).toEqual([
       { message: SEARCH_FAILED_LOG, meta: { error: 'string' } },
+      // The broken editor cannot be cleared either: that is logged too, not thrown.
+      { message: CLEAR_FAILED_LOG, meta: { error: 'string' } },
     ]);
   });
 
-  it('FB-X-3 the next search that works clears the message', () => {
+  it('FB-X-3 a failed search clears the earlier marks, and the next search that works clears the message', () => {
     const editor = makeEditor(TWO);
     render(<FindBar editor={editor} />);
     bridge.openBar();
+    type('qv');
+    expect(highlights(editor)).toHaveLength(2);
     jest.mocked(findInText).mockImplementationOnce(() => {
       throw new TypeError('x');
     });
-    type('qv');
+    type('qvz');
     expect(screen.getByRole('alert')).toHaveTextContent(SEARCH_FAILED);
+    // No marks left over from the earlier search while the bar says it failed.
+    expect(highlights(editor)).toHaveLength(0);
     type('q');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(status()).toHaveTextContent('1 of 3');

@@ -13,11 +13,13 @@ import './FindBar.css';
 
 export const FIND_BAR_CLASS = 'find-bar';
 export const NO_MATCHES = 'No matches';
+export const TYPE_FIRST = 'Type the words to find first.';
 export const NOT_READY = 'The poem is still opening. Try again in a moment.';
 export const SEARCH_FAILED =
   'The search did not work. The details are in the log.';
 // Logged when a search throws. Fixed, so the log never holds the poet's words.
 export const SEARCH_FAILED_LOG = 'search in the poem failed';
+export const CLEAR_FAILED_LOG = 'clearing the search marks failed';
 
 interface Found {
   matches: Match[];
@@ -72,6 +74,16 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
         window.electron.log.error(SEARCH_FAILED_LOG, {
           error: error instanceof Error ? error.name : typeof error,
         });
+        // Clear the last search's marks, so the poem does not show matches the bar says it lacks. The
+        // editor may be what failed, so this can fail too: logged, never thrown out of the handler.
+        try {
+          show(NOTHING, false);
+        } catch (clearError) {
+          window.electron.log.error(CLEAR_FAILED_LOG, {
+            error:
+              clearError instanceof Error ? clearError.name : typeof clearError,
+          });
+        }
         setFound(NOTHING);
         setProblem(SEARCH_FAILED);
       }
@@ -114,10 +126,16 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
   };
 
   const close = () => {
-    show({ matches: [], current: -1 });
+    // Back to the poem with the cursor just after the last match: the poet keeps their place, and their
+    // next keystroke does not replace the match (a replacement would be recorded in the timelapse).
+    const match = found.matches[found.current];
+    if (editor && !editor.isDestroyed) {
+      let tr = withHighlights(editor.state.tr, NOTHING);
+      if (match) tr = tr.setSelection(TextSelection.create(tr.doc, match.to));
+      editor.view.dispatch(tr);
+    }
     setOpen(false);
     setProblem(null);
-    // Back to the poem, with the last match still selected so the poet can carry on from it.
     editor?.commands.focus();
   };
 
@@ -140,6 +158,9 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
   else if (query && total === 0) status = NO_MATCHES;
   else if (total) status = `${found.current + 1} of ${total}`;
 
+  // Why the arrows are unavailable: nothing typed yet, or the status ("No matches").
+  const describedBy = query ? 'find-bar-status' : 'find-bar-reason';
+
   return (
     <div className={FIND_BAR_CLASS} role="search">
       <input
@@ -155,13 +176,19 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
         }}
         onKeyDown={onKeyDown}
       />
-      <span className="find-bar-status" role="status">
+      <span id="find-bar-status" className="find-bar-status" role="status">
         {status}
       </span>
+      {!query && (
+        <span id="find-bar-reason" hidden>
+          {TYPE_FIRST}
+        </span>
+      )}
       <button
         type="button"
         className="icon-button"
         aria-label="Previous match"
+        aria-describedby={describedBy}
         disabled={total === 0}
         onClick={() => step(-1)}
       >
@@ -171,6 +198,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
         type="button"
         className="icon-button"
         aria-label="Next match"
+        aria-describedby={describedBy}
         disabled={total === 0}
         onClick={() => step(1)}
       >
