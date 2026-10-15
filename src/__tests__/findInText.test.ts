@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { getSchema } from '@tiptap/core';
 import { generateJSON } from '@tiptap/html';
+import StarterKit from '@tiptap/starter-kit';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import poemExtensions from '../shared/poemExtensions';
 import findInText from '../renderer/search/findInText';
@@ -144,5 +145,22 @@ describe('findInText non-ASCII', () => {
     expect(matches).toHaveLength(1);
     // First paragraph: 2 boundary tokens + 100 UTF-16 units; second text starts after its open token.
     expect(matches[0]).toEqual({ from: 100 + 2 + 1, to: 100 + 2 + 3 });
+  });
+});
+
+describe('findInText: blocks inside blocks', () => {
+  // The poem schema has only paragraphs, but the search must not depend on that: a schema with a
+  // container (here a blockquote) is searched inside it, at the right positions.
+  it('FT-S-5 finds text inside a container block', () => {
+    const quoting = [StarterKit];
+    const doc = getSchema(quoting).nodeFromJSON(
+      generateJSON('<p>zq</p><blockquote><p>qv zq</p></blockquote>', quoting)
+    );
+    const matches = find(doc, 'zq', 'zq');
+    // Paragraph 0-4 holds zq at 1-3; the blockquote opens at 4, its paragraph at 5, text at 6.
+    expect(matches).toEqual([
+      { from: 1, to: 3 },
+      { from: 9, to: 11 },
+    ]);
   });
 });

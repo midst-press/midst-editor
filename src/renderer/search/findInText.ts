@@ -31,7 +31,7 @@ function lineOf(block: ProseMirrorNode, start: number) {
   block.forEach((child, offset) => {
     const at = start + offset;
     if (child.isText) {
-      const value = child.text ?? '';
+      const value = child.textContent;
       for (let i = 0; i < value.length; i += 1) positions.push(at + i);
       text += value;
     } else {

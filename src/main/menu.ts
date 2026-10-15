@@ -49,6 +49,9 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
 const toggleEditMode = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-edit-mode');
 };
+const findInPoem = (mainWindow: BrowserWindow) => {
+  mainWindow.webContents.send('find-in-poem');
+};
 const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
 };
@@ -474,6 +477,11 @@ export default class MenuBuilder {
 
   private modeItems(modifier: string, spellcheckLabel: string) {
     return [
+      {
+        label: 'Find',
+        accelerator: `${modifier}+F`,
+        click: () => findInPoem(this.mainWindow),
+      },
       {
         label: 'Toggle Timeline',
         accelerator: `${modifier}+T`,
