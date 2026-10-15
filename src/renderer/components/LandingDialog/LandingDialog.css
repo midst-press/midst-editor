@@ -16,7 +16,7 @@
 }
 
 .message-container {
-  background-color: #ffced4;
+  background-color: var(--midst-primary);
   width: 80%;
   max-width: 400px;
   display: flex;

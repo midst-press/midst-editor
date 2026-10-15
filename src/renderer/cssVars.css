@@ -1,0 +1,11 @@
+/* The renderer's colours, set at the root (GitHub #15). Names and sources are in cssVars.ts; a test
+   (src/__tests__/cssVars.test.ts) holds every value here equal to the MUI theme built from theme.ts. */
+:root {
+  --midst-background: #fff5ee;
+  --midst-primary: #ffced4;
+  --midst-primary-dark: #ffa4b9;
+  --midst-secondary-light: rgb(255, 182, 199);
+  --midst-secondary-contrast-text: #ffffff;
+  --midst-error-light: #ef5350;
+  --midst-text-primary: rgba(0, 0, 0, 0.87);
+}

@@ -2,7 +2,6 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import { useTheme } from '@mui/material/styles';
 import { getSchema } from '@tiptap/core';
 import { DOMParser as ProseMirrorParser } from '@tiptap/pm/model';
 import poemExtensions from 'shared/poemExtensions';
@@ -13,6 +12,7 @@ import {
   restartFrom,
   wouldChange,
 } from 'renderer/tracking/restartFrom';
+import { cssVar } from '../../cssVars';
 import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
 import RestartIcon from './restartIcon';
 
@@ -63,7 +63,6 @@ export default function RestartFromButton({
   step: number;
   pause: () => void;
 }) {
-  const theme = useTheme();
   const navigate = useNavigate();
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
@@ -132,7 +131,7 @@ export default function RestartFromButton({
             type="button"
             className="control-bar-icon"
             style={{
-              color: theme.palette.secondary.contrastText,
+              color: cssVar('secondaryContrastText'),
               ...(reason ? UNAVAILABLE_STYLE : {}),
             }}
             disabled={reason !== null}
@@ -148,7 +147,7 @@ export default function RestartFromButton({
         </span>
       </Tooltip>
       {failed && (
-        <span role="alert" style={{ color: theme.palette.error.light }}>
+        <span role="alert" style={{ color: cssVar('errorLight') }}>
           {SHOWN_MESSAGE}
         </span>
       )}

@@ -1,6 +1,7 @@
 import CssBaseline from '@mui/material/CssBaseline';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
+import './cssVars.css';
 import './App.css';
 import { useState, useEffect, useMemo } from 'react';
 import Editor from './components/Editor';
