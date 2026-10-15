@@ -49,8 +49,11 @@ export default function Replay() {
   const glide = useRef<Glide | null>(null);
   const autoscroll = useAutoscroll();
   // Read by the follow effect without re-running it: turning the setting over changes no frame.
+  // Kept current by an effect, not during render. Declared before the follow effect, so it runs first.
   const following = useRef(autoscroll.on);
-  following.current = autoscroll.on;
+  useEffect(() => {
+    following.current = autoscroll.on;
+  }, [autoscroll.on]);
   const toggleAutoscroll = () => {
     // Turned off mid-glide: stop where it is, so playback does not wait on a scroll the poet turned off.
     if (!autoscroll.toggle() && glide.current && gliding(glide.current)) {
