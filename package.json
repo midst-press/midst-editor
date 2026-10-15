@@ -4,8 +4,8 @@
   "license": "AGPL-3.0-or-later",
   "version": "0.5.0",
   "author": {
-    "name": "Jules",
-    "url": "https://github.com/jshafto"
+    "name": "Stuart Swerdloff",
+    "url": "https://midst.press"
   },
   "main": "./src/main/main.ts",
   "scripts": {
