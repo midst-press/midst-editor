@@ -214,17 +214,37 @@ const configuration: webpack.Configuration = {
 const merged = merge(baseConfig, configuration);
 
 // Inject the refresh transformer into the ts-loader rule from base.
-// webpack-merge concatenates module.rules, so we reach into the merged result
-// rather than defining a second rule (which would run ts-loader twice).
-merged.module?.rules?.forEach((rule) => {
-  const { use } = rule as any;
+// webpack-merge concatenates rule references, so we build a NEW rules array with a
+// COPIED rule and COPIED options — base's own config object is never written.
+const baseRules = (merged.module?.rules ?? []) as any[];
+let patched = 0;
+const patchedRules = baseRules.map((rule) => {
+  const { use } = rule;
   const loaderName =
     typeof use === 'object' && !Array.isArray(use) ? use?.loader : undefined;
   if (loaderName === 'ts-loader' && use?.options) {
-    use.options.getCustomTransformers = () => ({
-      before: [reactRefreshTypescript()],
-    });
+    patched += 1;
+    return {
+      ...rule,
+      use: {
+        ...use,
+        options: {
+          ...use.options,
+          getCustomTransformers: () => ({
+            before: [reactRefreshTypescript()],
+          }),
+        },
+      },
+    };
   }
+  return rule;
 });
+if (patched !== 1) {
+  throw new Error(
+    `Expected exactly one ts-loader rule to patch, found ${patched}. ` +
+      'The base config may have changed shape — update webpack.config.renderer.dev.ts.'
+  );
+}
+merged.module = { ...merged.module, rules: patchedRules };
 
 export default merged;
