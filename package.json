@@ -431,5 +431,6 @@
       "src/main/**"
     ],
     "logLevel": "quiet"
-  }
+  },
+  "type": "commonjs"
 }

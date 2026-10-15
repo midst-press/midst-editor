@@ -1,10 +1,10 @@
 /* eslint import/prefer-default-export: off */
 import { BrowserWindow } from 'electron';
 import path from 'path';
-import { compareStrings } from 'renderer/tracking/utils';
 import { URL } from 'url';
 import { generateJSON, generateHTML } from '@tiptap/html';
 import { JSONContent } from '@tiptap/core';
+import { compareStrings } from '../renderer/tracking/utils';
 import poemExtensions from '../shared/poemExtensions';
 import store from './store';
 
