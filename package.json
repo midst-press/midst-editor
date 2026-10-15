@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "author": {
     "name": "Jules",
     "url": "https://github.com/jshafto"
@@ -159,7 +159,7 @@
         "lines": 100,
         "statements": 100
       },
-      "./src/renderer/tracking/restore.ts": {
+      "./src/renderer/tracking/restartFrom.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
@@ -407,5 +407,6 @@
       "src/main/**"
     ],
     "logLevel": "quiet"
-  }
+  },
+  "type": "commonjs"
 }

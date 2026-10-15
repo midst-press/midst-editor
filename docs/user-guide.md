@@ -143,7 +143,7 @@ Each shortcut is written as the names on the keys, joined with +. Hold the first
 | Copy                                | Command+C         | Ctrl+C            | Edit > Copy                                                                         |
 | Paste                               | Command+V         | Ctrl+V            | Edit > Paste                                                                        |
 | Select the whole poem               | Command+A         | Ctrl+A            | Edit > Select All                                                                   |
-| Switch between writing and Replay   | Command+E         | Ctrl+E            | Edit > Toggle Edit Mode                                                             |
+| Switch between writing and Replay   | Command+T         | Ctrl+T            | Edit > Toggle Timeline                                                              |
 | Turn spellcheck on or off           | Command+;         | Ctrl+;            | Edit > Show/hide spellcheck on macOS; Edit > Toggle Spellcheck on Windows and Linux |
 | Fill the screen with Midst, or stop | Command+Control+F | F11               | View > Toggle Full Screen                                                           |
 | Make the text larger                | Command+Shift+=   | Ctrl+=            | View > Increase text size                                                           |
