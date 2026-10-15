@@ -32,7 +32,7 @@ export const WHAT_IT_DOES: Record<string, string> = {
   Copy: 'Copy',
   Paste: 'Paste',
   'Select All': 'Select the whole poem',
-  'Toggle Edit Mode': 'Switch between writing and Replay',
+  'Toggle Timeline': 'Switch between writing and Replay',
   'Show/hide spellcheck': 'Turn spellcheck on or off',
   'Toggle Spellcheck': 'Turn spellcheck on or off',
   'Toggle Full Screen': 'Fill the screen with Midst, or stop',
