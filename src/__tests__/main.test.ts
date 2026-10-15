@@ -43,7 +43,7 @@ interface FakeElectron {
     addRecentDocument: jest.Mock;
     applicationMenu: { getMenuItemById: jest.Mock } | undefined;
   };
-  dialog: { showMessageBoxSync: jest.Mock };
+  dialog: { showMessageBoxSync: jest.Mock; showErrorBox: jest.Mock };
   shell: { openExternal: jest.Mock };
 }
 
@@ -111,7 +111,10 @@ jest.mock('electron', () => {
       },
     },
     BrowserWindow,
-    dialog: { showMessageBoxSync: jest.fn(() => state.dialogResponse) },
+    dialog: {
+      showMessageBoxSync: jest.fn(() => state.dialogResponse),
+      showErrorBox: jest.fn(),
+    },
     shell: { openExternal: jest.fn() },
     ipcMain: {
       on: (channel: string, fn: Handler) =>
@@ -147,8 +150,22 @@ jest.mock('electron-log', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    // The renderer's entries go through log.scope('renderer'); each boot gets its own scoped logger.
+    scope: jest.fn(() => ({
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: jest.fn(),
+      error: jest.fn(),
+    })),
     transports: { file: { level: 'info' }, console: { level: 'info' } },
   },
+}));
+
+// The real handler registration would attach to the test runner's own process; its behaviour is
+// covered in logging.test.ts. Here only that main.ts registers it, and what it tells the poet.
+jest.mock('../main/logging', () => ({
+  ...jest.requireActual('../main/logging'),
+  registerUncaughtHandlers: jest.fn(),
 }));
 
 jest.mock('@jshafto/custom-electron-titlebar-update/main', () => ({
@@ -196,6 +213,7 @@ const boot = async (opts: { ready?: boolean } = {}) => {
   const menu = await import('../main/menu');
   const store = (await import('../main/store')).default;
   const log = (await import('electron-log')).default;
+  const logging = await import('../main/logging');
   const titlebar = await import(
     '@jshafto/custom-electron-titlebar-update/main'
   );
@@ -229,6 +247,7 @@ const boot = async (opts: { ready?: boolean } = {}) => {
     menu,
     store,
     log,
+    logging,
     titlebar,
     autoUpdater,
     flush,
@@ -238,6 +257,13 @@ const boot = async (opts: { ready?: boolean } = {}) => {
     fireApp,
   };
 };
+
+// The logger main.ts made with log.scope('renderer') (the mock hands out a fresh one per call).
+const rendererScope = (log: unknown) =>
+  (log as { scope: jest.Mock }).scope.mock.results[0].value as Record<
+    'debug' | 'info' | 'warn' | 'error',
+    jest.Mock
+  >;
 
 // Wraps fs.readFile so a test can wait for the callback main.ts passes (the 'ready-to-show' handler
 // returns nothing to await) without any fixed sleep.
@@ -943,22 +969,51 @@ describe('main process', () => {
       ['info', 'info'],
       ['anything-else', 'info'],
     ] as const)(
-      'log-message at level %s is forwarded to log.%s with a renderer prefix',
+      'log-message at level %s is forwarded to the renderer scope as %s, with the message unchanged',
       async (level, method) => {
         const { log, fireIpc } = await boot();
         await fireIpc('log-message', {}, level, 'zq');
-        expect(log[method]).toHaveBeenCalledWith('[renderer] zq');
+        expect(rendererScope(log)[method]).toHaveBeenCalledWith('zq');
         await fireIpc('log-message', {}, level, 'xv', { n: 1 });
-        expect(log[method]).toHaveBeenCalledWith('[renderer] xv', { n: 1 });
+        expect(rendererScope(log)[method]).toHaveBeenCalledWith('xv', { n: 1 });
+        // Marked by scope, not by a text prefix, and never through the main-process logger.
+        expect(log[method]).not.toHaveBeenCalled();
       }
     );
+
+    it('log-message goes through the scope named renderer', async () => {
+      const { log } = await boot();
+      expect(log.scope).toHaveBeenCalledWith('renderer');
+    });
 
     it('log-message does not call other levels', async () => {
       const { log, fireIpc } = await boot();
       await fireIpc('log-message', {}, 'warn', 'zq');
-      expect(log.error).not.toHaveBeenCalled();
-      expect(log.debug).not.toHaveBeenCalled();
-      expect(log.info).not.toHaveBeenCalledWith('[renderer] zq');
+      expect(rendererScope(log).error).not.toHaveBeenCalled();
+      expect(rendererScope(log).debug).not.toHaveBeenCalled();
+      expect(rendererScope(log).info).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('uncaught errors', () => {
+    it('registers the handlers on the process', async () => {
+      const { logging } = await boot();
+      expect(logging.registerUncaughtHandlers).toHaveBeenCalledTimes(1);
+      expect(logging.registerUncaughtHandlers).toHaveBeenCalledWith(
+        process,
+        expect.any(Function)
+      );
+    });
+
+    it('tells the poet with the error name, and never a message', async () => {
+      const { logging, electron } = await boot();
+      const [, notify] = (logging.registerUncaughtHandlers as jest.Mock).mock
+        .calls[0] as [unknown, typeof String];
+      notify('TypeError');
+      expect(electron.dialog.showErrorBox).toHaveBeenCalledTimes(1);
+      const [title, content] = electron.dialog.showErrorBox.mock.calls[0];
+      expect(title).toBe('Midst hit an unexpected error');
+      expect(content).toBe('TypeError. It has been recorded in the log.');
     });
   });
 });
