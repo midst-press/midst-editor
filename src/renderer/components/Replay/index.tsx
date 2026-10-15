@@ -18,13 +18,21 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from 'shared/poemExtensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
+import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';
 import { HistoryContext, TextContext } from 'renderer/context';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
+import {
+  scrollParent,
+  targetScrollTop,
+  glideTo,
+  Glide,
+  gliding,
+} from './follow';
+import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
 import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
@@ -38,6 +46,17 @@ export default function Replay() {
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const glide = useRef<Glide | null>(null);
+  const autoscroll = useAutoscroll();
+  // Read by the follow effect without re-running it: turning the setting over changes no frame.
+  const following = useRef(autoscroll.on);
+  following.current = autoscroll.on;
+  const toggleAutoscroll = () => {
+    // Turned off mid-glide: stop where it is, so playback does not wait on a scroll the poet turned off.
+    if (!autoscroll.toggle() && glide.current && gliding(glide.current)) {
+      cancelAnimationFrame(glide.current.frame);
+      glide.current = null;
+    }
+  };
 
   const { step, setStep, playing, play, pause } = usePlayback(maxStep, glide);
 
@@ -94,7 +113,7 @@ export default function Replay() {
     const after = editor.state.doc;
     const changed = after.content.findDiffStart(before.content);
     const scroller = scrollParent(editor.view.dom as HTMLElement);
-    if (changed != null && scroller) {
+    if (following.current && changed != null && scroller) {
       const at = Math.min(changed, after.content.size);
       const point = editor.view.coordsAtPos(at);
       const to = targetScrollTop(
@@ -208,6 +227,27 @@ export default function Replay() {
             onClick={fontSize.decrease}
           >
             <TextDecreaseIcon fontSize="small" />
+          </button>
+        </Tooltip>
+        <Tooltip
+          title={
+            autoscroll.on
+              ? 'Following the writing as it replays. Click to stop scrolling.'
+              : 'Not following the writing: the page stays where you put it. Click to follow.'
+          }
+          TransitionComponent={Zoom}
+          enterDelay={1000}
+          arrow
+        >
+          <button
+            aria-label="Follow the writing"
+            aria-pressed={autoscroll.on}
+            type="button"
+            className="icon-button size-icon"
+            style={autoscroll.on ? undefined : { opacity: 0.5 }}
+            onClick={toggleAutoscroll}
+          >
+            <VerticalAlignCenterIcon fontSize="small" />
           </button>
         </Tooltip>
       </div>

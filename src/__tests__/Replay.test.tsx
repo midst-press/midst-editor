@@ -382,6 +382,38 @@ describe('Replay: text size', () => {
   });
 });
 
+describe('Replay: following the writing (GitHub #23)', () => {
+  const follow = () =>
+    screen.getByRole('button', { name: 'Follow the writing' });
+
+  it('follows by default, and says so', () => {
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('turns off and on again, and remembers each choice', () => {
+    mount();
+    fireEvent.click(follow());
+    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+    expect(bridge.values['replay-autoscroll']).toBe('false');
+    fireEvent.click(follow());
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+    expect(bridge.values['replay-autoscroll']).toBe('true');
+  });
+
+  it('starts off when it was turned off last time', () => {
+    bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'false' });
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('follows when the stored value is anything but "false"', () => {
+    bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'yes' });
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 describe('Replay: marking a draft', () => {
   it('records a marker at the frame shown, counts it as unsaved, then saves', () => {
     mount();

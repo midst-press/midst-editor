@@ -75,7 +75,7 @@ In Replay you cannot type. Watching does not change the poem. The one way to cha
 **What you see**
 
 - **The poem**, as it was at the moment you are looking at. When Replay opens, that is the poem as it is now.
-- **At the top right**, **Increase text size** and **Decrease text size**.
+- **At the top right**, **Increase text size**, **Decrease text size** and **Follow the writing**. While **Follow the writing** is on, the page scrolls to keep the writing in view as it replays. Turn it off and the page stays where you put it. Midst remembers which you chose.
 - **Along the bottom**, from left to right: the play button, the timeline, **Mark this moment as a draft**, **Restart from here**, **Drafts** and **Edit**.
 
 **To play the poem**, press the play button (a triangle). It turns into a pause button (two bars); press it to stop where you are. The page follows the place where you were writing.
