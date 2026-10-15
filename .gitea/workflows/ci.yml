@@ -7,7 +7,8 @@
 # here.
 #
 # Host mode: these steps run directly on the runner machine, not in a VM. Nothing is installed into
-# any Python the host uses: pre-commit goes into a throwaway virtual environment under RUNNER_TEMP.
+# any Python the host uses: pre-commit is the host's Homebrew install, checked by the toolchain guard,
+# and its hook environments stay in its cache between jobs instead of being rebuilt on each one.
 #
 # Homebrew first, always: every step runs under Homebrew's bash, the job puts Homebrew at the front
 # of PATH, and .gitea/scripts/toolchain_guard.sh fails the job if what macOS ships (bash 3.2,
@@ -47,11 +48,14 @@ jobs:
       - name: toolchain guard (Homebrew first, current versions)
         run: bash .gitea/scripts/toolchain_guard.sh .nvmrc
       - run: npm ci --ignore-scripts
-      - name: pre-commit, in a throwaway virtual environment
+      # Homebrew's pre-commit (the guard above failed the job if it is missing or not Homebrew's). A fresh
+      # virtual environment and a pip install on every job cost about 8 s, and an empty hook cache about 9 s
+      # more, before any check ran. Whether the cache was already there is printed, so the log shows it.
+      - name: pre-commit (the host's Homebrew install)
         run: |
-          python3 -m venv "$RUNNER_TEMP/precommit"
-          "$RUNNER_TEMP/precommit/bin/pip" install --quiet 'pre-commit==4.6.2'
-          "$RUNNER_TEMP/precommit/bin/pre-commit" run --all-files --show-diff-on-failure
+          cache="${PRE_COMMIT_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/pre-commit}"
+          if [ -d "$cache" ]; then echo "pre-commit cache: present at $cache"; else echo "pre-commit cache: none yet at $cache"; fi
+          pre-commit run --all-files --show-diff-on-failure
       # The jest setup file refuses to run until both bundles exist; see .github/workflows/ci.yml.
       - run: npm run build
       - run: npm test -- --coverage
