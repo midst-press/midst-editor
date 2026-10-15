@@ -131,7 +131,7 @@ export default function RestartFromButton({
             type="button"
             className="control-bar-icon"
             style={{
-              color: cssVar('secondaryContrastText'),
+              color: cssVar('onControlBar'),
               ...(reason ? UNAVAILABLE_STYLE : {}),
             }}
             disabled={reason !== null}

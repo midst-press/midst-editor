@@ -14,6 +14,7 @@ const mockTitlebarInstances: {
   updateTitle: jest.Mock;
   updateMenuPosition: jest.Mock;
   updateTitleAlignment: jest.Mock;
+  updateBackground: jest.Mock;
 }[] = [];
 
 jest.mock('electron', () => ({
@@ -37,6 +38,7 @@ jest.mock('@jshafto/custom-electron-titlebar-update', () => ({
       updateTitle: jest.fn(),
       updateMenuPosition: jest.fn(),
       updateTitleAlignment: jest.fn(),
+      updateBackground: jest.fn(),
     };
     mockTitlebarInstances.push(instance);
     return instance;
@@ -264,6 +266,60 @@ describe('DOMContentLoaded', () => {
       backgroundColor: { hex: '#FFF5EE' },
       minHeight: 270,
       minWidth: 400,
+    });
+  });
+
+  describe('the title bar colour follows the scheme (GitHub #16)', () => {
+    let listeners: (() => void)[];
+    const scheme = { matches: false };
+    beforeEach(() => {
+      listeners = [];
+      scheme.matches = false;
+      Object.defineProperty(window, 'matchMedia', {
+        configurable: true,
+        value: jest.fn((query: string) => ({
+          get matches() {
+            return query === '(prefers-color-scheme: dark)' && scheme.matches;
+          },
+          addEventListener: (type: string, fn: () => void) => {
+            if (type === 'change') listeners.push(fn);
+          },
+        })),
+      });
+    });
+    afterEach(() => {
+      delete (window as { matchMedia?: unknown }).matchMedia;
+    });
+
+    it('starts dark when the dark scheme is in force', () => {
+      scheme.matches = true;
+      loadPreload();
+      fireDomContentLoaded();
+      expect(mockTitlebarInstances[0].options).toMatchObject({
+        backgroundColor: { hex: '#1F1A1C' },
+      });
+    });
+
+    it('starts light when it is not', () => {
+      loadPreload();
+      fireDomContentLoaded();
+      expect(mockTitlebarInstances[0].options).toMatchObject({
+        backgroundColor: { hex: '#FFF5EE' },
+      });
+    });
+
+    it('changes colour when the scheme changes, either way', () => {
+      loadPreload();
+      fireDomContentLoaded();
+      const { updateBackground } = mockTitlebarInstances[0];
+      scheme.matches = true;
+      listeners.forEach((fn) => fn());
+      scheme.matches = false;
+      listeners.forEach((fn) => fn());
+      expect(updateBackground.mock.calls).toEqual([
+        [{ hex: '#1F1A1C' }],
+        [{ hex: '#FFF5EE' }],
+      ]);
     });
   });
 

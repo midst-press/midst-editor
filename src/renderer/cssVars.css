@@ -1,11 +1,65 @@
-/* The renderer's colours, set at the root (GitHub #15). Names and sources are in cssVars.ts; a test
-   (src/__tests__/cssVars.test.ts) holds every value here equal to the MUI theme built from theme.ts. */
+/* The renderer's colours, set at the root (GitHub #15), light and dark (GitHub #16). Names and sources are in
+   cssVars.ts; a test (src/__tests__/cssVars.test.ts) holds every theme-derived value in each block equal to
+   that scheme's MUI theme, and every text colour in the dark block to WCAG AA contrast.
+
+   Which block applies is prefers-color-scheme, which follows the View > Appearance choice: the main process
+   sets nativeTheme.themeSource, and 'system' leaves it to the OS. */
 :root {
+  color-scheme: light;
   --midst-background: #fff5ee;
   --midst-primary: #ffced4;
   --midst-primary-dark: #ffa4b9;
-  --midst-secondary-light: rgb(255, 182, 199);
-  --midst-secondary-contrast-text: #ffffff;
   --midst-error-light: #ef5350;
   --midst-text-primary: rgba(0, 0, 0, 0.87);
+  --midst-control-bar: #ffa4b9;
+  --midst-on-control-bar: #ffffff;
+  --midst-control-bar-hover: rgb(255, 182, 199);
+  --midst-card: #ffced4;
+  --midst-on-card: rgba(0, 0, 0, 0.87);
+  --midst-logo: #000;
+  --midst-surface: #fff;
+  --midst-muted-text: rgba(77, 77, 77, 0.6);
+  --midst-scrollbar-thumb: rgba(0, 0, 0, 0.25);
+  --midst-tooltip-text: #fff;
+  --midst-button-background: rgba(240, 240, 240, 1);
+  --midst-button-hover: rgba(230, 230, 230, 0.85);
+  --midst-button-text: rgba(77, 77, 77, 0.9);
+  --midst-link: dodgerblue;
+  --midst-find-border: #d8c8bc;
+  --midst-find-input-border: #c8b8ac;
+  --midst-find-status: #555;
+  --midst-find-problem: #a00;
+  --midst-search-match: rgba(255, 213, 79, 0.45);
+  --midst-search-match-current: rgba(255, 152, 0, 0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --midst-background: #1f1a1c;
+    --midst-primary: #ffced4;
+    --midst-primary-dark: #ffa4b9;
+    --midst-error-light: #e57373;
+    --midst-text-primary: #fff;
+    --midst-control-bar: #4a2f38;
+    --midst-on-control-bar: #fff;
+    --midst-control-bar-hover: rgba(255, 255, 255, 0.12);
+    --midst-card: #4a2f38;
+    --midst-on-card: #fff;
+    --midst-logo: #fff;
+    --midst-surface: #2b2427;
+    --midst-muted-text: rgba(255, 255, 255, 0.6);
+    --midst-scrollbar-thumb: rgba(255, 255, 255, 0.25);
+    --midst-tooltip-text: #1f1a1c;
+    --midst-button-background: #2b2427;
+    --midst-button-hover: #3a3236;
+    --midst-button-text: rgba(255, 255, 255, 0.87);
+    --midst-link: #9ec5ff;
+    --midst-find-border: #5a4c52;
+    --midst-find-input-border: #7d6d73;
+    --midst-find-status: #c9bcc1;
+    --midst-find-problem: #ff8a80;
+    --midst-search-match: rgba(255, 213, 79, 0.3);
+    --midst-search-match-current: rgba(255, 152, 0, 0.5);
+  }
 }
