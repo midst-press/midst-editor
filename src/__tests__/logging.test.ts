@@ -406,7 +406,21 @@ describe('logging', () => {
     });
     const main = () => path.join(dir, 'main.log');
     const archive = (n: number) => path.join(dir, `main.${n}.log`);
-    const fakeFile = (p: string) => ({ toString: () => p, crop: jest.fn() });
+    // electron-log's file object, reduced to what rotation uses, over the real file system.
+    const fakeFile = (p: string) => ({
+      toString: () => p,
+      clear: jest.fn(() => {
+        fs.writeFileSync(p, '');
+        return true;
+      }),
+      writeLine: jest.fn((text: string) => fs.appendFileSync(p, `${text}\n`)),
+    });
+    const records = () =>
+      fs
+        .readFileSync(main(), 'utf8')
+        .split('\n')
+        .filter((l) => l.length > 0)
+        .map((l) => JSON.parse(l));
     const names = () => fs.readdirSync(dir).sort();
 
     it('keeps exactly five archives after many rotations: newest is main.1.log, oldest dropped', () => {
@@ -467,7 +481,15 @@ describe('logging', () => {
         'Could not rotate log',
         expect.objectContaining({ code: 'ENOENT' })
       );
-      expect(file.crop).toHaveBeenCalledWith(256 * 1024);
+      // The missing file is replaced by one JSON line that says what happened.
+      expect(records()).toEqual([
+        expect.objectContaining({
+          level: 'warn',
+          source: 'main',
+          msg: 'log rotation failed; earlier entries were dropped',
+          meta: { error: 'Error', code: 'ENOENT', kept: 0 },
+        }),
+      ]);
     });
 
     it('reports a failure while shifting (the oldest slot is a non-empty folder), crops, and throws nothing', () => {
@@ -483,8 +505,48 @@ describe('logging', () => {
         'Could not rotate log',
         expect.objectContaining({ code: 'ERR_FS_EISDIR' })
       );
-      expect(file.crop).toHaveBeenCalledTimes(1);
-      expect(fs.readFileSync(main(), 'utf8')).toBe('now');
+      // Cropped, not lost: the marker, then the whole lines that were there.
+      expect(fs.readFileSync(main(), 'utf8').split('\n')[1]).toBe('now');
+      expect(
+        JSON.parse(fs.readFileSync(main(), 'utf8').split('\n')[0])
+      ).toEqual(
+        expect.objectContaining({
+          meta: { error: 'SystemError', code: 'ERR_FS_EISDIR', kept: 1 },
+        })
+      );
+    });
+
+    it('a crop keeps the tail from a whole line, and every line of the result is JSON', () => {
+      const { mod } = load();
+      const line = (i: number) =>
+        JSON.stringify({ msg: `entry ${i}`, pad: 'x'.repeat(40) });
+      const lines = Array.from({ length: 50 }, (_, i) => line(i));
+      fs.writeFileSync(main(), `${lines.join('\n')}\n`);
+      // A budget that ends in the middle of a line.
+      const budget = Math.floor(line(0).length * 10.5);
+      mod.cropToJsonl(fakeFile(main()), new Error('zq'), budget);
+      const out = records();
+      expect(out[0].msg).toBe(
+        'log rotation failed; earlier entries were dropped'
+      );
+      const kept = out.slice(1).map((r) => r.msg);
+      // Only whole lines, the newest ones, in order; the partial line at the cut is dropped.
+      expect(kept).toEqual(
+        lines.slice(50 - kept.length).map((l) => JSON.parse(l).msg)
+      );
+      expect(kept.length).toBe(10);
+      expect(out[0].meta).toEqual({ error: 'Error', kept: 10 });
+      expect(JSON.stringify(out)).not.toContain('zq');
+    });
+
+    it('a crop of a file smaller than the budget keeps every line', () => {
+      const { mod } = load();
+      fs.writeFileSync(main(), '{"a":1}\n{"b":2}\n');
+      mod.cropToJsonl(fakeFile(main()), { code: 'not a code!' }, 1024);
+      const out = records();
+      expect(out.slice(1)).toEqual([{ a: 1 }, { b: 2 }]);
+      // A code that is not a fixed token is left out.
+      expect(out[0].meta).toEqual({ error: 'NonError', kept: 2 });
     });
 
     it('does not crop when every rename succeeds', () => {
@@ -492,7 +554,8 @@ describe('logging', () => {
       fs.writeFileSync(main(), 'now');
       const file = fakeFile(main());
       mod.rotateLogs(file, jest.fn());
-      expect(file.crop).not.toHaveBeenCalled();
+      expect(file.clear).not.toHaveBeenCalled();
+      expect(file.writeLine).not.toHaveBeenCalled();
     });
 
     it('is installed with a 5 MB limit, and a failure is reported on the console transport', () => {
@@ -500,7 +563,7 @@ describe('logging', () => {
       expect(log.transports.file.maxSize).toBe(5 * 1024 * 1024);
       const file = fakeFile(main());
       log.transports.file.archiveLog(file);
-      expect(file.crop).toHaveBeenCalledTimes(1);
+      expect(file.clear).toHaveBeenCalledTimes(1);
       expect(log.transports.console).toHaveBeenCalledTimes(1);
       const msg = log.transports.console.mock.calls[0][0];
       expect(msg.level).toBe('warn');

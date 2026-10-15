@@ -43,4 +43,21 @@ describe('describeError', () => {
   ])('reports %s as NonError with no content', (_l, value) => {
     expect(describeError(value)).toEqual({ name: 'NonError', frames: [] });
   });
+
+  it('recognises an error from another realm, and still drops its message', () => {
+    // eslint-disable-next-line global-require
+    const vm = require('vm');
+    const foreign = vm.runInNewContext("new TypeError('zq-foreign-text')");
+    expect(foreign instanceof Error).toBe(false);
+    const summary = describeError(foreign);
+    expect(summary.name).toBe('TypeError');
+    expect(JSON.stringify(summary)).not.toContain('zq-foreign-text');
+  });
+
+  it('an object with a name but no stack is not an error', () => {
+    expect(describeError({ name: 'zq' })).toEqual({
+      name: 'NonError',
+      frames: [],
+    });
+  });
 });

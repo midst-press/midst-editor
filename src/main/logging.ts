@@ -1,5 +1,13 @@
 import log from 'electron-log';
-import { existsSync, renameSync, rmSync } from 'fs';
+import {
+  closeSync,
+  existsSync,
+  fstatSync,
+  openSync,
+  readSync,
+  renameSync,
+  rmSync,
+} from 'fs';
 import { join, parse } from 'path';
 import { describeError } from '../shared/errorSummary';
 import store from './store';
@@ -93,9 +101,64 @@ export const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const CROP_BYTES = 256 * 1024;
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
-type LogFile = { toString: () => string; crop: (bytesAfter?: number) => void };
+type LogFile = {
+  toString: () => string;
+  clear: () => boolean;
+  writeLine: (text: string) => void;
+};
 type Report = (message: string, error: unknown) => void;
 /* eslint-enable no-unused-vars */
+
+// The last `bytes` of the file, from the first whole line on. Empty when the file cannot be read.
+function tailLines(path: string, bytes: number): string[] {
+  try {
+    const fd = openSync(path, 'r');
+    try {
+      const { size } = fstatSync(fd);
+      const start = Math.max(0, size - bytes);
+      const buf = Buffer.alloc(size - start);
+      readSync(fd, buf, 0, buf.length, start);
+      const lines = buf.toString('utf8').split('\n');
+      // A cut that did not land at the start of the file is inside a line: drop that partial line.
+      if (start > 0) lines.shift();
+      return lines.filter((line) => line.length > 0);
+    } finally {
+      closeSync(fd);
+    }
+  } catch {
+    // Unreadable or missing: nothing to keep. The marker below still says what happened.
+    return [];
+  }
+}
+
+// When rotation fails the file must still not grow without bound. electron-log's own crop writes a
+// plain "[log cropped]" line and can cut mid-line, which would break the one-JSON-object-per-line
+// rule; this keeps the tail from a line boundary and says so in a JSON line of its own.
+export function cropToJsonl(
+  file: LogFile,
+  cause: unknown,
+  bytes: number = CROP_BYTES
+): void {
+  const kept = tailLines(file.toString(), bytes);
+  const marker = formatRecord({
+    date: new Date(),
+    level: 'warn',
+    data: [
+      'log rotation failed; earlier entries were dropped',
+      {
+        error: describeError(cause).name,
+        // An fs error's code (ENOENT, EISDIR) is a fixed token, safe to log; anything else is left out.
+        ...(typeof (cause as { code?: unknown })?.code === 'string' &&
+        /^[A-Z][A-Z0-9_]*$/.test((cause as { code: string }).code)
+          ? { code: (cause as { code: string }).code }
+          : {}),
+        kept: kept.length,
+      },
+    ],
+  });
+  file.clear();
+  [marker, ...kept].forEach((line) => file.writeLine(line));
+}
 
 export function rotateLogs(
   file: LogFile,
@@ -113,13 +176,13 @@ export function rotateLogs(
   } catch (e) {
     // The transport's own fallback: keep the tail of the file rather than let it grow without bound.
     report('Could not rotate log', e);
-    file.crop(CROP_BYTES);
+    cropToJsonl(file, e);
   }
 }
 
 log.transports.file.maxSize = MAX_LOG_BYTES;
 log.transports.file.archiveLog = (file) =>
-  // `crop` exists at runtime on electron-log's file object but not in its typings.
+  // `clear` and `writeLine` exist at runtime on electron-log's file object but not in its typings.
   rotateLogs(file as unknown as LogFile, (message, error) =>
     log.transports.console({
       data: [`electron-log.transports.file: ${message}`, error],

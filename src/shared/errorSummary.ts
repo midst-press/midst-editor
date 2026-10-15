@@ -8,8 +8,17 @@ export type ErrorSummary = { name: string; frames: string[] };
 // "everything after the first line" is not enough to keep message text out; only frames are kept.
 const FRAME = /^\s*at\s/;
 
+// An error from another realm (a vm context, a different window, some Node internals under test) is
+// not `instanceof Error` here, so an object with a string name and stack counts as one too.
+const isErrorLike = (value: unknown): value is Error =>
+  value instanceof Error ||
+  (typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { name?: unknown }).name === 'string' &&
+    typeof (value as { stack?: unknown }).stack === 'string');
+
 export function describeError(value: unknown): ErrorSummary {
-  if (!(value instanceof Error)) return { name: 'NonError', frames: [] };
+  if (!isErrorLike(value)) return { name: 'NonError', frames: [] };
   const stack = typeof value.stack === 'string' ? value.stack : '';
   return {
     name: String(value.name),
