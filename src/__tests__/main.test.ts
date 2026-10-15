@@ -172,6 +172,7 @@ jest.mock('../main/store', () => {
 jest.mock('../main/menu', () => ({
   __esModule: true,
   default: jest.fn(() => ({ buildMenu: jest.fn() })),
+  applyStoredAppearance: jest.fn(),
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
@@ -289,6 +290,16 @@ describe('main process', () => {
     if (realMinimized === undefined) delete process.env.START_MINIMIZED;
     else process.env.START_MINIMIZED = realMinimized;
     fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('applies the stored light or dark choice before the window loads (GitHub #16)', async () => {
+    const { menu, state } = await boot();
+    const applied = menu.applyStoredAppearance as jest.Mock;
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(state.windows).toHaveLength(1);
+    expect(applied.mock.invocationCallOrder[0]).toBeLessThan(
+      (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
+    );
   });
 
   describe('closing the window', () => {

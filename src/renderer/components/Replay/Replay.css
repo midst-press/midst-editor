@@ -66,7 +66,7 @@
 .MuiSlider-valueLabel {
   border-radius: 5px !important;
   width: 68px !important;
-  background-color: white !important;
+  background-color: var(--midst-surface) !important;
   color: var(--midst-primary-dark) !important;
   border: var(--midst-primary-dark) solid 1px !important;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -93,18 +93,18 @@
 
 .control-bar-icon:hover {
   /* theme.palette.secondary.light */
-  background-color: var(--midst-secondary-light);
+  background-color: var(--midst-control-bar-hover);
 }
 
 .MuiTooltip-tooltip.custom {
-  background-color: white !important;
+  background-color: var(--midst-surface) !important;
   color: var(--midst-primary-dark) !important;
   border: var(--midst-primary-dark) solid 1px !important;
   margin-bottom: 6px !important;
 }
 
 .MuiTooltip-arrow.custom-arrow {
-  color: white !important;
+  color: var(--midst-surface) !important;
 }
 
 .HistoryDisplay span,

@@ -27,6 +27,7 @@ import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { applyLogLevel, LOG_LEVEL_KEY } from './logging';
 import MenuBuilder, {
+  applyStoredAppearance,
   isDevelopment,
   save,
   newFile,
@@ -97,6 +98,8 @@ const createWindow = async () => {
   if (isDebug) {
     await installExtensions();
   }
+
+  applyStoredAppearance();
 
   const RESOURCES_PATH = app.isPackaged
     ? path.join(process.resourcesPath, 'assets')

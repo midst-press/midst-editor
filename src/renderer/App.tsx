@@ -1,4 +1,5 @@
 import CssBaseline from '@mui/material/CssBaseline';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 import './cssVars.css';
@@ -7,17 +8,27 @@ import { useState, useEffect, useMemo } from 'react';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
-import themeObj from './theme';
+import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
 import { ChangeObj } from './tracking/utils';
 
-const theme = createTheme(themeObj);
+const lightTheme = createTheme(themeObj);
+const darkTheme = createTheme(darkThemeObj);
+
+// The MUI theme of the scheme in force: the View > Appearance choice, or the OS's when the poet has made
+// none (GitHub #16). The main process turns that choice into prefers-color-scheme, which cssVars.css also
+// follows.
+export const useSchemeTheme = () =>
+  useMediaQuery('(prefers-color-scheme: dark)', { noSsr: true })
+    ? darkTheme
+    : lightTheme;
 
 export default function App() {
   // Every hook must run before the `window.electron` guard below. The preload script injects
   // window.electron, so when it fails to load this component previously returned early and called
   // ZERO hooks, while a healthy launch called three -- react-hooks/rules-of-hooks. Optional chaining
   // covers the degraded case so the hook order is identical either way.
+  const theme = useSchemeTheme();
   const restoreText = window.electron?.store.get('poem') || '';
   // After a reload the router would start at the opening screen again. If the editor asked to come
   // back (it does before reloading for the spellcheck toggle), start there instead, once.
