@@ -28,7 +28,9 @@ export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
   const theme = useTheme();
   const navigate = useNavigate();
-  const [edited, setEdited] = useState<boolean>(false);
+  // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
+  // arrival, in an effect, then changes nothing React renders (GitHub #44).
+  const edited = useRef(false);
 
   // Read once: toggling it reloads the window, which reads it again.
   const [spellcheckOn] = useState<boolean>(
@@ -70,7 +72,7 @@ export default function Editor() {
         JSON.stringify(history ?? doc.poemHistory)
       );
       window.electron.ipcRenderer.sendMessage('save-file', []);
-      setEdited(false);
+      edited.current = false;
     },
     []
   );
@@ -100,8 +102,8 @@ export default function Editor() {
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
     setHtmlString(newHtml);
-    if (edited === false) {
-      setEdited(true);
+    if (!edited.current) {
+      edited.current = true;
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
