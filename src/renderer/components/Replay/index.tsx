@@ -34,6 +34,7 @@ import {
 } from './follow';
 import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
+import RestartFromButton from './RestartFromButton';
 import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
 
 export default function Replay() {
@@ -352,6 +353,7 @@ export default function Replay() {
               )}
             </span>
           </Tooltip>
+          <RestartFromButton step={step} pause={pause} />
           <Tooltip
             title="Drafts"
             TransitionComponent={Zoom}
