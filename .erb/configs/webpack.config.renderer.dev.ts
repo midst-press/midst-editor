@@ -7,6 +7,7 @@ import chalk from 'chalk';
 import { merge } from 'webpack-merge';
 import { execSync, spawn } from 'child_process';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
+import reactRefreshTypescript from 'react-refresh-typescript';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
@@ -210,4 +211,20 @@ const configuration: webpack.Configuration = {
   },
 };
 
-export default merge(baseConfig, configuration);
+const merged = merge(baseConfig, configuration);
+
+// Inject the refresh transformer into the ts-loader rule from base.
+// webpack-merge concatenates module.rules, so we reach into the merged result
+// rather than defining a second rule (which would run ts-loader twice).
+merged.module?.rules?.forEach((rule) => {
+  const { use } = rule as any;
+  const loaderName =
+    typeof use === 'object' && !Array.isArray(use) ? use?.loader : undefined;
+  if (loaderName === 'ts-loader' && use?.options) {
+    use.options.getCustomTransformers = () => ({
+      before: [reactRefreshTypescript()],
+    });
+  }
+});
+
+export default merged;

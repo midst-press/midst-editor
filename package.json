@@ -302,6 +302,7 @@
     "nyc": "18.0.0",
     "prettier": "^2.8.8",
     "react-refresh": "^0.14.0",
+    "react-refresh-typescript": "^2.0.12",
     "react-test-renderer": "^18.2.0",
     "rimraf": "^6.0.1",
     "sass": "^1.62.1",
