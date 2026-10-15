@@ -5,6 +5,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import { useEffect, useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
+import RefusalAlert from './RefusalAlert';
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onJump: (index: number) => void;
   onRename: (index: number, name: string) => void;
   onDelete: (index: number) => void;
+  // Why the last change was refused, shown here because the drawer covers the page.
+  refusal: string | null;
   showMarkers: boolean;
   setShowMarkers: (show: boolean) => void;
   showLabels: boolean;
@@ -35,6 +38,7 @@ export default function DraftDrawer({
   onJump,
   onRename,
   onDelete,
+  refusal,
   showMarkers,
   setShowMarkers,
   showLabels,
@@ -57,6 +61,7 @@ export default function DraftDrawer({
     <Drawer anchor="right" open={open} onClose={onClose}>
       <div className="DraftDrawer" aria-label="Drafts">
         <h2>Drafts</h2>
+        <RefusalAlert message={refusal} />
         <FormControlLabel
           control={
             <Switch
