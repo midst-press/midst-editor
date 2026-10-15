@@ -1,8 +1,33 @@
 # 0.5.0
 
+- **Find words in your poem.** Choose **Edit** > **Find**, or press Command+F on a Mac and Ctrl+F on
+  Windows and Linux. Midst marks every place the words appear; Enter and Shift+Enter go to the next and
+  previous one, and Escape takes you back to the poem.
+- **Export a poem as RTF.** **File** > **Export as RTF…** puts the poem as it is now into a file a word
+  processor can open, with its line breaks, stanza breaks, spacing, bold and italic. Its history stays in
+  the Midst file.
+- **Light and dark.** Choose **View** > **Appearance**, then **Light** or **Dark**. Until you choose, Midst
+  follows your computer's setting, and **Follow System** goes back to it. It changes how Midst looks, not
+  your poem, and Midst remembers your choice.
+- **Restart from here.** In Replay, move along the timeline to an earlier moment and press **Restart from
+  here**: the poem becomes the poem as it was then, and you are back to writing. Nothing is lost; the
+  replay still shows everything you wrote, with the restart added at the end. This is a first version, and
+  may change.
+- **Follow the writing.** A new button at the top right of Replay turns off the scrolling that keeps the
+  writing in view, so the page stays where you put it. Midst remembers which you chose.
+- **Back from Replay, the cursor is where you left it**, and the page scrolls to it. Before, you came back
+  at the top of the poem.
 - **Toggle Edit Mode is now Toggle Timeline, on Command+T.** In the **Edit** menu, the item that switches
   between writing and Replay is renamed, and its shortcut is Command+T on a Mac and Ctrl+T on Windows and
   Linux. It was Command+E and Ctrl+E.
+- **The draft button says why it is greyed out**: the poem needs more than 50 changes (and how many it has
+  so far), or the moment already has a draft. Hold the pointer over it to see.
+- **When a draft marker cannot be added, renamed or deleted, Midst says why**, and the Drafts list shows
+  what the poem actually holds.
+- **Converting an old poem no longer adds a blank line where the old editor left an invisible marker.**
+  Those markers were turned into an empty paragraph.
+- **About Midst names the people who make it**: the director, Annelyse Gelman, and the developers, under
+  the version line.
 
 # 0.4.0
 
