@@ -107,6 +107,18 @@ describe('DraftDrawer', () => {
     expect(screen.queryByLabelText('Draft name')).toBeNull();
   });
 
+  it('opening another draft for naming shows that draft’s name, not what was typed for the last', () => {
+    show();
+    const seen = screen.getAllByLabelText('Rename draft').map((button) => {
+      fireEvent.click(button);
+      const field = screen.getByLabelText('Draft name') as HTMLInputElement;
+      const { value } = field;
+      fireEvent.change(field, { target: { value: 'typed, not saved' } });
+      return value;
+    });
+    expect(seen.sort()).toEqual(['Draft 2', 'xv', 'zq']);
+  });
+
   it('saves the name when the field is left', () => {
     const onRename = jest.fn();
     show({ onRename, startNaming: 2 });
