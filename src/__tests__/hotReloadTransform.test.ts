@@ -1,52 +1,69 @@
-/* eslint-disable global-require */
+/**
+ * Regression test for injectRefreshTransform (GitHub #43, PR #144).
+ *
+ * Tests the extracted module directly — no webpack config import, no postinstall
+ * side effect. Verifies:
+ * 1. Base config objects are NOT mutated.
+ * 2. Exactly one ts-loader rule is patched; zero or two matches throw.
+ * 3. The transformer is react-refresh-typescript.
+ */
+import { injectRefreshTransform } from '../../.erb/configs/inject-refresh-transform';
 
-describe('renderer.dev hot-reload transformer injection', () => {
-  it('does not mutate the base config', () => {
-    const base = require('../../.erb/configs/webpack.config.base').default;
-    const baseKeysBefore = Object.keys(
-      (base.module?.rules?.[0] as any)?.use?.options ?? {}
-    );
-    expect(baseKeysBefore).not.toContain('getCustomTransformers');
+function tsRule() {
+  return {
+    test: /\.[jt]sx?$/,
+    exclude: /node_modules/,
+    use: {
+      loader: 'ts-loader',
+      options: { transpileOnly: true, compilerOptions: { module: 'esnext' } },
+    },
+  };
+}
 
-    // Import renderer.dev runs the merge and injection.
-    const merged =
-      require('../../.erb/configs/webpack.config.renderer.dev').default;
-    // Trigger the module side effect; merged is used in the assertions below.
-    expect(merged).toBeDefined();
+function cssRule() {
+  return {
+    test: /\.css$/,
+    use: ['style-loader', 'css-loader'],
+  };
+}
 
-    const baseKeysAfter = Object.keys(
-      (base.module?.rules?.[0] as any)?.use?.options ?? {}
-    );
-    expect(baseKeysAfter).toEqual(baseKeysBefore);
+describe('injectRefreshTransform', () => {
+  it('patches the ts-loader rule and leaves base untouched', () => {
+    const rule = tsRule();
+    const optsBefore = Object.keys(rule.use.options);
+    const { rules, patched } = injectRefreshTransform([rule, cssRule()]);
+
+    expect(patched).toBe(1);
+    expect(optsBefore).not.toContain('getCustomTransformers');
+    expect(Object.keys(rule.use.options)).toEqual(optsBefore);
+    const patchedRule = rules[0];
+    expect(patchedRule.use.options.getCustomTransformers).toBeDefined();
   });
 
-  it('patches exactly one ts-loader rule with getCustomTransformers', () => {
-    const merged =
-      require('../../.erb/configs/webpack.config.renderer.dev').default;
-    const rules = (merged.module?.rules ?? []) as any[];
-    const patched = rules.filter(
-      (r: any) =>
-        typeof r.use === 'object' &&
-        !Array.isArray(r.use) &&
-        r.use?.loader === 'ts-loader' &&
-        r.use?.options?.getCustomTransformers
+  it('throws when there is no ts-loader rule', () => {
+    expect(() => injectRefreshTransform([cssRule()])).toThrow(
+      /Expected exactly one ts-loader rule/
     );
-    expect(patched).toHaveLength(1);
+  });
+
+  it('throws when there are two ts-loader rules', () => {
+    expect(() => injectRefreshTransform([tsRule(), tsRule()])).toThrow(
+      /Expected exactly one ts-loader rule/
+    );
   });
 
   it('the transformer is react-refresh-typescript', () => {
-    const merged =
-      require('../../.erb/configs/webpack.config.renderer.dev').default;
-    const rules = (merged.module?.rules ?? []) as any[];
-    const patched = rules.find(
-      (r: any) =>
-        typeof r.use === 'object' &&
-        !Array.isArray(r.use) &&
-        r.use?.loader === 'ts-loader' &&
-        r.use?.options?.getCustomTransformers
-    );
-    const result = patched.use.options.getCustomTransformers();
+    const { rules } = injectRefreshTransform([tsRule()]);
+    const result = rules[0].use.options.getCustomTransformers();
     expect(result.before).toHaveLength(1);
     expect(typeof result.before[0]).toBe('function');
+  });
+
+  it('copies the rule and options, not the references', () => {
+    const rule = tsRule();
+    const { rules } = injectRefreshTransform([rule]);
+    expect(rules[0]).not.toBe(rule);
+    expect(rules[0].use).not.toBe(rule.use);
+    expect(rules[0].use.options).not.toBe(rule.use.options);
   });
 });

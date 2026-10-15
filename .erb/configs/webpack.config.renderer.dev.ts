@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import { merge } from 'webpack-merge';
 import { execSync, spawn } from 'child_process';
 import ReactRefreshWebpackPlugin from '@pmmmwh/react-refresh-webpack-plugin';
-import reactRefreshTypescript from 'react-refresh-typescript';
+import { injectRefreshTransform } from './inject-refresh-transform';
 import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
@@ -216,35 +216,9 @@ const merged = merge(baseConfig, configuration);
 // Inject the refresh transformer into the ts-loader rule from base.
 // webpack-merge concatenates rule references, so we build a NEW rules array with a
 // COPIED rule and COPIED options — base's own config object is never written.
-const baseRules = (merged.module?.rules ?? []) as any[];
-let patched = 0;
-const patchedRules = baseRules.map((rule) => {
-  const { use } = rule;
-  const loaderName =
-    typeof use === 'object' && !Array.isArray(use) ? use?.loader : undefined;
-  if (loaderName === 'ts-loader' && use?.options) {
-    patched += 1;
-    return {
-      ...rule,
-      use: {
-        ...use,
-        options: {
-          ...use.options,
-          getCustomTransformers: () => ({
-            before: [reactRefreshTypescript()],
-          }),
-        },
-      },
-    };
-  }
-  return rule;
-});
-if (patched !== 1) {
-  throw new Error(
-    `Expected exactly one ts-loader rule to patch, found ${patched}. ` +
-      'The base config may have changed shape — update webpack.config.renderer.dev.ts.'
-  );
-}
+const { rules: patchedRules } = injectRefreshTransform(
+  (merged.module?.rules ?? []) as any[]
+);
 merged.module = { ...merged.module, rules: patchedRules };
 
 export default merged;
