@@ -15,11 +15,13 @@ import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
+import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
+import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 
-const extensions = [...poemExtensions, HandleTab];
+const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
@@ -104,7 +106,16 @@ export default function Editor() {
 
     autosave.schedule();
   };
-  const onBlur = ({ editor }: { editor: EditorType }) => {
+  const onBlur = ({
+    editor,
+    event,
+  }: {
+    editor: EditorType;
+    event: FocusEvent;
+  }) => {
+    // The find bar takes the focus on purpose; taking it back would leave the poet unable to type there.
+    const to = event.relatedTarget;
+    if (to instanceof Element && to.closest(`.${FIND_BAR_CLASS}`)) return;
     if (window.electron.versions.isMac) {
       editor.commands.focus();
     }
@@ -219,6 +230,7 @@ export default function Editor() {
         parseOptions={{ preserveWhitespace: true }}
         onCreate={onCreate}
       />
+      <FindBar editor={myEditor} />
 
       <div className="Spacer">
         <Tooltip

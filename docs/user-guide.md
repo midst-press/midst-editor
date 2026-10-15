@@ -42,6 +42,14 @@ To make the text larger or smaller, press **Increase text size** or **Decrease t
 
 Everything you do goes into the timelapse, including what you undo.
 
+## Finding words in the poem
+
+To find words in the poem while you are writing, choose **Edit** > **Find**, or press Command+F on a Mac or Ctrl+F on Windows and Linux. Type the words in **Find in the poem**. Midst marks every place they appear and selects the first one. Capital and small letters count as the same.
+
+Press Enter, or **Next match**, to go to the next one, and Shift+Enter, or **Previous match**, to go back. Midst shows which one you are on, such as "2 of 5", or says "No matches". To stop, press Escape or **Close find**. You go back to the poem with the cursor just after the last match.
+
+Find looks in the poem as it is now, not in the timelapse, so it works while you are writing; in Replay, Midst tells you so. Words are not found across the end of a line.
+
 ## Saving
 
 Midst saves the poem for you, one second after you stop typing. You do not need to do anything.
@@ -143,6 +151,7 @@ Each shortcut is written as the names on the keys, joined with +. Hold the first
 | Copy                                | Command+C         | Ctrl+C            | Edit > Copy                                                                         |
 | Paste                               | Command+V         | Ctrl+V            | Edit > Paste                                                                        |
 | Select the whole poem               | Command+A         | Ctrl+A            | Edit > Select All                                                                   |
+| Find words in the poem              | Command+F         | Ctrl+F            | Edit > Find                                                                         |
 | Switch between writing and Replay   | Command+T         | Ctrl+T            | Edit > Toggle Timeline                                                              |
 | Turn spellcheck on or off           | Command+;         | Ctrl+;            | Edit > Show/hide spellcheck on macOS; Edit > Toggle Spellcheck on Windows and Linux |
 | Fill the screen with Midst, or stop | Command+Control+F | F11               | View > Toggle Full Screen                                                           |

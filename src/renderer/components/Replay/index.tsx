@@ -34,6 +34,7 @@ import {
 } from './follow';
 import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
+import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
 
 export default function Replay() {
   const theme = useTheme();
@@ -412,6 +413,7 @@ export default function Replay() {
         showLabels={showLabels}
         setShowLabels={setShowLabels}
       />
+      <FindNotHere message={FIND_IN_REPLAY(window.electron.versions.isMac)} />
     </div>
   );
 }

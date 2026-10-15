@@ -269,6 +269,21 @@ describe('Editor: content and appearance', () => {
     settleFocus();
     expect(document.activeElement).not.toBe(proseMirror());
   });
+
+  it('on a Mac, leaves the focus in the find bar, and gets it back when the bar closes (GitHub #27)', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    bridge.emit('find-in-poem');
+    settleFocus();
+    const field = screen.getByRole('textbox', { name: 'Find in the poem' });
+    expect(document.activeElement).toBe(field);
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Escape' });
+    });
+    settleFocus();
+    expect(document.activeElement).toBe(proseMirror());
+  });
 });
 
 describe('Editor: on entering and leaving', () => {
