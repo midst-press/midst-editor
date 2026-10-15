@@ -3,6 +3,7 @@ import useDraftMarkers, {
   FAILED_LOG,
   FRAMES_BEFORE_MARKERS,
   REFUSED_LOG,
+  REREAD_FAILED_LOG,
 } from '../renderer/components/DraftMarkers/useDraftMarkers';
 
 // Synthetic names only.
@@ -16,7 +17,8 @@ const install = (meta: unknown) => {
   const listeners: Record<string, (() => void)[]> = {};
   const removed: string[] = [];
   const logError = jest.fn();
-  const failures: { set?: Error; get?: Error } = {};
+  // set fails every write, or only the write of `setKey` when that is given; get fails every read.
+  const failures: { set?: Error; setKey?: string; get?: Error } = {};
   (window as unknown as { electron: unknown }).electron = {
     log: { error: logError },
     store: {
@@ -25,7 +27,8 @@ const install = (meta: unknown) => {
         return values[key];
       },
       set: (key: string, value: string) => {
-        if (failures.set) throw failures.set;
+        if (failures.set && (!failures.setKey || failures.setKey === key))
+          throw failures.set;
         values[key] = value;
       },
     },
@@ -413,6 +416,9 @@ describe('useDraftMarkers: a refused change', () => {
   });
 });
 
+const MAYBE_KEPT =
+  'Something went wrong while changing this draft. The drafts list shows what was kept.';
+
 describe('useDraftMarkers: a change that throws', () => {
   it.each([
     ['storing the meta', 'set'],
@@ -429,8 +435,9 @@ describe('useDraftMarkers: a change that throws', () => {
         accepted = result.current.create(5);
       });
       expect(accepted).toBe(false);
-      expect(bridge.logError).toHaveBeenCalledTimes(1);
-      expect(bridge.logError).toHaveBeenCalledWith(FAILED_LOG, {
+      // When reading fails, reading back after the failure fails too, and is logged as well.
+      expect(bridge.logError).toHaveBeenCalledTimes(which === 'get' ? 2 : 1);
+      expect(bridge.logError).toHaveBeenNthCalledWith(1, FAILED_LOG, {
         action: 'create',
         index: 5,
         historyLength: LONG,
@@ -439,11 +446,104 @@ describe('useDraftMarkers: a change that throws', () => {
       expect(JSON.stringify(bridge.logError.mock.calls)).not.toContain(
         'zq-secret-text'
       );
-      expect(result.current.refusal).toBe(
-        'The draft could not be changed because of an unexpected problem.'
+      expect(result.current.refusal).toBe(MAYBE_KEPT);
+    }
+  );
+
+  // A change writes the meta, then the unsaved flag, then saves. A throw after the meta was written leaves the
+  // new marker in the store, and the next autosave puts it in the file: the list must show it (Cora on #159).
+  it.each([
+    ['writing the unsaved flag', 'set-edited'],
+    ['saving', 'save'],
+  ] as const)(
+    'a throw while %s, after the marker was stored: the list shows the stored marker',
+    (_label, where) => {
+      const bridge = install(undefined);
+      const save = jest.fn();
+      const { result } = renderHook(() => useDraftMarkers(LONG, save));
+      const boom = new RangeError('zq-secret-text');
+      if (where === 'save')
+        save.mockImplementation(() => {
+          throw boom;
+        });
+      else {
+        bridge.failures.set = boom;
+        bridge.failures.setKey = 'edited';
+      }
+      let accepted: boolean | undefined;
+      act(() => {
+        accepted = result.current.create(5);
+      });
+      expect(accepted).toBe(false);
+      // The store holds the marker, and the screen agrees with the store.
+      expect(bridge.storedMeta().draftMarkers).toEqual([
+        expect.objectContaining({ index: 5 }),
+      ]);
+      expect(result.current.markers.map((m) => m.index)).toEqual([5]);
+      expect(result.current.refusal).toBe(MAYBE_KEPT);
+      expect(bridge.logError.mock.calls).toEqual([
+        [
+          FAILED_LOG,
+          {
+            action: 'create',
+            index: 5,
+            historyLength: LONG,
+            errorName: 'RangeError',
+          },
+        ],
+      ]);
+      expect(JSON.stringify(bridge.logError.mock.calls)).not.toContain(
+        'zq-secret-text'
+      );
+      // The next try at that moment is refused for the right reason: it IS marked.
+      expect(result.current.reasonAt(5)).toBe(
+        'This moment already has a draft.'
       );
     }
   );
+
+  it('a throw while writing the meta: nothing stored, and the list is unchanged', () => {
+    const bridge = install({ draftMarkers: [{ index: 3, name: 'zq' }] });
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    bridge.failures.set = new RangeError('x');
+    bridge.failures.setKey = 'meta';
+    act(() => {
+      result.current.create(5);
+    });
+    expect(bridge.storedMeta().draftMarkers).toEqual([
+      { index: 3, name: 'zq' },
+    ]);
+    expect(result.current.markers.map((m) => m.index)).toEqual([3]);
+    expect(result.current.refusal).toBe(MAYBE_KEPT);
+  });
+
+  it('when the store cannot be read back either, that is logged too and the list stays as it was', () => {
+    const bridge = install({ draftMarkers: [{ index: 3, name: 'zq' }] });
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    bridge.failures.get = new TypeError('zq-secret-text');
+    act(() => {
+      result.current.create(5);
+    });
+    expect(result.current.markers.map((m) => m.index)).toEqual([3]);
+    expect(bridge.logError.mock.calls).toEqual([
+      [
+        FAILED_LOG,
+        {
+          action: 'create',
+          index: 5,
+          historyLength: LONG,
+          errorName: 'TypeError',
+        },
+      ],
+      [
+        REREAD_FAILED_LOG,
+        { action: 'create', index: 5, errorName: 'TypeError' },
+      ],
+    ]);
+    expect(JSON.stringify(bridge.logError.mock.calls)).not.toContain(
+      'zq-secret-text'
+    );
+  });
 
   it('names the type when what was thrown is not an Error', () => {
     const bridge = install(undefined);

@@ -21,6 +21,7 @@ export const FRAMES_BEFORE_MARKERS = 50;
 // name or any poem text.
 export const REFUSED_LOG = 'draft marker change refused';
 export const FAILED_LOG = 'draft marker change failed';
+export const REREAD_FAILED_LOG = 'draft markers could not be read back';
 
 export type ChangeRefusal =
   | MarkerRefusal
@@ -48,7 +49,8 @@ export const refusalMessage = (
     case 'markers-unreadable':
       return 'The drafts of this poem could not be read, so nothing was changed.';
     default:
-      return 'The draft could not be changed because of an unexpected problem.';
+      // It may have been kept: the change can fail after it was stored. The list shows what was.
+      return 'Something went wrong while changing this draft. The drafts list shows what was kept.';
   }
 };
 
@@ -119,6 +121,18 @@ export default function useDraftMarkers(
           historyLength,
           errorName: error instanceof Error ? error.name : typeof error,
         });
+        // The change may have been stored before the throw (it writes the meta, then the unsaved flag, then
+        // saves), so show what the store now holds rather than what was on screen. If that read fails too, it
+        // is logged, and the list stays as it was.
+        try {
+          setMeta(readStoredMeta(window.electron.store));
+        } catch (reread) {
+          window.electron.log.error(REREAD_FAILED_LOG, {
+            action,
+            index,
+            errorName: reread instanceof Error ? reread.name : typeof reread,
+          });
+        }
         setRefusal(refusalMessage('change-threw', historyLength));
         return false;
       }
