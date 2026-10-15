@@ -189,6 +189,18 @@
         "lines": 95.9,
         "statements": 95.9
       },
+      "./src/renderer/components/Replay/RestartFromButton.tsx": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/components/Replay/restartIcon.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/renderer/components/Replay/usePlayback.ts": {
         "branches": 92,
         "functions": 100,

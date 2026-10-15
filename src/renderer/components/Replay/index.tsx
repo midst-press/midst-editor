@@ -26,6 +26,7 @@ import useDraftMarkers, {
 } from '../DraftMarkers/useDraftMarkers';
 import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
 import usePlayback from './usePlayback';
+import RestartFromButton from './RestartFromButton';
 
 export default function Replay() {
   const theme = useTheme();
@@ -311,6 +312,7 @@ export default function Replay() {
               )}
             </span>
           </Tooltip>
+          <RestartFromButton step={step} pause={pause} />
           <Tooltip
             title="Drafts"
             TransitionComponent={Zoom}
