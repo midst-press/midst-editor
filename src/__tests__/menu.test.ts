@@ -1135,6 +1135,14 @@ describe('the menu', () => {
       );
     });
 
+    it('Find is on Command+F or Ctrl+F and opens the find bar (GitHub #27)', () => {
+      const win = makeWindow();
+      const item = sub(build(platform, win), editTop, 'Find');
+      expect(item.accelerator).toBe(isMac ? 'Command+F' : 'Ctrl+F');
+      item.click!();
+      expect(win.webContents.send).toHaveBeenLastCalledWith('find-in-poem');
+    });
+
     it('Toggle Full Screen flips the window state', () => {
       const win = makeWindow();
       const item = sub(build(platform, win), viewTop, fullScreenLabel);

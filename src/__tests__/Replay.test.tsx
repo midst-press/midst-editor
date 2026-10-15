@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
+import { FIND_IN_REPLAY } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 import type { ChangeObj } from '../renderer/tracking/utils';
@@ -624,6 +625,13 @@ describe('Replay: going back to the editor', () => {
     mount();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+  });
+
+  it('Edit > Find says Find works while writing, and stays in Replay (GitHub #27)', () => {
+    mount();
+    bridge.emit('find-in-poem');
+    expect(screen.getByRole('alert')).toHaveTextContent(FIND_IN_REPLAY(true));
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 
   it('the application menu toggle goes back to the editor', () => {

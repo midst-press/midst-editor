@@ -4,6 +4,7 @@ import { HistoryContext, TextContext } from 'renderer/context';
 import { ChangeObj } from 'renderer/tracking/utils';
 import './LandingDialog.css';
 import Logo from './LogoThin';
+import FindNotHere, { FIND_BEFORE_OPEN } from '../../search/FindNotHere';
 
 export default function LandingDialog() {
   const navigate = useNavigate();
@@ -64,6 +65,7 @@ export default function LandingDialog() {
           Need Help?
         </button>
       </div>
+      <FindNotHere message={FIND_BEFORE_OPEN} />
     </div>
   );
 }
