@@ -737,3 +737,44 @@ describe('Editor: Tab key', () => {
     expect(setTextSpy).toHaveBeenLastCalledWith(expect.stringContaining('\t'));
   });
 });
+
+// GitHub #24: leaving the editor (for Replay) and coming back makes a new editor. The cursor goes back where it
+// was, but only into the same text: a different poem, or a changed one, starts as before.
+describe('Editor: the cursor when coming back', () => {
+  const TEXT = '<p>zq xv qz vb</p>';
+  const selectionNow = () => {
+    const { from, to, anchor, head } = proseMirror().editor.state.selection;
+    return { from, to, anchor, head };
+  };
+  const leaveWithSelection = (anchor: number, head: number) => {
+    const { unmount } = mount({ initialText: TEXT });
+    act(() => {
+      proseMirror().editor.commands.setTextSelection({
+        from: anchor,
+        to: head,
+      });
+    });
+    unmount();
+  };
+
+  it('puts the cursor back where it was', () => {
+    leaveWithSelection(6, 6);
+    mount({ initialText: TEXT });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 6, to: 6, anchor: 6, head: 6 });
+  });
+
+  it('puts a selection back as it was', () => {
+    leaveWithSelection(4, 9);
+    mount({ initialText: TEXT });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 4, to: 9, anchor: 4, head: 9 });
+  });
+
+  it('starts as before when the text is not the text it left', () => {
+    leaveWithSelection(6, 6);
+    mount({ initialText: '<p>qz</p>' });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
+  });
+});

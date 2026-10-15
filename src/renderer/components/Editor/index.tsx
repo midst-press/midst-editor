@@ -21,6 +21,7 @@ import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
+import { rememberCursor, restoreCursor } from './cursorReturn';
 
 const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
@@ -201,10 +202,20 @@ export default function Editor() {
       navigate('/replay', { state: { nameDraftAt: latestMoment } });
   };
 
+  // Coming back from Replay, the cursor goes where it was (GitHub #24); otherwise the editor is focused as
+  // before. Leaving, by any route, remembers it.
+  const created = useRef<EditorType | null>(null);
   const onCreate = ({ editor }: { editor: EditorType }) => {
-    editor.commands.focus();
+    if (!restoreCursor(editor)) editor.commands.focus();
+    created.current = editor;
     setMyEditor(editor);
   };
+  useEffect(
+    () => () => {
+      if (created.current) rememberCursor(created.current);
+    },
+    []
+  );
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
