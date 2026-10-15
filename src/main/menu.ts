@@ -13,6 +13,7 @@ import fs from 'fs';
 import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { writeConvertedFile } from './convertedFile';
+import { poemToRtf } from './rtf';
 import { showAbout } from './about';
 import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
@@ -48,6 +49,9 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
 
 const toggleEditMode = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-edit-mode');
+};
+const findInPoem = (mainWindow: BrowserWindow) => {
+  mainWindow.webContents.send('find-in-poem');
 };
 const toggleSpellcheck = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('toggle-spellcheck');
@@ -240,6 +244,67 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
       byPoet: true,
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
+  }
+};
+
+// File > Export as RTF… (GitHub #26): the poem as it is now, in a Rich Text Format file. It reads the
+// stored poem, as Save does. Whatever cannot be exported is said before anything is written, and the
+// file is written beside its final name and renamed into place, so a failed write leaves no part of a
+// file behind. Exporting changes nothing about the poem or its file.
+const RTF_FILTERS = [
+  { name: 'Rich Text Format', extensions: ['rtf'] },
+  { name: 'All Files', extensions: ['*'] },
+];
+
+const cannotExport = (mainWindow: BrowserWindow, detail: string) =>
+  dialog.showMessageBoxSync(mainWindow, {
+    type: 'error',
+    title: 'Could not export',
+    message: 'Midst could not export the poem as RTF.',
+    detail,
+  });
+
+const rtfDefaultPath = () => {
+  const poemFile = store.get('filename') as string | undefined;
+  const base = poemFile ? path.basename(poemFile, '.midst') : 'Untitled';
+  const folder =
+    poemFile && fs.existsSync(path.dirname(poemFile))
+      ? path.dirname(poemFile)
+      : dialogFolder();
+  return path.join(folder, `${base}.rtf`);
+};
+
+export const exportRtf = (mainWindow: BrowserWindow) => {
+  const poem = store.get('poem') as string | undefined;
+  if (poem === undefined) {
+    log.error('exportRtf: no poem in the store; nothing written');
+    cannotExport(mainWindow, 'There is no poem open to export.');
+    return;
+  }
+  const result = poemToRtf(poem);
+  if (!result.ok) {
+    cannotExport(mainWindow, result.reason);
+    return;
+  }
+  const filename = dialog.showSaveDialogSync(mainWindow, {
+    title: 'Export as RTF',
+    message: 'Export as RTF',
+    defaultPath: rtfDefaultPath(),
+    filters: RTF_FILTERS,
+  });
+  if (!filename) return;
+  const partial = `${filename}.${process.pid}.partial`;
+  try {
+    fs.writeFileSync(partial, result.rtf, { flag: 'wx' });
+    fs.renameSync(partial, filename);
+  } catch (err) {
+    const reason = (err as Error).message;
+    log.error('exportRtf: the file was not written', { filename, reason });
+    fs.rmSync(partial, { force: true });
+    cannotExport(
+      mainWindow,
+      `${reason}\n\nNo file was written. Your poem is unchanged.`
+    );
   }
 };
 
@@ -475,8 +540,13 @@ export default class MenuBuilder {
   private modeItems(modifier: string, spellcheckLabel: string) {
     return [
       {
-        label: 'Toggle Edit Mode',
-        accelerator: `${modifier}+E`,
+        label: 'Find',
+        accelerator: `${modifier}+F`,
+        click: () => findInPoem(this.mainWindow),
+      },
+      {
+        label: 'Toggle Timeline',
+        accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
       {
@@ -510,6 +580,13 @@ export default class MenuBuilder {
         enabled: false,
       },
     ];
+  }
+
+  private exportRtfItem() {
+    return {
+      label: 'Export as RTF…',
+      click: () => exportRtf(this.mainWindow),
+    };
   }
 
   private aboutItem() {
@@ -573,6 +650,7 @@ export default class MenuBuilder {
           ['Command+S', 'Command+S+Shift'],
           true
         ),
+        this.exportRtfItem(),
         {
           label: 'Open',
           accelerator: 'Command+O',
@@ -667,6 +745,7 @@ export default class MenuBuilder {
             ['Ctrl+S', 'Ctrl+Shift+S'],
             false
           ),
+          this.exportRtfItem(),
           {
             label: '&New',
             accelerator: 'Ctrl+N',

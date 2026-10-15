@@ -1,3 +1,9 @@
+# 0.5.0
+
+- **Toggle Edit Mode is now Toggle Timeline, on Command+T.** In the **Edit** menu, the item that switches
+  between writing and Replay is renamed, and its shortcut is Command+T on a Mac and Ctrl+T on Windows and
+  Linux. It was Command+E and Ctrl+E.
+
 # 0.4.0
 
 - **A file that cannot be read says so.** Opening one from **File** > **Open**, from your recent

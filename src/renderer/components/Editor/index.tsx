@@ -11,13 +11,18 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import HandleTab from '../../HandleTab';
-import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
+import RefusalAlert from '../DraftMarkers/RefusalAlert';
+import useDraftMarkers, {
+  UNAVAILABLE_STYLE,
+} from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
+import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
+import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 
-const extensions = [...poemExtensions, HandleTab];
+const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
@@ -102,7 +107,16 @@ export default function Editor() {
 
     autosave.schedule();
   };
-  const onBlur = ({ editor }: { editor: EditorType }) => {
+  const onBlur = ({
+    editor,
+    event,
+  }: {
+    editor: EditorType;
+    event: FocusEvent;
+  }) => {
+    // The find bar takes the focus on purpose; taking it back would leave the poet unable to type there.
+    const to = event.relatedTarget;
+    if (to instanceof Element && to.closest(`.${FIND_BAR_CLASS}`)) return;
     if (window.electron.versions.isMac) {
       editor.commands.focus();
     }
@@ -179,6 +193,7 @@ export default function Editor() {
   // poet is then taken to the replay to name it, as the original editor opened the name at once.
   const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
   const latestMoment = poemHistory.length - 1;
+  const draftReason = drafts.reasonAt(latestMoment);
   const markThisMoment = () => {
     autosave.cancel();
     if (drafts.create(latestMoment))
@@ -216,10 +231,11 @@ export default function Editor() {
         parseOptions={{ preserveWhitespace: true }}
         onCreate={onCreate}
       />
+      <FindBar editor={myEditor} />
 
       <div className="Spacer">
         <Tooltip
-          title="Mark this moment as a draft"
+          title={draftReason ?? 'Mark this moment as a draft'}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -228,13 +244,21 @@ export default function Editor() {
           <span>
             <button
               aria-label="Mark this moment as a draft"
+              aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
-              disabled={!drafts.canCreateAt(latestMoment)}
+              style={draftReason ? UNAVAILABLE_STYLE : undefined}
+              disabled={draftReason !== null}
               onClick={markThisMoment}
             >
               <BookmarkAddIcon fontSize="small" />
             </button>
+            {draftReason && (
+              <span id="editor-draft-reason" hidden>
+                {draftReason}
+              </span>
+            )}
+            <RefusalAlert message={drafts.refusal} />
           </span>
         </Tooltip>
         <Tooltip

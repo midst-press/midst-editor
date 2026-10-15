@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
 import Editor from '../renderer/components/Editor';
+import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
 import { ChangeObj } from '../renderer/tracking/utils';
 
@@ -46,7 +47,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     titlebar: {
       updateTitle: (name: string) => record('title', name),
     },
-    log: { warn: (m: string) => record('log.warn', m) },
+    log: {
+      warn: (m: string) => record('log.warn', m),
+      error: (m: string, meta: unknown) => record('log.error', m, meta),
+    },
   };
   return {
     values,
@@ -268,6 +272,21 @@ describe('Editor: content and appearance', () => {
     act(() => proseMirror().blur());
     settleFocus();
     expect(document.activeElement).not.toBe(proseMirror());
+  });
+
+  it('on a Mac, leaves the focus in the find bar, and gets it back when the bar closes (GitHub #27)', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    bridge.emit('find-in-poem');
+    settleFocus();
+    const field = screen.getByRole('textbox', { name: 'Find in the poem' });
+    expect(document.activeElement).toBe(field);
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Escape' });
+    });
+    settleFocus();
+    expect(document.activeElement).toBe(proseMirror());
   });
 });
 
@@ -639,6 +658,38 @@ describe('Editor: draft marker button', () => {
     ).toBeDisabled();
   });
 
+  it('says why it is disabled while the history is short, and looks unavailable (GitHub #66)', () => {
+    mount({ initialHistory: [change(1)] });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription(
+      'A draft can be marked once the poem has more than 50 changes. This one has 1.'
+    );
+    expect(button).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('says a moment already has a draft when that is why it is disabled', () => {
+    bridge = installBridge({
+      meta: JSON.stringify({
+        draftMarkers: [{ index: 59, defaultName: 'Draft 1' }],
+      }),
+    });
+    mount({ initialHistory: LONG_HISTORY });
+    expect(
+      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+    ).toHaveAccessibleDescription('This moment already has a draft.');
+  });
+
+  it('has no reason and looks available when a draft can be marked', () => {
+    mount({ initialHistory: LONG_HISTORY });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription('');
+    expect(button).not.toHaveStyle({ opacity: '0.38' });
+  });
+
   it('stays on the editor when the stored meta cannot be read', () => {
     bridge = installBridge({ meta: 'not json' });
     mount({ initialHistory: LONG_HISTORY });
@@ -647,6 +698,23 @@ describe('Editor: draft marker button', () => {
     );
     expect(screen.getByTestId('where')).toHaveTextContent('/editor');
     expect(bridge.values.meta).toBe('not json');
+    expect(bridge.calls.filter((c) => c.kind === 'log.error')).toEqual([
+      {
+        kind: 'log.error',
+        args: [
+          REFUSED_LOG,
+          {
+            reason: 'meta-unreadable',
+            action: 'create',
+            index: 59,
+            historyLength: 60,
+          },
+        ],
+      },
+    ]);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The drafts of this poem could not be read, so nothing was changed.'
+    );
   });
 });
 

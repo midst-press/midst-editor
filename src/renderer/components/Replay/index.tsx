@@ -18,12 +18,25 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from 'shared/poemExtensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
+import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';
 import { HistoryContext, TextContext } from 'renderer/context';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
-import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
-import { scrollParent, targetScrollTop, glideTo, Glide } from './follow';
+import RefusalAlert from '../DraftMarkers/RefusalAlert';
+import useDraftMarkers, {
+  UNAVAILABLE_STYLE,
+} from '../DraftMarkers/useDraftMarkers';
+import {
+  scrollParent,
+  targetScrollTop,
+  glideTo,
+  Glide,
+  gliding,
+} from './follow';
+import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
+import RestartFromButton from './RestartFromButton';
+import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
 
 export default function Replay() {
   const theme = useTheme();
@@ -34,6 +47,17 @@ export default function Replay() {
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const glide = useRef<Glide | null>(null);
+  const autoscroll = useAutoscroll();
+  // Read by the follow effect without re-running it: turning the setting over changes no frame.
+  const following = useRef(autoscroll.on);
+  following.current = autoscroll.on;
+  const toggleAutoscroll = () => {
+    // Turned off mid-glide: stop where it is, so playback does not wait on a scroll the poet turned off.
+    if (!autoscroll.toggle() && glide.current && gliding(glide.current)) {
+      cancelAnimationFrame(glide.current.frame);
+      glide.current = null;
+    }
+  };
 
   const { step, setStep, playing, play, pause } = usePlayback(maxStep, glide);
 
@@ -47,6 +71,7 @@ export default function Replay() {
     window.electron.ipcRenderer.sendMessage('save-file', []);
   }, [htmlString, poemHistory]);
   const drafts = useDraftMarkers(poemHistory.length, saveDocument);
+  const draftReason = drafts.reasonAt(step);
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
     ?.nameDraftAt;
@@ -89,7 +114,7 @@ export default function Replay() {
     const after = editor.state.doc;
     const changed = after.content.findDiffStart(before.content);
     const scroller = scrollParent(editor.view.dom as HTMLElement);
-    if (changed != null && scroller) {
+    if (following.current && changed != null && scroller) {
       const at = Math.min(changed, after.content.size);
       const point = editor.view.coordsAtPos(at);
       const to = targetScrollTop(
@@ -205,6 +230,27 @@ export default function Replay() {
             <TextDecreaseIcon fontSize="small" />
           </button>
         </Tooltip>
+        <Tooltip
+          title={
+            autoscroll.on
+              ? 'Following the writing as it replays. Click to stop scrolling.'
+              : 'Not following the writing: the page stays where you put it. Click to follow.'
+          }
+          TransitionComponent={Zoom}
+          enterDelay={1000}
+          arrow
+        >
+          <button
+            aria-label="Follow the writing"
+            aria-pressed={autoscroll.on}
+            type="button"
+            className="icon-button size-icon"
+            style={autoscroll.on ? undefined : { opacity: 0.5 }}
+            onClick={toggleAutoscroll}
+          >
+            <VerticalAlignCenterIcon fontSize="small" />
+          </button>
+        </Tooltip>
       </div>
       <div className={`ReplayContainer size-${fontSize.size}`}>
         <EditorContent editor={editor} />
@@ -271,7 +317,7 @@ export default function Replay() {
             }
           />
           <Tooltip
-            title="Mark this moment as a draft"
+            title={draftReason ?? 'Mark this moment as a draft'}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
@@ -281,10 +327,16 @@ export default function Replay() {
             <span>
               <button
                 aria-label="Mark this moment as a draft"
+                aria-describedby={
+                  draftReason ? 'replay-draft-reason' : undefined
+                }
                 type="button"
                 className="control-bar-icon"
-                style={{ color: theme.palette.secondary.contrastText }}
-                disabled={!drafts.canCreateAt(step)}
+                style={{
+                  color: theme.palette.secondary.contrastText,
+                  ...(draftReason ? UNAVAILABLE_STYLE : {}),
+                }}
+                disabled={draftReason !== null}
                 onClick={() => {
                   pause();
                   if (drafts.create(step)) {
@@ -295,8 +347,15 @@ export default function Replay() {
               >
                 <BookmarkAddIcon fontSize="small" />
               </button>
+              {draftReason && (
+                <span id="replay-draft-reason" hidden>
+                  {draftReason}
+                </span>
+              )}
+              <RefusalAlert message={drafts.refusal} />
             </span>
           </Tooltip>
+          <RestartFromButton step={step} pause={pause} />
           <Tooltip
             title="Drafts"
             TransitionComponent={Zoom}
@@ -353,11 +412,13 @@ export default function Replay() {
         }}
         onRename={drafts.rename}
         onDelete={drafts.remove}
+        refusal={drafts.refusal}
         showMarkers={showMarkers}
         setShowMarkers={setShowMarkers}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
       />
+      <FindNotHere message={FIND_IN_REPLAY(window.electron.versions.isMac)} />
     </div>
   );
 }
