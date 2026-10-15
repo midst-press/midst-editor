@@ -545,6 +545,20 @@ describe('useDraftMarkers: a change that throws', () => {
     );
   });
 
+  it('a read-back that throws something other than an Error is logged by its type', () => {
+    const bridge = install(undefined);
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    bridge.failures.get = 'zq' as unknown as Error;
+    act(() => {
+      result.current.create(5);
+    });
+    expect(bridge.logError).toHaveBeenNthCalledWith(2, REREAD_FAILED_LOG, {
+      action: 'create',
+      index: 5,
+      errorName: 'string',
+    });
+  });
+
   it('names the type when what was thrown is not an Error', () => {
     const bridge = install(undefined);
     const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
