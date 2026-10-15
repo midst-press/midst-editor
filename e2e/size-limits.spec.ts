@@ -716,7 +716,7 @@ test('size limits: open, type, save, replay', async () => {
       failures.push({ step: 'crash', reason: crashes.join(' | ') });
     const out = {
       spec: 'editor',
-      file: FILE,
+      // Size only, never the path: a hand run on a real poem would put its name in the result.
       fileBytes,
       finalChars: chars,
       versions: {
