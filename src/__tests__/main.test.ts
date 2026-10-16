@@ -139,8 +139,13 @@ jest.mock('electron-devtools-assembler', () => ({
   default: (...args: unknown[]) => mockInstallExtension(...args),
   REACT_DEVELOPER_TOOLS: 'react-devtools',
 }));
+// What the update check does; a test can make it reject or throw.
+const mockCheckForUpdates = jest.fn((): unknown => Promise.resolve(null));
 jest.mock('electron-updater', () => ({
-  autoUpdater: { checkForUpdatesAndNotify: jest.fn(), logger: null },
+  autoUpdater: {
+    checkForUpdatesAndNotify: jest.fn(() => mockCheckForUpdates()),
+    logger: null,
+  },
 }));
 
 jest.mock('electron-log', () => ({
@@ -821,6 +826,46 @@ describe('main process', () => {
       expect(titlebar.attachTitlebarToWindow).toHaveBeenCalledWith(win());
       expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
     });
+
+    // 0.5.0: the check's rejection reached the unhandled-rejection handler, whose modal dialog froze
+    // the main process. A failed check is expected (offline, no feed, not installed) and is a warning.
+    it.each([
+      [
+        'rejects',
+        () => {
+          const e = new Error('ENOENT zq-path');
+          e.stack = 'Error: ENOENT zq-path';
+          return Promise.reject(e);
+        },
+      ],
+      [
+        'throws',
+        () => {
+          throw new TypeError('zq-sync');
+        },
+      ],
+    ])(
+      'an update check that %s is logged as a warning, name only, and is not left unhandled',
+      async (_how, outcome) => {
+        mockCheckForUpdates.mockImplementationOnce(outcome);
+        const unhandled = jest.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const { log, flush } = await boot();
+          await flush();
+          expect(log.warn).toHaveBeenCalledWith('update check failed', {
+            name: expect.stringMatching(/^(Error|TypeError)$/),
+            frames: expect.any(Array),
+          });
+          expect(JSON.stringify(jest.mocked(log.warn).mock.calls)).not.toMatch(
+            /zq-/
+          );
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      }
+    );
 
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
