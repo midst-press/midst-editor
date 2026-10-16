@@ -30,11 +30,14 @@ jest.mock('electron', () => ({
     showOpenDialogSync: jest.fn(),
   },
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
-  shell: { openExternal: jest.fn() },
+  shell: { openExternal: jest.fn(), showItemInFolder: jest.fn() },
   nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
+jest.mock('../main/logFile', () => ({
+  logFilePath: () => '/zq/Logs/Midst/main.log',
+}));
 jest.mock('electron-log', () => ({
   __esModule: true,
   default: { debug: jest.fn(), info: jest.fn(), error: jest.fn() },
@@ -1437,6 +1440,22 @@ describe('the menu', () => {
       const win = makeWindow();
       sub(build('linux', win), '&File', '&Close').click!();
       expect(win.close).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('Help > Show Log File', () => {
+    it.each([
+      ['darwin', 'Help'],
+      ['linux', 'Help'],
+    ])('on %s shows the log file in the file browser', (platform, menu) => {
+      process.env.NODE_ENV = 'production';
+      const template = build(platform);
+      const item = sub(template, menu, 'Show Log File');
+      expect(item.accelerator).toBeUndefined();
+      item.click!();
+      expect(shell.showItemInFolder).toHaveBeenCalledWith(
+        '/zq/Logs/Midst/main.log'
+      );
     });
   });
 

@@ -40,6 +40,7 @@ import MenuBuilder, {
 } from './menu';
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
+import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
 
@@ -264,7 +265,7 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
 registerUncaughtHandlers(process, (name) =>
   dialog.showErrorBox(
     'Midst hit an unexpected error',
-    `${name}. It has been recorded in the log.`
+    `${name}. It has been recorded in the log, ${logFileForPeople()}, which Help > Show Log File shows.`
   )
 );
 

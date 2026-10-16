@@ -168,6 +168,10 @@ jest.mock('electron-log', () => ({
 
 // The real handler registration would attach to the test runner's own process; its behaviour is
 // covered in logging.test.ts. Here only that main.ts registers it, and what it tells the poet.
+jest.mock('../main/logFile', () => ({
+  logFileForPeople: () => '~/Library/Logs/Midst/main.log',
+}));
+
 jest.mock('../main/logging', () => ({
   ...jest.requireActual('../main/logging'),
   registerUncaughtHandlers: jest.fn(),
@@ -1050,7 +1054,7 @@ describe('main process', () => {
       );
     });
 
-    it('tells the poet with the error name, and never a message', async () => {
+    it('tells the poet the error name and where the log is, and never a message', async () => {
       const { logging, electron } = await boot();
       const [, notify] = (logging.registerUncaughtHandlers as jest.Mock).mock
         .calls[0] as [unknown, typeof String];
@@ -1058,7 +1062,9 @@ describe('main process', () => {
       expect(electron.dialog.showErrorBox).toHaveBeenCalledTimes(1);
       const [title, content] = electron.dialog.showErrorBox.mock.calls[0];
       expect(title).toBe('Midst hit an unexpected error');
-      expect(content).toBe('TypeError. It has been recorded in the log.');
+      expect(content).toBe(
+        'TypeError. It has been recorded in the log, ~/Library/Logs/Midst/main.log, which Help > Show Log File shows.'
+      );
     });
   });
 });
