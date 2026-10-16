@@ -187,3 +187,5 @@ If you write to us about a problem, press **Copy** and paste that line into your
 ## More help
 
 **Help** > **Documentation** opens this guide. **Help** > **Learn More** opens the Midst website.
+
+**Help** > **Show Log File** shows Midst's log in Finder, or File Explorer on Windows, so you can send it with a report. On a Mac it is `~/Library/Logs/Midst/main.log`. If Midst ever shows an unexpected error, the message says where the log is.
