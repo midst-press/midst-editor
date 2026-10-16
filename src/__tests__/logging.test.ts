@@ -608,19 +608,29 @@ describe('logging', () => {
       ]);
     });
 
-    it.each(['uncaughtException', 'unhandledRejection'])(
-      '%s is logged as "uncaught error" with name and frames only, and the poet is told',
-      (event) => {
-        const { handlers, log, notify } = setup();
-        handlers.get(event)!(new RangeError(`bad ${SECRET}`));
-        expect(log.error).toHaveBeenCalledTimes(1);
-        const [msg, meta] = log.error.mock.calls[0];
-        expect(msg).toBe('uncaught error');
-        expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
-        expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
-        expect(notify).toHaveBeenCalledWith('RangeError');
-      }
-    );
+    it('an uncaught exception is logged as "uncaught error" with name and frames only, and the poet is told', () => {
+      const { handlers, log, notify } = setup();
+      handlers.get('uncaughtException')!(new RangeError(`bad ${SECRET}`));
+      expect(log.error).toHaveBeenCalledTimes(1);
+      const [msg, meta] = log.error.mock.calls[0];
+      expect(msg).toBe('uncaught error');
+      expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
+      expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
+      expect(notify).toHaveBeenCalledWith('RangeError');
+    });
+
+    // 0.5.0: a failed update check rejected, the handler called notify (a modal dialog), and the main
+    // process blocked behind it: no poem opened at launch and SIGTERM went unhandled.
+    it('an unhandled rejection is logged as "unhandled rejection" with name and frames only, and the poet is NOT interrupted', () => {
+      const { handlers, log, notify } = setup();
+      handlers.get('unhandledRejection')!(new RangeError(`bad ${SECRET}`));
+      expect(log.error).toHaveBeenCalledTimes(1);
+      const [msg, meta] = log.error.mock.calls[0];
+      expect(msg).toBe('unhandled rejection');
+      expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
+      expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
+      expect(notify).not.toHaveBeenCalled();
+    });
 
     it('the entry written to the file has the message "uncaught error" and no message text', () => {
       const { handlers, log, mod } = setup();
@@ -644,11 +654,11 @@ describe('logging', () => {
     it('logs a rejection that is not an Error without its content', () => {
       const { handlers, log, notify } = setup();
       handlers.get('unhandledRejection')!(`a string with ${SECRET}`);
-      expect(log.error).toHaveBeenCalledWith('uncaught error', {
+      expect(log.error).toHaveBeenCalledWith('unhandled rejection', {
         name: 'NonError',
         frames: [],
       });
-      expect(notify).toHaveBeenCalledWith('NonError');
+      expect(notify).not.toHaveBeenCalled();
     });
 
     it('logs, and does not throw, when telling the poet fails', () => {
