@@ -41,13 +41,18 @@ import MenuBuilder, {
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
 import { resolveHtmlPath } from './util';
+import { describeError } from '../shared/errorSummary';
 
 class AppUpdater {
   constructor() {
     // Level is whatever the user has configured; see src/main/logging.ts.
     applyLogLevel();
     autoUpdater.logger = log;
-    autoUpdater.checkForUpdatesAndNotify();
+    // A failed check is expected (offline, no feed, an app not installed through its package) and must
+    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
+    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
+      log.warn('update check failed', describeError(error))
+    );
   }
 }
 
