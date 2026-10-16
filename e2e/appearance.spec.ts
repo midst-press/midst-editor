@@ -24,6 +24,35 @@ const choose = (app: ElectronApplication, label: string) =>
     item.click();
   }, label);
 
+// A screenshot of the window once it is on screen. The window is created hidden and shown on ready-to-show, and
+// under Xvfb on Linux a capture taken before then fails with "Unable to capture screenshot" (GitHub e2e-linux).
+// So wait until the main process says the window is visible, then capture, retrying only that one error a few
+// times while the compositor catches up.
+const shot = async (app: ElectronApplication, win: Page, path: string) => {
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((w) => w.isVisible())
+      )
+    )
+    .toBe(true);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await win.screenshot({ path });
+      return;
+    } catch (error) {
+      if (
+        attempt >= 5 ||
+        !String(error).includes('Unable to capture screenshot')
+      )
+        throw error;
+      // eslint-disable-next-line no-await-in-loop
+      await win.waitForTimeout(500);
+    }
+  }
+};
+
 const rootColours = (win: Page) =>
   win.evaluate(() => {
     const style = getComputedStyle(document.documentElement);
@@ -68,7 +97,7 @@ test('View > Appearance switches the interface between light and dark', async ()
         button: 'rgba(77, 77, 77, 0.9) on rgb(240, 240, 240)',
       });
     expect(readStore(userData).appearance).toBe('light');
-    await win.screenshot({ path: testInfo.outputPath('appearance-light.png') });
+    await shot(app, win, testInfo.outputPath('appearance-light.png'));
 
     await choose(app, 'Dark');
     await expect
@@ -82,7 +111,7 @@ test('View > Appearance switches the interface between light and dark', async ()
         button: 'rgba(255, 255, 255, 0.87) on rgb(43, 36, 39)',
       });
     expect(readStore(userData).appearance).toBe('dark');
-    await win.screenshot({ path: testInfo.outputPath('appearance-dark.png') });
+    await shot(app, win, testInfo.outputPath('appearance-dark.png'));
   } finally {
     await app.close();
   }
@@ -139,18 +168,14 @@ test('the stored choice is in force when the app next opens', async () => {
       });
       // Past any background fade before the picture is taken.
       await win.waitForTimeout(500);
-      await win.screenshot({
-        path: testInfo.outputPath(`editor-${expected}.png`),
-      });
+      await shot(app, win, testInfo.outputPath(`editor-${expected}.png`));
 
       await win.getByRole('link', { name: 'Replay' }).click();
       await expect(win.locator('.ReplayContainer')).toBeVisible({
         timeout: 25_000,
       });
       await win.waitForTimeout(500);
-      await win.screenshot({
-        path: testInfo.outputPath(`replay-${expected}.png`),
-      });
+      await shot(app, win, testInfo.outputPath(`replay-${expected}.png`));
       expect((await rootColours(win)).scheme).toBe(expected);
     } finally {
       await app.close();
