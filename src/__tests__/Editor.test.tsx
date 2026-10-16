@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
 import Editor from '../renderer/components/Editor';
+import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
 import { ChangeObj } from '../renderer/tracking/utils';
 
@@ -46,7 +47,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     titlebar: {
       updateTitle: (name: string) => record('title', name),
     },
-    log: { warn: (m: string) => record('log.warn', m) },
+    log: {
+      warn: (m: string) => record('log.warn', m),
+      error: (m: string, meta: unknown) => record('log.error', m, meta),
+    },
   };
   return {
     values,
@@ -269,6 +273,21 @@ describe('Editor: content and appearance', () => {
     settleFocus();
     expect(document.activeElement).not.toBe(proseMirror());
   });
+
+  it('on a Mac, leaves the focus in the find bar, and gets it back when the bar closes (GitHub #27)', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    bridge.emit('find-in-poem');
+    settleFocus();
+    const field = screen.getByRole('textbox', { name: 'Find in the poem' });
+    expect(document.activeElement).toBe(field);
+    act(() => {
+      fireEvent.keyDown(field, { key: 'Escape' });
+    });
+    settleFocus();
+    expect(document.activeElement).toBe(proseMirror());
+  });
 });
 
 describe('Editor: on entering and leaving', () => {
@@ -355,6 +374,18 @@ describe('Editor: recording an edit', () => {
     const last = setPoemHistorySpy.mock.calls.at(-1)[0] as ChangeObj[];
     expect(last.map((c) => c.inserted)).toEqual(['a', 'b', 'c']);
     expect(bridge.sets('edited')).toHaveLength(1);
+  });
+
+  it('after an autosave, the next keystroke marks the document edited again', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('a');
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    typeText('b');
+    expect(bridge.sets('edited')).toHaveLength(2);
   });
 
   it('records nothing when the content did not change', () => {
@@ -639,6 +670,38 @@ describe('Editor: draft marker button', () => {
     ).toBeDisabled();
   });
 
+  it('says why it is disabled while the history is short, and looks unavailable (GitHub #66)', () => {
+    mount({ initialHistory: [change(1)] });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription(
+      'A draft can be marked once the poem has more than 50 changes. This one has 1.'
+    );
+    expect(button).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('says a moment already has a draft when that is why it is disabled', () => {
+    bridge = installBridge({
+      meta: JSON.stringify({
+        draftMarkers: [{ index: 59, defaultName: 'Draft 1' }],
+      }),
+    });
+    mount({ initialHistory: LONG_HISTORY });
+    expect(
+      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+    ).toHaveAccessibleDescription('This moment already has a draft.');
+  });
+
+  it('has no reason and looks available when a draft can be marked', () => {
+    mount({ initialHistory: LONG_HISTORY });
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription('');
+    expect(button).not.toHaveStyle({ opacity: '0.38' });
+  });
+
   it('stays on the editor when the stored meta cannot be read', () => {
     bridge = installBridge({ meta: 'not json' });
     mount({ initialHistory: LONG_HISTORY });
@@ -647,6 +710,23 @@ describe('Editor: draft marker button', () => {
     );
     expect(screen.getByTestId('where')).toHaveTextContent('/editor');
     expect(bridge.values.meta).toBe('not json');
+    expect(bridge.calls.filter((c) => c.kind === 'log.error')).toEqual([
+      {
+        kind: 'log.error',
+        args: [
+          REFUSED_LOG,
+          {
+            reason: 'meta-unreadable',
+            action: 'create',
+            index: 59,
+            historyLength: 60,
+          },
+        ],
+      },
+    ]);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The drafts of this poem could not be read, so nothing was changed.'
+    );
   });
 });
 
@@ -655,5 +735,46 @@ describe('Editor: Tab key', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('\t');
     expect(setTextSpy).toHaveBeenLastCalledWith(expect.stringContaining('\t'));
+  });
+});
+
+// GitHub #24: leaving the editor (for Replay) and coming back makes a new editor. The cursor goes back where it
+// was, but only into the same text: a different poem, or a changed one, starts as before.
+describe('Editor: the cursor when coming back', () => {
+  const TEXT = '<p>zq xv qz vb</p>';
+  const selectionNow = () => {
+    const { from, to, anchor, head } = proseMirror().editor.state.selection;
+    return { from, to, anchor, head };
+  };
+  const leaveWithSelection = (anchor: number, head: number) => {
+    const { unmount } = mount({ initialText: TEXT });
+    act(() => {
+      proseMirror().editor.commands.setTextSelection({
+        from: anchor,
+        to: head,
+      });
+    });
+    unmount();
+  };
+
+  it('puts the cursor back where it was', () => {
+    leaveWithSelection(6, 6);
+    mount({ initialText: TEXT });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 6, to: 6, anchor: 6, head: 6 });
+  });
+
+  it('puts a selection back as it was', () => {
+    leaveWithSelection(4, 9);
+    mount({ initialText: TEXT });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 4, to: 9, anchor: 4, head: 9 });
+  });
+
+  it('starts as before when the text is not the text it left', () => {
+    leaveWithSelection(6, 6);
+    mount({ initialText: '<p>qz</p>' });
+    settleFocus();
+    expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
   });
 });

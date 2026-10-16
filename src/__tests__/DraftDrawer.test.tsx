@@ -18,6 +18,7 @@ interface HarnessProps {
   onShow: jest.Mock;
   startNaming: number | null;
   markers: typeof MARKERS;
+  refusal: string | null;
 }
 
 function Harness({
@@ -27,6 +28,7 @@ function Harness({
   onShow,
   startNaming,
   markers,
+  refusal,
 }: HarnessProps) {
   const [naming, setNaming] = useState<number | null>(startNaming);
   const [showMarkers, setShowMarkers] = useState(true);
@@ -41,6 +43,7 @@ function Harness({
       onJump={onJump}
       onRename={onRename}
       onDelete={onDelete}
+      refusal={refusal}
       showMarkers={showMarkers}
       setShowMarkers={(shown) => {
         onShow('markers', shown);
@@ -65,6 +68,7 @@ const show = (given: Partial<HarnessProps> = {}) =>
       onShow={given.onShow ?? jest.fn()}
       startNaming={given.startNaming ?? null}
       markers={given.markers ?? MARKERS}
+      refusal={given.refusal ?? null}
     />
   );
 
@@ -101,6 +105,18 @@ describe('DraftDrawer', () => {
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(onRename).toHaveBeenCalledWith(7, 'qz vx');
     expect(screen.queryByLabelText('Draft name')).toBeNull();
+  });
+
+  it('opening another draft for naming shows that draft’s name, not what was typed for the last', () => {
+    show();
+    const seen = screen.getAllByLabelText('Rename draft').map((button) => {
+      fireEvent.click(button);
+      const field = screen.getByLabelText('Draft name') as HTMLInputElement;
+      const { value } = field;
+      fireEvent.change(field, { target: { value: 'typed, not saved' } });
+      return value;
+    });
+    expect(seen.sort()).toEqual(['Draft 2', 'xv', 'zq']);
   });
 
   it('saves the name when the field is left', () => {
@@ -141,5 +157,19 @@ describe('DraftDrawer', () => {
       ['markers', false],
       ['labels', false],
     ]);
+  });
+});
+
+describe('DraftDrawer: refusal', () => {
+  it('shows why a change was refused, in an alert', () => {
+    show({ refusal: 'That draft is no longer there.' });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'That draft is no longer there.'
+    );
+  });
+
+  it('shows no alert when nothing was refused', () => {
+    show();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 });

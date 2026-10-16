@@ -1,10 +1,10 @@
 /* eslint import/prefer-default-export: off */
 import { BrowserWindow } from 'electron';
 import path from 'path';
-import { compareStrings } from 'renderer/tracking/utils';
 import { URL } from 'url';
 import { generateJSON, generateHTML } from '@tiptap/html';
 import { JSONContent } from '@tiptap/core';
+import { compareStrings } from '../renderer/tracking/utils';
 import poemExtensions from '../shared/poemExtensions';
 import store from './store';
 
@@ -85,6 +85,35 @@ const TRAILING_BREAK =
 export const dropTrailingBreaks = (html: string) =>
   html.replace(TRAILING_BREAK, '$1');
 
+// Characters that draw nothing: BOM / zero-width no-break space (U+FEFF, what Rangy's selection markers
+// hold), zero-width space, non-joiner, joiner (U+200B-U+200D) and word joiner (U+2060).
+export const ZERO_WIDTH_CHARS = '\\uFEFF\\u200B\\u200C\\u200D\\u2060';
+const ZERO_WIDTH_ENTITY_CODES = [0xfeff, 0x200b, 0x200c, 0x200d, 0x2060];
+const ZERO_WIDTH_ENTITY = ZERO_WIDTH_ENTITY_CODES.map(
+  (c) => `&#(?:x0*${c.toString(16)}|0*${c});`
+).join('|');
+// One inline element holding nothing but zero-width characters (literal or as a character reference),
+// no child tag. Paragraphs and divs are not inline elements, so a blank line the poet left is never matched.
+const ZERO_WIDTH_ONLY_ELEMENT = new RegExp(
+  `<(span|em|strong|i|b|u|s|strike|a)\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</\\1>`,
+  'gi'
+);
+
+// Old files hold Rangy's selection markers, e.g. <span class="rangySelectionBoundary"
+// style="display: none;">&#xFEFF;</span>: invisible in the old player, no authored content. TipTap has no
+// span mark, so it unwraps the span and the FEFF becomes a paragraph of its own: the poem starts a line
+// lower than written. Remove such elements before parsing. Zero-width characters beside visible text are
+// left alone, and so are <p><br></p> and <p></p>. Repeats so a marker wrapped in a marker goes too.
+export const dropZeroWidthOnlyElements = (html: string) => {
+  let current = html;
+  let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+  while (next !== current) {
+    current = next;
+    next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, '');
+  }
+  return current;
+};
+
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
  * is copied unchanged; a field B does not have is left out, so the reader's default applies.
@@ -130,7 +159,7 @@ export const convertMidstFile = (oldMidst: string) => {
     // Parse as the editor does (Editor and Replay use preserveWhitespace: true).
     // The default collapses tabs and drops a line-leading tab; poets use tabs for spacing.
     const jsonContentAtFrame = generateJSON(
-      dropTrailingBreaks(el.content),
+      dropTrailingBreaks(dropZeroWidthOnlyElements(el.content)),
       poemExtensions,
       {
         preserveWhitespace: true,

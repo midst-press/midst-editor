@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createMarker,
   deleteMarker,
+  MarkerRefusal,
   MarkerResult,
   Meta,
   renameMarker,
@@ -16,6 +17,50 @@ import {
 // than this many recorded changes.
 export const FRAMES_BEFORE_MARKERS = 50;
 
+// Fixed log messages: what happened is in the message, the reason and positions are in the meta. Never a
+// name or any poem text.
+export const REFUSED_LOG = 'draft marker change refused';
+export const FAILED_LOG = 'draft marker change failed';
+export const REREAD_FAILED_LOG = 'draft markers could not be read back';
+
+export type ChangeRefusal =
+  | MarkerRefusal
+  | 'meta-unreadable'
+  | 'too-few-changes'
+  | 'change-threw';
+
+// What the poet is told for each refusal.
+export const refusalMessage = (
+  reason: ChangeRefusal,
+  historyLength: number
+): string => {
+  switch (reason) {
+    case 'too-few-changes':
+      return `A draft can be marked once the poem has more than ${FRAMES_BEFORE_MARKERS} changes. This one has ${historyLength}.`;
+    case 'not-a-history-position':
+      return 'There is no moment here to mark.';
+    case 'position-has-a-marker':
+      return 'This moment already has a draft.';
+    case 'no-draft-number-left':
+      return 'No more drafts can be numbered in this poem.';
+    case 'no-marker-there':
+      return 'That draft is no longer there.';
+    case 'meta-unreadable':
+    case 'markers-unreadable':
+      return 'The drafts of this poem could not be read, so nothing was changed.';
+    default:
+      // It may have been kept: the change can fail after it was stored. The list shows what was.
+      return 'Something went wrong while changing this draft. The drafts list shows what was kept.';
+  }
+};
+
+// How a draft button looks when a draft cannot be marked. Inline, so it wins over the replay's inline colour and the
+// editor's .icon-button colour, neither of which changes when the button is disabled (GitHub #66).
+export const UNAVAILABLE_STYLE = {
+  opacity: 0.38,
+  cursor: 'not-allowed',
+} as const;
+
 // The open document's draft markers, and the three changes a poet can make to them. `save` writes the
 // document; each accepted change calls it.
 export default function useDraftMarkers(
@@ -25,52 +70,122 @@ export default function useDraftMarkers(
   const [meta, setMeta] = useState<Meta | null>(() =>
     readStoredMeta(window.electron.store)
   );
-  // Another document was opened: the main process has already stored its meta.
+
+  // Why the last change was refused, in words for the poet; null after an accepted change.
+  const [refusal, setRefusal] = useState<string | null>(null);
+  // Another document was opened: the main process has already stored its meta. A message about the
+  // last document's drafts no longer applies.
   useEffect(
     () =>
-      window.electron.ipcRenderer.on('open-file', () =>
-        setMeta(readStoredMeta(window.electron.store))
-      ),
+      window.electron.ipcRenderer.on('open-file', () => {
+        setMeta(readStoredMeta(window.electron.store));
+        setRefusal(null);
+      }),
     []
   );
 
-  const apply = useCallback(
-    // eslint-disable-next-line no-unused-vars
-    (change: (current: Meta) => MarkerResult) => {
-      const result = changeStoredMarkers(window.electron.store, change, save);
-      if (result.ok) setMeta(result.meta);
-      return result.ok;
+  // A refused change is an error, not a warning: the buttons are disabled for every refusal the poet can
+  // cause, so reaching one means stale state or unreadable stored data, and the poet's action had no effect.
+  const refuse = useCallback(
+    (reason: ChangeRefusal, action: string, index: number) => {
+      window.electron.log.error(REFUSED_LOG, {
+        reason,
+        action,
+        index,
+        historyLength,
+      });
+      setRefusal(refusalMessage(reason, historyLength));
+      return false;
     },
-    [save]
+    [historyLength]
+  );
+
+  const apply = useCallback(
+    (
+      // eslint-disable-next-line no-unused-vars
+      change: (current: Meta) => MarkerResult,
+      action: string,
+      index: number
+    ) => {
+      try {
+        const result = changeStoredMarkers(window.electron.store, change, save);
+        if (!result.ok) return refuse(result.reason, action, index);
+        setMeta(result.meta);
+        setRefusal(null);
+        return true;
+      } catch (error) {
+        // Only the error's name is logged: its message may quote what was being read.
+        window.electron.log.error(FAILED_LOG, {
+          action,
+          index,
+          historyLength,
+          errorName: error instanceof Error ? error.name : typeof error,
+        });
+        // The change may have been stored before the throw (it writes the meta, then the unsaved flag, then
+        // saves), so show what the store now holds rather than what was on screen. If that read fails too, it
+        // is logged, and the list stays as it was.
+        try {
+          setMeta(readStoredMeta(window.electron.store));
+        } catch (reread) {
+          window.electron.log.error(REREAD_FAILED_LOG, {
+            action,
+            index,
+            errorName: reread instanceof Error ? reread.name : typeof reread,
+          });
+        }
+        setRefusal(refusalMessage('change-threw', historyLength));
+        return false;
+      }
+    },
+    [save, refuse, historyLength]
   );
 
   const markers = useMemo(
     () => (meta ? shownMarkers(meta, historyLength) : []),
     [meta, historyLength]
   );
-  const canCreateAt = useCallback(
-    (index: number) =>
-      historyLength > FRAMES_BEFORE_MARKERS &&
-      index >= 0 &&
-      index < historyLength &&
-      !markers.some((marker) => marker.index === index),
+  // Why a draft cannot be marked at `index`, in words for the poet, or null when it can. The editor and
+  // the replay both show it on their disabled button (GitHub #66).
+  const reasonAt = useCallback(
+    (index: number): string | null => {
+      if (historyLength <= FRAMES_BEFORE_MARKERS) {
+        return `A draft can be marked once the poem has more than ${FRAMES_BEFORE_MARKERS} changes. This one has ${historyLength}.`;
+      }
+      if (index < 0 || index >= historyLength) {
+        return 'There is no moment here to mark.';
+      }
+      if (markers.some((marker) => marker.index === index)) {
+        return 'This moment already has a draft.';
+      }
+      return null;
+    },
     [historyLength, markers]
+  );
+  const canCreateAt = useCallback(
+    (index: number) => reasonAt(index) === null,
+    [reasonAt]
   );
   const create = useCallback(
     (index: number) =>
-      historyLength > FRAMES_BEFORE_MARKERS &&
-      apply((current) => createMarker(current, index, historyLength)),
-    [apply, historyLength]
+      historyLength > FRAMES_BEFORE_MARKERS
+        ? apply(
+            (current) => createMarker(current, index, historyLength),
+            'create',
+            index
+          )
+        : refuse('too-few-changes', 'create', index),
+    [apply, refuse, historyLength]
   );
   const rename = useCallback(
     (index: number, name: string) =>
-      apply((current) => renameMarker(current, index, name)),
+      apply((current) => renameMarker(current, index, name), 'rename', index),
     [apply]
   );
   const remove = useCallback(
-    (index: number) => apply((current) => deleteMarker(current, index)),
+    (index: number) =>
+      apply((current) => deleteMarker(current, index), 'delete', index),
     [apply]
   );
 
-  return { markers, canCreateAt, create, rename, remove };
+  return { markers, reasonAt, canCreateAt, create, rename, remove, refusal };
 }

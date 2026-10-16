@@ -237,6 +237,7 @@ describe('the user guide', () => {
     'To go to a draft',
     'To rename a draft',
     'To delete a draft',
+    'To carry on from an earlier moment',
     'While writing:',
     'In Replay:',
     'In the Drafts list:',

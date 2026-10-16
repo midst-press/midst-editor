@@ -2,8 +2,15 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, Menu, shell } from 'electron';
-import MenuBuilder, { newFile, openFile, save, saveAs } from '../main/menu';
+import { app, dialog, Menu, nativeTheme, shell } from 'electron';
+import MenuBuilder, {
+  applyStoredAppearance,
+  exportRtf,
+  newFile,
+  openFile,
+  save,
+  saveAs,
+} from '../main/menu';
 import { showAbout } from '../main/about';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
@@ -24,6 +31,7 @@ jest.mock('electron', () => ({
   },
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
   shell: { openExternal: jest.fn() },
+  nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
@@ -593,6 +601,101 @@ describe('saveAs', () => {
   });
 });
 
+describe('exportRtf (GitHub #26)', () => {
+  const ERROR_TITLE = 'Could not export';
+
+  it('offers the poem’s own name and folder, as .rtf', () => {
+    seedDocument({ filename: path.join(dir, 'zq.midst') });
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join(dir, 'zq.rtf')
+    );
+    expect(showSaveDialog.mock.calls[0][1].filters[0].extensions).toEqual([
+      'rtf',
+    ]);
+  });
+
+  it('offers Untitled.rtf in the dialog folder for a poem with no file', () => {
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.rtf')
+    );
+  });
+
+  it('writes the RTF, and changes nothing about the poem or its file', () => {
+    const poemFile = path.join(dir, 'zq.midst');
+    const chosen = path.join(dir, 'zq.rtf');
+    seedDocument({ filename: poemFile, poem: '<p><strong>xv</strong></p>' });
+    showSaveDialog.mockReturnValue(chosen);
+    const win = makeWindow();
+    exportRtf(asWindow(win));
+    expect(readBack(chosen)).toContain('{\\b xv}\\par');
+    expect(dirListing()).toEqual(['zq.rtf']);
+    expect(mockStore.get('filename')).toBe(poemFile);
+    expect(mockStore.get('edited')).toBe('true');
+    expect(win.webContents.send).not.toHaveBeenCalled();
+    expect(win.setTitle).not.toHaveBeenCalled();
+    expect(showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('an empty poem: says why, and asks for no file', () => {
+    seedDocument({ poem: '<p></p>' });
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showMessageBox.mock.calls[0][1]).toMatchObject({
+      type: 'error',
+      title: ERROR_TITLE,
+      detail: 'The poem is empty, so there is nothing to export.',
+    });
+  });
+
+  it('no poem in the store: says so, and asks for no file', () => {
+    seedDocument();
+    mockStore.delete('poem');
+    exportRtf(asWindow(makeWindow()));
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showMessageBox.mock.calls[0][1].detail).toBe(
+      'There is no poem open to export.'
+    );
+  });
+
+  it('when the poet cancels, writes nothing and says nothing', () => {
+    seedDocument();
+    showSaveDialog.mockReturnValue(undefined);
+    exportRtf(asWindow(makeWindow()));
+    expect(dirListing()).toEqual([]);
+    expect(showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('a file that cannot be written: says why, and leaves no part of a file', () => {
+    seedDocument();
+    showSaveDialog.mockReturnValue(unwritable().replace(/midst$/, 'rtf'));
+    exportRtf(asWindow(makeWindow()));
+    expect(showMessageBox.mock.calls[0][1].title).toBe(ERROR_TITLE);
+    expect(showMessageBox.mock.calls[0][1].detail).toContain(
+      'No file was written.'
+    );
+    expect(dirListing()).toEqual([]);
+  });
+
+  it('a write that fails partway leaves an existing file of that name as it was', () => {
+    const chosen = path.join(dir, 'zq.rtf');
+    fs.writeFileSync(chosen, 'earlier export');
+    seedDocument();
+    showSaveDialog.mockReturnValue(chosen);
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw new Error('EIO: zq');
+    });
+    exportRtf(asWindow(makeWindow()));
+    expect(readBack(chosen)).toBe('earlier export');
+    expect(dirListing()).toEqual(['zq.rtf']);
+    expect(showMessageBox.mock.calls[0][1].detail).toContain('EIO: zq');
+  });
+});
+
 describe('newFile', () => {
   it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
     seedDocument({ edited: 'true' });
@@ -1059,6 +1162,14 @@ describe('the menu', () => {
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
     });
 
+    it('Export as RTF… asks for a file and writes the poem there as RTF', () => {
+      const chosen = path.join(dir, 'zq.rtf');
+      seedDocument();
+      showSaveDialog.mockReturnValue(chosen);
+      sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
+    });
+
     // The document already has a file, so plain Save would write there without asking. Save As
     // must ask anyway and leave that file alone.
     it('Save As asks for a file and writes there', async () => {
@@ -1100,10 +1211,30 @@ describe('the menu', () => {
       expect(mockStore.get('poem')).toBe('<p>zq</p>');
     });
 
-    it('Toggle Edit Mode and the spellcheck toggle message the renderer', () => {
+    it('Toggle Timeline is on Command+T or Ctrl+T, and no two items share a shortcut (GitHub #21)', () => {
+      const template = build(platform);
+      expect(sub(template, editTop, 'Toggle Timeline').accelerator).toBe(
+        isMac ? 'Command+T' : 'Ctrl+T'
+      );
+      const accelerators: string[] = [];
+      const walk = (items: Item[]) =>
+        items.forEach((i) => {
+          // One shortcut however it is written: Shift+Command+Z is Command+Shift+Z.
+          if (i.accelerator)
+            accelerators.push(
+              i.accelerator.toLowerCase().split('+').sort().join('+')
+            );
+          if (i.submenu) walk(i.submenu);
+        });
+      walk(template);
+      expect(accelerators.length).toBeGreaterThan(10);
+      expect(new Set(accelerators).size).toBe(accelerators.length);
+    });
+
+    it('Toggle Timeline and the spellcheck toggle message the renderer', () => {
       const win = makeWindow();
       const template = build(platform, win);
-      sub(template, editTop, 'Toggle Edit Mode').click!();
+      sub(template, editTop, 'Toggle Timeline').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith('toggle-edit-mode');
       sub(
         template,
@@ -1113,6 +1244,14 @@ describe('the menu', () => {
       expect(win.webContents.send).toHaveBeenLastCalledWith(
         'toggle-spellcheck'
       );
+    });
+
+    it('Find is on Command+F or Ctrl+F and opens the find bar (GitHub #27)', () => {
+      const win = makeWindow();
+      const item = sub(build(platform, win), editTop, 'Find');
+      expect(item.accelerator).toBe(isMac ? 'Command+F' : 'Ctrl+F');
+      item.click!();
+      expect(win.webContents.send).toHaveBeenLastCalledWith('find-in-poem');
     });
 
     it('Toggle Full Screen flips the window state', () => {
@@ -1299,5 +1438,85 @@ describe('the menu', () => {
       sub(build('linux', win), '&File', '&Close').click!();
       expect(win.close).toHaveBeenCalledTimes(1);
     });
+  });
+
+  describe('View > Appearance (GitHub #16)', () => {
+    type Radio = Item & { type?: string; checked?: boolean };
+    const appearance = (platform: string) => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      const template = build(platform);
+      return sub(
+        template,
+        platform === 'darwin' ? 'View' : '&View',
+        'Appearance'
+      ).submenu as Radio[];
+    };
+
+    beforeEach(() => {
+      nativeTheme.themeSource = 'system';
+    });
+
+    it.each(['darwin', 'linux'])(
+      'offers Follow System, Light and Dark as one choice on %s',
+      (platform) => {
+        const items = appearance(platform);
+        expect(items.map((i) => [i.label, i.type])).toEqual([
+          ['Follow System', 'radio'],
+          ['Light', 'radio'],
+          ['Dark', 'radio'],
+        ]);
+      }
+    );
+
+    it('is also in the development View menu', () => {
+      process.env.NODE_ENV = 'development';
+      const template = build('darwin');
+      expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
+    });
+
+    it.each([
+      [undefined, 'Follow System'],
+      ['light', 'Light'],
+      ['dark', 'Dark'],
+      ['system', 'Follow System'],
+      ['purple', 'Follow System'],
+    ])('with %p stored, checks %s', (stored, label) => {
+      if (stored !== undefined) mockStore.set('appearance', stored);
+      expect(
+        appearance('darwin')
+          .filter((i) => i.checked)
+          .map((i) => i.label)
+      ).toEqual([label]);
+    });
+
+    it.each([
+      ['Dark', 'dark'],
+      ['Light', 'light'],
+      ['Follow System', 'system'],
+    ])('choosing %s stores it and sets the scheme', (label, value) => {
+      mockStore.set(
+        'appearance',
+        label === 'Follow System' ? 'dark' : 'system'
+      );
+      find(appearance('linux'), label).click!();
+      expect(mockStore.get('appearance')).toBe(value);
+      expect(nativeTheme.themeSource).toBe(value);
+    });
+  });
+});
+
+describe('applyStoredAppearance (GitHub #16)', () => {
+  it.each([
+    [undefined, 'system'],
+    ['dark', 'dark'],
+    ['light', 'light'],
+    ['', 'system'],
+    ['Dark', 'system'],
+  ])('with %p stored, sets the scheme to %s', (stored, expected) => {
+    nativeTheme.themeSource = 'light';
+    if (stored !== undefined) mockStore.set('appearance', stored);
+    applyStoredAppearance();
+    expect(nativeTheme.themeSource).toBe(expected);
   });
 });

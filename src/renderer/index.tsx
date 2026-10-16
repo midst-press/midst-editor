@@ -1,5 +1,8 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import registerUncaughtErrorLogging from './uncaughtErrors';
+
+registerUncaughtErrorLogging(window, window.electron.log);
 
 const container = document.getElementById('root')!;
 const root = createRoot(container);

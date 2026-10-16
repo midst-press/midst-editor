@@ -11,7 +11,7 @@ violation() { echo "::error::$*"; failures=$((failures + 1)); }
 
 echo "host=$(hostname -s) user=$(id -un) arch=$(uname -m)"
 
-for tool in bash python3 git; do
+for tool in bash python3 git pre-commit; do
   path=$(command -v "$tool") || { violation "$tool is not on PATH"; continue; }
   echo "$tool -> $path"
   case "$path" in
@@ -42,8 +42,17 @@ else
   violation "npm did not run: $npm_version"
 fi
 
+# pre-commit is Homebrew's, installed once on the runner host, rather than pip-installed into a fresh
+# virtual environment on every job. Its version is reported, not pinned, as npm's is: a Homebrew upgrade
+# changes it underneath CI, and the log shows when.
+if pre_commit_version=$(pre-commit --version 2>&1); then
+  echo "pre-commit -> $(command -v pre-commit) $pre_commit_version"
+else
+  violation "pre-commit did not run: $pre_commit_version"
+fi
+
 if [ "$failures" -gt 0 ]; then
   echo "::error::toolchain guard: $failures violation(s)"
   exit 1
 fi
-echo "bash $BASH_VERSION  $(python3 --version)  $(git --version)  node $(node --version)  npm $npm_version"
+echo "bash $BASH_VERSION  $(python3 --version)  $(git --version)  node $(node --version)  npm $npm_version  $pre_commit_version"

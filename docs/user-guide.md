@@ -42,6 +42,14 @@ To make the text larger or smaller, press **Increase text size** or **Decrease t
 
 Everything you do goes into the timelapse, including what you undo.
 
+## Finding words in the poem
+
+To find words in the poem while you are writing, choose **Edit** > **Find**, or press Command+F on a Mac or Ctrl+F on Windows and Linux. Type the words in **Find in the poem**. Midst marks every place they appear and selects the first one. Capital and small letters count as the same.
+
+Press Enter, or **Next match**, to go to the next one, and Shift+Enter, or **Previous match**, to go back. Midst shows which one you are on, such as "2 of 5", or says "No matches". To stop, press Escape or **Close find**. You go back to the poem with the cursor just after the last match.
+
+Find looks in the poem as it is now, not in the timelapse, so it works while you are writing; in Replay, Midst tells you so. Words are not found across the end of a line.
+
 ## Saving
 
 Midst saves the poem for you, one second after you stop typing. You do not need to do anything.
@@ -49,6 +57,8 @@ Midst saves the poem for you, one second after you stop typing. You do not need 
 To save at once, choose **File** > **Save**. To keep a second copy under another name and carry on in that copy, choose **File** > **Save As**.
 
 If Midst cannot save, it tells you in a message called **Could not save**. Your poem stays open. Press **Save As…** in that message to save it somewhere else.
+
+To put the poem as it is now into a file a word processor can open, choose **File** > **Export as RTF…**. Its line breaks, stanza breaks, spacing, bold and italic go with it; its history does not. If Midst cannot export the poem, it tells you why in a message called **Could not export**, and writes no file.
 
 If you start a new poem, open another one or close the window while something is unsaved, Midst warns you. **Cancel** keeps your poem. **Proceed** goes on without saving it.
 
@@ -62,19 +72,21 @@ A poem made in an older version of Midst needs converting before it opens. Midst
 
 To watch the poem being written, press **Replay**. To come back and write, press **Edit** (the pencil).
 
-In Replay you cannot type. Watching does not change the poem.
+In Replay you cannot type. Watching does not change the poem. The one way to change it from here is **Restart from here**.
 
 **What you see**
 
 - **The poem**, as it was at the moment you are looking at. When Replay opens, that is the poem as it is now.
-- **At the top right**, **Increase text size** and **Decrease text size**.
-- **Along the bottom**, from left to right: the play button, the timeline, **Mark this moment as a draft**, **Drafts** and **Edit**.
+- **At the top right**, **Increase text size**, **Decrease text size** and **Follow the writing**. While **Follow the writing** is on, the page scrolls to keep the writing in view as it replays. Turn it off and the page stays where you put it. Midst remembers which you chose.
+- **Along the bottom**, from left to right: the play button, the timeline, **Mark this moment as a draft**, **Restart from here**, **Drafts** and **Edit**.
 
 **To play the poem**, press the play button (a triangle). It turns into a pause button (two bars); press it to stop where you are. The page follows the place where you were writing.
 
 When the poem reaches the end, it stops. Pressing play at the end starts again from the beginning.
 
 **The timeline** is the line along the bottom. Its left end is the first thing you put on the page and its right end is the poem as it is now. The dot shows where you are. Drag the dot, or click anywhere on the line, to go to that moment. While you point at the dot or drag it, a small label shows the time and date you made that change.
+
+**To carry on from an earlier moment**, move along the timeline to it and press **Restart from here**. The poem becomes the poem as it was then, and you are taken back to writing. Nothing is lost: the replay still shows everything you wrote, with the restart added at the end. The button is greyed out when the moment is already the poem as it is now.
 
 ## Draft markers
 
@@ -122,6 +134,10 @@ To turn it on or off while you are writing, choose **Edit** > **Show/hide spellc
 
 To fill the whole screen with Midst, choose **View** > **Toggle Full Screen**. Choose it again to go back.
 
+## Light and dark
+
+Midst can be light or dark. Choose **View** > **Appearance**, then **Light** or **Dark**. Until you choose, Midst follows your computer's setting, and **Follow System** goes back to that. This changes how Midst looks on your screen. It does not change the poem, and Midst remembers what you chose.
+
 ## Keyboard shortcuts
 
 Each shortcut is written as the names on the keys, joined with +. Hold the first keys down and press the last.
@@ -143,7 +159,8 @@ Each shortcut is written as the names on the keys, joined with +. Hold the first
 | Copy                                | Command+C         | Ctrl+C            | Edit > Copy                                                                         |
 | Paste                               | Command+V         | Ctrl+V            | Edit > Paste                                                                        |
 | Select the whole poem               | Command+A         | Ctrl+A            | Edit > Select All                                                                   |
-| Switch between writing and Replay   | Command+E         | Ctrl+E            | Edit > Toggle Edit Mode                                                             |
+| Find words in the poem              | Command+F         | Ctrl+F            | Edit > Find                                                                         |
+| Switch between writing and Replay   | Command+T         | Ctrl+T            | Edit > Toggle Timeline                                                              |
 | Turn spellcheck on or off           | Command+;         | Ctrl+;            | Edit > Show/hide spellcheck on macOS; Edit > Toggle Spellcheck on Windows and Linux |
 | Fill the screen with Midst, or stop | Command+Control+F | F11               | View > Toggle Full Screen                                                           |
 | Make the text larger                | Command+Shift+=   | Ctrl+=            | View > Increase text size                                                           |

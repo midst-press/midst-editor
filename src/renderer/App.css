@@ -4,7 +4,8 @@
  */
 
 body {
-  background: #fff5ee !important;
+  background: var(--midst-background) !important;
+  color: var(--midst-text-primary) !important;
 }
 
 ::-webkit-scrollbar {
@@ -13,7 +14,7 @@ body {
 
 /* Track */
 ::-webkit-scrollbar-track {
-  background: #fff5ee;
+  background: var(--midst-background);
 }
 
 ::-webkit-scrollbar-track:hover {
@@ -22,17 +23,17 @@ body {
 
 /* Handle */
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--midst-scrollbar-thumb);
   border-radius: 4px;
 }
 
 /* Handle on hover */
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--midst-scrollbar-thumb);
 }
 
 .cet-menubar-menu-container {
-  background-color: #fff !important;
+  background-color: var(--midst-surface) !important;
 }
 
 .cet-titlebar {
@@ -41,7 +42,7 @@ body {
 }
 
 .cet-title {
-  color: rgba(77, 77, 77, 0.6);
+  color: var(--midst-muted-text);
 }
 
 .cet-menubar {
@@ -49,7 +50,7 @@ body {
 }
 
 .svg {
-  fill: #ffa4b9;
+  fill: var(--midst-primary-dark);
   opacity: 70%;
   height: 80px;
   position: absolute;

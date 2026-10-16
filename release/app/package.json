@@ -1,12 +1,12 @@
 {
   "name": "midst",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Poetry in process",
   "license": "AGPL-3.0-or-later",
   "author": {
     "name": "Midst Team",
     "email": "team@midst.press",
-    "url": "https://github.com/jshafto/midst-app"
+    "url": "https://github.com/midst-press/midst-editor"
   },
   "main": "./dist/main/main.js",
   "scripts": {

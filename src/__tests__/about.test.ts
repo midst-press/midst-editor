@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { app, clipboard, dialog, shell } from 'electron';
-import { aboutLine, showAbout } from '../main/about';
+import { CREDITS, aboutLine, showAbout } from '../main/about';
 
 jest.mock('electron', () => ({
   app: { isPackaged: true, getVersion: jest.fn(() => '0.3.0-beta.1') },
@@ -49,6 +49,19 @@ describe('aboutLine', () => {
   });
 });
 
+describe('CREDITS', () => {
+  it('names the director, then the developers, one to a line', () => {
+    expect(CREDITS.split('\n')).toEqual([
+      'Director: Annelyse Gelman',
+      '',
+      'Developers:',
+      'Stuart Swerdloff and the SJS Targeted Solutions Kindled team',
+      'Juliet Shafto',
+      'Jason Gillis-Grier',
+    ]);
+  });
+});
+
 describe('showAbout', () => {
   it('shows the line in a dialog on the window', async () => {
     showMessageBox.mockResolvedValue({ response: 0 });
@@ -56,7 +69,7 @@ describe('showAbout', () => {
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const [parent, options] = showMessageBox.mock.calls[0];
     expect(parent).toBe(fakeWindow);
-    expect(options.detail).toBe(LINE);
+    expect(options.detail).toBe(`${LINE}\n\n${CREDITS}`);
     expect(options.buttons).toEqual(['OK', 'Copy', 'User Guide']);
     // Return and Escape both close it without copying.
     expect(options.defaultId).toBe(0);
@@ -74,6 +87,8 @@ describe('showAbout', () => {
     showMessageBox.mockResolvedValue({ response: 1 });
     await showAbout(fakeWindow);
     expect(writeText).toHaveBeenCalledWith(LINE);
+    // Only the version line, for pasting into a report; not the credits.
+    expect(writeText.mock.calls[0][0]).not.toContain('Annelyse');
   });
 
   it('opens the user guide in the browser when User Guide is chosen, and copies nothing', async () => {

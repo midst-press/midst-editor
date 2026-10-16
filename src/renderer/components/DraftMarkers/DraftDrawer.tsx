@@ -3,8 +3,9 @@ import EditIcon from '@mui/icons-material/Edit';
 import Drawer from '@mui/material/Drawer';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
+import RefusalAlert from './RefusalAlert';
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {
@@ -17,6 +18,8 @@ interface Props {
   onJump: (index: number) => void;
   onRename: (index: number, name: string) => void;
   onDelete: (index: number) => void;
+  // Why the last change was refused, shown here because the drawer covers the page.
+  refusal: string | null;
   showMarkers: boolean;
   setShowMarkers: (show: boolean) => void;
   showLabels: boolean;
@@ -35,18 +38,23 @@ export default function DraftDrawer({
   onJump,
   onRename,
   onDelete,
+  refusal,
   showMarkers,
   setShowMarkers,
   showLabels,
   setShowLabels,
 }: Props) {
-  const [typed, setTyped] = useState('');
-  useEffect(() => {
-    const marker = markers.find(({ index }) => index === naming);
-    if (marker) setTyped(marker.label);
-    // Only when a different marker is opened for naming, not on every change to the list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [naming]);
+  const labelOf = (at: number | null) =>
+    markers.find(({ index }) => index === at)?.label;
+  const [typed, setTyped] = useState(() => labelOf(naming) ?? '');
+  // When a different marker is opened for naming, the field starts from its name. Done while rendering,
+  // not in an effect (GitHub #44), and only on that change, not on every change to the list.
+  const [typedFor, setTypedFor] = useState(naming);
+  if (naming !== typedFor) {
+    setTypedFor(naming);
+    const label = labelOf(naming);
+    if (label !== undefined) setTyped(label);
+  }
 
   const finishNaming = (index: number) => {
     onRename(index, typed);
@@ -57,6 +65,7 @@ export default function DraftDrawer({
     <Drawer anchor="right" open={open} onClose={onClose}>
       <div className="DraftDrawer" aria-label="Drafts">
         <h2>Drafts</h2>
+        <RefusalAlert message={refusal} />
         <FormControlLabel
           control={
             <Switch

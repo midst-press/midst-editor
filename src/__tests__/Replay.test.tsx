@@ -2,6 +2,8 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
+import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
+import { FIND_IN_REPLAY } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 import type { ChangeObj } from '../renderer/tracking/utils';
@@ -28,6 +30,7 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
   const calls: Call[] = [];
   const listeners: Record<string, Listener[]> = {};
   const removed: string[] = [];
+  const logError = jest.fn();
   (window as unknown as { electron: unknown }).electron = {
     versions: { isMac: true },
     store: {
@@ -52,9 +55,10 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
     titlebar: {
       updateTitle: (name: string) => calls.push(['titlebar', name]),
     },
-    log: jest.fn(),
+    log: { error: logError },
   };
   return {
+    logError,
     values,
     calls,
     removed,
@@ -243,6 +247,18 @@ describe('Replay: playback', () => {
     ]);
   });
 
+  it('stops when the slider is moved to the last frame while playing', () => {
+    const live = watchIntervals();
+    mount();
+    seek(10);
+    fireEvent.click(playButton());
+    advance(60 * 2);
+    seek(LONG - 1);
+    expect(playButton()).toBeInTheDocument();
+    expect(live.size).toBe(0);
+    expect(slider()).toHaveValue(String(LONG - 1));
+  });
+
   it('plays from the start when started on the last frame, after a 250 ms wait', () => {
     const { container } = mount();
     fireEvent.click(playButton());
@@ -381,6 +397,38 @@ describe('Replay: text size', () => {
   });
 });
 
+describe('Replay: following the writing (GitHub #23)', () => {
+  const follow = () =>
+    screen.getByRole('button', { name: 'Follow the writing' });
+
+  it('follows by default, and says so', () => {
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('turns off and on again, and remembers each choice', () => {
+    mount();
+    fireEvent.click(follow());
+    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+    expect(bridge.values['replay-autoscroll']).toBe('false');
+    fireEvent.click(follow());
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+    expect(bridge.values['replay-autoscroll']).toBe('true');
+  });
+
+  it('starts off when it was turned off last time', () => {
+    bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'false' });
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('follows when the stored value is anything but "false"', () => {
+    bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'yes' });
+    mount();
+    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 describe('Replay: marking a draft', () => {
   it('records a marker at the frame shown, counts it as unsaved, then saves', () => {
     mount();
@@ -454,12 +502,41 @@ describe('Replay: marking a draft', () => {
     expect(bridge.calls).toEqual([]);
   });
 
+  it('says why in a short history, and looks unavailable despite its fixed colour (GitHub #66)', () => {
+    mount(makeHistory(SHORT));
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription(
+      `A draft can be marked once the poem has more than 50 changes. This one has ${SHORT}.`
+    );
+    expect(button).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('has no reason and looks available where a draft can be marked', () => {
+    mount();
+    const button = screen.getByRole('button', {
+      name: 'Mark this moment as a draft',
+    });
+    expect(button).toHaveAccessibleDescription('');
+    expect(button).not.toHaveStyle({ opacity: '0.38' });
+  });
+
   it('refuses a marker when the stored meta cannot be read, changing nothing', () => {
     bridge = installBridge({ 'font-size': '2', meta: '[1,2]' });
     mount();
     markDraft();
     expect(bridge.calls).toEqual([]);
     expect(screen.queryByRole('textbox', { name: 'Draft name' })).toBeNull();
+    expect(bridge.logError).toHaveBeenCalledWith(REFUSED_LOG, {
+      reason: 'meta-unreadable',
+      action: 'create',
+      index: expect.any(Number),
+      historyLength: expect.any(Number),
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The drafts of this poem could not be read, so nothing was changed.'
+    );
   });
 });
 
@@ -604,6 +681,13 @@ describe('Replay: going back to the editor', () => {
     mount();
     fireEvent.keyDown(document.body, { key: 'Escape' });
     expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+  });
+
+  it('Edit > Find says Find works while writing, and stays in Replay (GitHub #27)', () => {
+    mount();
+    bridge.emit('find-in-poem');
+    expect(screen.getByRole('alert')).toHaveTextContent(FIND_IN_REPLAY(true));
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 
   it('the application menu toggle goes back to the editor', () => {

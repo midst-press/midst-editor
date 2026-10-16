@@ -2,7 +2,6 @@ import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import { useTheme } from '@mui/material/styles';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import poemExtensions from 'shared/poemExtensions';
@@ -10,20 +9,28 @@ import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
+import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
-import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
+import RefusalAlert from '../DraftMarkers/RefusalAlert';
+import useDraftMarkers, {
+  UNAVAILABLE_STYLE,
+} from '../DraftMarkers/useDraftMarkers';
 import { ChangeObj, compareStrings } from '../../tracking/utils';
+import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
+import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
+import { rememberCursor, restoreCursor } from './cursorReturn';
 
-const extensions = [...poemExtensions, HandleTab];
+const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
-  const theme = useTheme();
   const navigate = useNavigate();
-  const [edited, setEdited] = useState<boolean>(false);
+  // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
+  // arrival, in an effect, then changes nothing React renders (GitHub #44).
+  const edited = useRef(false);
 
   // Read once: toggling it reloads the window, which reads it again.
   const [spellcheckOn] = useState<boolean>(
@@ -65,7 +72,7 @@ export default function Editor() {
         JSON.stringify(history ?? doc.poemHistory)
       );
       window.electron.ipcRenderer.sendMessage('save-file', []);
-      setEdited(false);
+      edited.current = false;
     },
     []
   );
@@ -95,14 +102,23 @@ export default function Editor() {
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
     setHtmlString(newHtml);
-    if (edited === false) {
-      setEdited(true);
+    if (!edited.current) {
+      edited.current = true;
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
     autosave.schedule();
   };
-  const onBlur = ({ editor }: { editor: EditorType }) => {
+  const onBlur = ({
+    editor,
+    event,
+  }: {
+    editor: EditorType;
+    event: FocusEvent;
+  }) => {
+    // The find bar takes the focus on purpose; taking it back would leave the poet unable to type there.
+    const to = event.relatedTarget;
+    if (to instanceof Element && to.closest(`.${FIND_BAR_CLASS}`)) return;
     if (window.electron.versions.isMac) {
       editor.commands.focus();
     }
@@ -179,16 +195,27 @@ export default function Editor() {
   // poet is then taken to the replay to name it, as the original editor opened the name at once.
   const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
   const latestMoment = poemHistory.length - 1;
+  const draftReason = drafts.reasonAt(latestMoment);
   const markThisMoment = () => {
     autosave.cancel();
     if (drafts.create(latestMoment))
       navigate('/replay', { state: { nameDraftAt: latestMoment } });
   };
 
+  // Coming back from Replay, the cursor goes where it was (GitHub #24); otherwise the editor is focused as
+  // before. Leaving, by any route, remembers it.
+  const created = useRef<EditorType | null>(null);
   const onCreate = ({ editor }: { editor: EditorType }) => {
-    editor.commands.focus();
+    if (!restoreCursor(editor)) editor.commands.focus();
+    created.current = editor;
     setMyEditor(editor);
   };
+  useEffect(
+    () => () => {
+      if (created.current) rememberCursor(created.current);
+    },
+    []
+  );
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
@@ -198,7 +225,7 @@ export default function Editor() {
   return (
     <div
       style={{
-        backgroundColor: theme.palette.background.default,
+        backgroundColor: cssVar('background'),
       }}
     >
       <EditorProvider
@@ -216,10 +243,11 @@ export default function Editor() {
         parseOptions={{ preserveWhitespace: true }}
         onCreate={onCreate}
       />
+      <FindBar editor={myEditor} />
 
       <div className="Spacer">
         <Tooltip
-          title="Mark this moment as a draft"
+          title={draftReason ?? 'Mark this moment as a draft'}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -228,13 +256,21 @@ export default function Editor() {
           <span>
             <button
               aria-label="Mark this moment as a draft"
+              aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
-              disabled={!drafts.canCreateAt(latestMoment)}
+              style={draftReason ? UNAVAILABLE_STYLE : undefined}
+              disabled={draftReason !== null}
               onClick={markThisMoment}
             >
               <BookmarkAddIcon fontSize="small" />
             </button>
+            {draftReason && (
+              <span id="editor-draft-reason" hidden>
+                {draftReason}
+              </span>
+            )}
+            <RefusalAlert message={drafts.refusal} />
           </span>
         </Tooltip>
         <Tooltip

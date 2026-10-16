@@ -17,6 +17,16 @@ export const aboutLine = (): string =>
       })
     : buildLabel({});
 
+// Who made Midst, shown under the version line. Each name is on its own line.
+export const CREDITS = [
+  'Director: Annelyse Gelman',
+  '',
+  'Developers:',
+  'Stuart Swerdloff and the SJS Targeted Solutions Kindled team',
+  'Juliet Shafto',
+  'Jason Gillis-Grier',
+].join('\n');
+
 // A message box's text cannot be selected on every platform, so Copy puts the line on the
 // clipboard for pasting into a report.
 // User Guide opens docs/user-guide.md in the browser.
@@ -26,7 +36,7 @@ export const showAbout = async (mainWindow: BrowserWindow): Promise<void> => {
     type: 'info',
     title: 'About Midst',
     message: 'Midst',
-    detail: line,
+    detail: `${line}\n\n${CREDITS}`,
     buttons: ['OK', 'Copy', 'User Guide'],
     defaultId: 0,
     cancelId: 0,
