@@ -1,3 +1,8 @@
+# 0.5.1
+
+- **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you
+  are offline. It opens as usual.
+
 # 0.5.0
 
 - **Find words in your poem.** Choose **Edit** > **Find**, or press Command+F on a Mac and Ctrl+F on
