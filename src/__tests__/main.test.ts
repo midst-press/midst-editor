@@ -97,6 +97,10 @@ jest.mock('electron', () => {
     mockState: state,
     app: {
       isPackaged: false,
+      // devUserData.ts runs on import; its behaviour is covered in devUserData.test.ts.
+      commandLine: { hasSwitch: () => true },
+      getPath: () => '/zq-appdata',
+      setPath: jest.fn(),
       getVersion: () => '9.9.9',
       quit: jest.fn(),
       addRecentDocument: jest.fn(),
