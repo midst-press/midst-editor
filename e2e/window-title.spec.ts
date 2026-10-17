@@ -1,0 +1,158 @@
+import { test, expect } from '@playwright/test';
+import type { ElectronApplication, Page } from 'playwright';
+import { mkdtempSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { makeMidst } from './fixtures';
+import { launch, openDocument, readStore, waitUntil } from './harness';
+
+// #125. The window title is set from several places, so what the poet sees depends on which ran last.
+// This pins the title at each step a poet takes: launch, New, Open, Save As and back to the opening
+// screen. Three readings each: the title bar the app draws, the page's document.title (which the title
+// bar library sets with it), and the native window title, which the Window menu and the OS show.
+
+type Titles = { drawn: string; doc: string; native: string };
+
+async function titles(app: ElectronApplication, win: Page): Promise<Titles> {
+  const page = await win.evaluate(() => ({
+    drawn:
+      (document.querySelector('.cet-title') as HTMLElement | null)?.innerText ??
+      '(no title element)',
+    doc: document.title,
+  }));
+  const native = await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0].getTitle()
+  );
+  return { ...page, native };
+}
+
+// The save dialog answers from a queue the test fills: a path, or undefined for Cancel. An empty queue
+// fails the call loudly rather than answering for the test.
+async function answerSaveDialogs(app: ElectronApplication) {
+  await app.evaluate(({ dialog }) => {
+    const g = globalThis as unknown as { saveAnswers?: (string | undefined)[] };
+    g.saveAnswers = [];
+    dialog.showSaveDialogSync = (() => {
+      if (g.saveAnswers!.length === 0)
+        throw new Error('save dialog answer not set by this test');
+      return g.saveAnswers!.shift();
+    }) as unknown as typeof dialog.showSaveDialogSync;
+  });
+}
+
+async function nextSaveAnswer(
+  app: ElectronApplication,
+  answer: string | undefined
+) {
+  await app.evaluate((_e, a) => {
+    (
+      globalThis as unknown as { saveAnswers: (string | undefined)[] }
+    ).saveAnswers.push(a ?? undefined);
+  }, answer ?? null);
+}
+
+async function newFile(app: ElectronApplication) {
+  await app.evaluate(({ ipcMain }) => {
+    ipcMain.emit('new-file', {});
+  });
+}
+
+async function settled(
+  app: ElectronApplication,
+  win: Page,
+  expected: Titles,
+  step: string
+) {
+  await expect
+    .poll(() => titles(app, win), { message: step, timeout: 15_000 })
+    .toEqual(expected);
+}
+
+// On the opening screen the drawn title and document.title are empty, and Electron falls back to the
+// page's file name for the native title.
+const OPENING_SCREEN: Titles = { drawn: '', doc: '', native: 'index.html' };
+
+test('the window title at launch, New, Open, Save As and back to the opening screen', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-e2e-title-'));
+  const B = makeMidst('POEM-TITLE-B-SENTINEL', 3);
+  const pathB = join(work, 'title-b.midst');
+  writeFileSync(pathB, B.file);
+  const pathNew = join(work, 'title-new.midst');
+  const pathAs = join(work, 'title-as.midst');
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await answerSaveDialogs(app);
+    const landing = win.getByText('New File...');
+    await expect(landing).toBeVisible({ timeout: 25_000 });
+
+    // Launch, onto the opening screen.
+    await settled(app, win, OPENING_SCREEN, 'launch');
+
+    // New, then Cancel in the save dialog the editor asks for: back to the opening screen.
+    await nextSaveAnswer(app, undefined);
+    await newFile(app);
+    await expect(landing).toBeVisible({ timeout: 15_000 });
+    await settled(app, win, OPENING_SCREEN, 'New, cancelled');
+
+    // New, saved under a name.
+    await nextSaveAnswer(app, pathNew);
+    await newFile(app);
+    expect(
+      await waitUntil(() => readStore(userData).filename === pathNew, 15_000),
+      'New was not saved'
+    ).toBe(true);
+    await settled(
+      app,
+      win,
+      {
+        drawn: 'title-new.midst',
+        doc: 'title-new.midst',
+        native: 'title-new.midst',
+      },
+      'New, saved'
+    );
+
+    // Open another poem.
+    await openDocument(app, userData, pathB, 'poem B');
+    await settled(
+      app,
+      win,
+      // TODAY: the native title is the full path. The autosave on open records the save, which sets the
+      // native title to the path; the drawn title is already the name, so document.title does not
+      // change and nothing replaces the path (#125).
+      { drawn: 'title-b.midst', doc: 'title-b.midst', native: pathB },
+      'Open'
+    );
+
+    // Save As under another name.
+    await nextSaveAnswer(app, pathAs);
+    await app.evaluate(async ({ Menu }) => {
+      await Menu.getApplicationMenu()?.getMenuItemById('save-as')?.click();
+    });
+    expect(
+      await waitUntil(() => readStore(userData).filename === pathAs, 15_000),
+      'Save As did not record the new name'
+    ).toBe(true);
+    await settled(
+      app,
+      win,
+      {
+        drawn: 'title-as.midst',
+        doc: 'title-as.midst',
+        native: 'title-as.midst',
+      },
+      'Save As'
+    );
+
+    // New while a poem is open, cancelled: back to the opening screen.
+    await nextSaveAnswer(app, undefined);
+    await newFile(app);
+    await expect(landing).toBeVisible({ timeout: 15_000 });
+    await settled(app, win, OPENING_SCREEN, 'New from a poem, cancelled');
+  } finally {
+    await app.close();
+  }
+});
