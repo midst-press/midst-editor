@@ -75,6 +75,34 @@ describe('replaceFile (#95)', () => {
     expect(listing()).toEqual(['zq.midst']);
   });
 
+  it('a cleanup that fails still throws the save’s own error, carrying the cleanup’s', () => {
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, 'earlier work');
+    jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+      throw new Error('EIO: zq');
+    });
+    jest.spyOn(fs, 'rmSync').mockImplementation(() => {
+      const e = new Error('EBUSY: xv') as NodeJS.ErrnoException;
+      e.code = 'EBUSY';
+      throw e;
+    });
+    let thrown:
+      | (Error & { cleanupError?: Record<string, unknown> })
+      | undefined;
+    try {
+      replaceFile(target, 'zq xv');
+    } catch (err) {
+      thrown = err as typeof thrown;
+    }
+    expect(thrown?.message).toBe('EIO: zq');
+    expect(thrown?.cleanupError).toEqual({
+      partial: `${fs.realpathSync(target)}.${process.pid}.partial`,
+      code: 'EBUSY',
+      message: 'EBUSY: xv',
+    });
+    expect(read(target)).toBe('earlier work');
+  });
+
   it('flushes the new contents to the disk before the rename', () => {
     const order: string[] = [];
     const realFsync = fs.fsyncSync;

@@ -48,7 +48,17 @@ const replaceFile = (filename: string, contents: string) => {
         // The write's own error is the one to report.
       }
     }
-    fs.rmSync(partial, { force: true });
+    try {
+      fs.rmSync(partial, { force: true });
+    } catch (cleanup) {
+      // The save's own error is still the one thrown. The leftover file is named on it, for the log.
+      const c = cleanup as NodeJS.ErrnoException;
+      (err as { cleanupError?: unknown }).cleanupError = {
+        partial,
+        code: c.code,
+        message: c.message,
+      };
+    }
     // The poet is shown this message, and the temporary name means nothing to them: name their file.
     const e = err as Error;
     if (typeof e.message === 'string')
