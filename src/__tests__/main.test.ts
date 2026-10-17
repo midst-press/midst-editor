@@ -914,6 +914,10 @@ describe('main process', () => {
       ].forEach((channel) =>
         expect([channel, state.ipc.get(channel)?.length]).toEqual([channel, 1])
       );
+      // ...and so does every other channel main.ts registers, named or not (Cyril, review of #183).
+      state.ipc.forEach((handlers, channel) =>
+        expect([channel, handlers.length]).toEqual([channel, 1])
+      );
       await fireIpc('save-file');
       await fireIpc('new-file');
       await fireIpc('button-open-file');
