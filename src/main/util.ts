@@ -132,7 +132,7 @@ export const metaFromOldMidst = (old: Record<string, unknown> = {}) => {
   if ('editorHighestEverDraftNumber' in old)
     meta.highestDraftNumber = old.editorHighestEverDraftNumber;
   if ('editorTitle' in old) meta.title = old.editorTitle;
-  if ('editorAuthor' in old) meta.author = old.editorAuthor;
+  // No author: a poem file carries no name by design (Annelyse; Stuart, 18 Oct; Gitea #181).
   return meta;
 };
 
@@ -140,6 +140,16 @@ export const metaFromOldMidst = (old: Record<string, unknown> = {}) => {
  * The file body the editor saves. `meta` is the stored JSON string ('' when the document has
  * none) and is written back unchanged, unknown keys included, so a save never loses it.
  */
+// A poem file carries no author (Gitea #181): a writer is never made to attach a name to their work.
+// A file converted before that decision may still hold one (the old app's placeholder), so a save drops
+// it. Every other key is written back unchanged.
+const withoutAuthor = (meta: unknown) => {
+  if (meta === null || typeof meta !== 'object' || Array.isArray(meta))
+    return meta;
+  const { author, ...rest } = meta as Record<string, unknown>;
+  return rest;
+};
+
 export const serializeDocument = (
   text: string,
   history: string,
@@ -148,7 +158,7 @@ export const serializeDocument = (
   JSON.stringify({
     text,
     history: JSON.parse(history),
-    ...(meta ? { meta: JSON.parse(meta) } : {}),
+    ...(meta ? { meta: withoutAuthor(JSON.parse(meta)) } : {}),
   });
 
 export const convertMidstFile = (oldMidst: string) => {
