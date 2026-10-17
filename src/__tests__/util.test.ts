@@ -55,6 +55,14 @@ describe('the version header', () => {
     );
   });
 
+  // An older Windows editor saves UTF-8 with a byte order mark (silas-397300f6, review of #196).
+  it('reads a header after a UTF-8 byte order mark, with CRLF too', () => {
+    const file = '\uFEFFmidstVersion: 1\r\n{"text":""}';
+    expect(getFileVersion(file)).toBe('1');
+    expect(fileVersionMatchesCurrent(file)).toBe(true);
+    expect(stripVersionInfo(file)).toBe('{"text":""}');
+  });
+
   it('accepts both versions the editor has written, and no other', () => {
     expect(fileVersionMatchesCurrent('midstVersion: 1\n{}')).toBe(true);
     expect(fileVersionMatchesCurrent('midstVersion: v0.0.1\n{}')).toBe(true);
