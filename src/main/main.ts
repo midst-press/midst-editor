@@ -8,6 +8,8 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+// First, before anything opens the store or the log: a development build keeps its own (Gitea #151).
+import './devUserData';
 import {
   attachTitlebarToWindow,
   setupTitlebar,
