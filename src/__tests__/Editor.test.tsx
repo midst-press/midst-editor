@@ -441,38 +441,39 @@ describe('Editor: autosave', () => {
     expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
-  it('when asked after typing that no store write has carried, marks the document unsaved first (#113)', () => {
+  it('after File > Save inside the autosave’s second, the next keystroke marks the document unsaved at once (#113)', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
-    // File > Save, inside the autosave's second: the poem is stored and saved, while the editor still
-    // counts itself edited, so the next keystroke does not mark it unsaved.
+    // File > Save: the menu takes the poem through the flush, and the save marks the document saved.
     bridge.emit('flush-editor', 2);
     bridge.values.edited = 'false';
-    typeText('qj');
-    expect(bridge.values.edited).toBe('false');
     bridge.clear();
-    bridge.emit('flush-editor', 3);
+    typeText('qj');
+    // At once, with no flush and no autosave: New, Open, closing the window and Quit all read it.
     expect(bridge.values.edited).toBe('true');
-    expect(bridge.index('store.set', 'edited')).toBeLessThan(
-      bridge.index('send', 'editor-flushed')
-    );
+    expect(bridge.sets('edited')).toHaveLength(1);
   });
 
-  it('when asked with no typing since the last store write, leaves the saved state alone (#113)', () => {
+  it('marks the document unsaved once per store write, not on every keystroke (#113)', () => {
     mount({ initialText: '<p>zq</p>' });
-    typeText('xv');
-    bridge.emit('flush-editor', 1);
-    bridge.values.edited = 'false';
     bridge.clear();
-    bridge.emit('flush-editor', 2);
-    expect(bridge.sets('edited')).toHaveLength(0);
-    typeText('qj');
+    typeText('x');
+    typeText('v');
+    expect(bridge.sets('edited')).toHaveLength(1);
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    bridge.values.edited = 'false';
     bridge.clear();
-    bridge.emit('flush-editor', 3);
+    typeText('q');
+    typeText('j');
+    expect(bridge.sets('edited')).toHaveLength(1);
+  });
+
+  it('answering the menu does not touch the saved state (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 1);
     expect(bridge.sets('edited')).toHaveLength(0);
   });
 
