@@ -224,6 +224,7 @@ def leaks(work: str, log_file: str, size_before: str, marker: str, *repos: str) 
     roots = [os.path.expanduser("~/Library"), os.environ.get("TMPDIR", "/tmp")]
     touched = []
     unreadable = []  # a directory macOS will not let us read is a blind spot: counted and reported (#5)
+    unstatable = 0  # and so is a file whose modification time cannot be read
     for root in roots:
         for d, dirs, fs in os.walk(root, onerror=unreadable.append):
             if os.path.realpath(d).startswith(work):
@@ -235,12 +236,13 @@ def leaks(work: str, log_file: str, size_before: str, marker: str, *repos: str) 
                     if os.path.getmtime(p) > since and re.search(r"(?i)midst|electron|playwright", p):
                         touched.append(p)
                 except OSError:
-                    pass
+                    unstatable += 1
     os.remove(ctl)
     found = any(os.path.realpath(p) == os.path.realpath(ctl) for p in touched)
     touched = [p for p in touched if os.path.realpath(p) != os.path.realpath(ctl)]
     print(f"leak check, modified-files walk, positive control: {'found' if found else 'NOT FOUND, THE WALK IS BLIND'}")
-    print(f"leak check, modified-files walk: {len(unreadable)} director{'y' if len(unreadable) == 1 else 'ies'} could not be read (not searched)")
+    print(f"leak check, modified-files walk: {len(unreadable)} director{'y' if len(unreadable) == 1 else 'ies'} could not be read, "
+          f"{unstatable} file(s) whose time could not be read (neither searched)")
     bad += not found
     unexpected = [p for p in touched if not any(a in p for a in ALLOWED)]
     print(f"leak check, files modified outside the work dir by Midst/Electron/Playwright: {len(touched)}, "
@@ -267,7 +269,8 @@ def summary(work: str) -> int:
         case = by_id.get(r.get("id"), {})
         if expected_fail:
             # Fired = every named oracle red AND every named one green; failing for some other reason is not firing.
-            ok = all(r.get(k) is not True for k in case.get("red", [])) and all(r.get(k) is True for k in case.get("green", []))
+            # Red means the oracle ran and said False: a key never written (the run stopped first) is not red.
+            ok = all(r.get(k) is False for k in case.get("red", [])) and all(r.get(k) is True for k in case.get("green", []))
             ok = ok and bool(case.get("red"))
         else:
             ok = r.get("pass") is True
