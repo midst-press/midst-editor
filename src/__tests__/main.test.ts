@@ -925,14 +925,31 @@ describe('main process', () => {
     });
 
     it('a second window does not add a second set of renderer handlers', async () => {
-      const { menu, win, fireApp, fireIpc } = await boot();
+      const { menu, state, win, fireApp, fireIpc } = await boot();
       await fireApp('activate', {}, false);
+      // Gitea #38: every channel the renderer sends has one handler, however many windows there have been.
+      [
+        'save-file',
+        'new-file',
+        'button-open-file',
+        'app-open',
+        'enable-save',
+        'disable-save',
+      ].forEach((channel) =>
+        expect([channel, state.ipc.get(channel)?.length]).toEqual([channel, 1])
+      );
+      // ...and so does every other channel main.ts registers, named or not (Cyril, review of #183).
+      state.ipc.forEach((handlers, channel) =>
+        expect([channel, handlers.length]).toEqual([channel, 1])
+      );
       await fireIpc('save-file');
       await fireIpc('new-file');
       await fireIpc('button-open-file');
       expect(menu.save).toHaveBeenCalledTimes(1);
       expect(menu.newFile).toHaveBeenCalledTimes(1);
       expect(menu.openFile).toHaveBeenCalledTimes(1);
+      await fireIpc('app-open', ['/a/zq.midst']);
+      expect(menu.openFile).toHaveBeenCalledTimes(2);
       expect(menu.save).toHaveBeenCalledWith(win(), expect.anything(), false);
     });
 
