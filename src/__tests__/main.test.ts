@@ -206,6 +206,13 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  // The real one: which action failed is what the IPC tests below check is logged.
+  logIfRejected: (
+    ...args: Parameters<typeof import('../main/menu').logIfRejected>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .logIfRejected(...args),
   isDevelopment: () =>
     jest
       .requireActual<typeof import('../main/menu')>('../main/menu')
@@ -500,6 +507,24 @@ describe('main process', () => {
       }
     );
 
+    it.each([
+      ['save-file', 'save', 'autosave'],
+      ['new-file', 'newFile', 'new'],
+      ['button-open-file', 'openFile', 'open'],
+    ] as const)(
+      "when %s's action rejects, the log names it (#160)",
+      async (channel, fn, label) => {
+        const { menu, fireIpc, log } = await boot();
+        (menu[fn] as jest.Mock).mockRejectedValueOnce(new RangeError('zq'));
+        await fireIpc(channel);
+        await new Promise(process.nextTick);
+        expect(log.error).toHaveBeenCalledWith(
+          `${label}: failed`,
+          expect.objectContaining({ name: 'RangeError' })
+        );
+      }
+    );
+
     it('does nothing once the window has closed', async () => {
       const { menu, fireIpc, fireWindow } = await boot();
       await fireWindow('closed');
@@ -625,9 +650,9 @@ describe('main process', () => {
 
     it('tells the poet when a current-version file is corrupt and loads nothing', async () => {
       const file = path.join(dir, 'xv.midst');
-      fs.writeFileSync(file, 'midstVersion: 1\n{not json');
+      fs.writeFileSync(file, 'midstVersion: 1\n{not json POEM-SENTINEL');
       const reads = trackReadFile();
-      const { store, electron, win, fireApp, fireWindow } = await boot();
+      const { store, electron, win, fireApp, fireWindow, log } = await boot();
       await fireApp('open-file', { preventDefault: jest.fn() }, file);
 
       await fireWindow('ready-to-show');
@@ -642,6 +667,13 @@ describe('main process', () => {
       );
       expect(store.get('poem')).toBeUndefined();
       expect(win().webContents.send).not.toHaveBeenCalled();
+      expect(log.error).toHaveBeenCalledWith(
+        'open: the file could not be loaded',
+        expect.objectContaining({ filePath: file, name: 'SyntaxError' })
+      );
+      expect(JSON.stringify((log.error as jest.Mock).mock.calls)).not.toContain(
+        'POEM-SENTINEL'
+      );
       // Path consumed even on failure.
       await fireWindow('ready-to-show');
       expect(reads.calls()).toBe(1);
@@ -893,6 +925,19 @@ describe('main process', () => {
       await fireIpc('open-help');
       expect(electron.shell.openExternal).toHaveBeenCalledWith(
         helpUrl('9.9.9')
+      );
+    });
+
+    it('a help page the OS cannot open is logged with the action named (#160)', async () => {
+      const { electron, fireIpc, log } = await boot();
+      (electron.shell.openExternal as jest.Mock).mockRejectedValueOnce(
+        new Error('zq')
+      );
+      await fireIpc('open-help');
+      await new Promise(process.nextTick);
+      expect(log.error).toHaveBeenCalledWith(
+        'help: failed',
+        expect.objectContaining({ name: 'Error' })
       );
     });
 
