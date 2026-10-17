@@ -1772,6 +1772,22 @@ describe('logIfRejected (#160)', () => {
     expect(everythingLogged()).not.toContain('POEM-SENTINEL');
   });
 
+  it('returns a promise that settles once the action has, so a click can be awaited', async () => {
+    let done = false;
+    const settled = logIfRejected('zq', async () => {
+      await new Promise(process.nextTick);
+      done = true;
+    });
+    expect(settled).toBeInstanceOf(Promise);
+    expect(done).toBe(false);
+    await settled;
+    expect(done).toBe(true);
+    await expect(
+      logIfRejected('xv', () => Promise.reject(new Error('zq')))
+    ).resolves.toBeUndefined();
+    expect(logIfRejected('qj', () => 7)).toBe(7);
+  });
+
   it('logs nothing when the action resolves, or returns no promise', async () => {
     logIfRejected('zq', () => Promise.resolve(1));
     logIfRejected('xv', () => undefined);

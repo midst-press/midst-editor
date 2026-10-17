@@ -31,14 +31,19 @@ import {
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
-// left to the uncaught-error handler, which also tells the poet.
-export const logIfRejected = (label: string, action: () => unknown): void => {
+// left to the uncaught-error handler, which also tells the poet. The promise is returned, settling once
+// the action has, so a test can await a menu click and read what it wrote.
+export const logIfRejected = (
+  label: string,
+  action: () => unknown
+): unknown => {
   const result = action();
   if (result instanceof Promise) {
-    result.catch((err: unknown) =>
+    return result.catch((err: unknown) =>
       log.error(`${label}: failed`, describeError(err))
     );
   }
+  return result;
 };
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
