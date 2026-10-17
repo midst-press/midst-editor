@@ -77,6 +77,20 @@ export default function Editor() {
     []
   );
   const autosave = useAutosave(latest, saveFileAndUpdateStore);
+
+  // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
+  // after the last keystroke. They ask for it first (#157): write it now, then answer. The pending
+  // autosave is left to run, so the edited state is kept exactly as before.
+  useEffect(
+    () =>
+      window.electron.ipcRenderer.on('flush-editor', (id) => {
+        const doc = latest.current;
+        window.electron.store.set('poem', doc.htmlString);
+        window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
+      }),
+    []
+  );
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(

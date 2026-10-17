@@ -16,6 +16,7 @@ import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { writeConvertedFile } from './convertedFile';
 import { poemToRtf } from './rtf';
+import { flushEditor } from './editorFlush';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import { USER_GUIDE_URL } from '../shared/userGuide';
@@ -603,14 +604,20 @@ export default class MenuBuilder {
         id: 'save',
         label: saveLabel,
         accelerator: keys[0],
-        click: () => save(this.mainWindow, darwin),
+        click: async () => {
+          await flushEditor(this.mainWindow);
+          await save(this.mainWindow, darwin);
+        },
         enabled: false,
       },
       {
         id: 'save-as',
         label: saveAsLabel,
         accelerator: keys[1],
-        click: () => saveAs(this.mainWindow, darwin),
+        click: async () => {
+          await flushEditor(this.mainWindow);
+          await saveAs(this.mainWindow, darwin);
+        },
         enabled: false,
       },
     ];
@@ -619,7 +626,10 @@ export default class MenuBuilder {
   private exportRtfItem() {
     return {
       label: 'Export as RTF…',
-      click: () => exportRtf(this.mainWindow),
+      click: async () => {
+        await flushEditor(this.mainWindow);
+        exportRtf(this.mainWindow);
+      },
     };
   }
 

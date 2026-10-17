@@ -39,6 +39,7 @@ import MenuBuilder, {
   openPath,
 } from './menu';
 import store from './store';
+import { setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
@@ -245,8 +246,14 @@ const setSaveEnabled = (enabled: boolean) => {
     if (item) item.enabled = enabled;
   });
 };
-ipcMain.on('enable-save', () => setSaveEnabled(true));
-ipcMain.on('disable-save', () => setSaveEnabled(false));
+ipcMain.on('enable-save', () => {
+  setEditorShowing(true);
+  setSaveEnabled(true);
+});
+ipcMain.on('disable-save', () => {
+  setEditorShowing(false);
+  setSaveEnabled(false);
+});
 
 // IPC listener
 ipcMain.on('electron-store-get', async (event, val) => {

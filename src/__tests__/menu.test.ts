@@ -33,6 +33,7 @@ jest.mock('electron', () => ({
   shell: { openExternal: jest.fn(), showItemInFolder: jest.fn() },
   nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
+  ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
 jest.mock('../main/logFile', () => ({
@@ -1165,11 +1166,11 @@ describe('the menu', () => {
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
     });
 
-    it('Export as RTF… asks for a file and writes the poem there as RTF', () => {
+    it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {
       const chosen = path.join(dir, 'zq.rtf');
       seedDocument();
       showSaveDialog.mockReturnValue(chosen);
-      sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
       expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
     });
 
