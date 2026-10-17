@@ -37,8 +37,9 @@ repos:
         language: fail
         entry: >-
           Poem timelapses are the poets' work and must not enter git. A public push cannot be
-          withdrawn. Keep them with the archive and point MIDST_CORPUS at it. See DATA.md.
-        files: '(\.midst$|\.midst\.zip$|(^|/)static/static/assets/poems/)'
+          withdrawn. Keep real poems outside this repository; tests write synthetic ones. See
+          "Never commit poem content" in CONTRIBUTING.md.
+        files: '(\.midst$|\.midst\.zip$)'
 
       - id: forbid-logs
         name: logs must never be committed
