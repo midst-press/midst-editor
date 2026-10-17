@@ -443,12 +443,13 @@ describe('Editor: autosave', () => {
 
   it('when asked after typing that no store write has carried, marks the document unsaved first (#113)', () => {
     mount({ initialText: '<p>zq</p>' });
-    act(() => {
-      jest.advanceTimersByTime(1000);
-    });
-    // As File > Save leaves it: saved, while the editor still counts itself edited.
-    bridge.values.edited = 'false';
     typeText('xv');
+    // File > Save, inside the autosave's second: the poem is stored and saved, while the editor still
+    // counts itself edited, so the next keystroke does not mark it unsaved.
+    bridge.emit('flush-editor', 2);
+    bridge.values.edited = 'false';
+    typeText('qj');
+    expect(bridge.values.edited).toBe('false');
     bridge.clear();
     bridge.emit('flush-editor', 3);
     expect(bridge.values.edited).toBe('true');
