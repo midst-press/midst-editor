@@ -21,7 +21,8 @@ import sys
 KEPT = {"p", "br", "strong", "b", "em", "i"}
 MARK = re.compile(r"<(strong|em|b|i)>(.*?)</\1>", re.S)
 TAG = re.compile(r"<\s*([A-Za-z][A-Za-z0-9-]*)([^>]*)>")
-ATTR = re.compile(r"([A-Za-z_:][-A-Za-z0-9_:.]*)\s*=")
+# An attribute name, with or without a value: <p hidden> has one too (connor-227743e6, #5). Values are skipped, never read.
+ATTR = re.compile(r"([A-Za-z_:][-A-Za-z0-9_:.]*)(?:\s*=\s*(?:\"[^\"]*\"|'[^']*'|[^\s>]+))?")
 
 
 HEADER = "midstVersion: 1"  # what the app writes (src/main/util.ts includeVersionInfo)
@@ -108,17 +109,23 @@ def manifest(converted: str, work: str) -> None:
         h[len(h) // 2]["t"] = "1970-01-01T00:00:00.000Z"  # content changed, count unchanged
         return dict(doc, history=h)
 
+    # Each control names the oracles it must turn red and the ones it must leave green (#5): a control that
+    # "fired" only because the app never reached the editor is a broken run, not a working oracle.
     specs = {
-        "C-text": (lambda d: flip_one_letter(d["text"]) is not None, lambda d: dict(d, text=flip_one_letter(d["text"]))),
-        "C-mark": (lambda d: MARK.search(d["text"]) is not None, lambda d: dict(d, text=MARK.sub(lambda m: m.group(2), d["text"], count=1))),
-        "C-merge": (lambda d: "</p><p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p><p>", "", 1))),
-        "C-history": (lambda d: len(d["history"]) >= 2, mutate_history),
+        "C-text": (lambda d: flip_one_letter(d["text"]) is not None, lambda d: dict(d, text=flip_one_letter(d["text"])),
+                   ["text"], ["opens"]),
+        "C-mark": (lambda d: MARK.search(d["text"]) is not None, lambda d: dict(d, text=MARK.sub(lambda m: m.group(2), d["text"], count=1)),
+                   ["structure"], ["opens", "text"]),
+        "C-merge": (lambda d: "</p><p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p><p>", "", 1)),
+                    ["structure"], ["opens", "text"]),
+        "C-history": (lambda d: len(d["history"]) >= 2, mutate_history, ["history", "storeHistory"], ["opens"]),
         # Self-judged (feed == expected): an element the schema does not keep. text and struct cannot
-        # see it, because the expectation loses it the same way; raw/html must (silas-397300f6).
-        "C-unsupported": (lambda d: "</p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p>", "<u>.</u></p>", 1))),
+        # see it, because the expectation loses it the same way; html must (silas-397300f6).
+        "C-unsupported": (lambda d: "</p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p>", "<u>.</u></p>", 1)),
+                          ["html"], ["opens"]),
     }
     made, missing = [], []
-    for cid, (eligible, mutate) in specs.items():
+    for cid, (eligible, mutate, red, green) in specs.items():
         hit = next(((c, h, d) for c, h, d in loaded if eligible(d)), None)
         if not hit:
             missing.append(cid)
@@ -127,7 +134,7 @@ def manifest(converted: str, work: str) -> None:
         out = os.path.join(ctl_dir, f"{cid}.midst")
         dump(out, header, mutate(doc))
         expected = out if cid == "C-unsupported" else c["feed"]
-        cases.append({"id": cid, "feed": out, "expected": expected, "mustFail": True})
+        cases.append({"id": cid, "feed": out, "expected": expected, "mustFail": True, "red": red, "green": green})
         made.append(f"{cid}<-{c['id']}")
     richest = max(loaded, key=lambda x: len(x[2]["text"]))[0] if loaded else None
     if richest:
@@ -182,7 +189,7 @@ def contains(path: str, needle: bytes) -> bool:
 # Paths the app or the run may legitimately touch outside the work dir. Anything else modified during the
 # run under ~/Library or $TMPDIR is reported, whether or not it holds text (silas-397300f6).
 ALLOWED = (
-    "/Library/Logs/midst/main.log",  # truncated back to its size before the run
+    "/Library/Logs/midst/main.log",  # the installed app's own log; the run's lines are checked for separately
     "/Library/Caches/ms-playwright",
 )
 
@@ -216,15 +223,16 @@ def leaks(work: str, log_file: str, size_before: str, marker: str, *repos: str) 
     open(ctl, "w").close()
     roots = [os.path.expanduser("~/Library"), os.environ.get("TMPDIR", "/tmp")]
     touched = []
+    unreadable = []  # a directory macOS will not let us read is a blind spot: counted and reported (#5)
     for root in roots:
-        for d, dirs, fs in os.walk(root):
+        for d, dirs, fs in os.walk(root, onerror=unreadable.append):
             if os.path.realpath(d).startswith(work):
                 dirs[:] = []
                 continue
             for f in fs:
                 p = os.path.join(d, f)
                 try:
-                    if os.path.getmtime(p) > since and re.search(r"(?i)midst|electron", p):
+                    if os.path.getmtime(p) > since and re.search(r"(?i)midst|electron|playwright", p):
                         touched.append(p)
                 except OSError:
                     pass
@@ -232,9 +240,10 @@ def leaks(work: str, log_file: str, size_before: str, marker: str, *repos: str) 
     found = any(os.path.realpath(p) == os.path.realpath(ctl) for p in touched)
     touched = [p for p in touched if os.path.realpath(p) != os.path.realpath(ctl)]
     print(f"leak check, modified-files walk, positive control: {'found' if found else 'NOT FOUND, THE WALK IS BLIND'}")
+    print(f"leak check, modified-files walk: {len(unreadable)} director{'y' if len(unreadable) == 1 else 'ies'} could not be read (not searched)")
     bad += not found
     unexpected = [p for p in touched if not any(a in p for a in ALLOWED)]
-    print(f"leak check, files modified outside the work dir by Midst/Electron: {len(touched)}, "
+    print(f"leak check, files modified outside the work dir by Midst/Electron/Playwright: {len(touched)}, "
           f"unexpected {len(unexpected)}" + "".join(f"\n    {p}" for p in unexpected))
     bad += len(unexpected)
     return 1 if bad else 0
@@ -243,7 +252,9 @@ def leaks(work: str, log_file: str, size_before: str, marker: str, *repos: str) 
 def summary(work: str) -> int:
     path = os.path.join(work, "results.jsonl")
     rows = [json.loads(line) for line in open(path)] if os.path.exists(path) else []
-    ids = [c["id"] for c in json.load(open(os.path.join(work, "manifest.json")))["cases"]]
+    manifest_cases = json.load(open(os.path.join(work, "manifest.json")))["cases"]
+    ids = [c["id"] for c in manifest_cases]
+    by_id = {c["id"]: c for c in manifest_cases}
     counts = {i: sum(1 for r in rows if r.get("id") == i) for i in ids}
     absent = [i for i, n in counts.items() if n != 1]
     keys = ["opens", "text", "raw", "html", "structure", "history", "storeHistory", "unchangedAfterSettle", "unchangedAfterClose"]
@@ -253,7 +264,13 @@ def summary(work: str) -> int:
     for r in rows:
         marks = " ".join(f"{'ok' if r.get(k) is True else 'RED':>6}" for k in keys)
         expected_fail = r.get("mustFail")
-        ok = (r.get("pass") is True) != bool(expected_fail)
+        case = by_id.get(r.get("id"), {})
+        if expected_fail:
+            # Fired = every named oracle red AND every named one green; failing for some other reason is not firing.
+            ok = all(r.get(k) is not True for k in case.get("red", [])) and all(r.get(k) is True for k in case.get("green", []))
+            ok = ok and bool(case.get("red"))
+        else:
+            ok = r.get("pass") is True
         good += ok
         what = ("control fired" if ok else "CONTROL DID NOT FIRE") if expected_fail else ("PASS" if ok else "FAIL")
         print(f"{r['id']:13} {r.get('frames', '?'):>7}  {marks}   {what}")
