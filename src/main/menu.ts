@@ -15,6 +15,7 @@ import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { writeConvertedFile } from './convertedFile';
+import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
@@ -228,10 +229,15 @@ const writeAndRecord = async (
     historyChars: typeof history === 'string' ? history.length : 0,
   });
   try {
-    fs.writeFileSync(filename, fullContents);
+    replaceFile(filename, fullContents);
   } catch (err) {
     const reason = (err as Error).message;
-    log.error(`${label}: the document was not written`, { filename, reason });
+    const { cleanupError } = err as { cleanupError?: unknown };
+    log.error(`${label}: the document was not written`, {
+      filename,
+      reason,
+      ...(cleanupError ? { cleanupError } : {}),
+    });
     await reportCouldNotSave(mainWindow, darwin, {
       filename,
       reason,

@@ -3,6 +3,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { app, dialog, Menu, nativeTheme, shell } from 'electron';
+import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
@@ -431,6 +432,31 @@ describe('save', () => {
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       // Nothing was unsaved, so the edited dot is not switched on.
       expect(win.setDocumentEdited).not.toHaveBeenCalled();
+    });
+
+    it('when the leftover file cannot be removed either, tells the poet why the save failed and logs both (#95)', async () => {
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'earlier work');
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+        throw new Error('EIO: zq');
+      });
+      jest.spyOn(fs, 'rmSync').mockImplementation(() => {
+        const e = new Error('EBUSY: xv') as NodeJS.ErrnoException;
+        e.code = 'EBUSY';
+        throw e;
+      });
+      await save(asWindow(makeWindow()), true);
+      expect(showMessageBox.mock.calls[0][1].detail).toContain('EIO: zq');
+      expect(showMessageBox.mock.calls[0][1].detail).not.toContain('EBUSY');
+      expect(log.error).toHaveBeenCalledWith(
+        'save: the document was not written',
+        expect.objectContaining({
+          reason: 'EIO: zq',
+          cleanupError: expect.objectContaining({ code: 'EBUSY' }),
+        })
+      );
     });
 
     it('leaves an existing file that cannot be replaced as it was', async () => {
