@@ -17,6 +17,8 @@ afterEach(() => {
 
 const listing = () => fs.readdirSync(dir).sort();
 const read = (p: string) => fs.readFileSync(p, 'utf8');
+// <poem file>.<process id>-<n>.partial
+const PARTIAL = new RegExp(`zq\\.midst\\.${process.pid}-\\d+\\.partial$`);
 
 // A write that puts the first bytes on the disk and then fails, as a full disk does.
 const failPartway = () => {
@@ -96,7 +98,7 @@ describe('replaceFile (#95)', () => {
     }
     expect(thrown?.message).toBe('EIO: zq');
     expect(thrown?.cleanupError).toEqual({
-      partial: `${fs.realpathSync(target)}.${process.pid}.partial`,
+      partial: expect.stringMatching(PARTIAL),
       code: 'EBUSY',
       message: 'EBUSY: xv',
     });
@@ -119,7 +121,7 @@ describe('replaceFile (#95)', () => {
     expect(order).toEqual(['fsync', 'rename']);
   });
 
-  it('writes the temporary file in the poem’s own folder, named after the poem', () => {
+  it('writes the temporary file in the poem’s own folder, named after the poem, and a new name for each save', () => {
     const target = path.join(dir, 'zq.midst');
     const realRename = fs.renameSync;
     const from: string[] = [];
@@ -128,7 +130,33 @@ describe('replaceFile (#95)', () => {
       realRename(a, b);
     });
     replaceFile(target, 'zq');
-    expect(from).toEqual([`${target}.${process.pid}.partial`]);
+    replaceFile(target, 'xv');
+    expect(from).toHaveLength(2);
+    from.forEach((f) => expect(f).toMatch(PARTIAL));
+    from.forEach((f) =>
+      expect(fs.realpathSync(path.dirname(f))).toBe(fs.realpathSync(dir))
+    );
+    expect(from[0]).not.toBe(from[1]);
+  });
+
+  it('a temporary file that is already there is left alone, and so is the poem (Alden, #179)', () => {
+    // It may be the only copy of some work: left by a crash, or by a save whose cleanup failed.
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, 'earlier work');
+    const realOpen = fs.openSync;
+    let taken = '';
+    jest.spyOn(fs, 'openSync').mockImplementation(((
+      p: fs.PathLike,
+      flags: fs.OpenMode
+    ) => {
+      taken = String(p);
+      fs.writeFileSync(taken, 'recovered work');
+      return realOpen(p, flags);
+    }) as never);
+    expect(() => replaceFile(target, 'zq xv')).toThrow('EEXIST');
+    expect(read(target)).toBe('earlier work');
+    expect(taken).toMatch(PARTIAL);
+    expect(read(taken)).toBe('recovered work');
   });
 
   it('a failure names the poem’s file, not the temporary one', () => {
