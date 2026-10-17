@@ -441,6 +441,40 @@ describe('Editor: autosave', () => {
     expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
+  it('when asked after typing that no store write has carried, marks the document unsaved first (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    // As File > Save leaves it: saved, while the editor still counts itself edited.
+    bridge.values.edited = 'false';
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 3);
+    expect(bridge.values.edited).toBe('true');
+    expect(bridge.index('store.set', 'edited')).toBeLessThan(
+      bridge.index('send', 'editor-flushed')
+    );
+  });
+
+  it('when asked with no typing since the last store write, leaves the saved state alone (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.emit('flush-editor', 1);
+    bridge.values.edited = 'false';
+    bridge.clear();
+    bridge.emit('flush-editor', 2);
+    expect(bridge.sets('edited')).toHaveLength(0);
+    typeText('qj');
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    bridge.values.edited = 'false';
+    bridge.clear();
+    bridge.emit('flush-editor', 3);
+    expect(bridge.sets('edited')).toHaveLength(0);
+  });
+
   it('stores poem and history, then sends save-file, one second after the last edit', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();

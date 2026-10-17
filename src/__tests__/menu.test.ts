@@ -1219,6 +1219,42 @@ describe('the menu', () => {
       });
     });
 
+    describe('New and Open ask the editor first, so the prompt knows about the last second of typing (#113)', () => {
+      // Saved, but the editor holds typing no store write has carried: it marks the document unsaved.
+      const editorTypedSinceSave = (win: FakeWindow) => {
+        setEditorShowing(true);
+        win.webContents.send.mockImplementation(
+          (channel: string, id: unknown) => {
+            if (channel !== 'flush-editor') return;
+            mockStore.set('edited', 'true');
+            editorAnswers({} as never, [id]);
+          }
+        );
+      };
+      afterEach(() => setEditorShowing(false));
+
+      it('New', async () => {
+        seedDocument({ edited: 'false' });
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        editorTypedSinceSave(win);
+        await sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+      });
+
+      it('Open', async () => {
+        seedDocument({ edited: 'false' });
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        editorTypedSinceSave(win);
+        await sub(build(platform, win), fileLabels.top, fileLabels.open)
+          .click!();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        expect(showOpenDialog).not.toHaveBeenCalled();
+      });
+    });
+
     it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {
       const chosen = path.join(dir, 'zq.rtf');
       seedDocument();
