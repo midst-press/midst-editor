@@ -6,8 +6,7 @@ import { join } from 'path';
 import { makeMidst } from './fixtures';
 import { launch, openDocument, readStore, waitUntil } from './harness';
 
-// #125. The window title is set from several places, so what the poet sees depends on which ran last.
-// This pins the title at each step a poet takes: launch, New, Open, Save As and back to the opening
+// #125. The window title is set in one place (src/renderer/WindowTitle.tsx). This pins the title at each step a poet takes: launch, New, Open, Save As and back to the opening
 // screen. Three readings each: the title bar the app draws, the page's document.title (which the title
 // bar library sets with it), and the native window title, which the Window menu and the OS show.
 
@@ -120,10 +119,9 @@ test('the window title at launch, New, Open, Save As and back to the opening scr
     await settled(
       app,
       win,
-      // TODAY: the native title is the full path. The autosave on open records the save, which sets the
-      // native title to the path; the drawn title is already the name, so document.title does not
-      // change and nothing replaces the path (#125).
-      { drawn: 'title-b.midst', doc: 'title-b.midst', native: pathB },
+      // Before #125 the native title here was the full path: the autosave on open set it from main, and
+      // nothing replaced it. It now follows the drawn title, as at every other step.
+      { drawn: 'title-b.midst', doc: 'title-b.midst', native: 'title-b.midst' },
       'Open'
     );
 

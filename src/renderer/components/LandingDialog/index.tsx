@@ -11,8 +11,6 @@ export default function LandingDialog() {
   const { setText: setHtmlString } = useContext(TextContext);
   const { setPoemHistory } = useContext(HistoryContext);
 
-  window.electron.titlebar.updateTitle('');
-
   const newFile = () => {
     window.electron.ipcRenderer.sendMessage('new-file', []);
   };
@@ -29,10 +27,9 @@ export default function LandingDialog() {
   useEffect(() => {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
-      (poem, history, filename) => {
+      (poem, history) => {
         setHtmlString(poem as string);
         setPoemHistory(history as ChangeObj[]);
-        window.electron.titlebar.updateTitle(filename as string);
         navigate('/editor');
       }
     );

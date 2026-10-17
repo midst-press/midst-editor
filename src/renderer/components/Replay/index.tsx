@@ -152,11 +152,10 @@ export default function Replay() {
   useEffect(() => {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
-      (savedPoem, savedHistory, savedFilename) => {
+      (savedPoem, savedHistory) => {
         pause();
         setHtmlString(savedPoem as string);
         setPoemHistory(savedHistory as ChangeObj[]);
-        window.electron.titlebar.updateTitle(savedFilename as string);
         navigate('/editor');
       }
     );

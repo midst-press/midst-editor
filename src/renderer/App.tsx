@@ -8,6 +8,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
+import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
 import { ChangeObj } from './tracking/utils';
@@ -49,6 +50,11 @@ export default function App() {
     () => ({ poemHistory, setPoemHistory }),
     [poemHistory]
   );
+  // The open poem's file name, for the window title (#125): from the store at launch or after a reload,
+  // then from whichever message names it.
+  const [filename, setFilename] = useState<string>(
+    () => window.electron?.store.get('baseFilename') || ''
+  );
   useEffect(() => {
     if (!window.electron) {
       return undefined;
@@ -58,15 +64,13 @@ export default function App() {
       (_savedText, savedHistory, savedFilename) => {
         const strHistory = savedHistory as ChangeObj[];
         setPoemHistory(strHistory);
-        const savedFilenameStr = savedFilename as string;
-        window.electron.titlebar.updateTitle(savedFilenameStr);
+        setFilename(savedFilename as string);
       }
     );
     const removeSetFilenameHandler = window.electron.ipcRenderer.on(
       'set-filename',
       (filepath) => {
-        const filepathStr = filepath as string;
-        window.electron.titlebar.updateTitle(filepathStr);
+        setFilename(filepath as string);
       }
     );
 
@@ -84,10 +88,6 @@ export default function App() {
       </>
     );
 
-  const restoreFilename =
-    window.electron.store.get('baseFilename') || 'Untitled';
-  window.electron.titlebar.updateTitle(restoreFilename);
-
   return (
     <>
       <CssBaseline />
@@ -95,6 +95,7 @@ export default function App() {
         <TextContext.Provider value={textContextValue}>
           <HistoryContext.Provider value={historyContextValue}>
             <Router initialEntries={[startAt]}>
+              <WindowTitle filename={filename} />
               <Routes>
                 <Route path="/editor" element={<Editor />} />
                 <Route path="/replay" element={<Replay />} />
