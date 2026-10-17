@@ -321,6 +321,7 @@ describe('Editor: on entering and leaving', () => {
       'toggle-edit-mode',
       'cancel-save',
       'set-font-size',
+      'flush-editor',
     ].forEach((channel) => expect(bridge.activeListeners(channel)).toBe(0));
   });
 
@@ -416,6 +417,28 @@ describe('Editor: autosave', () => {
     typeText('b');
     typeText('c');
     expect(bridge.removed).not.toContain('toggle-edit-mode');
+  });
+
+  it('when the menu asks (#157), stores the poem typed this second at once, then answers with the request’s id', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 7);
+    expect(bridge.values.poem).toContain('xv');
+    const poem = bridge.index('store.set', 'poem');
+    const history = bridge.index('store.set', 'history');
+    const answer = bridge.index('send', 'editor-flushed');
+    expect(bridge.sends('editor-flushed')).toEqual([
+      { kind: 'send', args: ['editor-flushed', [7]] },
+    ]);
+    expect(answer).toBeGreaterThan(poem);
+    expect(answer).toBeGreaterThan(history);
+    // The menu action does its own save; this one does not, and the pending autosave still runs.
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
   it('stores poem and history, then sends save-file, one second after the last edit', () => {

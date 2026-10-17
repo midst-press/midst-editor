@@ -536,6 +536,22 @@ describe('main process', () => {
       expect(state.menuItems['save-as'].enabled).toBe(false);
     });
 
+    it('the menu asks the editor for the poem only while the editor is showing (#157)', async () => {
+      const { fireIpc } = await boot();
+      const { flushEditor } = await import('../main/editorFlush');
+      const send = jest.fn();
+      const win = { isDestroyed: () => false, webContents: { send } } as never;
+      await flushEditor(win);
+      expect(send).not.toHaveBeenCalled();
+      await fireIpc('enable-save');
+      flushEditor(win);
+      expect(send).toHaveBeenCalledWith('flush-editor', expect.any(Number));
+      send.mockClear();
+      await fireIpc('disable-save');
+      await flushEditor(win);
+      expect(send).not.toHaveBeenCalled();
+    });
+
     it('survives a menu that is missing or has no such items', async () => {
       const { electron, state, fireIpc } = await boot();
       electron.app.applicationMenu = undefined;

@@ -2,7 +2,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, Menu, nativeTheme, shell } from 'electron';
+import { app, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
@@ -12,6 +12,7 @@ import MenuBuilder, {
   saveAs,
 } from '../main/menu';
 import { showAbout } from '../main/about';
+import { setEditorShowing } from '../main/editorFlush';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -55,6 +56,11 @@ const showMessageBox = dialog.showMessageBoxSync as jest.Mock;
 const showSaveDialog = dialog.showSaveDialogSync as jest.Mock;
 const showOpenDialog = dialog.showOpenDialogSync as jest.Mock;
 const buildFromTemplate = Menu.buildFromTemplate as jest.Mock;
+// editorFlush's one handler for the editor's answer, registered at import (before any clearAllMocks).
+type Answer = Parameters<typeof ipcMain.on>[1];
+const editorAnswers = (ipcMain.on as jest.Mock).mock.calls.find(
+  ([channel]) => channel === 'editor-flushed'
+)?.[1] as Answer;
 
 const makeWindow = () => ({
   webContents: {
@@ -1164,6 +1170,53 @@ describe('the menu', () => {
       await ioDone();
       expect(readBack(target)).toContain('"text":"<p>xv</p>"');
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
+    });
+
+    describe('the poem is taken from the editor first, not from the store it writes a second late (#157)', () => {
+      // The editor is showing and holds a newer poem than the store: it writes it when asked, then answers.
+      const editorHolding = (win: FakeWindow, poem: string) => {
+        setEditorShowing(true);
+        win.webContents.send.mockImplementation(
+          (channel: string, id: unknown) => {
+            if (channel !== 'flush-editor') return;
+            mockStore.set('poem', poem);
+            editorAnswers({} as never, [id]);
+          }
+        );
+      };
+      afterEach(() => setEditorShowing(false));
+
+      it('Save', async () => {
+        const target = path.join(dir, 'zq.midst');
+        seedDocument({ filename: target });
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.save)
+          .click!();
+        expect(readBack(target)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Save As', async () => {
+        const chosen = path.join(dir, 'xv.midst');
+        seedDocument({ filename: path.join(dir, 'zq.midst') });
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.saveAs)
+          .click!();
+        expect(readBack(chosen)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Export as RTF…', async () => {
+        const chosen = path.join(dir, 'zq.rtf');
+        seedDocument();
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, 'Export as RTF…')
+          .click!();
+        expect(readBack(chosen)).toContain('xv qj');
+      });
     });
 
     it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {
