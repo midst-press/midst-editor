@@ -136,10 +136,6 @@ export const metaFromOldMidst = (old: Record<string, unknown> = {}) => {
   return meta;
 };
 
-/**
- * The file body the editor saves. `meta` is the stored JSON string ('' when the document has
- * none) and is written back unchanged, unknown keys included, so a save never loses it.
- */
 // A poem file carries no author (Gitea #181): a writer is never made to attach a name to their work.
 // A file converted before that decision may still hold one (the old app's placeholder), so a save drops
 // it. Every other key is written back unchanged.
@@ -150,6 +146,11 @@ const withoutAuthor = (meta: unknown) => {
   return rest;
 };
 
+/**
+ * The file body the editor saves. `meta` is the stored JSON string ('' when the document has
+ * none) and every key is written back unchanged, unknown keys included, so a save never loses one,
+ * except `author`, which a save drops (#181).
+ */
 export const serializeDocument = (
   text: string,
   history: string,
