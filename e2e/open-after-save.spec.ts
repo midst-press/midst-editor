@@ -1,13 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, ElectronApplication } from '@playwright/test';
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
 import { dialogsSeen, launch, openDocument } from './harness';
 
-// #113. Type, choose File > Save, type again, and open another file within the second. Nonsense strings
-// throughout. No poem content belongs in this repository.
-test('keystrokes typed after Save and before an open are either kept or asked about', async () => {
+// #113. Type, choose File > Save, type again, and then, within the second, leave the poem: open another
+// file, or close the window. The typing after Save must be kept in the file, or the poet asked before it
+// is dropped. Never dropped without a word. Nonsense strings throughout. No poem content belongs in this
+// repository.
+/* eslint-disable no-unused-vars -- the names say what each argument is */
+type Leave = (
+  app: ElectronApplication,
+  pathB: string,
+  userData: string
+) => Promise<void>;
+/* eslint-enable no-unused-vars */
+
+const leaveAfterSave = async (leave: Leave) => {
   const work = mkdtempSync(join(tmpdir(), 'midst-e2e-open-after-save-'));
   const A = makeMidst('POEM-OAS-A-SENTINEL', 5);
   const B = makeMidst('POEM-OAS-B-SENTINEL', 5);
@@ -33,7 +43,7 @@ test('keystrokes typed after Save and before an open are either kept or asked ab
     await win.keyboard.type('QQB');
     expect(await pm.innerText()).toContain('QQB');
     const before = (await dialogsSeen(app)).length;
-    await openDocument(app, userData, pathB, 'poem B');
+    await leave(app, pathB, userData);
     const prompted = (await dialogsSeen(app)).length > before;
 
     // Past the autosave, so whatever it would write is on the disk.
@@ -41,7 +51,8 @@ test('keystrokes typed after Save and before an open are either kept or asked ab
       setTimeout(resolve, 2_500);
     });
     const savedA = readFileSync(pathA, 'utf8');
-    // Kept in A's file, or the poet was asked before it was dropped. Never dropped without a word.
+    // CONTROL: the Save itself worked.
+    expect(savedA).toContain('QQA');
     expect(
       { keptInFile: savedA.includes('QQB'), prompted },
       'QQB was dropped without a prompt'
@@ -49,4 +60,19 @@ test('keystrokes typed after Save and before an open are either kept or asked ab
   } finally {
     await app.close();
   }
+};
+
+test('keystrokes typed after Save and before an open are either kept or asked about', async () => {
+  await leaveAfterSave((app, pathB, userData) =>
+    openDocument(app, userData, pathB, 'poem B')
+  );
+});
+
+// Silas, review of #190: closing reads the same mark, and cannot wait for the editor.
+test('keystrokes typed after Save and before the window closes are either kept or asked about', async () => {
+  await leaveAfterSave(async (app) => {
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]?.close();
+    });
+  });
 });
