@@ -46,14 +46,11 @@ type StoreLike = {
   set: (key: string, value: unknown) => void;
 };
 /* eslint-enable no-unused-vars */
-const holdsWork = (s: StoreLike): boolean => {
-  const poem = s.get('poem');
-  const history = s.get('history');
-  return (
-    (typeof poem === 'string' && poem !== '') ||
-    (typeof history === 'string' && history !== '' && history !== '[]')
-  );
-};
+// Work is anything present that is not plainly empty. A value of an unexpected shape (an older build could
+// have stored history as an array) counts as work, so the profile keeps warning: the safe direction.
+const EMPTY = new Set<unknown>([undefined, '', '[]']);
+const holdsWork = (s: StoreLike): boolean =>
+  !EMPTY.has(s.get('poem')) || !EMPTY.has(s.get('history'));
 export const settleEdited = (s: StoreLike): void => {
   if (!s.has('edited') && !holdsWork(s)) s.set('edited', 'false');
 };

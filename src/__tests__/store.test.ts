@@ -64,6 +64,12 @@ describe('store', () => {
   it.each([
     ['a poem', { poem: '<p>zq</p>' }],
     ['a history', { history: '[{"front":0}]' }],
+    // Cyril, review of #189: a shape this editor never writes still counts as work.
+    ['a history stored as an array', { history: [{ front: 0 }] }],
+    [
+      'a poem stored as something other than a string',
+      { poem: { text: 'zq' } },
+    ],
   ])(
     'leaves edited unset in a profile that holds %s without it, so it still warns',
     (_label, seed) => {
