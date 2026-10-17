@@ -19,7 +19,7 @@ import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
-import { USER_GUIDE_URL } from '../shared/userGuide';
+import installedGuideUrl from './guideLink';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
@@ -641,7 +641,7 @@ export default class MenuBuilder {
       },
       {
         label: 'Documentation',
-        click: () => shell.openExternal(USER_GUIDE_URL),
+        click: () => shell.openExternal(installedGuideUrl()),
       },
       // Shows the log in Finder, or File Explorer, so a poet can send it with a report without knowing where it is.
       {

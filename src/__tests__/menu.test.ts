@@ -1325,6 +1325,24 @@ describe('the menu', () => {
       );
     });
 
+    it('Documentation in an installed app opens the guide at that version’s release tag (#102)', () => {
+      const packaged = app as unknown as {
+        isPackaged?: boolean;
+        getVersion?: () => string;
+      };
+      packaged.isPackaged = true;
+      packaged.getVersion = () => '0.5.0';
+      try {
+        sub(build(platform), helpTop, 'Documentation').click!();
+        expect(shell.openExternal).toHaveBeenLastCalledWith(
+          'https://github.com/midst-press/midst-editor/blob/v0.5.0/docs/user-guide.md'
+        );
+      } finally {
+        delete packaged.isPackaged;
+        delete packaged.getVersion;
+      }
+    });
+
     it('About Midst opens the About box on this window, from the menu this platform expects', () => {
       const win = makeWindow();
       const template = build(platform, win);
