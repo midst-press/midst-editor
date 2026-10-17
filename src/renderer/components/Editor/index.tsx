@@ -31,6 +31,10 @@ export default function Editor() {
   // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
   // arrival, in an effect, then changes nothing React renders (GitHub #44).
   const edited = useRef(false);
+  // Typing since the editor last wrote the poem to the store. A save chosen from the menu marks the
+  // document saved while `edited` stays set until the autosave runs, so typing in that second did not mark
+  // it unsaved again, and an open in that second dropped it without the unsaved-changes prompt (#113).
+  const typedSinceStored = useRef(false);
 
   // Read once: toggling it reloads the window, which reads it again.
   const [spellcheckOn] = useState<boolean>(
@@ -73,18 +77,24 @@ export default function Editor() {
       );
       window.electron.ipcRenderer.sendMessage('save-file', []);
       edited.current = false;
+      typedSinceStored.current = false;
     },
     []
   );
   const autosave = useAutosave(latest, saveFileAndUpdateStore);
 
   // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
-  // after the last keystroke. They ask for it first (#157): write it now, then answer. The pending
-  // autosave is left to run, so the edited state is kept exactly as before.
+  // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
+  // too, before the unsaved-changes prompt, and typing since the last write marks the document unsaved, so
+  // the prompt knows about it (#113). The pending autosave is left to run.
   useEffect(
     () =>
       window.electron.ipcRenderer.on('flush-editor', (id) => {
         const doc = latest.current;
+        if (typedSinceStored.current) {
+          window.electron.store.set('edited', JSON.stringify(true));
+          typedSinceStored.current = false;
+        }
         window.electron.store.set('poem', doc.htmlString);
         window.electron.store.set('history', JSON.stringify(doc.poemHistory));
         window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
@@ -116,6 +126,7 @@ export default function Editor() {
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
     setHtmlString(newHtml);
+    typedSinceStored.current = true;
     if (!edited.current) {
       edited.current = true;
       window.electron.store.set('edited', JSON.stringify(true));

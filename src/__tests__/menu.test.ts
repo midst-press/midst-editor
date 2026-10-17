@@ -707,10 +707,10 @@ describe('exportRtf (GitHub #26)', () => {
 });
 
 describe('newFile', () => {
-  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
+  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', async () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
-    newFile(asWindow(makeWindow()), false);
+    await newFile(asWindow(makeWindow()), false);
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const options = showMessageBox.mock.calls[0][1];
     expect(options.buttons).toEqual(['Proceed', 'Cancel']);
@@ -724,24 +724,24 @@ describe('newFile', () => {
   // ask, as the window's close handler does.
   it.each([['true'], [undefined], ['']])(
     'asks before discarding the document when edited is %p',
-    (edited) => {
+    async (edited) => {
       seedDocument();
       if (edited === undefined) mockStore.delete('edited');
       else mockStore.set('edited', edited);
       showMessageBox.mockReturnValue(1);
       const win = makeWindow();
-      newFile(asWindow(win), false);
+      await newFile(asWindow(win), false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('poem')).toBe('<p>xv</p>');
       expect(win.webContents.send).not.toHaveBeenCalled();
     }
   );
 
-  it('when the poet cancels, keeps the document and tells the renderer nothing', () => {
+  it('when the poet cancels, keeps the document and tells the renderer nothing', async () => {
     seedDocument({ edited: 'true', filename: '/x/zq.midst' });
     showMessageBox.mockReturnValue(1);
     const win = makeWindow();
-    newFile(asWindow(win), true);
+    await newFile(asWindow(win), true);
     expect(mockStore.get('poem')).toBe('<p>xv</p>');
     expect(mockStore.get('filename')).toBe('/x/zq.midst');
     expect(mockStore.get('edited')).toBe('true');
@@ -749,7 +749,7 @@ describe('newFile', () => {
     expect(win.setTitle).not.toHaveBeenCalled();
   });
 
-  it('when the poet proceeds, clears the document and tells the renderer', () => {
+  it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
       edited: 'true',
       filename: '/x/zq.midst',
@@ -758,7 +758,7 @@ describe('newFile', () => {
     });
     showMessageBox.mockReturnValue(0);
     const win = makeWindow();
-    newFile(asWindow(win), false);
+    await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
     expect(mockStore.get('history')).toBe('[]');
     expect(mockStore.get('meta')).toBe('');
@@ -768,23 +768,23 @@ describe('newFile', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
   });
 
-  it('with no unsaved changes, does not ask', () => {
+  it('with no unsaved changes, does not ask', async () => {
     seedDocument({ edited: 'false' });
     const win = makeWindow();
-    newFile(asWindow(win), false);
+    await newFile(asWindow(win), false);
     expect(showMessageBox).not.toHaveBeenCalled();
     expect(mockStore.get('poem')).toBe('');
     expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
   });
 
-  it('on macOS, titles the window Untitled; elsewhere does not', () => {
+  it('on macOS, titles the window Untitled; elsewhere does not', async () => {
     seedDocument({ edited: 'false' });
     const mac = makeWindow();
-    newFile(asWindow(mac), true);
+    await newFile(asWindow(mac), true);
     expect(mac.setTitle).toHaveBeenCalledWith('Untitled');
     expect(mac.setRepresentedFilename).toHaveBeenCalledWith('Untitled');
     const other = makeWindow();
-    newFile(asWindow(other), false);
+    await newFile(asWindow(other), false);
     expect(other.setTitle).not.toHaveBeenCalled();
   });
 });
@@ -1242,16 +1242,19 @@ describe('the menu', () => {
       expect(fs.existsSync(current)).toBe(false);
     });
 
-    it('New guards unsaved changes before clearing the document', () => {
+    it('New guards unsaved changes before clearing the document', async () => {
       seedDocument({ edited: 'true' });
       showMessageBox.mockReturnValue(1);
       const win = makeWindow();
-      sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
+      await sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('poem')).toBe('<p>xv</p>');
       showMessageBox.mockReturnValue(0);
-      sub(buildFromTemplate.mock.calls[0][0], fileLabels.top, fileLabels.nw)
-        .click!();
+      await sub(
+        buildFromTemplate.mock.calls[0][0],
+        fileLabels.top,
+        fileLabels.nw
+      ).click!();
       expect(mockStore.get('poem')).toBe('');
     });
 

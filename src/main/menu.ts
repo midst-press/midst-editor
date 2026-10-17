@@ -363,7 +363,10 @@ export const save = async (
   }
 };
 
-export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
+// New and Open first take the poem from the editor (#113), so typing in the last second counts as an unsaved
+// change and the prompt asks about it.
+export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
+  await flushEditor(mainWindow);
   const cancel = handleUnsavedChanges(mainWindow);
   if (cancel) {
     return;
@@ -444,6 +447,7 @@ export const openFile = async (
   darwin: boolean,
   earlyFilename?: string[]
 ) => {
+  await flushEditor(mainWindow);
   const cancel = handleUnsavedChanges(mainWindow);
   if (cancel) {
     return;
