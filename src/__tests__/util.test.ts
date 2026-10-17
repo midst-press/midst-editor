@@ -171,6 +171,16 @@ describe('the file body the editor saves', () => {
     expect(JSON.parse(body).meta).toEqual({ title: 'zq title' });
   });
 
+  // Only an object can hold an author (#181); any other meta a file holds is written back as it is.
+  it.each([
+    ['null', null],
+    ['an array', [1]],
+    ['a string', 'zq'],
+  ])('writes back a meta that is %s unchanged', (_label, meta) => {
+    const body = serializeDocument('<p>zq</p>', '[]', JSON.stringify(meta));
+    expect(JSON.parse(body).meta).toEqual(meta);
+  });
+
   it('is one line, so the version header stays the only other line', () => {
     const body = serializeDocument('<p>zq</p><p>xv</p>', '[]', '');
     expect(body).not.toContain('\n');
