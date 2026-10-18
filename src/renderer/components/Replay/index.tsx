@@ -1,6 +1,6 @@
 import './Replay.css';
 import { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { reconstructHTML, ChangeObj } from 'renderer/tracking/utils';
+import { reconstructHTML, ChangeObj } from '@midst-press/midst-format/history';
 import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
@@ -14,7 +14,7 @@ import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
-import poemExtensions from 'shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';

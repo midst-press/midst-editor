@@ -4,10 +4,10 @@ import { useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
+import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
-import { ChangeObj } from '../renderer/tracking/utils';
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 

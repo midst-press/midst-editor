@@ -1,7 +1,7 @@
 import { useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { ChangeObj } from 'renderer/tracking/utils';
+import { ChangeObj } from '@midst-press/midst-format/history';
 import './LandingDialog.css';
 import Logo from './LogoThin';
 import FindNotHere, { FIND_BEFORE_OPEN } from '../../search/FindNotHere';

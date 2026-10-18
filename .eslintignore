@@ -37,3 +37,6 @@ src/renderer/index.ejs
 # `!.erb` above un-ignores every path segment named .erb, at any depth -- including the generated
 # release/app/.erb that the e2e harness populates. Build output is not ours to lint.
 release/app/.erb
+
+# The vendored midst-format build is byte-exact and checked by tools/check-vendored-format.mjs; not ours to lint.
+vendor/midst-format
