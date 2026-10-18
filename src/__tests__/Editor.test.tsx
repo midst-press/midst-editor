@@ -517,7 +517,7 @@ describe('Editor: autosave', () => {
 });
 
 describe('Editor: opening another document', () => {
-  it('shows it, titles the window, stores the opened document (not the old one) and stays on the editor', () => {
+  it('shows it, leaves the title to App (#125), stores the opened document (not the old one) and stays on the editor', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
     const opened = [change(3)];
@@ -525,10 +525,7 @@ describe('Editor: opening another document', () => {
 
     expect(setTextSpy).toHaveBeenLastCalledWith('<p>other poem</p>');
     expect(setPoemHistorySpy).toHaveBeenLastCalledWith(opened);
-    expect(bridge.calls).toContainEqual({
-      kind: 'title',
-      args: ['other.midst'],
-    });
+    expect(bridge.calls.filter((c) => c.kind === 'title')).toHaveLength(0);
     expect(proseMirror()).toHaveTextContent('other poem');
     expect(bridge.values.poem).toBe('<p>other poem</p>');
     expect(bridge.values.history).toBe(JSON.stringify(opened));
