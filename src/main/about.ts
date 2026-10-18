@@ -1,6 +1,6 @@
 import { BrowserWindow, app, clipboard, dialog, shell } from 'electron';
 import { buildLabel } from '../shared/buildLabel';
-import { USER_GUIDE_URL } from '../shared/userGuide';
+import installedGuideUrl from './guideLink';
 
 // The commit and its date are written into the bundle when it is built
 // (.erb/scripts/build-identity.js, through webpack.config.main.prod.ts). Running from source
@@ -42,5 +42,5 @@ export const showAbout = async (mainWindow: BrowserWindow): Promise<void> => {
     cancelId: 0,
   });
   if (response === 1) clipboard.writeText(line);
-  if (response === 2) await shell.openExternal(USER_GUIDE_URL);
+  if (response === 2) await shell.openExternal(installedGuideUrl());
 };
