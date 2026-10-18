@@ -20,13 +20,28 @@ PREFIX="${TMPDIR:-/tmp}/midst-dogfood-"
 # One list for the probe baseline AND the leak search, so a word cannot be absent from one and found in the other.
 REPOS=("$EDITOR" "$FORMAT")
 
-for stale in "$PREFIX"*; do [ -e "$stale" ] && { rm -rf "$stale"; echo "swept a stale run directory"; }; done
+# A run directory is stale when the run that made it is gone: its pid file names a process that is not
+# running. One with no pid file (an older version of this script) is stale only after a day. A run still in
+# progress in another terminal is left alone (#5).
+for stale in "$PREFIX"*; do
+  [ -d "$stale" ] || continue
+  if [ -f "$stale/pid" ]; then
+    kill -0 "$(cat "$stale/pid")" 2> /dev/null && { echo "left a run directory whose run is still going"; continue; }
+  elif [ -z "$(find "$stale" -maxdepth 0 -mmin +1440)" ]; then
+    echo "left a run directory with no pid file, less than a day old"; continue
+  fi
+  rm -rf "$stale" && echo "swept a stale run directory"
+done
 W=$(mktemp -d "${PREFIX}XXXXXX") || exit 2
+echo $$ > "$W/pid"
 LOG_BEFORE=$( [ -f "$LOGFILE" ] && stat -f %z "$LOGFILE" || echo 0 )
+# test-results/ is removed afterwards only if this run created it: one already there is someone else's (#5).
+TR_EXISTED=0; [ -e "$EDITOR/test-results" ] && TR_EXISTED=1
 cleanup() {
-  # Restore the app's persistent log to its size before the run, whatever the run did to it.
-  [ -f "$LOGFILE" ] && [ "$(stat -f %z "$LOGFILE")" -gt "$LOG_BEFORE" ] && truncate -s "$LOG_BEFORE" "$LOGFILE"
-  rm -rf "$EDITOR/test-results"
+  # The app's log is NOT touched: the spec sends each case's log to MIDST_LOG_DIR, and the leak check reports
+  # anything from the run that reached ~/Library/Logs/midst anyway. Truncating it would cut the installed
+  # app's own lines if it was in use during the run (#5).
+  [ "$TR_EXISTED" = 0 ] && rm -rf "$EDITOR/test-results"
   if [ "${KEEP:-0}" = 1 ]; then echo "KEPT $W (it holds poems; delete it when done)"; else rm -rf "$W"; fi
 }
 trap cleanup EXIT

@@ -2,6 +2,11 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  ChangeObj,
+  compareStrings,
+  reconstruct,
+} from '@midst-press/midst-format/history';
 import Replay from '../renderer/components/Replay';
 import RestartIcon from '../renderer/components/Replay/restartIcon';
 import {
@@ -15,11 +20,6 @@ import {
 } from '../renderer/components/Replay/RestartFromButton';
 import { HistoryContext, TextContext } from '../renderer/context';
 import { RestartFromError } from '../renderer/tracking/restartFrom';
-import {
-  ChangeObj,
-  compareStrings,
-  reconstruct,
-} from '../renderer/tracking/utils';
 
 // jest.mock is hoisted above the imports; `mockRestartFrom` is read only when a test calls it.
 const mockRestartFrom = jest.fn();

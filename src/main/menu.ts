@@ -11,6 +11,12 @@ import {
 
 import path from 'path';
 import fs from 'fs';
+import {
+  fileVersionMatchesCurrent,
+  convertMidstFile,
+  includeVersionInfo,
+  serializeDocument,
+} from '@midst-press/midst-format/convert';
 import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
@@ -21,13 +27,7 @@ import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import { USER_GUIDE_URL } from '../shared/userGuide';
 import { describeError } from '../shared/errorSummary';
-import {
-  fileVersionMatchesCurrent,
-  convertMidstFile,
-  includeVersionInfo,
-  serializeDocument,
-  loadDataIntoWorkspace,
-} from './util';
+import { loadDataIntoWorkspace } from './util';
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is

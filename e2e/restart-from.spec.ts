@@ -2,7 +2,7 @@ import { test, expect, ElectronApplication, Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { ChangeObj, reconstruct } from '../src/renderer/tracking/utils';
+import { ChangeObj, reconstruct } from '@midst-press/midst-format/history';
 import { makePlayableMidst } from './fixtures';
 import { launch, openDocument, readStore, waitUntil } from './harness';
 

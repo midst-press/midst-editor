@@ -3,7 +3,7 @@ import { getSchema } from '@tiptap/core';
 import { generateJSON } from '@tiptap/html';
 import StarterKit from '@tiptap/starter-kit';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
-import poemExtensions from '../shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import findInText from '../renderer/search/findInText';
 
 const schema = getSchema(poemExtensions);
