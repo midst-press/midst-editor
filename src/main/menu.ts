@@ -15,8 +15,10 @@ import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { writeConvertedFile } from './convertedFile';
+import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
 import { showAbout } from './about';
+import { logFilePath } from './logFile';
 import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
@@ -227,10 +229,15 @@ const writeAndRecord = async (
     historyChars: typeof history === 'string' ? history.length : 0,
   });
   try {
-    fs.writeFileSync(filename, fullContents);
+    replaceFile(filename, fullContents);
   } catch (err) {
     const reason = (err as Error).message;
-    log.error(`${label}: the document was not written`, { filename, reason });
+    const { cleanupError } = err as { cleanupError?: unknown };
+    log.error(`${label}: the document was not written`, {
+      filename,
+      reason,
+      ...(cleanupError ? { cleanupError } : {}),
+    });
     await reportCouldNotSave(mainWindow, darwin, {
       filename,
       reason,
@@ -635,6 +642,11 @@ export default class MenuBuilder {
       {
         label: 'Documentation',
         click: () => shell.openExternal(USER_GUIDE_URL),
+      },
+      // Shows the log in Finder, or File Explorer, so a poet can send it with a report without knowing where it is.
+      {
+        label: 'Show Log File',
+        click: () => shell.showItemInFolder(logFilePath()),
       },
     ];
   }

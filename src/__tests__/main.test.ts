@@ -97,6 +97,10 @@ jest.mock('electron', () => {
     mockState: state,
     app: {
       isPackaged: false,
+      // devUserData.ts runs on import; its behaviour is covered in devUserData.test.ts.
+      commandLine: { hasSwitch: () => true },
+      getPath: () => '/zq-appdata',
+      setPath: jest.fn(),
       getVersion: () => '9.9.9',
       quit: jest.fn(),
       addRecentDocument: jest.fn(),
@@ -139,8 +143,13 @@ jest.mock('electron-devtools-assembler', () => ({
   default: (...args: unknown[]) => mockInstallExtension(...args),
   REACT_DEVELOPER_TOOLS: 'react-devtools',
 }));
+// What the update check does; a test can make it reject or throw.
+const mockCheckForUpdates = jest.fn((): unknown => Promise.resolve(null));
 jest.mock('electron-updater', () => ({
-  autoUpdater: { checkForUpdatesAndNotify: jest.fn(), logger: null },
+  autoUpdater: {
+    checkForUpdatesAndNotify: jest.fn(() => mockCheckForUpdates()),
+    logger: null,
+  },
 }));
 
 jest.mock('electron-log', () => ({
@@ -163,6 +172,10 @@ jest.mock('electron-log', () => ({
 
 // The real handler registration would attach to the test runner's own process; its behaviour is
 // covered in logging.test.ts. Here only that main.ts registers it, and what it tells the poet.
+jest.mock('../main/logFile', () => ({
+  logFileForPeople: () => '~/Library/Logs/Midst/main.log',
+}));
+
 jest.mock('../main/logging', () => ({
   ...jest.requireActual('../main/logging'),
   registerUncaughtHandlers: jest.fn(),
@@ -822,6 +835,46 @@ describe('main process', () => {
       expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
     });
 
+    // 0.5.0: the check's rejection reached the unhandled-rejection handler, whose modal dialog froze
+    // the main process. A failed check is expected (offline, no feed, not installed) and is a warning.
+    it.each([
+      [
+        'rejects',
+        () => {
+          const e = new Error('ENOENT zq-path');
+          e.stack = 'Error: ENOENT zq-path';
+          return Promise.reject(e);
+        },
+      ],
+      [
+        'throws',
+        () => {
+          throw new TypeError('zq-sync');
+        },
+      ],
+    ])(
+      'an update check that %s is logged as a warning, name only, and is not left unhandled',
+      async (_how, outcome) => {
+        mockCheckForUpdates.mockImplementationOnce(outcome);
+        const unhandled = jest.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const { log, flush } = await boot();
+          await flush();
+          expect(log.warn).toHaveBeenCalledWith('update check failed', {
+            name: expect.stringMatching(/^(Error|TypeError)$/),
+            frames: expect.any(Array),
+          });
+          expect(JSON.stringify(jest.mocked(log.warn).mock.calls)).not.toMatch(
+            /zq-/
+          );
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      }
+    );
+
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
       const [open] = win().webContents.setWindowOpenHandler.mock.calls[0] as [
@@ -852,14 +905,31 @@ describe('main process', () => {
     });
 
     it('a second window does not add a second set of renderer handlers', async () => {
-      const { menu, win, fireApp, fireIpc } = await boot();
+      const { menu, state, win, fireApp, fireIpc } = await boot();
       await fireApp('activate', {}, false);
+      // Gitea #38: every channel the renderer sends has one handler, however many windows there have been.
+      [
+        'save-file',
+        'new-file',
+        'button-open-file',
+        'app-open',
+        'enable-save',
+        'disable-save',
+      ].forEach((channel) =>
+        expect([channel, state.ipc.get(channel)?.length]).toEqual([channel, 1])
+      );
+      // ...and so does every other channel main.ts registers, named or not (Cyril, review of #183).
+      state.ipc.forEach((handlers, channel) =>
+        expect([channel, handlers.length]).toEqual([channel, 1])
+      );
       await fireIpc('save-file');
       await fireIpc('new-file');
       await fireIpc('button-open-file');
       expect(menu.save).toHaveBeenCalledTimes(1);
       expect(menu.newFile).toHaveBeenCalledTimes(1);
       expect(menu.openFile).toHaveBeenCalledTimes(1);
+      await fireIpc('app-open', ['/a/zq.midst']);
+      expect(menu.openFile).toHaveBeenCalledTimes(2);
       expect(menu.save).toHaveBeenCalledWith(win(), expect.anything(), false);
     });
 
@@ -1005,7 +1075,7 @@ describe('main process', () => {
       );
     });
 
-    it('tells the poet with the error name, and never a message', async () => {
+    it('tells the poet the error name and where the log is, and never a message', async () => {
       const { logging, electron } = await boot();
       const [, notify] = (logging.registerUncaughtHandlers as jest.Mock).mock
         .calls[0] as [unknown, typeof String];
@@ -1013,7 +1083,9 @@ describe('main process', () => {
       expect(electron.dialog.showErrorBox).toHaveBeenCalledTimes(1);
       const [title, content] = electron.dialog.showErrorBox.mock.calls[0];
       expect(title).toBe('Midst hit an unexpected error');
-      expect(content).toBe('TypeError. It has been recorded in the log.');
+      expect(content).toBe(
+        'TypeError. It has been recorded in the log, ~/Library/Logs/Midst/main.log, which Help > Show Log File shows.'
+      );
     });
   });
 });

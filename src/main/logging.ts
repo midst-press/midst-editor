@@ -191,8 +191,11 @@ log.transports.file.archiveLog = (file) =>
     })
   );
 
-// ---- Errors nothing caught. The log has the name and frames (never the message); the poet is told
-// through `notify`, as Electron's own handler would have, and the app keeps running.
+// ---- Errors nothing caught. The log has the name and frames (never the message), and the app keeps
+// running. For an uncaught exception the poet is told through `notify`, as Electron's own handler
+// would have. An unhandled rejection is only logged, as Electron itself does: `notify` is a modal
+// dialog that blocks the main process until dismissed, and a rejection that 0.4.0 shrugged off (a
+// failed update check) froze 0.5.0 behind one: no poem opened and SIGTERM was not handled.
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 type ProcessLike = {
   on: (
@@ -207,7 +210,7 @@ export function registerUncaughtHandlers(
   proc: ProcessLike,
   notify: Notify
 ): void {
-  const handle = (error: unknown) => {
+  proc.on('uncaughtException', (error: unknown) => {
     const summary = describeError(error);
     log.error('uncaught error', summary);
     try {
@@ -218,9 +221,10 @@ export function registerUncaughtHandlers(
         describeError(e)
       );
     }
-  };
-  proc.on('uncaughtException', handle);
-  proc.on('unhandledRejection', handle);
+  });
+  proc.on('unhandledRejection', (reason: unknown) => {
+    log.error('unhandled rejection', describeError(reason));
+  });
 }
 
 export type LogLevel =

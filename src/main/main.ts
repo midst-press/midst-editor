@@ -8,6 +8,8 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+// First, before anything opens the store or the log: a development build keeps its own (Gitea #151).
+import './devUserData';
 import {
   attachTitlebarToWindow,
   setupTitlebar,
@@ -40,14 +42,20 @@ import MenuBuilder, {
 } from './menu';
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
+import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
+import { describeError } from '../shared/errorSummary';
 
 class AppUpdater {
   constructor() {
     // Level is whatever the user has configured; see src/main/logging.ts.
     applyLogLevel();
     autoUpdater.logger = log;
-    autoUpdater.checkForUpdatesAndNotify();
+    // A failed check is expected (offline, no feed, an app not installed through its package) and must
+    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
+    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
+      log.warn('update check failed', describeError(error))
+    );
   }
 }
 
@@ -259,7 +267,7 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
 registerUncaughtHandlers(process, (name) =>
   dialog.showErrorBox(
     'Midst hit an unexpected error',
-    `${name}. It has been recorded in the log.`
+    `${name}. It has been recorded in the log, ${logFileForPeople()}, which Help > Show Log File shows.`
   )
 );
 

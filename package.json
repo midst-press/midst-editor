@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": {
     "name": "Stuart Swerdloff",
     "url": "https://midst.press"
@@ -256,6 +256,12 @@
         "statements": 100
       },
       "./src/renderer/search/FindNotHere.tsx": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/main/devUserData.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
