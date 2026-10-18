@@ -23,6 +23,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
 } from 'node:fs';
@@ -156,7 +157,9 @@ function rebuild(dir, checkout) {
   try {
     run('git', ['-C', checkout, 'worktree', 'add', '--detach', tree, commit]);
     added = true;
-    run('npm', ['ci'], tree);
+    // No scripts: the build needs none, and format's `prepare` would install git hooks into the caller's own
+    // clone, which this worktree shares a git directory with (cyril-9137f1ee, review of #202).
+    run('npm', ['ci', '--ignore-scripts'], tree);
     run('npm', ['run', 'build:lib'], tree);
     const built = join(tree, 'dist');
     const builtFiles = listFiles(built);
@@ -166,10 +169,32 @@ function rebuild(dir, checkout) {
     console.log(`rebuilt dist/: ${builtFiles.length} files`);
     return report('vendored files vs rebuild', compareToHashes(dir, hashes));
   } finally {
+    // A failed cleanup leaves a stray worktree in the caller's clone: say so, without masking the result.
+    const warnIfFailed = (what, r) => {
+      if (r.status !== 0)
+        console.log(
+          `warning: ${what} failed (exit ${
+            r.status ?? r.signal
+          }); check \`git -C ${checkout} worktree list\``
+        );
+    };
     if (added)
-      spawnSync('git', ['-C', checkout, 'worktree', 'remove', '--force', tree]);
+      warnIfFailed(
+        'removing the temporary worktree',
+        spawnSync('git', [
+          '-C',
+          checkout,
+          'worktree',
+          'remove',
+          '--force',
+          tree,
+        ])
+      );
     rmSync(work, { recursive: true, force: true });
-    spawnSync('git', ['-C', checkout, 'worktree', 'prune']);
+    warnIfFailed(
+      'git worktree prune',
+      spawnSync('git', ['-C', checkout, 'worktree', 'prune'])
+    );
   }
 }
 
@@ -199,7 +224,16 @@ function main(argv) {
   return rebuild(dir, resolve(checkout));
 }
 
-if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
+// realpath, because import.meta.url has links resolved and argv[1] does not: run through a link, a plain
+// compare skips main() and exits 0 having checked nothing (cyril-9137f1ee, review of #202; midst-web #190).
+const invokedAs = () => {
+  try {
+    return realpathSync(process.argv[1] ?? '');
+  } catch {
+    return '';
+  }
+};
+if (invokedAs() === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const ok = main(process.argv.slice(2));
     if (!ok) console.log('FAIL: vendored midst-format differs');

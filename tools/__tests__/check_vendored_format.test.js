@@ -92,6 +92,19 @@ describe('default mode', () => {
     expect(r.out).toContain('hash block is empty');
   });
 
+  it('run through a symbolic link, still checks: a changed file fails (cyril-9137f1ee, review of #202)', () => {
+    const linked = path.join(tmp, 'linked-tools');
+    fs.symlinkSync(path.dirname(SCRIPT), linked);
+    fs.appendFileSync(path.join(dir, 'history', 'index.cjs'), '\n');
+    const r = spawnSync(
+      'node',
+      [path.join(linked, path.basename(SCRIPT)), '--dir', dir],
+      { encoding: 'utf8', env: { ...process.env, MIDST_FORMAT_ROOT: '' } }
+    );
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('changed: history/index.cjs');
+  });
+
   it('refuses a directory that does not exist', () => {
     expect(check(['--dir', path.join(tmp, 'nope')]).status).toBe(2);
   });
