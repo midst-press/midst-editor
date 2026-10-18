@@ -29,7 +29,7 @@ interface ElectronState {
   ipc: Map<string, Handler[]>;
   appHandlers: Map<string, Handler[]>;
   windows: FakeWindow[];
-  dialogResponse: number;
+  dialogResponse: number | undefined;
   ready: Promise<void>;
   resolveReady: () => void;
   rejectReady: jest.Mock;
@@ -52,7 +52,8 @@ jest.mock('electron', () => {
     ipc: new Map<string, Handler[]>(),
     appHandlers: new Map<string, Handler[]>(),
     windows: [] as unknown[],
-    dialogResponse: 0,
+    // Unset on purpose: each test that shows a dialog must choose its answer.
+    dialogResponse: undefined as number | undefined,
     menuItems: {
       save: { enabled: false },
       'save-as': { enabled: false },
@@ -116,7 +117,12 @@ jest.mock('electron', () => {
     },
     BrowserWindow,
     dialog: {
-      showMessageBoxSync: jest.fn(() => state.dialogResponse),
+      showMessageBoxSync: jest.fn(() => {
+        if (state.dialogResponse === undefined) {
+          throw new Error('dialog answer not set by this test');
+        }
+        return state.dialogResponse;
+      }),
       showErrorBox: jest.fn(),
     },
     shell: { openExternal: jest.fn() },
@@ -545,12 +551,25 @@ describe('main process', () => {
       electron.app.applicationMenu = undefined;
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      electron.app.applicationMenu = {
-        getMenuItemById: jest.fn(() => null),
-      };
+      const lookups = jest.fn<null, [string]>(() => null);
+      electron.app.applicationMenu = { getMenuItemById: lookups };
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
+      // The handlers did look for both items (they ran, they did not just return early).
+      expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
+        'save',
+        'save',
+        'save-as',
+        'save-as',
+      ]);
       expect(state.menuItems.save.enabled).toBe(false);
+      // And a failed lookup left them working: with a real menu back, Save enables.
+      electron.app.applicationMenu = {
+        getMenuItemById: jest.fn((id: string) => state.menuItems[id]),
+      };
+      await fireIpc('enable-save');
+      expect(state.menuItems.save.enabled).toBe(true);
+      expect(state.menuItems['save-as'].enabled).toBe(true);
     });
 
     it('does nothing once the window has closed', async () => {
@@ -647,7 +666,9 @@ describe('main process', () => {
       const file = path.join(dir, 'xv.midst');
       fs.writeFileSync(file, 'midstVersion: 1\n{not json');
       const reads = trackReadFile();
-      const { store, electron, win, fireApp, fireWindow } = await boot();
+      const { store, electron, state, win, fireApp, fireWindow } = await boot();
+      // Error box with no buttons: the code ignores the return value.
+      state.dialogResponse = 0;
       await fireApp('open-file', { preventDefault: jest.fn() }, file);
 
       await fireWindow('ready-to-show');
@@ -674,6 +695,8 @@ describe('main process', () => {
       const { store, electron, state, win, fireApp, fireWindow } = await boot({
         ready: false,
       });
+      // Error box with no buttons: the code ignores the return value.
+      state.dialogResponse = 0;
       await fireApp('open-file', { preventDefault: jest.fn() }, file);
       state.resolveReady();
       await new Promise<void>((resolve) => {
@@ -754,14 +777,14 @@ describe('main process', () => {
         expect(fs.readFileSync(file, 'utf8')).toBe(original);
         const written = fs.readFileSync(converted, 'utf8');
         expect(written.startsWith('midstVersion: 1\n')).toBe(true);
-        expect(JSON.parse(written.split('\n')[1]).text).toContain('zq');
+        expect(JSON.parse(written.split('\n')[1]).text).toBe('<p>zq</p>');
         expect(store.get('filename')).toBe(converted);
         expect(store.get('baseFilename')).toBe('zq-converted.midst');
         // As File > Open does: the converted file is the one to find again.
         expect(electron.app.addRecentDocument).toHaveBeenCalledWith(converted);
         expect(win().webContents.send).toHaveBeenCalledWith(
           'open-file',
-          expect.stringContaining('zq'),
+          '<p>zq</p>',
           expect.any(Array),
           'zq-converted.midst'
         );
