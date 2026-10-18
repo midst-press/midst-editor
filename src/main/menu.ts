@@ -11,21 +11,22 @@ import {
 
 import path from 'path';
 import fs from 'fs';
-import store from './store';
-import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
-import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
-import { writeConvertedFile } from './convertedFile';
-import { poemToRtf } from './rtf';
-import { showAbout } from './about';
-import { logFilePath } from './logFile';
-import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
   includeVersionInfo,
   serializeDocument,
-  loadDataIntoWorkspace,
-} from './util';
+} from '@midst-press/midst-format/convert';
+import store from './store';
+import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
+import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
+import { writeConvertedFile } from './convertedFile';
+import replaceFile from './replaceFile';
+import { poemToRtf } from './rtf';
+import { showAbout } from './about';
+import { logFilePath } from './logFile';
+import { USER_GUIDE_URL } from '../shared/userGuide';
+import { loadDataIntoWorkspace } from './util';
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
   if (store.get('edited') === 'false') {
@@ -228,10 +229,15 @@ const writeAndRecord = async (
     historyChars: typeof history === 'string' ? history.length : 0,
   });
   try {
-    fs.writeFileSync(filename, fullContents);
+    replaceFile(filename, fullContents);
   } catch (err) {
     const reason = (err as Error).message;
-    log.error(`${label}: the document was not written`, { filename, reason });
+    const { cleanupError } = err as { cleanupError?: unknown };
+    log.error(`${label}: the document was not written`, {
+      filename,
+      reason,
+      ...(cleanupError ? { cleanupError } : {}),
+    });
     await reportCouldNotSave(mainWindow, darwin, {
       filename,
       reason,

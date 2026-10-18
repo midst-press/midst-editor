@@ -1,5 +1,5 @@
 import { createContext } from 'react';
-import { ChangeObj } from 'renderer/tracking/utils';
+import { ChangeObj } from '@midst-press/midst-format/history';
 
 const initialTextState = {
   text: '',

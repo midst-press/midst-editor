@@ -4,9 +4,9 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { getSchema } from '@tiptap/core';
 import { DOMParser as ProseMirrorParser } from '@tiptap/pm/model';
-import poemExtensions from 'shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { ChangeObj, reconstruct } from 'renderer/tracking/utils';
+import { ChangeObj, reconstruct } from '@midst-press/midst-format/history';
 import {
   RestartFromError,
   restartFrom,

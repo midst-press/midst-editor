@@ -613,6 +613,26 @@ describe('main process', () => {
       reads.restore();
     });
 
+    // #41: a file opened into a shown window was also held, and read again, without the unsaved-changes
+    // prompt, into the window made when the poet closed this one and came back from the Dock.
+    it('a file opened into a shown window is not held: closing and reopening the window reads nothing', async () => {
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(file, currentFile('<p>zq</p>'));
+      const { menu, state, fireApp, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      const reads = trackReadFile();
+      await fireWindow('closed');
+      await fireApp('activate', {}, false);
+      expect(state.windows).toHaveLength(2);
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(reads.calls()).toBe(0);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      reads.restore();
+    });
+
     it('open-file after the window exists asks the open handler to open it', async () => {
       const { menu, win, fireApp } = await boot();
       const event = { preventDefault: jest.fn() };
@@ -905,14 +925,31 @@ describe('main process', () => {
     });
 
     it('a second window does not add a second set of renderer handlers', async () => {
-      const { menu, win, fireApp, fireIpc } = await boot();
+      const { menu, state, win, fireApp, fireIpc } = await boot();
       await fireApp('activate', {}, false);
+      // Gitea #38: every channel the renderer sends has one handler, however many windows there have been.
+      [
+        'save-file',
+        'new-file',
+        'button-open-file',
+        'app-open',
+        'enable-save',
+        'disable-save',
+      ].forEach((channel) =>
+        expect([channel, state.ipc.get(channel)?.length]).toEqual([channel, 1])
+      );
+      // ...and so does every other channel main.ts registers, named or not (Cyril, review of #183).
+      state.ipc.forEach((handlers, channel) =>
+        expect([channel, handlers.length]).toEqual([channel, 1])
+      );
       await fireIpc('save-file');
       await fireIpc('new-file');
       await fireIpc('button-open-file');
       expect(menu.save).toHaveBeenCalledTimes(1);
       expect(menu.newFile).toHaveBeenCalledTimes(1);
       expect(menu.openFile).toHaveBeenCalledTimes(1);
+      await fireIpc('app-open', ['/a/zq.midst']);
+      expect(menu.openFile).toHaveBeenCalledTimes(2);
       expect(menu.save).toHaveBeenCalledWith(win(), expect.anything(), false);
     });
 

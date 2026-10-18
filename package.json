@@ -141,18 +141,6 @@
         "lines": 100,
         "statements": 100
       },
-      "./src/renderer/tracking/utils.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "./src/shared/poemExtensions.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
       "./src/renderer/fontSize/useFontSize.ts": {
         "branches": 100,
         "functions": 100,
@@ -305,12 +293,13 @@
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@jshafto/custom-electron-titlebar-update": "^4.2.9",
+    "@midst-press/midst-format": "file:vendor/midst-format",
     "@mui/icons-material": "^5.16.4",
     "@mui/material": "^5.16.4",
-    "@tiptap/html": "^2.5.4",
-    "@tiptap/pm": "^2.5.4",
-    "@tiptap/react": "^2.5.4",
-    "@tiptap/starter-kit": "^2.5.4",
+    "@tiptap/html": "2.5.4",
+    "@tiptap/pm": "2.5.4",
+    "@tiptap/react": "2.5.4",
+    "@tiptap/starter-kit": "2.5.4",
     "date-fns": "^2.30.0",
     "electron-log": "^4.4.8",
     "electron-store": "^8.2.0",

@@ -1,5 +1,5 @@
 /** @jest-environment node */
-import { ChangeObj } from '../renderer/tracking/utils';
+import { ChangeObj } from '@midst-press/midst-format/history';
 import {
   restartFrom,
   RestartFromError,
@@ -8,8 +8,8 @@ import {
 // The restart checks its own result before returning it. With a correct compareStrings that check cannot
 // fail, so it is tested here against a compareStrings that returns a change which does NOT produce the
 // chosen frame's text: the restart must refuse rather than hand back a history that replays wrongly.
-jest.mock('../renderer/tracking/utils', () => {
-  const actual = jest.requireActual('../renderer/tracking/utils');
+jest.mock('@midst-press/midst-format/history', () => {
+  const actual = jest.requireActual('@midst-press/midst-format/history');
   return {
     ...actual,
     compareStrings: (str: string, _next: string, pos: number, t: Date) => ({
