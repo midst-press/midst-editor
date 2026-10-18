@@ -15,6 +15,7 @@ import MenuBuilder, {
 } from '../main/menu';
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
+import * as rtf from '../main/rtf';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -128,6 +129,12 @@ const trackFsCallback = (name: 'readFile') => {
     real(...args);
   }) as never);
 };
+// Export as RTF runs on the next turn of the event loop, after the editor's flush has answered.
+const exportRan = () =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
 const ioDone = async () => {
   await Promise.all(pendingIo.splice(0));
 };
@@ -1444,6 +1451,7 @@ describe('the menu', () => {
         editorHolding(win, '<p>xv qj</p>');
         await sub(build(platform, win), fileLabels.top, 'Export as RTF…')
           .click!();
+        await exportRan();
         expect(readBack(chosen)).toContain('xv qj');
       });
     });
@@ -1489,7 +1497,35 @@ describe('the menu', () => {
       seedDocument();
       showSaveDialog.mockReturnValue(chosen);
       await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await exportRan();
       expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
+    });
+
+    // On main a throw from exportRtf is synchronous, so it reaches uncaughtException and the poet is
+    // told. After the flush it must still escape on its own, not settle a promise that is only logged.
+    it('Export as RTF… a throw from the export escapes the promise, as before the flush (#188)', async () => {
+      seedDocument();
+      const deferred: Array<() => void> = [];
+      const immediate = jest.spyOn(global, 'setImmediate').mockImplementation(((
+        fn: () => void
+      ) => {
+        deferred.push(fn);
+      }) as never);
+      const toRtf = jest.spyOn(rtf, 'poemToRtf').mockImplementation(() => {
+        throw new Error('zq export failed');
+      });
+      try {
+        await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+        expect(deferred).toHaveLength(1);
+        expect(() => deferred[0]()).toThrow('zq export failed');
+        expect(log.error).not.toHaveBeenCalledWith(
+          'exportRtf: failed',
+          expect.anything()
+        );
+      } finally {
+        immediate.mockRestore();
+        toRtf.mockRestore();
+      }
     });
 
     // The document already has a file, so plain Save would write there without asking. Save As
