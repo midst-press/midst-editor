@@ -2,9 +2,9 @@
 import {
   convertMidstFile,
   includeVersionInfo,
-  loadDataIntoWorkspace,
   serializeDocument,
-} from '../main/util';
+} from '@midst-press/midst-format/convert';
+import { loadDataIntoWorkspace } from '../main/util';
 import store from '../main/store';
 
 // Synthetic documents only: invented words, never a poem.
@@ -57,7 +57,7 @@ const saved = () =>
   );
 
 describe('format C meta (midst-format docs/META.md)', () => {
-  it('the converter copies every B presentation field', () => {
+  it('the converter copies every B presentation field, and never the author (#181)', () => {
     const c = JSON.parse(convertMidstFile(oldFile(B_META)));
     expect(c.meta).toEqual({
       fontFamily: 'Garamond',
@@ -65,8 +65,8 @@ describe('format C meta (midst-format docs/META.md)', () => {
       draftMarkers: [{ index: 1, name: 'zq first', defaultName: 'Draft 1' }],
       highestDraftNumber: 1,
       title: 'zq title',
-      author: 'zq author',
     });
+    expect(JSON.stringify(c)).not.toContain('zq author');
     // A marker index is a history index, so there must be one change per B frame.
     expect(c.history).toHaveLength(3);
   });
@@ -86,6 +86,24 @@ describe('format C meta (midst-format docs/META.md)', () => {
       false
     );
     expect(saved().meta).toEqual(JSON.parse(converted).meta);
+  });
+
+  // #181: a file converted before the decision carries the old app's author; the next save removes it,
+  // and nothing else.
+  it('a save drops an author already in the file, and keeps every other key', () => {
+    const meta = {
+      fontSize: 12,
+      title: 'zq title',
+      author: 'zq author',
+      laterField: 1,
+    };
+    const file = JSON.stringify({ text: '<p>a</p>', history: [], meta });
+    loadDataIntoWorkspace('/x.midst', includeVersionInfo(file), window, false);
+    expect(saved().meta).toEqual({
+      fontSize: 12,
+      title: 'zq title',
+      laterField: 1,
+    });
   });
 
   it('a save writes back unknown keys and out-of-range markers unchanged', () => {

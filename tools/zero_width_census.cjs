@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-/* eslint-disable no-console, no-restricted-syntax, global-require, import/no-dynamic-require, no-underscore-dangle -- a Node CLI that prints its report, over plain loops, and loads util.ts through ts-node with two imports stubbed */
+/* eslint-disable no-console, no-restricted-syntax, global-require, import/no-dynamic-require, no-underscore-dangle -- a Node CLI that prints its report, over plain loops */
 // Read-only census of zero-width-only paragraphs (midst-format #7, GitHub #31). For a directory of
-// .midst or .midst.zip files, converts each with the repo's convertMidstFile (src/main/util.ts) and counts
+// .midst or .midst.zip files, converts each with the repo's convertMidstFile (vendor/midst-format/convert) and counts
 // paragraphs holding only zero-width characters (U+FEFF, U+200B-U+200D, U+2060, literal or as a character
 // reference), in the converted text and, for comparison, in the file's raw final old-format frame.
 //
@@ -9,7 +9,7 @@
 //
 // Prints ONLY counts: no file name, path, title or text, here or in the log. A file that fails is counted
 // by error class name (stderr and the log; the log path is printed). Nothing is written but the log.
-// Exit: 0 done; 1 some file failed; 2 usage. Needs `npm ci`; util.ts is loaded through ts-node.
+// Exit: 0 done; 1 some file failed; 2 usage. Needs `npm ci`.
 
 const fs = require('fs');
 const os = require('os');
@@ -33,20 +33,14 @@ function countZeroWidthParagraphs(html) {
 }
 
 function loadConverter(repo) {
-  // util.ts imports electron and the electron-store wrapper; neither is needed to convert.
-  const Module = require('module');
-  const load = Module._load;
-  Module._load = function stub(request, ...rest) {
-    if (request === 'electron') return {};
-    if (/(^|\/)store$/.test(request)) return { __esModule: true, default: {} };
-    return load.call(this, request, ...rest);
-  };
-  require(path.join(repo, 'node_modules', 'ts-node')).register({
-    transpileOnly: true,
-    project: path.join(repo, 'tsconfig.json'),
-    compilerOptions: { module: 'commonjs' },
-  });
-  return require(path.join(repo, 'src', 'main', 'util.ts')).convertMidstFile;
+  // The converter is the vendored midst-format build: plain CommonJS, no electron and no store.
+  return require(path.join(
+    repo,
+    'vendor',
+    'midst-format',
+    'convert',
+    'index.cjs'
+  )).convertMidstFile;
 }
 
 function listFiles(dir) {

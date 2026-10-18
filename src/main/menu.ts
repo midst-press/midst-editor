@@ -11,22 +11,23 @@ import {
 
 import path from 'path';
 import fs from 'fs';
-import store from './store';
-import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
-import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
-import { writeConvertedFile } from './convertedFile';
-import { poemToRtf } from './rtf';
-import { flushEditor } from './editorFlush';
-import { showAbout } from './about';
-import { logFilePath } from './logFile';
-import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
   includeVersionInfo,
   serializeDocument,
-  loadDataIntoWorkspace,
-} from './util';
+} from '@midst-press/midst-format/convert';
+import store from './store';
+import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
+import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
+import { writeConvertedFile } from './convertedFile';
+import replaceFile from './replaceFile';
+import { poemToRtf } from './rtf';
+import { flushEditor } from './editorFlush';
+import { showAbout } from './about';
+import { logFilePath } from './logFile';
+import { USER_GUIDE_URL } from '../shared/userGuide';
+import { loadDataIntoWorkspace } from './util';
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
   if (store.get('edited') === 'false') {
@@ -229,10 +230,15 @@ const writeAndRecord = async (
     historyChars: typeof history === 'string' ? history.length : 0,
   });
   try {
-    fs.writeFileSync(filename, fullContents);
+    replaceFile(filename, fullContents);
   } catch (err) {
     const reason = (err as Error).message;
-    log.error(`${label}: the document was not written`, { filename, reason });
+    const { cleanupError } = err as { cleanupError?: unknown };
+    log.error(`${label}: the document was not written`, {
+      filename,
+      reason,
+      ...(cleanupError ? { cleanupError } : {}),
+    });
     await reportCouldNotSave(mainWindow, darwin, {
       filename,
       reason,
@@ -700,7 +706,7 @@ export default class MenuBuilder {
         ...this.saveItems(
           'Save',
           'Save As',
-          ['Command+S', 'Command+S+Shift'],
+          ['Command+S', 'Command+Shift+S'],
           true
         ),
         this.exportRtfItem(),
@@ -827,11 +833,8 @@ export default class MenuBuilder {
           { label: 'Cut', accelerator: 'Ctrl+X', role: 'cut' },
           { label: 'Copy', accelerator: 'Ctrl+C', role: 'copy' },
           { label: 'Paste', accelerator: 'Ctrl+V', role: 'paste' },
-          {
-            label: 'Select All',
-            accelerator: 'Ctrl+A',
-            selector: 'selectall',
-          } as MenuItemConstructorOptions,
+          // A role, as Cut, Copy and Paste beside it: `selector` is macOS only, so this item did nothing here (#121).
+          { label: 'Select All', accelerator: 'Ctrl+A', role: 'selectAll' },
           ...this.modeItems('Ctrl', 'Toggle Spellcheck'),
         ],
       },
