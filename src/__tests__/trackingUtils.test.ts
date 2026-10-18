@@ -6,7 +6,7 @@ import {
   reconstructArray,
   reconstructHTML,
   step,
-} from '../renderer/tracking/utils';
+} from '@midst-press/midst-format/history';
 
 // Synthetic strings only: invented words, never a poem.
 
