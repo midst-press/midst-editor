@@ -2,9 +2,9 @@
 import {
   convertMidstFile,
   includeVersionInfo,
-  loadDataIntoWorkspace,
   serializeDocument,
-} from '../main/util';
+} from '@midst-press/midst-format/convert';
+import { loadDataIntoWorkspace } from '../main/util';
 import store from '../main/store';
 
 // Synthetic documents only: invented words, never a poem.

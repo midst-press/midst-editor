@@ -24,6 +24,15 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: pip install 'pre-commit==4.6.2'
       - run: pre-commit run --all-files --show-diff-on-failure
+      - name: vendored midst-format matches its VENDOR.md hashes
+        run: node tools/check-vendored-format.mjs
+      # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/. It runs in Gitea CI. Here
+      # it waits until the tag is on GitHub's midst-press/midst-format, which comes with the next push-up (Stuart's):
+      # without the tag the clone has nothing to rebuild and the step would fail.
+      # - name: vendored midst-format equals a rebuild of its tag
+      #   run: |
+      #     git clone --quiet https://github.com/midst-press/midst-format.git "$RUNNER_TEMP/midst-format"
+      #     MIDST_FORMAT_ROOT="$RUNNER_TEMP/midst-format" node tools/check-vendored-format.mjs --rebuild
       # The jest setup file (.erb/scripts/check-build-exists.ts) refuses to run until both the
       # main and renderer bundles exist, so the suite cannot start on a clean checkout. This step
       # was never reached before: pre-commit failed first on every earlier run. Building here also

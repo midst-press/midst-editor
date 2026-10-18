@@ -1,6 +1,6 @@
 import { generateJSON } from '@tiptap/html';
 import { JSONContent } from '@tiptap/core';
-import poemExtensions from '../shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 
 // A poem's text, as it is now, written as a Rich Text Format file (GitHub #26).
 //
