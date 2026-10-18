@@ -700,10 +700,12 @@ export default class MenuBuilder {
   private exportRtfItem() {
     return {
       label: 'Export as RTF…',
+      // exportRtf runs outside the flush's promise, as it did before the flush: a throw from it then reaches
+      // uncaughtException, which tells the poet. Inside the promise it would only be logged (Clement, #188).
       click: () =>
         logIfRejected('exportRtf', async () => {
           await flushEditor(this.mainWindow);
-          exportRtf(this.mainWindow);
+          setImmediate(() => exportRtf(this.mainWindow));
         }),
     };
   }
