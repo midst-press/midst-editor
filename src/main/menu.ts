@@ -162,7 +162,7 @@ const recordSaved = (
     mainWindow.setDocumentEdited(false);
     mainWindow.setRepresentedFilename(filename);
   }
-  mainWindow.setTitle(filename);
+  // The renderer titles the window from this name, in one place (#125); main does not set the title.
   mainWindow.webContents.send('set-filename', path.basename(filename));
   store.set('edited', JSON.stringify(false));
 };
@@ -386,7 +386,6 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
     mainWindow.setRepresentedFilename('Untitled');
-    mainWindow.setTitle('Untitled');
   }
 };
 
