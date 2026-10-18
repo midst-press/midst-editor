@@ -441,6 +441,42 @@ describe('Editor: autosave', () => {
     expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
+  it('after File > Save inside the autosave’s second, the next keystroke marks the document unsaved at once (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    // File > Save: the menu takes the poem through the flush, and the save marks the document saved.
+    bridge.emit('flush-editor', 2);
+    bridge.values.edited = 'false';
+    bridge.clear();
+    typeText('qj');
+    // At once, with no flush and no autosave: New, Open, closing the window and Quit all read it.
+    expect(bridge.values.edited).toBe('true');
+    expect(bridge.sets('edited')).toHaveLength(1);
+  });
+
+  it('marks the document unsaved once per store write, not on every keystroke (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('x');
+    typeText('v');
+    expect(bridge.sets('edited')).toHaveLength(1);
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    bridge.clear();
+    typeText('q');
+    typeText('j');
+    expect(bridge.sets('edited')).toHaveLength(1);
+  });
+
+  it('answering the menu does not touch the saved state (#113)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 1);
+    expect(bridge.sets('edited')).toHaveLength(0);
+  });
+
   it('stores poem and history, then sends save-file, one second after the last edit', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
