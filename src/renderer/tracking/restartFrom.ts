@@ -1,4 +1,8 @@
-import { ChangeObj, compareStrings, reconstruct } from './utils';
+import {
+  ChangeObj,
+  compareStrings,
+  reconstruct,
+} from '@midst-press/midst-format/history';
 
 // Restarting from an earlier point in a poem's history (GitHub #18): the poet carries on writing from the text
 // as it stood at a chosen frame. Non-destructive: the restart

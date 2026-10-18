@@ -4,18 +4,18 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import poemExtensions from 'shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
+import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import { ChangeObj, compareStrings } from '../../tracking/utils';
 import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
 import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';

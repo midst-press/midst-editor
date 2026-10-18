@@ -5,13 +5,13 @@ import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 import './cssVars.css';
 import './App.css';
 import { useState, useEffect, useMemo } from 'react';
+import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
 import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
-import { ChangeObj } from './tracking/utils';
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);

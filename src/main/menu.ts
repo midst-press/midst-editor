@@ -11,6 +11,12 @@ import {
 
 import path from 'path';
 import fs from 'fs';
+import {
+  fileVersionMatchesCurrent,
+  convertMidstFile,
+  includeVersionInfo,
+  serializeDocument,
+} from '@midst-press/midst-format/convert';
 import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
@@ -20,13 +26,7 @@ import { poemToRtf } from './rtf';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import { USER_GUIDE_URL } from '../shared/userGuide';
-import {
-  fileVersionMatchesCurrent,
-  convertMidstFile,
-  includeVersionInfo,
-  serializeDocument,
-  loadDataIntoWorkspace,
-} from './util';
+import { loadDataIntoWorkspace } from './util';
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
   if (store.get('edited') === 'false') {
