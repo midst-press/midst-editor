@@ -26,7 +26,7 @@ import { poemToRtf } from './rtf';
 import { flushEditor } from './editorFlush';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
-import { USER_GUIDE_URL } from '../shared/userGuide';
+import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
 import { loadDataIntoWorkspace } from './util';
 
@@ -732,7 +732,7 @@ export default class MenuBuilder {
         label: 'Documentation',
         click: () =>
           logIfRejected('documentation', () =>
-            shell.openExternal(USER_GUIDE_URL)
+            shell.openExternal(installedGuideUrl())
           ),
       },
       // Shows the log in Finder, or File Explorer, so a poet can send it with a report without knowing where it is.
