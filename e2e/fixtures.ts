@@ -14,7 +14,7 @@
 
 // The application's own change recorder and type, so a generated fixture is valid by
 // construction rather than by this file computing front/end offsets correctly.
-import { compareStrings, ChangeObj } from '../src/renderer/tracking/utils';
+import { compareStrings, ChangeObj } from '@midst-press/midst-format/history';
 
 export const MIDST_VERSION_HEADER = 'midstVersion: 1';
 
@@ -61,7 +61,7 @@ export function parseMidst(raw: string): { text: string; history: unknown[] } {
 //
 // So the history here is derived by the APPLICATION'S OWN recorder, `compareStrings`, from a
 // sequence of HTML states. Validity is then structural rather than something this file has to get
-// right. `step()` in tracking/utils.ts reconstructs as
+// right. `step()` in midst-format/history reconstructs as
 // `prev.slice(0, front) + inserted + prev.slice(prev.length - end)`, and compareStrings is the
 // function that produces those numbers when a poet types.
 //

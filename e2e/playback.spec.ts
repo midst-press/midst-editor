@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import { reconstructHTML } from '@midst-press/midst-format/history';
 import { makePlayableMidst } from './fixtures';
 import { launch, openDocument } from './harness';
-import { reconstructHTML } from '../src/renderer/tracking/utils';
 
 // Does a poem still PLAY?
 //
