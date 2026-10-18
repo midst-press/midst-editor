@@ -185,7 +185,7 @@ describe('save', () => {
     expect(mockStore.get('edited')).toBe('false');
     expect(mockStore.get('filename')).toBe(target);
     expect(mockStore.get('baseFilename')).toBe('zq.midst');
-    expect(win.setTitle).toHaveBeenCalledWith(target);
+    expect(win.setTitle).not.toHaveBeenCalled();
     expect(win.webContents.send).toHaveBeenCalledWith(
       'set-filename',
       'zq.midst'
@@ -522,7 +522,7 @@ describe('saveAs', () => {
       'set-filename',
       'xv.midst'
     );
-    expect(win.setTitle).toHaveBeenCalledWith(chosen);
+    expect(win.setTitle).not.toHaveBeenCalled();
   });
 
   it('writes meta back unchanged', async () => {
@@ -810,11 +810,11 @@ describe('newFile', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
   });
 
-  it('on macOS, titles the window Untitled; elsewhere does not', () => {
+  it("on macOS, represents the document as Untitled; the title is the renderer's on every platform (#125)", () => {
     seedDocument({ edited: 'false' });
     const mac = makeWindow();
     newFile(asWindow(mac), true);
-    expect(mac.setTitle).toHaveBeenCalledWith('Untitled');
+    expect(mac.setTitle).not.toHaveBeenCalled();
     expect(mac.setRepresentedFilename).toHaveBeenCalledWith('Untitled');
     const other = makeWindow();
     newFile(asWindow(other), false);
