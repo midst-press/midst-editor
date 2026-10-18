@@ -226,13 +226,10 @@ function main(argv) {
 
 // realpath, because import.meta.url has links resolved and argv[1] does not: run through a link, a plain
 // compare skips main() and exits 0 having checked nothing (cyril-9137f1ee, review of #202; midst-web #190).
-const invokedAs = () => {
-  try {
-    return realpathSync(process.argv[1] ?? '');
-  } catch {
-    return '';
-  }
-};
+// No argv[1] (imported, or run from a REPL) is the only "not main". Any other failure to resolve it is
+// thrown, never read as "skip the check" (cyril-9137f1ee, review of #202).
+const invokedAs = () =>
+  process.argv[1] === undefined ? '' : realpathSync(process.argv[1]);
 if (invokedAs() === realpathSync(fileURLToPath(import.meta.url))) {
   try {
     const ok = main(process.argv.slice(2));
