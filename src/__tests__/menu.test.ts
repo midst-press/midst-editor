@@ -2,7 +2,7 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, Menu, nativeTheme, shell } from 'electron';
+import { app, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
 import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
@@ -14,6 +14,8 @@ import MenuBuilder, {
   saveAs,
 } from '../main/menu';
 import { showAbout } from '../main/about';
+import { setEditorShowing } from '../main/editorFlush';
+import * as rtf from '../main/rtf';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -35,6 +37,7 @@ jest.mock('electron', () => ({
   shell: { openExternal: jest.fn(), showItemInFolder: jest.fn() },
   nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
+  ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
 jest.mock('../main/logFile', () => ({
@@ -72,6 +75,11 @@ const everythingLogged = () =>
 const showSaveDialog = dialog.showSaveDialogSync as jest.Mock;
 const showOpenDialog = dialog.showOpenDialogSync as jest.Mock;
 const buildFromTemplate = Menu.buildFromTemplate as jest.Mock;
+// editorFlush's one handler for the editor's answer, registered at import (before any clearAllMocks).
+type Answer = Parameters<typeof ipcMain.on>[1];
+const editorAnswers = (ipcMain.on as jest.Mock).mock.calls.find(
+  ([channel]) => channel === 'editor-flushed'
+)?.[1] as Answer;
 
 const makeWindow = () => ({
   webContents: {
@@ -121,6 +129,12 @@ const trackFsCallback = (name: 'readFile') => {
     real(...args);
   }) as never);
 };
+// Export as RTF runs on the next turn of the event loop, after the editor's flush has answered.
+const exportRan = () =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
 const ioDone = async () => {
   await Promise.all(pendingIo.splice(0));
 };
@@ -1394,12 +1408,88 @@ describe('the menu', () => {
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
     });
 
-    it('Export as RTF… asks for a file and writes the poem there as RTF', () => {
+    describe('the poem is taken from the editor first, not from the store it writes a second late (#157)', () => {
+      // The editor is showing and holds a newer poem than the store: it writes it when asked, then answers.
+      const editorHolding = (win: FakeWindow, poem: string) => {
+        setEditorShowing(true);
+        win.webContents.send.mockImplementation(
+          (channel: string, id: unknown) => {
+            if (channel !== 'flush-editor') return;
+            mockStore.set('poem', poem);
+            editorAnswers({} as never, [id]);
+          }
+        );
+      };
+      afterEach(() => setEditorShowing(false));
+
+      it('Save', async () => {
+        const target = path.join(dir, 'zq.midst');
+        seedDocument({ filename: target });
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.save)
+          .click!();
+        expect(readBack(target)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Save As', async () => {
+        const chosen = path.join(dir, 'xv.midst');
+        seedDocument({ filename: path.join(dir, 'zq.midst') });
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.saveAs)
+          .click!();
+        expect(readBack(chosen)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Export as RTF…', async () => {
+        const chosen = path.join(dir, 'zq.rtf');
+        seedDocument();
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, 'Export as RTF…')
+          .click!();
+        await exportRan();
+        expect(readBack(chosen)).toContain('xv qj');
+      });
+    });
+
+    it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {
       const chosen = path.join(dir, 'zq.rtf');
       seedDocument();
       showSaveDialog.mockReturnValue(chosen);
-      sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await exportRan();
       expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
+    });
+
+    // On main a throw from exportRtf is synchronous, so it reaches uncaughtException and the poet is
+    // told. After the flush it must still escape on its own, not settle a promise that is only logged.
+    it('Export as RTF… a throw from the export escapes the promise, as before the flush (#188)', async () => {
+      seedDocument();
+      const deferred: Array<() => void> = [];
+      const immediate = jest.spyOn(global, 'setImmediate').mockImplementation(((
+        fn: () => void
+      ) => {
+        deferred.push(fn);
+      }) as never);
+      const toRtf = jest.spyOn(rtf, 'poemToRtf').mockImplementation(() => {
+        throw new Error('zq export failed');
+      });
+      try {
+        await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+        expect(deferred).toHaveLength(1);
+        expect(() => deferred[0]()).toThrow('zq export failed');
+        expect(log.error).not.toHaveBeenCalledWith(
+          'exportRtf: failed',
+          expect.anything()
+        );
+      } finally {
+        immediate.mockRestore();
+        toRtf.mockRestore();
+      }
     });
 
     // The document already has a file, so plain Save would write there without asking. Save As

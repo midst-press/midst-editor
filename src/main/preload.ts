@@ -23,6 +23,8 @@ export type Channels =
   | 'enable-save'
   | 'disable-save'
   | 'cancel-save'
+  | 'flush-editor'
+  | 'editor-flushed'
   | 'app-open';
 
 let titlebar: CustomTitlebar | null = null;

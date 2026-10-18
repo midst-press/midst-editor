@@ -23,6 +23,7 @@ import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { writeConvertedFile } from './convertedFile';
 import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
+import { flushEditor } from './editorFlush';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
@@ -675,7 +676,11 @@ export default class MenuBuilder {
         id: 'save',
         label: saveLabel,
         accelerator: keys[0],
-        click: () => logIfRejected('save', () => save(this.mainWindow, darwin)),
+        click: () =>
+          logIfRejected('save', async () => {
+            await flushEditor(this.mainWindow);
+            await save(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
       {
@@ -683,7 +688,10 @@ export default class MenuBuilder {
         label: saveAsLabel,
         accelerator: keys[1],
         click: () =>
-          logIfRejected('saveAs', () => saveAs(this.mainWindow, darwin)),
+          logIfRejected('saveAs', async () => {
+            await flushEditor(this.mainWindow);
+            await saveAs(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
     ];
@@ -692,7 +700,13 @@ export default class MenuBuilder {
   private exportRtfItem() {
     return {
       label: 'Export as RTF…',
-      click: () => exportRtf(this.mainWindow),
+      // exportRtf runs outside the flush's promise, as it did before the flush: a throw from it then reaches
+      // uncaughtException, which tells the poet. Inside the promise it would only be logged (Clement, #188).
+      click: () =>
+        logIfRejected('exportRtf', async () => {
+          await flushEditor(this.mainWindow);
+          setImmediate(() => exportRtf(this.mainWindow));
+        }),
     };
   }
 
