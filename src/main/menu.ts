@@ -27,7 +27,25 @@ import { flushEditor } from './editorFlush';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import { USER_GUIDE_URL } from '../shared/userGuide';
+import { describeError } from '../shared/errorSummary';
 import { loadDataIntoWorkspace } from './util';
+
+// A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
+// (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
+// left to the uncaught-error handler, which also tells the poet. The promise is returned, settling once
+// the action has, so a test can await a menu click and read what it wrote.
+export const logIfRejected = (
+  label: string,
+  action: () => unknown
+): unknown => {
+  const result = action();
+  if (result instanceof Promise) {
+    return result.catch((err: unknown) =>
+      log.error(`${label}: failed`, describeError(err))
+    );
+  }
+  return result;
+};
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
   if (store.get('edited') === 'false') {
@@ -217,9 +235,24 @@ const writeAndRecord = async (
   }
 ) => {
   const meta = (store.get('meta') as string | undefined) ?? '';
-  const fullContents = includeVersionInfo(
-    serializeDocument(text, history, meta)
-  );
+  let fullContents: string;
+  try {
+    fullContents = includeVersionInfo(serializeDocument(text, history, meta));
+  } catch (err) {
+    // A parse error's message can quote the poem, so the log has the error's name only, and the poet
+    // a fixed reason (#160).
+    log.error(`${label}: the document could not be prepared for writing`, {
+      filename,
+      ...describeError(err),
+    });
+    await reportCouldNotSave(mainWindow, darwin, {
+      filename,
+      reason: 'The poem could not be prepared for saving.',
+      byPoet,
+      saveElsewhere,
+    });
+    return;
+  }
 
   // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
   // newly-opened document beside the previously-loaded document's text. With this in the log,
@@ -311,6 +344,8 @@ export const exportRtf = (mainWindow: BrowserWindow) => {
   }
   const result = poemToRtf(poem);
   if (!result.ok) {
+    // The reason names a node or mark type, never the poem's text.
+    log.warn('exportRtf: refused', { reason: result.reason });
     cannotExport(mainWindow, result.reason);
     return;
   }
@@ -402,6 +437,10 @@ export const openPath = (
     }
     if (err) {
       // A missing or unreadable file, or a folder: say so. It is not a file of another version (#114).
+      log.error('open: the file could not be read', {
+        filePath,
+        code: err.code,
+      });
       dialog.showMessageBoxSync(mainWindow, {
         title: `Error`,
         type: 'error',
@@ -412,7 +451,12 @@ export const openPath = (
     if (fileVersionMatchesCurrent(data)) {
       try {
         loadDataIntoWorkspace(filePath, data, mainWindow, darwin);
-      } catch {
+      } catch (loadErr) {
+        // The name only: a parse error's message quotes the file (#160).
+        log.error('open: the file could not be loaded', {
+          filePath,
+          ...describeError(loadErr),
+        });
         dialog.showMessageBoxSync(mainWindow, {
           title: `Error`,
           type: 'error',
@@ -420,6 +464,9 @@ export const openPath = (
         });
       }
     } else {
+      log.info('open: version not recognised; offering to convert', {
+        filePath,
+      });
       const response = dialog.showMessageBoxSync(mainWindow, {
         type: 'warning',
         message: `Version not recognized. If this file is from an
@@ -430,18 +477,38 @@ export const openPath = (
         cancelId: 0,
       });
       if (response === 1) {
-        const newFileContents = convertMidstFile(data);
-        const newFilename = writeConvertedFile(
-          filePath,
-          includeVersionInfo(newFileContents)
-        );
-        app.addRecentDocument(newFilename);
-        loadDataIntoWorkspace(
-          newFilename,
-          includeVersionInfo(newFileContents),
-          mainWindow,
-          darwin
-        );
+        // Each stage can throw. Nothing caught them, so a failed conversion vanished inside this
+        // callback and the poet was told nothing (#160).
+        let stage: 'convert' | 'write' | 'load' = 'convert';
+        let newFilename: string | undefined;
+        try {
+          const newFileContents = includeVersionInfo(convertMidstFile(data));
+          stage = 'write';
+          newFilename = writeConvertedFile(filePath, newFileContents);
+          stage = 'load';
+          app.addRecentDocument(newFilename);
+          loadDataIntoWorkspace(
+            newFilename,
+            newFileContents,
+            mainWindow,
+            darwin
+          );
+          log.info('open: converted', { filePath, newFilename });
+        } catch (convertErr) {
+          log.error('open: the file could not be converted', {
+            filePath,
+            stage,
+            ...(newFilename ? { newFilename } : {}),
+            ...describeError(convertErr),
+          });
+          dialog.showMessageBoxSync(mainWindow, {
+            title: `Error`,
+            type: 'error',
+            message: newFilename
+              ? `The converted file ${newFilename} was written, but could not be opened.`
+              : `The file ${filePath} could not be converted. The original file is unchanged.`,
+          });
+        }
       }
     }
   });
@@ -613,20 +680,22 @@ export default class MenuBuilder {
         id: 'save',
         label: saveLabel,
         accelerator: keys[0],
-        click: async () => {
-          await flushEditor(this.mainWindow);
-          await save(this.mainWindow, darwin);
-        },
+        click: () =>
+          logIfRejected('save', async () => {
+            await flushEditor(this.mainWindow);
+            await save(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
       {
         id: 'save-as',
         label: saveAsLabel,
         accelerator: keys[1],
-        click: async () => {
-          await flushEditor(this.mainWindow);
-          await saveAs(this.mainWindow, darwin);
-        },
+        click: () =>
+          logIfRejected('saveAs', async () => {
+            await flushEditor(this.mainWindow);
+            await saveAs(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
     ];
@@ -635,26 +704,36 @@ export default class MenuBuilder {
   private exportRtfItem() {
     return {
       label: 'Export as RTF…',
-      click: async () => {
-        await flushEditor(this.mainWindow);
-        exportRtf(this.mainWindow);
-      },
+      click: () =>
+        logIfRejected('exportRtf', async () => {
+          await flushEditor(this.mainWindow);
+          exportRtf(this.mainWindow);
+        }),
     };
   }
 
   private aboutItem() {
-    return { label: 'About Midst', click: () => showAbout(this.mainWindow) };
+    return {
+      label: 'About Midst',
+      click: () => logIfRejected('about', () => showAbout(this.mainWindow)),
+    };
   }
 
   private static helpItems(): MenuItemConstructorOptions[] {
     return [
       {
         label: 'Learn More',
-        click: () => shell.openExternal('https://midst.press'),
+        click: () =>
+          logIfRejected('learn more', () =>
+            shell.openExternal('https://midst.press')
+          ),
       },
       {
         label: 'Documentation',
-        click: () => shell.openExternal(USER_GUIDE_URL),
+        click: () =>
+          logIfRejected('documentation', () =>
+            shell.openExternal(USER_GUIDE_URL)
+          ),
       },
       // Shows the log in Finder, or File Explorer, so a poet can send it with a report without knowing where it is.
       {
@@ -698,7 +777,7 @@ export default class MenuBuilder {
               store.set('edited', JSON.stringify(false));
               app.emit('activate', false);
             } else {
-              newFile(this.mainWindow, true);
+              logIfRejected('new', () => newFile(this.mainWindow, true));
             }
           },
         },
@@ -712,7 +791,8 @@ export default class MenuBuilder {
         {
           label: 'Open',
           accelerator: 'Command+O',
-          click: () => openFile(this.mainWindow, true),
+          click: () =>
+            logIfRejected('open', () => openFile(this.mainWindow, true)),
         },
         // commented this out since recent documents is not working
         // but leaving as a starting point to debug
@@ -809,12 +889,14 @@ export default class MenuBuilder {
           {
             label: '&New',
             accelerator: 'Ctrl+N',
-            click: () => newFile(this.mainWindow, false),
+            click: () =>
+              logIfRejected('new', () => newFile(this.mainWindow, false)),
           },
           {
             label: '&Open',
             accelerator: 'Ctrl+O',
-            click: () => openFile(this.mainWindow, false),
+            click: () =>
+              logIfRejected('open', () => openFile(this.mainWindow, false)),
           },
           {
             label: '&Close',
