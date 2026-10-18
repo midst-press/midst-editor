@@ -64,6 +64,8 @@ let mainWindow: BrowserWindow | null = null;
 setupTitlebar();
 
 let earlyPath = '';
+// Whether the current window has been shown. Until then, ready-to-show is what opens a requested file.
+let windowShown = false;
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -158,10 +160,12 @@ const createWindow = async () => {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
     }
+    windowShown = true;
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    windowShown = false;
   });
   mainWindow.on('close', (event) => {
     if (store.get('edited') === 'false') {
@@ -314,8 +318,11 @@ app.on('open-file', async (event, filename) => {
   // store the filename, so it can be used once the window is ready
   // on other operating systems, this will need to be handled differently
   event.preventDefault();
-  earlyPath = filename;
-  ipcMain.emit('app-open', [earlyPath]);
+  // Held for ready-to-show only while no window has been shown. Once one has, app-open opens the file (with
+  // the unsaved-changes prompt) and nothing is held: a path left here was read straight into the next
+  // window, without the prompt, after the poet closed this one and reopened from the Dock (#41).
+  if (!windowShown) earlyPath = filename;
+  ipcMain.emit('app-open', [filename]);
 });
 
 app
