@@ -58,13 +58,13 @@ jobs:
           pre-commit run --all-files --show-diff-on-failure
       - name: vendored midst-format matches its VENDOR.md hashes
         run: node tools/check-vendored-format.mjs
-      # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/. Waits on a read-only
-      # deploy key to the private midst-format repo on Gitea, which is not created yet (the key is not ours to
-      # make). On GitHub midst-format is public, so the clone needs no key there.
-      # - name: vendored midst-format equals a rebuild of its tag
-      #   run: |
-      #     git clone --quiet "$MIDST_FORMAT_URL" "$RUNNER_TEMP/midst-format"
-      #     MIDST_FORMAT_ROOT="$RUNNER_TEMP/midst-format" node tools/check-vendored-format.mjs --rebuild
+      # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/, so the hashes are not
+      # the only check: they can be edited in the same commit as the files. midst-format is public on Gitea, so
+      # the clone needs no key (the "private" premise was wrong; checked anonymously 19 Oct).
+      - name: vendored midst-format equals a rebuild of its tag
+        run: |
+          git clone --quiet http://gitea-server:3000/The_Kindled/midst-format.git "$RUNNER_TEMP/midst-format"
+          MIDST_FORMAT_ROOT="$RUNNER_TEMP/midst-format" node tools/check-vendored-format.mjs --rebuild
       # The jest setup file refuses to run until both bundles exist; see .github/workflows/ci.yml.
       - run: npm run build
       - run: npm test -- --coverage

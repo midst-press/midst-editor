@@ -1090,6 +1090,23 @@ describe('the menu', () => {
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
 
+  describe('entries from #121', () => {
+    it('Select All on Windows and Linux is the selectAll role, not the macOS-only selector', () => {
+      const item = sub(build('linux'), '&Edit', 'Select All') as Item & {
+        role?: string;
+        selector?: string;
+      };
+      expect(item.role).toBe('selectAll');
+      expect(item.selector).toBeUndefined();
+    });
+
+    it('Save As on macOS is written modifiers first', () => {
+      expect(sub(build('darwin'), 'File', 'Save As').accelerator).toBe(
+        'Command+Shift+S'
+      );
+    });
+  });
+
   describe('buildMenu', () => {
     it('builds the macOS template on darwin, installs it and returns the menu', () => {
       setPlatform('darwin');
