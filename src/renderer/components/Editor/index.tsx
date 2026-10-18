@@ -127,7 +127,7 @@ export default function Editor() {
   useEffect(() => {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
-      (savedPoem, savedHistory, savedFilename) => {
+      (savedPoem, savedHistory) => {
         // Advance the generation so an autosave already in flight for the PREVIOUS document
         // abandons its write instead of sending that poem's text to this file's path, and point the
         // ref at the new document immediately rather than waiting for the re-render.
@@ -139,7 +139,6 @@ export default function Editor() {
         setHtmlString(savedPoem as string);
 
         setPoemHistory(savedHistory as ChangeObj[]);
-        window.electron.titlebar.updateTitle(savedFilename as string);
         if (myEditor) {
           myEditor.commands.setContent(savedPoem as string);
         }

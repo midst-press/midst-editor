@@ -696,7 +696,7 @@ describe('Replay: going back to the editor', () => {
     expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
   });
 
-  it('opening a file hands its poem and history over, titles the window, and goes to the editor', () => {
+  it('opening a file hands its poem and history over, leaves the title to App (#125), and goes to the editor', () => {
     jest.useFakeTimers();
     const live = watchIntervals();
     mount();
@@ -707,7 +707,7 @@ describe('Replay: going back to the editor', () => {
     bridge.emit('open-file', '<p>OTHER</p>', history, 'other.midst');
     expect(setText).toHaveBeenCalledWith('<p>OTHER</p>');
     expect(setPoemHistory).toHaveBeenCalledWith(history);
-    expect(bridge.calls).toContainEqual(['titlebar', 'other.midst']);
+    expect(bridge.calls.filter((c) => c[0] === 'titlebar')).toHaveLength(0);
     expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
     expect(live.size).toBe(0);
   });
