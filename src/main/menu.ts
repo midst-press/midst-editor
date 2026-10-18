@@ -692,7 +692,7 @@ export default class MenuBuilder {
         ...this.saveItems(
           'Save',
           'Save As',
-          ['Command+S', 'Command+S+Shift'],
+          ['Command+S', 'Command+Shift+S'],
           true
         ),
         this.exportRtfItem(),
@@ -819,11 +819,8 @@ export default class MenuBuilder {
           { label: 'Cut', accelerator: 'Ctrl+X', role: 'cut' },
           { label: 'Copy', accelerator: 'Ctrl+C', role: 'copy' },
           { label: 'Paste', accelerator: 'Ctrl+V', role: 'paste' },
-          {
-            label: 'Select All',
-            accelerator: 'Ctrl+A',
-            selector: 'selectall',
-          } as MenuItemConstructorOptions,
+          // A role, as Cut, Copy and Paste beside it: `selector` is macOS only, so this item did nothing here (#121).
+          { label: 'Select All', accelerator: 'Ctrl+A', role: 'selectAll' },
           ...this.modeItems('Ctrl', 'Toggle Spellcheck'),
         ],
       },
