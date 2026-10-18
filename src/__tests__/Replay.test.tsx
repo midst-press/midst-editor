@@ -2,11 +2,11 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
+import type { ChangeObj } from '@midst-press/midst-format/history';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { FIND_IN_REPLAY } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
-import type { ChangeObj } from '../renderer/tracking/utils';
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 

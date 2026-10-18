@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import path from 'path';
-import { reconstruct } from '../renderer/tracking/utils';
+import { reconstruct } from '@midst-press/midst-format/history';
 import {
   convertMidstFile,
   dropTrailingBreaks,
@@ -8,11 +8,10 @@ import {
   fileVersionMatchesCurrent,
   getFileVersion,
   includeVersionInfo,
-  loadDataIntoWorkspace,
-  resolveHtmlPath,
   serializeDocument,
   stripVersionInfo,
-} from '../main/util';
+} from '@midst-press/midst-format/convert';
+import { loadDataIntoWorkspace, resolveHtmlPath } from '../main/util';
 
 // Synthetic documents only: invented words, never a poem.
 //

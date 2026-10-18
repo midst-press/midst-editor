@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { Editor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
-import poemExtensions from 'shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import FindBar, {
   NO_MATCHES,
   NOT_READY,

@@ -1,0 +1,32 @@
+{
+  "name": "@midst-press/midst-format",
+  "version": "0.2.0",
+  "private": true,
+  "peerDependencies": {
+    "@tiptap/core": "2.5.4",
+    "@tiptap/html": "2.5.4",
+    "@tiptap/starter-kit": "2.5.4"
+  },
+  "peerDependenciesMeta": {
+    "@tiptap/html": {
+      "optional": true
+    }
+  },
+  "exports": {
+    "./history": {
+      "types": "./history/index.d.ts",
+      "import": "./history/index.mjs",
+      "require": "./history/index.cjs"
+    },
+    "./extensions": {
+      "types": "./extensions/index.d.ts",
+      "import": "./extensions/index.mjs",
+      "require": "./extensions/index.cjs"
+    },
+    "./convert": {
+      "types": "./convert/index.d.ts",
+      "import": "./convert/index.mjs",
+      "require": "./convert/index.cjs"
+    }
+  }
+}
