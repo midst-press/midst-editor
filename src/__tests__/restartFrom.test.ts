@@ -1,14 +1,14 @@
 /** @jest-environment node */
 import {
+  ChangeObj,
+  compareStrings,
+  reconstruct,
+} from '@midst-press/midst-format/history';
+import {
   RestartFromError,
   restartFrom,
   wouldChange,
 } from '../renderer/tracking/restartFrom';
-import {
-  ChangeObj,
-  compareStrings,
-  reconstruct,
-} from '../renderer/tracking/utils';
 
 // Synthetic strings only: invented words, never a poem.
 

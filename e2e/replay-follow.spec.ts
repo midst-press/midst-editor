@@ -8,9 +8,9 @@ import {
 import { mkdtempSync, writeFileSync, copyFileSync, existsSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join, dirname } from 'path';
+import { reconstructHTML } from '@midst-press/midst-format/history';
 import { makeJumpingMidst } from './fixtures';
 import { launch, openDocument, readStore } from './harness';
-import { reconstructHTML } from '../src/renderer/tracking/utils';
 
 // Does Replay keep the WRITING on screen, and get there gently?
 //
