@@ -39,6 +39,7 @@ import MenuBuilder, {
   newFile,
   openFile,
   openPath,
+  logIfRejected,
 } from './menu';
 import store from './store';
 import { helpUrl } from '../shared/helpUrl';
@@ -219,20 +220,23 @@ const createWindow = async () => {
 ipcMain.on('save-file', () => {
   if (mainWindow === null) return;
   // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
-  save(mainWindow, isDarwin(), false);
+  const win = mainWindow;
+  logIfRejected('autosave', () => save(win, isDarwin(), false));
 });
 ipcMain.on('new-file', () => {
   if (mainWindow === null) return;
-  newFile(mainWindow, isDarwin());
+  const win = mainWindow;
+  logIfRejected('new', () => newFile(win, isDarwin()));
 });
 ipcMain.on('button-open-file', () => {
   if (mainWindow === null) return;
-  openFile(mainWindow, isDarwin());
+  const win = mainWindow;
+  logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
 // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
 ipcMain.on('open-help', () => {
-  shell.openExternal(helpUrl(app.getVersion()));
+  logIfRejected('help', () => shell.openExternal(helpUrl(app.getVersion())));
 });
 
 ipcMain.on('app-open', (filename: IpcMainEvent) => {
@@ -240,7 +244,10 @@ ipcMain.on('app-open', (filename: IpcMainEvent) => {
   // (#12), so which file the OS asked us to open is worth having in the log.
   log.info('os requested open', { filename });
   if (mainWindow === null) return;
-  openFile(mainWindow, isDarwin(), filename as unknown as string[]);
+  const win = mainWindow;
+  logIfRejected('os open', () =>
+    openFile(win, isDarwin(), filename as unknown as string[])
+  );
 });
 
 // Save and Save As are enabled only while the editor is showing.
