@@ -125,9 +125,19 @@ const ioDone = async () => {
   await Promise.all(pendingIo.splice(0));
 };
 
+// clearAllMocks keeps mockReturnValue between tests, so a dialog answer set by one test would
+// reach the next. Each dialog mock is reset to throw: every test sets the answers it needs.
+const unsetAnswer = () => {
+  throw new Error('dialog answer not set by this test');
+};
+
 beforeEach(() => {
   mockStore.clear();
   jest.clearAllMocks();
+  [showMessageBox, showSaveDialog, showOpenDialog].forEach((dialogMock) => {
+    dialogMock.mockReset();
+    dialogMock.mockImplementation(unsetAnswer);
+  });
   pendingIo.length = 0;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-test-'));
   trackFsCallback('readFile');
@@ -717,6 +727,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('an empty poem: says why, and asks for no file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument({ poem: '<p></p>' });
     exportRtf(asWindow(makeWindow()));
     expect(showSaveDialog).not.toHaveBeenCalled();
@@ -731,6 +742,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('no poem in the store: says so, and asks for no file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument();
     mockStore.delete('poem');
     exportRtf(asWindow(makeWindow()));
@@ -752,6 +764,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('a file that cannot be written: says why, and leaves no part of a file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument();
     showSaveDialog.mockReturnValue(unwritable().replace(/midst$/, 'rtf'));
     exportRtf(asWindow(makeWindow()));
@@ -767,6 +780,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('a write that fails partway leaves an existing file of that name as it was', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     const chosen = path.join(dir, 'zq.rtf');
     fs.writeFileSync(chosen, 'earlier export');
     seedDocument();
@@ -960,6 +974,7 @@ describe('openFile', () => {
   });
 
   it('a file of the current version that cannot be parsed shows an error and leaves the open document alone', async () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument({ edited: 'false', filename: '/x/xv.midst' });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, 'midstVersion: 1\n{not json POEM-SENTINEL');
@@ -991,6 +1006,7 @@ describe('openFile', () => {
     ])(
       'when the path %s, says it could not be opened, with the reason, and offers no conversion',
       async (_case, target, code) => {
+        showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
         seedDocument({ edited: 'false' });
         const win = makeWindow();
         await openFile(asWindow(win), false, [target(dir)]);
@@ -1243,6 +1259,23 @@ describe('the menu', () => {
     new MenuBuilder(asWindow(win)).buildMenu();
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
+
+  describe('entries from #121', () => {
+    it('Select All on Windows and Linux is the selectAll role, not the macOS-only selector', () => {
+      const item = sub(build('linux'), '&Edit', 'Select All') as Item & {
+        role?: string;
+        selector?: string;
+      };
+      expect(item.role).toBe('selectAll');
+      expect(item.selector).toBeUndefined();
+    });
+
+    it('Save As on macOS is written modifiers first', () => {
+      expect(sub(build('darwin'), 'File', 'Save As').accelerator).toBe(
+        'Command+Shift+S'
+      );
+    });
+  });
 
   describe('buildMenu', () => {
     it('builds the macOS template on darwin, installs it and returns the menu', () => {
