@@ -613,6 +613,26 @@ describe('main process', () => {
       reads.restore();
     });
 
+    // #41: a file opened into a shown window was also held, and read again, without the unsaved-changes
+    // prompt, into the window made when the poet closed this one and came back from the Dock.
+    it('a file opened into a shown window is not held: closing and reopening the window reads nothing', async () => {
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(file, currentFile('<p>zq</p>'));
+      const { menu, state, fireApp, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      const reads = trackReadFile();
+      await fireWindow('closed');
+      await fireApp('activate', {}, false);
+      expect(state.windows).toHaveLength(2);
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(reads.calls()).toBe(0);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      reads.restore();
+    });
+
     it('open-file after the window exists asks the open handler to open it', async () => {
       const { menu, win, fireApp } = await boot();
       const event = { preventDefault: jest.fn() };
