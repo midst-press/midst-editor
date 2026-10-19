@@ -1,4 +1,7 @@
+import { Editor } from '@tiptap/core';
 import type { EditorView } from '@tiptap/pm/view';
+import { undoDepth } from '@tiptap/pm/history';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import checkWholePoem, {
   AGAIN_MS,
   checkWholePoemSoon,
@@ -14,12 +17,16 @@ import checkWholePoem, {
 let calls: string[];
 let dom: HTMLElement;
 let observer: { stop: jest.Mock; start: jest.Mock };
+// A stand-in view: the DOM, the observer, whether a composition is under way, and the poem (only its identity).
+let fake: { composing: boolean; state: { doc: object } };
 
-const view = () => ({ dom, domObserver: observer } as unknown as EditorView);
+const view = () =>
+  ({ dom, domObserver: observer, ...fake } as unknown as EditorView);
 
 beforeEach(() => {
   jest.useFakeTimers();
   calls = [];
+  fake = { composing: false, state: { doc: {} } };
   dom = document.createElement('div');
   dom.innerHTML = '<p>Zq wrd</p><p>xq</p>';
   document.body.appendChild(dom);
@@ -114,13 +121,11 @@ describe('checkWholePoem', () => {
     expect(calls).toHaveLength(4);
   });
 
-  it('logs the fixed message, and still restarts the observer, when the editor changed meanwhile', () => {
-    const log = jest.fn();
-    checkWholePoem(view(), log);
-    dom.querySelectorAll('p')[1].append('q');
+  it('does nothing while a composition is under way', () => {
+    fake.composing = true;
+    checkWholePoem(view(), jest.fn());
     jest.advanceTimersByTime(PAUSE_MS);
-    expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
-    expect(observer.start).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual([]);
   });
 
   it.each(['keydown', 'beforeinput', 'compositionstart', 'mousedown'])(
@@ -174,5 +179,88 @@ describe('checkWholePoemSoon', () => {
     expect(dom.innerHTML).toBe(before);
     jest.advanceTimersByTime(AGAIN_MS + PAUSE_MS);
     expect(calls).toHaveLength(4);
+  });
+
+  it('starts no check once the poem has changed', () => {
+    checkWholePoemSoon(view(), jest.fn());
+    jest.advanceTimersByTime(FIRST_MS + PAUSE_MS);
+    expect(calls).toHaveLength(4);
+    fake.state.doc = {};
+    jest.advanceTimersByTime(AGAIN_MS);
+    expect(calls).toHaveLength(4);
+  });
+});
+
+// With a real editor: what happens when the DOM is not as the insert left it (Silas, review of #250).
+describe('checkWholePoem in a real editor', () => {
+  let editor: Editor;
+  const transactions = () => {
+    const seen: { docChanged: boolean }[] = [];
+    editor.on('transaction', ({ transaction }) => seen.push(transaction));
+    return seen;
+  };
+  // The DOM is ProseMirror's when it reads back as the state's text, paragraph by paragraph.
+  const paragraphs = () =>
+    Array.from(editor.view.dom.querySelectorAll('p')).map((p) => p.textContent);
+  const stateParagraphs = () => {
+    const out: string[] = [];
+    editor.state.doc.forEach((node) => out.push(node.textContent));
+    return out;
+  };
+
+  beforeEach(() => {
+    const element = document.createElement('div');
+    document.body.appendChild(element);
+    editor = new Editor({
+      element,
+      extensions: poemExtensions,
+      content: '<p>Zq wrd</p><p>xq</p>',
+    });
+  });
+  afterEach(() => editor.destroy());
+
+  it('deletes the space when nothing else happened, and nothing changes the poem or its history', () => {
+    const seen = transactions();
+    const depth = undoDepth(editor.state);
+    const log = jest.fn();
+    checkWholePoem(editor.view, log);
+    expect(paragraphs()).toEqual(['Zq wrd ', 'xq']);
+    jest.advanceTimersByTime(PAUSE_MS);
+    expect(paragraphs()).toEqual(['Zq wrd', 'xq']);
+    // Putting the selection back is read as a selection, which changes no document.
+    expect(seen.filter((t) => t.docChanged)).toEqual([]);
+    expect(undoDepth(editor.state)).toBe(depth);
+    expect(log).not.toHaveBeenCalled();
+  });
+
+  it('when a transaction renders meanwhile, deletes nothing, redraws from the state and logs', () => {
+    const log = jest.fn();
+    const depth = undoDepth(editor.state);
+    checkWholePoem(editor.view, log);
+    editor.commands.setContent('<p>Zq other</p><p>xq</p>');
+    const changed = undoDepth(editor.state);
+    jest.advanceTimersByTime(PAUSE_MS);
+    expect(calls).not.toContain('delete');
+    expect(paragraphs()).toEqual(stateParagraphs());
+    expect(paragraphs()).toEqual(['Zq other', 'xq']);
+    expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
+    // The redraw is not in the history: only the setContent is.
+    expect(undoDepth(editor.state)).toBe(changed);
+    expect(changed).toBeGreaterThanOrEqual(depth);
+  });
+
+  it('when something else has focus, deletes nothing there, and takes the space out by redrawing', () => {
+    const field = document.createElement('input');
+    field.value = 'zq';
+    document.body.appendChild(field);
+    const log = jest.fn();
+    checkWholePoem(editor.view, log);
+    field.focus();
+    jest.advanceTimersByTime(PAUSE_MS);
+    expect(calls).not.toContain('delete');
+    expect(field.value).toBe('zq');
+    expect(paragraphs()).toEqual(['Zq wrd', 'xq']);
+    expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
+    field.remove();
   });
 });
