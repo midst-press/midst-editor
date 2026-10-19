@@ -19,36 +19,68 @@ const oldFile = (content) =>
       { content, lineNumber: '0', timestamp: 1600000000000 },
     ],
   });
-const lines = (counts) => ({
-  empty: 0,
-  whitespace: 0,
-  zeroWidth: 0,
-  text: 0,
-  nestedP: 0,
-  ...counts,
-});
+const lines = (counts) => {
+  const all = {
+    empty: 0,
+    whitespace: 0,
+    blank: 0,
+    zeroWidth: 0,
+    text: 0,
+    brs: 0,
+    nestedP: 0,
+    ...counts,
+  };
+  const total =
+    all.empty + all.whitespace + all.blank + all.zeroWidth + all.text;
+  return { ...all, total, shown: total - all.empty - all.whitespace };
+};
 
 describe('linesOf', () => {
   it('parses as a browser does: a <p> inside a <p> closes the first, and the stray </p> makes an empty one', () => {
     expect(linesOf('<p>zq<p>xv</p></p>')).toEqual(
-      lines({ text: 2, empty: 1, nestedP: 1, total: 3 })
+      lines({ text: 2, empty: 1, nestedP: 1 })
     );
   });
 
   it('counts a top-level run of inline text as a line, and whitespace between blocks as none', () => {
     expect(linesOf('<p>zq</p>\n xv <b>wj</b>\n<p>zq</p>')).toEqual(
-      lines({ text: 3, total: 3 })
+      lines({ text: 3 })
     );
   });
 
-  it('classes each line: empty, whitespace, zero-width (with or without spaces around it), text', () => {
+  it('classes each line by what a browser draws: empty and collapsible whitespace have no height', () => {
+    expect(linesOf('<p></p>')).toEqual(lines({ empty: 1 }));
+    expect(linesOf('<p> \t</p>')).toEqual(lines({ whitespace: 1 }));
+  });
+
+  // cyril-9137f1ee and silas-397300f6, review of #227: each of these is a blank line the poet saw.
+  it.each([
+    ['a <br>', '<p><br></p>'],
+    ['a no-break space', '<p>&nbsp;</p>'],
+    [
+      'spaces under a preserving white-space',
+      '<p><span style="white-space: pre">  </span></p>',
+    ],
+    ['a <br> between blocks', '<p>zq</p><br><p>xv</p>'],
+  ])('a visible blank line: %s', (_name, html) => {
+    expect(linesOf(html).blank).toBe(1);
+    expect(linesOf(html).empty + linesOf(html).whitespace).toBe(0);
+  });
+
+  it('classes zero-width lines, with or without spaces around them, apart from text', () => {
     expect(
-      linesOf(
-        '<p></p><p> \u00a0</p><p><span><span>\u200b</span></span></p><p> \ufeff </p><p>zq</p>'
-      )
-    ).toEqual(
-      lines({ empty: 1, whitespace: 1, zeroWidth: 2, text: 1, total: 5 })
+      linesOf('<p><span><span>\u200b</span></span></p><p> \ufeff </p><p>zq</p>')
+    ).toEqual(lines({ zeroWidth: 2, text: 1 }));
+  });
+
+  it('counts the <br>s inside text lines, which are line breaks within one paragraph', () => {
+    expect(linesOf('<p>zq<br>xv<br>wj</p><p><br></p>')).toEqual(
+      lines({ text: 1, blank: 1, brs: 2 })
     );
+  });
+
+  it('in the new editor an empty paragraph is a blank line it draws', () => {
+    expect(linesOf('<p></p><p> </p>', true)).toEqual(lines({ blank: 2 }));
   });
 });
 
@@ -63,8 +95,14 @@ describe('censusOf, with the real converter', () => {
       oldFile('<p>zq</p><p><span><span>\u200b</span></span></p><p>xv</p>'),
       convertMidstFile
     );
-    expect(c.raw).toEqual(lines({ zeroWidth: 1, text: 2, total: 3 }));
-    expect(c.converted).toEqual(lines({ empty: 1, text: 2, total: 3 }));
+    expect(c.raw).toEqual(lines({ zeroWidth: 1, text: 2 }));
+    expect(c.converted).toEqual(lines({ blank: 1, text: 2 }));
+  });
+
+  it('a raw empty paragraph, which showed nothing, becomes a line the new editor shows', () => {
+    const c = censusOf(oldFile('<p>zq</p><p></p><p>xv</p>'), convertMidstFile);
+    expect(c.raw).toEqual(lines({ text: 2, empty: 1 }));
+    expect(c.converted.shown).toBe(c.raw.shown + 1);
   });
 
   it('a nested <p> is seen: the browser showed two lines of text, and the conversion has one', () => {
@@ -121,12 +159,12 @@ describe('the command', () => {
     const r = run(gaining);
     expect(r.status).toBe(0);
     expect(r.out).toContain(
-      'P1  raw total 1 (empty 0, whitespace 0, zero-width 0, text 1), nested <p> 0'
+      'P1  raw shown 1 of 1 (empty 0, whitespace 0, blank 0, zero-width 0, text 1), <br> in text 0, nested <p> 0'
     );
     expect(r.out).toContain(
-      'P1  converted total 2 (empty 1, whitespace 0, zero-width 0, text 1)'
+      'P1  converted shown 2 of 2 (empty 0, whitespace 0, blank 1, zero-width 0, text 1), <br> in text 0'
     );
-    expect(r.out).toMatch(/with more lines converted\s+2/);
+    expect(r.out).toMatch(/with more lines shown converted\s+2/);
   });
 
   it('counts a file that cannot be read by error class, and exits 1', () => {

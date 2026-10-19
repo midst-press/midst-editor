@@ -4,10 +4,18 @@
 // paragraph" used a regex, which miscounted elsewhere; this parses instead. The raw final frame is parsed as the
 // old editor's browser parsed it (jsdom: a <p> inside a <p> closes the first, a <div> closes a <p>), and its lines
 // are its top-level blocks plus each top-level run of inline content. The conversion's lines are its top-level
-// blocks. Each line is classed by its text: empty, whitespace (spaces, tabs, newlines, no-break spaces),
-// zero-width (only U+FEFF, U+200B-U+200D, U+2060, perhaps with whitespace), or text. In a browser an empty or
-// whitespace-only paragraph has no height, while the new editor shows every paragraph as a line, so the classes
-// say which differences a reader would see.
+// blocks. Each line is classed by what a browser draws for it:
+//   empty       no text and no <br>: no height in a browser
+//   whitespace  only spaces, tabs or newlines, none under a preserving white-space: collapses, no height
+//   blank       a visible blank line: a <br>, a no-break space, or whitespace under an inline white-space of
+//               pre, pre-wrap, pre-line or break-spaces (cyril-9137f1ee, review of #227)
+//   zeroWidth   only zero-width characters (U+FEFF, U+200B-U+200D, U+2060), perhaps with whitespace
+//   text        anything else
+// The new editor draws every paragraph, so in the conversion an empty or whitespace-only paragraph is classed
+// `blank`: a raw `empty` line that converts to a `blank` one is a line the poet never saw (silas-397300f6, review of
+// #227). `shown` is the lines a reader sees (all but empty and whitespace), and gained/lost compare it. `brs` counts
+// the <br>s inside text lines (line breaks within one paragraph) on each side. `nestedP` is lexical: a count of <p>
+// tags opened inside an open <p> in the raw source, which the parser repairs and so cannot see.
 //
 //   node tools/paragraph_census.cjs <dir> [--log <file>]
 //
@@ -26,7 +34,7 @@ const {
   loadConverter,
 } = require('./tab_census.cjs');
 
-const CLASSES = ['empty', 'whitespace', 'zeroWidth', 'text'];
+const CLASSES = ['empty', 'whitespace', 'blank', 'zeroWidth', 'text'];
 const TEXT_NODE = 3;
 const ELEMENT_NODE = 1;
 // The elements that make a line of their own; anything else at the top level is inline content.
@@ -46,32 +54,64 @@ const BLOCK = new Set([
   'PRE',
 ]);
 
-// Explicit sets: JS `\s` also matches U+FEFF, which would class a zero-width line as whitespace.
-function classOf(text) {
-  if (text === '') return 'empty';
-  if (/^[ \t\n\r\f\u00a0]*$/.test(text)) return 'whitespace';
-  if (/^[ \t\n\r\f\u00a0\ufeff\u200b-\u200d\u2060]*$/.test(text))
-    return 'zeroWidth';
-  return 'text';
+const PRESERVING = /^(pre|pre-wrap|pre-line|break-spaces)$/;
+const preserving = (el) => {
+  const m = /(?:^|;)\s*white-space\s*:\s*([a-z-]+)/i.exec(
+    el.getAttribute('style') || ''
+  );
+  return Boolean(m && PRESERVING.test(m[1].toLowerCase()));
+};
+const elementsIn = (node) =>
+  node.nodeType === ELEMENT_NODE ? [node, ...node.querySelectorAll('*')] : [];
+
+// The class of one line made of `nodes`. Explicit character sets: JS `\s` also matches U+FEFF, which would class
+// a zero-width line as whitespace.
+function classOf(nodes, editor) {
+  const text = nodes.map((n) => n.textContent).join('');
+  const elements = nodes.flatMap(elementsIn);
+  if (/[^ \t\n\r\f\u00a0\ufeff\u200b-\u200d\u2060]/.test(text)) return 'text';
+  if (/[\ufeff\u200b-\u200d\u2060]/.test(text)) return 'zeroWidth';
+  if (
+    elements.some((el) => el.tagName === 'BR') ||
+    text.includes('\u00a0') ||
+    (text !== '' &&
+      elements.some((el) => preserving(el) && el.textContent !== ''))
+  )
+    return 'blank';
+  if (editor) return 'blank'; // the new editor draws every paragraph
+  return text === '' ? 'empty' : 'whitespace';
 }
 
-// { empty, whitespace, zeroWidth, text, nestedP, total } for one HTML string. nestedP counts <p> elements that a
-// lenient parser would keep inside another <p> (an open <p> seen before the first one closed), so a reader can tell
-// whether the raw frame relied on the browser to close them.
-function linesOf(html) {
+const brsIn = (nodes) =>
+  nodes.flatMap(elementsIn).filter((el) => el.tagName === 'BR').length;
+
+// { empty, whitespace, blank, zeroWidth, text, brs, nestedP, total } for one HTML string. nestedP counts <p>
+// elements that a lenient parser would keep inside another <p> (an open <p> seen before the first one closed), so a
+// reader can tell whether the raw frame relied on the browser to close them.
+// `editor`: the HTML is the new editor's, which draws an empty paragraph as a blank line.
+function linesOf(html, editor = false) {
   const counts = Object.fromEntries(CLASSES.map((c) => [c, 0]));
-  let inline = null;
+  let brs = 0;
+  const line = (nodes) => {
+    const cls = classOf(nodes, editor);
+    counts[cls] += 1;
+    if (cls === 'text') brs += brsIn(nodes);
+  };
+  let inline = [];
   const flush = () => {
-    if (inline !== null && !/^[ \t\n\r\f]*$/.test(inline))
-      counts[classOf(inline)] += 1;
-    inline = null;
+    // Whitespace between blocks is not a line; a top-level <br> or any text is.
+    const bare = inline.every(
+      (n) => n.nodeType === TEXT_NODE && /^[ \t\n\r\f]*$/.test(n.data)
+    );
+    if (!bare) line(inline);
+    inline = [];
   };
   for (const node of parseHtml(html).childNodes) {
     if (node.nodeType === ELEMENT_NODE && BLOCK.has(node.tagName)) {
       flush();
-      counts[classOf(node.textContent)] += 1;
+      line([node]);
     } else if (node.nodeType === ELEMENT_NODE || node.nodeType === TEXT_NODE) {
-      inline = (inline || '') + node.textContent;
+      inline.push(node);
     }
   }
   flush();
@@ -85,7 +125,8 @@ function linesOf(html) {
     }
   }
   const total = CLASSES.reduce((a, c) => a + counts[c], 0);
-  return { ...counts, nestedP, total };
+  const shown = total - counts.empty - counts.whitespace;
+  return { ...counts, brs, nestedP, total, shown };
 }
 
 // One poem's line counts, raw final frame and conversion.
@@ -93,13 +134,14 @@ function censusOf(old, convertMidstFile) {
   const frames = JSON.parse(old).editorTimelineFrames;
   return {
     raw: linesOf(frames[frames.length - 1].content),
-    converted: linesOf(JSON.parse(convertMidstFile(old)).text),
+    converted: linesOf(JSON.parse(convertMidstFile(old)).text, true),
   };
 }
 
-const differs = (c) => CLASSES.some((k) => c.raw[k] !== c.converted[k]);
+const differs = (c) =>
+  [...CLASSES, 'brs'].some((k) => c.raw[k] !== c.converted[k]);
 const row = (x) =>
-  `total ${x.total} (empty ${x.empty}, whitespace ${x.whitespace}, zero-width ${x.zeroWidth}, text ${x.text})`;
+  `shown ${x.shown} of ${x.total} (empty ${x.empty}, whitespace ${x.whitespace}, blank ${x.blank}, zero-width ${x.zeroWidth}, text ${x.text}), <br> in text ${x.brs}`;
 
 // convert defaults to the vendored converter; the tests pass their own.
 function main(argv, convert = null) {
@@ -132,8 +174,8 @@ function main(argv, convert = null) {
       if (c.raw.nestedP) t.nestedP += 1;
       if (differs(c)) {
         t.differing += 1;
-        if (c.converted.total > c.raw.total) t.gained += 1;
-        if (c.converted.total < c.raw.total) t.lost += 1;
+        if (c.converted.shown > c.raw.shown) t.gained += 1;
+        if (c.converted.shown < c.raw.shown) t.lost += 1;
         console.log(
           `P${i + 1}  raw ${row(c.raw)}, nested <p> ${c.raw.nestedP}`
         );
@@ -151,8 +193,8 @@ function main(argv, convert = null) {
   console.log(`files found                         ${files.length}`);
   console.log(`files read and converted            ${t.read}`);
   console.log(`poems whose line classes differ     ${t.differing}`);
-  console.log(`  with more lines converted         ${t.gained}`);
-  console.log(`  with fewer lines converted        ${t.lost}`);
+  console.log(`  with more lines shown converted   ${t.gained}`);
+  console.log(`  with fewer lines shown converted  ${t.lost}`);
   console.log(`poems whose raw frame nests a <p>   ${t.nestedP}`);
   console.log(`files that failed                   ${failed}`);
   for (const [cls, n] of errors) console.log(`  ${cls}: ${n}`);
