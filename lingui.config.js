@@ -11,10 +11,17 @@ module.exports = {
   locales: ['en'],
   sourceLocale: 'en',
   fallbackLocales: { default: 'en' },
+  // Tests are left out: a test that looks a word up is not a place the app shows it.
   catalogs: [
-    { path: '<rootDir>/locales/{locale}/messages', include: ['<rootDir>/src'] },
+    {
+      path: '<rootDir>/locales/{locale}/messages',
+      include: ['<rootDir>/src'],
+      exclude: ['**/__tests__/**'],
+    },
   ],
   // No line numbers: an edit elsewhere in a file would rewrite every entry's reference.
   format: formatter({ lineNumbers: false }),
   compileNamespace: 'ts',
+  // Sorted by id, so extract writes the same file every time and keys sharing a prefix sit together.
+  orderBy: 'messageId',
 };

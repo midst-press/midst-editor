@@ -55,8 +55,8 @@ jest.mock('electron', () => {
     // Unset on purpose: each test that shows a dialog must choose its answer.
     dialogResponse: undefined as number | undefined,
     menuItems: {
-      save: { enabled: false },
-      'save-as': { enabled: false },
+      'menu.file.save': { enabled: false },
+      'menu.file.saveAs': { enabled: false },
     } as Record<string, { enabled: boolean }>,
   } as Record<string, unknown>;
   state.ready = new Promise<void>((resolve, reject) => {
@@ -103,6 +103,7 @@ jest.mock('electron', () => {
       getPath: () => '/zq-appdata',
       setPath: jest.fn(),
       getVersion: () => '9.9.9',
+      getPreferredSystemLanguages: jest.fn(() => ['en-NZ']),
       quit: jest.fn(),
       addRecentDocument: jest.fn(),
       on: (event: string, fn: Handler) =>
@@ -354,6 +355,18 @@ describe('main process', () => {
     );
   });
 
+  it('chooses the language from the system before the window loads', async () => {
+    const { state } = await boot();
+    const electron = (await import('electron')) as unknown as {
+      app: { getPreferredSystemLanguages: jest.Mock };
+    };
+    const asked = electron.app.getPreferredSystemLanguages;
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(asked.mock.invocationCallOrder[0]).toBeLessThan(
+      (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
+    );
+  });
+
   describe('closing the window', () => {
     const closeEvent = () => ({ preventDefault: jest.fn() });
 
@@ -559,16 +572,16 @@ describe('main process', () => {
     it('enable-save enables Save and Save As', async () => {
       const { state, fireIpc } = await boot();
       await fireIpc('enable-save');
-      expect(state.menuItems.save.enabled).toBe(true);
-      expect(state.menuItems['save-as'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(true);
     });
 
     it('disable-save disables Save and Save As again', async () => {
       const { state, fireIpc } = await boot();
       await fireIpc('enable-save');
       await fireIpc('disable-save');
-      expect(state.menuItems.save.enabled).toBe(false);
-      expect(state.menuItems['save-as'].enabled).toBe(false);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
     });
 
     it('the menu asks the editor for the poem only while the editor is showing (#157)', async () => {
@@ -598,26 +611,26 @@ describe('main process', () => {
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
       // The handlers did look for both items (they ran, they did not just return early).
       expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
-        'save',
-        'save',
-        'save-as',
-        'save-as',
+        'menu.file.save',
+        'menu.file.save',
+        'menu.file.saveAs',
+        'menu.file.saveAs',
       ]);
-      expect(state.menuItems.save.enabled).toBe(false);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
       // And a failed lookup left them working: with a real menu back, Save enables.
       electron.app.applicationMenu = {
         getMenuItemById: jest.fn((id: string) => state.menuItems[id]),
       };
       await fireIpc('enable-save');
-      expect(state.menuItems.save.enabled).toBe(true);
-      expect(state.menuItems['save-as'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(true);
     });
 
     it('does nothing once the window has closed', async () => {
       const { state, fireIpc, fireWindow } = await boot();
       await fireWindow('closed');
       await fireIpc('enable-save');
-      expect(state.menuItems.save.enabled).toBe(false);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
     });
   });
 
