@@ -2,6 +2,7 @@ import childProcess from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import log from 'electron-log';
+import { describeError } from '../shared/errorSummary';
 
 // How a poem's file is written (#95). Writing straight onto the file empties it first, so a write that
 // failed part-way (a full disk, a drive that went away, a crash or a power cut) left a truncated poem:
@@ -145,8 +146,10 @@ const replaceFile = (filename: string, contents: string) => {
         keepCreationDate(partial, birth);
       } catch (err) {
         // The poem is written either way; only its creation date is not kept.
+        // Its code if it has one, and always its name and frames: never its message (errorSummary).
         log.warn("save: the poem's creation date could not be kept", {
           code: (err as NodeJS.ErrnoException).code,
+          ...describeError(err),
         });
       }
     }

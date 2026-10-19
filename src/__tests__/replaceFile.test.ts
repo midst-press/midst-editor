@@ -15,6 +15,7 @@ jest.mock('electron-log', () => ({
 
 let dir: string;
 beforeEach(() => {
+  jest.clearAllMocks();
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'replace-file-test-'));
 });
 afterEach(() => {
@@ -372,6 +373,34 @@ onMac('replaceFile keeps the file metadata (#182, macOS)', () => {
       }
     );
     expect(listing()).toEqual(['zq.midst']);
+  });
+
+  it('when the creation date cannot be set, the poem is still saved and the log says why', () => {
+    const target = oldPoem();
+    // The fallback path, where the creation date must be set back (a clone keeps it, so needs no utimes).
+    jest.spyOn(childProcess, 'execFileSync').mockImplementationOnce((() => {
+      throw new Error('cp failed');
+    }) as never);
+    jest.spyOn(fs, 'utimesSync').mockImplementationOnce((() => {
+      const err = new Error('EPERM: operation not permitted, utime');
+      (err as NodeJS.ErrnoException).code = 'EPERM';
+      throw err;
+    }) as never);
+    replaceFile(target, 'zq new');
+    expect(read(target)).toBe('zq new');
+    expect(listing()).toEqual(['zq.midst']);
+    expect(log.warn).toHaveBeenCalledWith(
+      "save: the poem's creation date could not be kept",
+      expect.objectContaining({
+        code: 'EPERM',
+        name: 'Error',
+        frames: expect.any(Array),
+      })
+    );
+    const [, fields] = (log.warn as jest.Mock).mock.calls.find(
+      ([line]) => line === "save: the poem's creation date could not be kept"
+    );
+    expect(JSON.stringify(fields)).not.toContain('operation not permitted');
   });
 
   it('a new poem is written without a clone', () => {
