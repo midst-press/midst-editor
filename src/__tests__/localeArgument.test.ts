@@ -4,9 +4,9 @@ import { LOCALE_ARGUMENT, localeFromArgv } from '../shared/localeArgument';
 
 describe('localeFromArgv', () => {
   it('reads the locale the argument names, wherever it is on the command line', () => {
-    expect(localeFromArgv(['electron', `${LOCALE_ARGUMENT}fr-CA`, '--other'])).toBe(
-      'fr-CA'
-    );
+    expect(
+      localeFromArgv(['electron', `${LOCALE_ARGUMENT}fr-CA`, '--other'])
+    ).toBe('fr-CA');
   });
 
   it('is English when no argument names a locale, or the one there is empty', () => {
@@ -16,7 +16,9 @@ describe('localeFromArgv', () => {
   });
 
   it('takes the first when there are two', () => {
-    expect(localeFromArgv([`${LOCALE_ARGUMENT}fr`, `${LOCALE_ARGUMENT}de`])).toBe('fr');
+    expect(
+      localeFromArgv([`${LOCALE_ARGUMENT}fr`, `${LOCALE_ARGUMENT}de`])
+    ).toBe('fr');
   });
 
   it('does not take an argument that only begins the same way', () => {

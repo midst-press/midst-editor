@@ -26,13 +26,11 @@ jobs:
       - run: pre-commit run --all-files --show-diff-on-failure
       - name: vendored midst-format matches its VENDOR.md hashes
         run: node tools/check-vendored-format.mjs
-      # The message catalog (midst-infra docs/design/message-catalog.md). Enforced: the catalog matches the
-      # code, it is consistent, and the main process writes no words of its own. Report only: words still
-      # written into the renderer, until its migration makes that enforcing too.
+      # The message catalog (midst-infra docs/design/message-catalog.md): the catalog matches the code, it is
+      # consistent, and the main process writes no words of its own. The renderer's are checked by eslint, in
+      # the pre-commit step (lingui/no-unlocalized-strings).
       - name: message catalog
         run: npm run catalog:check
-      - name: message catalog, renderer (report only)
-        run: npm run catalog:report
       # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/. It runs in Gitea CI. Here
       # it waits until the tag is on GitHub's midst-press/midst-format, which comes with the next push-up (Stuart's):
       # without the tag the clone has nothing to rebuild and the step would fail.

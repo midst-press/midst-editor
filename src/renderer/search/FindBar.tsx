@@ -157,7 +157,8 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
   let status = '';
   if (problem) status = '';
   else if (query && total === 0) status = noMatches();
-  else if (total) status = i18n._('find.position', { current: found.current + 1, total });
+  else if (total)
+    status = i18n._('find.position', { current: found.current + 1, total });
 
   // Why the arrows are unavailable: nothing typed yet, or the status ("No matches").
   const describedBy = query ? 'find-bar-status' : 'find-bar-reason';

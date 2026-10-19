@@ -373,7 +373,9 @@ describe('main process', () => {
     const prefs = state.windows[0].options.webPreferences as {
       additionalArguments: string[];
     };
-    expect(prefs.additionalArguments).toEqual([`--midst-locale=${i18n.locale}`]);
+    expect(prefs.additionalArguments).toEqual([
+      `--midst-locale=${i18n.locale}`,
+    ]);
   });
 
   describe('closing the window', () => {

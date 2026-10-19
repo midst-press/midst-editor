@@ -26,18 +26,22 @@ module.exports = {
       // Words a reader sees or hears belong in the message catalog (midst-infra docs/design/message-catalog.md,
       // section 7). In the renderer they are read with i18n._('key'). The options say what is not words: names
       // the code uses for itself (IPC channels, store keys, CSS classes and variables, routes, reason codes),
-      // style values, and log text, which is for us and stays in English.
+      // style values, and log text, which is for us and stays in English. Enforced through the eslint hook, which
+      // CI runs on every file. The plugin itself does not read title, aria-valuetext or aria-description on a
+      // DOM element (only on a component), so words written there are not caught yet.
       files: ['src/renderer/**/*.ts', 'src/renderer/**/*.tsx'],
       excludedFiles: ['src/renderer/**/__tests__/**'],
       plugins: ['lingui'],
       rules: {
         'lingui/no-unlocalized-strings': [
-          'warn',
+          'error',
           {
             useTsTypes: true,
             ignore: [
               // kebab-case and CSS custom properties: classes, ids, channels, store keys, reason codes
-              '^-{0,2}[a-z0-9]+(-[a-z0-9]+)+$',
+              '^-{0,2}[a-z0-9]+(-[a-z0-9]*)+$',
+              // a CSS var() reference
+              '^var\\(',
               // CSS lengths
               '^-?[0-9.]+(px|rem|em|%)$',
             ],
@@ -61,8 +65,13 @@ module.exports = {
               '*.parseFromString',
               'editor.on',
               'editor.off',
+              '*.classList.*',
+              'PluginKey',
               'Error',
               'RestartFromError',
+              // useDraftMarkers: the name of the change, for the log
+              'apply',
+              'refuse',
             ],
             ignoreNames: [
               'className',
