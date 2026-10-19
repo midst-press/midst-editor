@@ -251,6 +251,42 @@ describe('--fix', () => {
     expect(after.match(/^#, /gm)).toHaveLength(1);
   });
 
+  it('marks an entry whose msgid wraps onto a continuation line', () => {
+    writeCatalog({ fr: [{ ...FR[0], en: 'zq Save old' }, FR[1]] });
+    const file = path.join(root, 'locales/fr/messages.po');
+    const wrapped = fs
+      .readFileSync(file, 'utf8')
+      .replace('msgid "menu.file.save"', 'msgid ""\n"menu.file.save"');
+    fs.writeFileSync(file, wrapped);
+
+    const fixed = check('--fix');
+    expect(fixed.status).toBe(0);
+    expect(fixed.out).toContain('marked 1 out-of-date translation(s) draft');
+    const after = fs.readFileSync(file, 'utf8');
+    expect(after).toContain(
+      `# en: ${JSON.stringify(
+        SAVE
+      )}\n#. js-lingui-explicit-id\n#: src/main/menu.ts\n#, fuzzy\nmsgid ""\n"menu.file.save"`
+    );
+    expect(check().status).toBe(0);
+  });
+
+  it('fails, naming the id, when it cannot find an entry to fix, rather than reporting it fixed', () => {
+    writeCatalog({ fr: [{ ...FR[0], en: 'zq Save old' }, FR[1]] });
+    const file = path.join(root, 'locales/fr/messages.po');
+    // CRLF line endings: PO readers accept them, and --fix's line edit does not find the entry.
+    fs.writeFileSync(
+      file,
+      fs.readFileSync(file, 'utf8').replace(/\n/g, '\r\n')
+    );
+    const fixed = check('--fix');
+    expect(fixed.status).toBe(1);
+    expect(fixed.out).toContain('marked 0 out-of-date translation(s) draft');
+    expect(fixed.out).toContain(
+      'locales/fr/messages.po: menu.file.save is out of date, and --fix could not find its entry to mark it draft.'
+    );
+  });
+
   it('leaves a current catalog byte-identical', () => {
     writeCatalog();
     const file = path.join(root, 'locales/fr/messages.po');

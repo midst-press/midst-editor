@@ -87,11 +87,13 @@ function mainSources(dir) {
 export function isWrittenWords(node) {
   if (ts.isParenthesizedExpression(node) || ts.isAsExpression(node))
     return isWrittenWords(node.expression);
-  if (
-    ts.isStringLiteral(node) ||
-    ts.isNoSubstitutionTemplateLiteral(node) ||
-    ts.isTemplateExpression(node)
-  ) {
+  // A template made only of substitutions (`${a}`) holds no words of its own.
+  if (ts.isTemplateExpression(node)) {
+    return [node.head, ...node.templateSpans.map((span) => span.literal)].some(
+      (part) => part.text.trim() !== ''
+    );
+  }
+  if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
     return node.getText().length > 2; // '' is not words
   }
   if (ts.isArrayLiteralExpression(node))
@@ -104,7 +106,8 @@ export function isWrittenWords(node) {
       return isWrittenWords(node.left) || isWrittenWords(node.right);
     if (
       op === ts.SyntaxKind.BarBarToken ||
-      op === ts.SyntaxKind.QuestionQuestionToken
+      op === ts.SyntaxKind.QuestionQuestionToken ||
+      op === ts.SyntaxKind.AmpersandAmpersandToken
     ) {
       return isWrittenWords(node.right);
     }

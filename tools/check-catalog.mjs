@@ -108,14 +108,25 @@ function isDraftDocument(text) {
  * in place rather than reserialising, so the file keeps the layout `lingui extract` gives it.
  */
 function applyFix(text, stale, english) {
+  const edited = new Set();
   const blocks = text.split(/\n\n/);
-  return blocks
+  const fixed = blocks
     .map((block) => {
       const lines = block.split('\n');
-      const idLine = lines.find((l) => l.startsWith('msgid "'));
-      if (!idLine) return block;
-      const id = JSON.parse(idLine.slice('msgid '.length));
+      const idAt = lines.findIndex((l) => l.startsWith('msgid "'));
+      if (idAt === -1) return block;
+      const idLine = lines[idAt];
+      // A msgid may wrap: `msgid ""` and then the id on continuation lines, each a quoted string.
+      const parts = [idLine.slice('msgid '.length)];
+      for (
+        let i = idAt + 1;
+        i < lines.length && lines[i].startsWith('"');
+        i += 1
+      )
+        parts.push(lines[i]);
+      const id = parts.map((part) => JSON.parse(part)).join('');
       if (!stale.has(id)) return block;
+      edited.add(id);
       const recorded = `# en: ${JSON.stringify(english.get(id))}`;
       let out = lines.filter((l) => !/^# en: /.test(l));
       const flagAt = out.findIndex((l) => l.startsWith('#, '));
@@ -128,6 +139,7 @@ function applyFix(text, stale, english) {
       return out.join('\n');
     })
     .join('\n\n');
+  return { text: fixed, edited };
 }
 
 function readCatalog(file) {
@@ -279,13 +291,21 @@ function main() {
       .sort();
     if (missing.length) untranslated.set(locale, missing);
     if (opts.fix && stale.size) {
-      writeFileSync(
-        poPath,
-        applyFix(readFileSync(poPath, 'utf8'), stale, english)
+      const { text, edited } = applyFix(
+        readFileSync(poPath, 'utf8'),
+        stale,
+        english
       );
+      writeFileSync(poPath, text);
       console.log(
-        `${file}: marked ${stale.size} out-of-date translation(s) draft.`
+        `${file}: marked ${edited.size} out-of-date translation(s) draft.`
       );
+      // Never report a fix that was not made: an entry --fix could not find is still a problem.
+      for (const id of [...stale].filter((x) => !edited.has(x)).sort()) {
+        problems.push(
+          `${file}: ${id} is out of date, and --fix could not find its entry to mark it draft.`
+        );
+      }
     }
   }
 

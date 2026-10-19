@@ -28,6 +28,12 @@ beforeEach(() => {
 });
 afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
+it('passes a template made only of substitutions', () => {
+  // eslint-disable-next-line no-template-curly-in-string -- source text for the checker, not a template
+  write('src/main/menu.ts', 'x({ label: `${a}${b}`, title: ` ${c} ` });\n');
+  expect(check().status).toBe(0);
+});
+
 it('passes catalog calls, references and empty strings', () => {
   write(
     'src/main/menu.ts',
@@ -52,6 +58,7 @@ it.each([
   ['a conditional with one branch', "{ detail: x ? i18n._('a') : 'zq b' }"],
   ['a concatenation', "{ sublabel: 'zq ' + count }"],
   ['a fallback', "{ toolTip: hint || 'zq hint' }"],
+  ['a guard', "{ label: enabled && 'zq Save' }"],
   ['a cast', "{ checkboxLabel: ('zq remember' as string) }"],
 ])(
   'fails on words written out as %s, naming the line and property',
@@ -71,6 +78,7 @@ it.each([
 it.each([
   [
     'dialog.showErrorBox',
+    // eslint-disable-next-line no-template-curly-in-string -- source text for the checker, not a template
     "dialog.showErrorBox('zq title', `zq ${name} failed`);",
     [1, 2],
   ],
