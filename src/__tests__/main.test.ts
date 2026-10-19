@@ -612,6 +612,36 @@ describe('main process', () => {
         }
       });
 
+      it('logs a check that fails, by name only, and the next close checks again', async () => {
+        const { store, electron, state, log, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        electron.dialog.showMessageBoxSync.mockImplementationOnce(() => {
+          throw new TypeError('zq secret');
+        });
+
+        await fireWindow('close', closeEvent());
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(log.error).toHaveBeenCalledWith(
+          'close: the check for unsaved changes failed',
+          expect.objectContaining({ name: 'TypeError' })
+        );
+        expect(
+          JSON.stringify((log.error as jest.Mock).mock.calls)
+        ).not.toContain('zq secret');
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        // Not stuck: closing again asks the editor again.
+        await fireWindow('close', closeEvent());
+        expect(
+          state.windows[0].webContents.send.mock.calls.filter(
+            ([c]) => c === 'flush-editor'
+          )
+        ).toHaveLength(2);
+      });
+
       it('does nothing if the window was destroyed while it waited', async () => {
         const { store, electron, state, fireIpc, fireWindow, flush } =
           await boot();
