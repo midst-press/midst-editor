@@ -310,7 +310,6 @@
     "electron-log": "^4.4.8",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
-    "node-html-parser": "^6.1.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.25.1"
