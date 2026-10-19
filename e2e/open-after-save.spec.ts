@@ -42,7 +42,8 @@ const leaveAfterSave = async (leave: Leave) => {
     expect(await pm.innerText()).toContain('QQB');
     const before = (await dialogsSeen(app)).length;
     await leave(app, pathB, userData);
-    const prompted = (await dialogsSeen(app)).length > before;
+    // The app may have quit with the window (closing a saved poem); then it showed no dialog.
+    const prompted = (await dialogsSeen(app).catch(() => [])).length > before;
 
     // Past the autosave, so whatever it would write is on the disk.
     await new Promise((resolve) => {
@@ -66,11 +67,32 @@ test('keystrokes typed after Save and before an open are either kept or asked ab
   );
 });
 
-// Silas, review of #190: closing reads the same mark, and cannot wait for the editor.
+// Silas, review of #190: closing reads the same mark. Since #236 it asks the editor first and decides when the
+// editor answers, so this waits for the decision: a dialog, or the window gone.
 test('keystrokes typed after Save and before the window closes are either kept or asked about', async () => {
   await leaveAfterSave(async (app) => {
+    // Cancel, recorded where dialogsSeen reads: a window that asks stays open, so the outcome can be read.
+    await app.evaluate(({ dialog }) => {
+      const g = globalThis as unknown as { capturedDialogs: string[] };
+      dialog.showMessageBoxSync = ((_w: unknown, o: { message?: string }) => {
+        g.capturedDialogs.push(o?.message ?? '(no message)');
+        return 1;
+      }) as typeof dialog.showMessageBoxSync;
+    });
+    const before = (await dialogsSeen(app)).length;
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.close();
     });
+    // The app quits when the window goes, and then cannot be asked: that is "closed".
+    await expect
+      .poll(
+        () =>
+          dialogsSeen(app).then(
+            (seen) => (seen.length > before ? 'asked' : 'pending'),
+            () => 'closed'
+          ),
+        { message: 'the close was never decided', timeout: 10_000 }
+      )
+      .not.toBe('pending');
   });
 });
