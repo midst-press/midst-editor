@@ -20,6 +20,7 @@ interface FakeWindow {
   show: jest.Mock;
   minimize: jest.Mock;
   destroy: jest.Mock;
+  isDestroyed: jest.Mock;
   setDocumentEdited: jest.Mock;
   setRepresentedFilename: jest.Mock;
   webContents: { send: jest.Mock; setWindowOpenHandler: jest.Mock };
@@ -78,6 +79,8 @@ jest.mock('electron', () => {
     minimize = jest.fn();
 
     destroy = jest.fn();
+
+    isDestroyed = jest.fn(() => false);
 
     setDocumentEdited = jest.fn();
 
@@ -261,8 +264,13 @@ const boot = async (opts: { ready?: boolean } = {}) => {
       (state.ipc.get(channel) ?? []).map(async (fn) => fn(...args))
     );
   };
-  const fireWindow = (event: string, ...args: unknown[]) =>
-    Promise.all((win().handlers[event] ?? []).map(async (fn) => fn(...args)));
+  // Closing waits for the editor's answer (#236): let that settle before the test looks.
+  const fireWindow = async (event: string, ...args: unknown[]) => {
+    await Promise.all(
+      (win().handlers[event] ?? []).map(async (fn) => fn(...args))
+    );
+    await flush();
+  };
   const fireApp = async (event: string, ...args: unknown[]) => {
     await Promise.all(
       (state.appHandlers.get(event) ?? []).map(async (fn) => fn(...args))
@@ -381,7 +389,7 @@ describe('main process', () => {
   describe('closing the window', () => {
     const closeEvent = () => ({ preventDefault: jest.fn() });
 
-    it('lets a saved document close and clears the document from the store', async () => {
+    it('closes a saved document and clears it from the store', async () => {
       const { store, state, fireWindow } = await boot();
       store.set('edited', 'false');
       store.set('filename', '/a/zq.midst');
@@ -393,8 +401,9 @@ describe('main process', () => {
 
       await fireWindow('close', event);
 
-      expect(event.preventDefault).not.toHaveBeenCalled();
-      expect(state.windows[0].destroy).not.toHaveBeenCalled();
+      // Held for the editor's answer, then closed here (#236).
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
+      expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
       expect(
         ['filename', 'baseFilename', 'poem', 'history'].map((k) => store.get(k))
       ).toEqual([undefined, undefined, undefined, undefined]);
@@ -499,6 +508,126 @@ describe('main process', () => {
       ).toEqual([undefined, undefined, undefined, undefined]);
       expect(store.get('edited')).toBe('false');
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
+    });
+
+    // #236: Quit runs here at once, while the keystrokes typed just before it reach `edited` only by message.
+    describe('with the editor showing, it asks the editor first', () => {
+      const flushId = (w: { webContents: { send: jest.Mock } }) =>
+        w.webContents.send.mock.calls.find(([c]) => c === 'flush-editor')?.[1];
+
+      it('warns about keystrokes the editor reports before it answers, though edited was "false"', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'false');
+        store.set('poem', 'zq');
+        state.dialogResponse = 1;
+        const event = closeEvent();
+
+        await fireWindow('close', event);
+
+        // Held, asked, and nothing decided yet.
+        expect(event.preventDefault).toHaveBeenCalledTimes(1);
+        const id = flushId(state.windows[0]);
+        expect(typeof id).toBe('number');
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+
+        // The editor's messages, in their order: the keystrokes, then the answer.
+        store.set('edited', 'true');
+        store.set('poem', 'zq xv');
+        await fireIpc('editor-flushed', {}, [id]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq xv');
+      });
+
+      it('closes a saved poem only after the editor answers', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'false');
+        store.set('poem', 'zq');
+
+        await fireWindow('close', closeEvent());
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
+        expect(store.get('poem')).toBeUndefined();
+      });
+
+      it('a second close while the first waits asks the editor once and the poet once', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        state.dialogResponse = 1;
+        const second = closeEvent();
+
+        await fireWindow('close', closeEvent());
+        await fireWindow('close', second);
+
+        expect(second.preventDefault).toHaveBeenCalledTimes(1);
+        const asks = state.windows[0].webContents.send.mock.calls.filter(
+          ([c]) => c === 'flush-editor'
+        );
+        expect(asks).toHaveLength(1);
+        await fireIpc('editor-flushed', {}, [asks[0][1]]);
+        await flush();
+        expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+
+        // Once the poet has answered, closing again asks again.
+        await fireWindow('close', closeEvent());
+        expect(
+          state.windows[0].webContents.send.mock.calls.filter(
+            ([c]) => c === 'flush-editor'
+          )
+        ).toHaveLength(2);
+      });
+
+      it('with no answer from the editor, decides on edited as it stands, after the timeout', async () => {
+        const { store, electron, state, fireIpc, fireWindow } = await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        state.dialogResponse = 1;
+        // setImmediate stays real: the test's own settling uses it.
+        jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+        try {
+          await fireWindow('close', closeEvent());
+          expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+          const { FLUSH_TIMEOUT_MS } = await import('../main/editorFlush');
+          await jest.advanceTimersByTimeAsync(FLUSH_TIMEOUT_MS);
+          expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+          expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it('does nothing if the window was destroyed while it waited', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        store.set('poem', 'zq');
+
+        await fireWindow('close', closeEvent());
+        state.windows[0].isDestroyed.mockReturnValue(true);
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+      });
     });
 
     it('does not show a dialog for a window that has already closed', async () => {
