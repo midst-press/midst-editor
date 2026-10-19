@@ -5,8 +5,8 @@
 
 export const LOCALE_ARGUMENT = '--midst-locale=';
 
-/** The locale `argv` names with LOCALE_ARGUMENT, or English when it names none. */
+/** The locale `argv` names with LOCALE_ARGUMENT, or English when it names none or an empty one. */
 export function localeFromArgv(argv: readonly string[]): string {
   const arg = argv.find((a) => a.startsWith(LOCALE_ARGUMENT));
-  return arg === undefined ? 'en' : arg.slice(LOCALE_ARGUMENT.length);
+  return arg?.slice(LOCALE_ARGUMENT.length) || 'en';
 }
