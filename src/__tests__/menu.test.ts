@@ -1131,6 +1131,115 @@ describe('openFile', () => {
       });
     });
 
+    describe('when it was converted before (#7)', () => {
+      const withCopy = () => {
+        seedDocument({ edited: 'false' });
+        const target = path.join(dir, 'zq.midst');
+        fs.writeFileSync(target, oldFile);
+        const copy = path.join(dir, 'zq-converted.midst');
+        fs.writeFileSync(copy, goodFile('<p>zq kept</p>'));
+        return { target, copy };
+      };
+
+      it('offers the converted copy, by name, as the default, with converting again as the other choice', async () => {
+        withCopy();
+        showMessageBox.mockReturnValue(0);
+        await openFile(asWindow(makeWindow()), false, [
+          path.join(dir, 'zq.midst'),
+        ]);
+        await ioDone();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        const options = showMessageBox.mock.calls[0][1];
+        expect(options.buttons).toEqual([
+          'Cancel',
+          'Convert Again',
+          'Open Converted Copy',
+        ]);
+        expect(options.defaultId).toBe(2);
+        expect(options.cancelId).toBe(0);
+        expect(options.detail).toContain('zq-converted.midst');
+      });
+
+      it('on Open Converted Copy, loads the copy and writes nothing', async () => {
+        const { target, copy } = withCopy();
+        showMessageBox.mockReturnValue(2);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        await ioDone();
+        expect(dirListing()).toEqual(['zq-converted.midst', 'zq.midst']);
+        expect(readBack(target)).toBe(oldFile);
+        expect(readBack(copy)).toBe(goodFile('<p>zq kept</p>'));
+        expect(mockStore.get('filename')).toBe(copy);
+        expect(win.webContents.send).toHaveBeenCalledWith(
+          'open-file',
+          '<p>zq kept</p>',
+          history,
+          'zq-converted.midst'
+        );
+        expect(logInfo).toHaveBeenCalledWith(
+          'open: opening the earlier converted copy',
+          { filePath: target, copy }
+        );
+      });
+
+      it('on Convert Again, writes a new copy beside the old one and keeps it', async () => {
+        const { target, copy } = withCopy();
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        const again = path.join(dir, 'zq-converted-2.midst');
+        expect(dirListing()).toEqual([
+          'zq-converted-2.midst',
+          'zq-converted.midst',
+          'zq.midst',
+        ]);
+        expect(readBack(copy)).toBe(goodFile('<p>zq kept</p>'));
+        expect(mockStore.get('filename')).toBe(again);
+        expect(app.addRecentDocument).toHaveBeenCalledWith(again);
+      });
+
+      it('on Cancel, writes nothing and loads nothing', async () => {
+        const { target } = withCopy();
+        showMessageBox.mockReturnValue(0);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        expect(dirListing()).toEqual(['zq-converted.midst', 'zq.midst']);
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      });
+
+      it('a folder that cannot be searched: logs why, and offers the plain conversion', async () => {
+        const { target } = withCopy();
+        const real = fs.readdirSync;
+        jest.spyOn(fs, 'readdirSync').mockImplementation(((
+          ...args: Parameters<typeof fs.readdirSync>
+        ) => {
+          if (args[0] === dir) {
+            throw Object.assign(new Error('EACCES: POEM-SENTINEL'), {
+              code: 'EACCES',
+            });
+          }
+          return real(...args);
+        }) as never);
+        showMessageBox.mockReturnValue(0);
+        await openFile(asWindow(makeWindow()), false, [target]);
+        await ioDone();
+        (fs.readdirSync as jest.Mock).mockRestore();
+        expect(showMessageBox.mock.calls[0][1].buttons).toEqual([
+          'Cancel',
+          'Convert File',
+        ]);
+        const warned = (log.warn as jest.Mock).mock.calls.find(
+          (c) => c[0] === 'open: could not look for an earlier converted copy'
+        );
+        expect(warned?.[1]).toMatchObject({ filePath: target, name: 'Error' });
+        expect(JSON.stringify(warned)).not.toContain('POEM-SENTINEL');
+      });
+    });
+
     describe('when the conversion fails (#160)', () => {
       const failingAt = async (
         stage: 'convert' | 'write' | 'load',

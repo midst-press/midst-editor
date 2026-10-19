@@ -17,6 +17,7 @@ msgstr ""
 #: src/main/main.ts
 #: src/main/menu.ts
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "button.cancel"
 msgstr "Cancel"
@@ -155,6 +156,30 @@ msgstr "To begin, create a new Midst document."
 #, fuzzy
 msgid "dialog.firstSave.title"
 msgstr "To begin, create a new Midst document."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.convertAgain"
+msgstr "Convert Again"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.detail"
+msgstr "The converted copy is {fileName}. Open it to carry on where you left off, or convert the original again into a new copy."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.message"
+msgstr "This file is from an older version of Midst, and it was converted before."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.openCopy"
+msgstr "Open Converted Copy"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
