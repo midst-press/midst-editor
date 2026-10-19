@@ -84,8 +84,12 @@ describe('writing a converted file', () => {
 
 describe('finding an earlier converted copy (#7)', () => {
   let dir: string;
+  // One clock reading per test, so two files written "50 seconds ago" have the same time. Reading the clock
+  // per file let it tick between them, and then the tie test passed without a tie.
+  let now: number;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'converted-copy-'));
+    now = Math.floor(Date.now() / 1000);
   });
   afterEach(() => {
     fs.rmSync(dir, { recursive: true, force: true });
@@ -93,7 +97,7 @@ describe('finding an earlier converted copy (#7)', () => {
   const at = (name: string) => path.join(dir, name);
   const write = (name: string, secondsAgo: number) => {
     fs.writeFileSync(at(name), 'zq');
-    const t = Date.now() / 1000 - secondsAgo;
+    const t = now - secondsAgo;
     fs.utimesSync(at(name), t, t);
   };
   const old = () => at('poem.midst');
@@ -120,10 +124,18 @@ describe('finding an earlier converted copy (#7)', () => {
     expect(existingConvertedCopy(old())).toBe(at('poem-converted-3.midst'));
   });
 
-  it('breaks a tie in time by the later copy', () => {
-    write('poem-converted.midst', 50);
-    write('poem-converted-2.midst', 50);
-    expect(existingConvertedCopy(old())).toBe(at('poem-converted-2.midst'));
+  // Both orders, so the answer cannot come from the order the folder lists the files in.
+  it.each([
+    ['poem-converted.midst', 'poem-converted-2.midst'],
+    ['poem-converted-2.midst', 'poem-converted-3.midst'],
+  ])('breaks a tie in time by the later copy: %s, %s', (earlier, later) => {
+    write(earlier, 50);
+    write(later, 50);
+    // CONTROL: the tie is real.
+    expect(fs.statSync(at(later)).mtimeMs).toBe(
+      fs.statSync(at(earlier)).mtimeMs
+    );
+    expect(existingConvertedCopy(old())).toBe(at(later));
   });
 
   it('is not fooled by names that only look like a copy', () => {
