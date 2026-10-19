@@ -4,7 +4,13 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { launch, openDocument, readStore, waitUntil } from './harness';
+import {
+  clickMenuItem,
+  launch,
+  openDocument,
+  readStore,
+  waitUntil,
+} from './harness';
 
 // #125. The window title is set in one place (src/renderer/WindowTitle.tsx). This pins the title at each step a poet takes: launch, New, Open, Save As and back to the opening
 // screen. Three readings each: the title bar the app draws, the page's document.title (which the title
@@ -127,9 +133,7 @@ test('the window title at launch, New, Open, Save As and back to the opening scr
 
     // Save As under another name.
     await nextSaveAnswer(app, pathAs);
-    await app.evaluate(async ({ Menu }) => {
-      await Menu.getApplicationMenu()?.getMenuItemById('save-as')?.click();
-    });
+    await clickMenuItem(app, 'menu.file.saveAs');
     expect(
       await waitUntil(() => readStore(userData).filename === pathAs, 15_000),
       'Save As did not record the new name'

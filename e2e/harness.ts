@@ -41,6 +41,19 @@ export function seedStore(userData: string) {
   );
 }
 
+// Clicks the application menu item with this id, and fails when there is none. `getMenuItemById(id)?.click()`
+// turns a renamed id into a click that does nothing, and the test then reads "Save wrote nothing" (#244: the ids
+// became menu.file.* in #224, and three tests failed for a reason that was not theirs).
+export async function clickMenuItem(app: ElectronApplication, id: string) {
+  const found = await app.evaluate(({ Menu }, itemId) => {
+    const item = Menu.getApplicationMenu()?.getMenuItemById(itemId);
+    if (!item) return false;
+    item.click();
+    return true;
+  }, id);
+  expect(found, `the application menu has no item with id ${id}`).toBe(true);
+}
+
 // Make any remaining modal OBSERVABLE instead of fatal. A blocking dialog is indistinguishable from
 // a deadlock from outside, so record them and let the test report what appeared.
 export async function captureDialogs(app: ElectronApplication) {
