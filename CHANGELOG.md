@@ -2,6 +2,12 @@
 
 - **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you
   are offline. It opens as usual.
+- **A poem from the old Midst no longer gains blank lines it never showed.** The old Midst saved some empty
+  lines that took up no space on screen, and opening the poem turned each into a visible blank line, in the
+  poem and in its replay. They are gone now. A line you left blank on purpose stays.
+- **A line ending in coloured or resized text no longer gains a blank line after it** when a poem from the
+  old Midst is opened.
+- Under the hood: the shared format library, midst-format, is now 0.4.0.
 
 # 0.5.0
 
