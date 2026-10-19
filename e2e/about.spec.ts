@@ -45,7 +45,7 @@ test('About Midst is in the menu, shows which build this is, and Copy copies it'
     expect(seen.found).toBe(true);
     expect(seen.shown).toHaveLength(1);
     expect(seen.shown[0].title).toBe('About Midst');
-    // The version line, then the credits (src/main/about.ts CREDITS). Copy still copies the version line alone.
+    // The version line, then the credits (the catalog's dialog.about.credits). Copy still copies the version line alone.
     expect(seen.shown[0].detail).toBe(
       [
         'Development build',
