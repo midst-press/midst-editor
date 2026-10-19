@@ -8,6 +8,15 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
+import checkWholePoem from '../renderer/spellcheck/checkWholePoem';
+
+// The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
+// end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
+jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
+  __esModule: true,
+  default: jest.fn(() => jest.fn()),
+}));
+const mockCheck = checkWholePoem as unknown as jest.Mock;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -250,6 +259,31 @@ describe('Editor: content and appearance', () => {
     bridge = installBridge({ spellcheck: 'true' });
     mount();
     expect(proseMirror()).toHaveAttribute('spellcheck', 'true');
+  });
+
+  it('has the whole poem checked when spellcheck is on, and not when it is off (#238)', () => {
+    mockCheck.mockClear();
+    const { unmount } = mount();
+    expect(mockCheck).not.toHaveBeenCalled();
+    unmount();
+    bridge = installBridge({ spellcheck: 'true' });
+    mount();
+    expect(mockCheck).toHaveBeenCalledTimes(1);
+    expect(mockCheck.mock.calls[0][0].dom).toBe(proseMirror());
+    mockCheck.mock.calls[0][1]('zq message');
+    expect(
+      bridge.calls.filter((c) => c.kind === 'log.warn').map((c) => c.args)
+    ).toEqual([['zq message']]);
+  });
+
+  it('cancels an unfinished spelling check when the editor goes (#238)', () => {
+    const cancel = jest.fn();
+    mockCheck.mockClear().mockReturnValueOnce(cancel);
+    bridge = installBridge({ spellcheck: 'true' });
+    const { unmount } = mount();
+    expect(cancel).not.toHaveBeenCalled();
+    unmount();
+    expect(cancel).toHaveBeenCalledTimes(1);
   });
 
   it('focuses the editor when it is created', () => {
