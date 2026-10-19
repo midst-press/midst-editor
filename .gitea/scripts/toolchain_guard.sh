@@ -26,7 +26,8 @@ python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)' 2>/de
   violation "$(python3 --version 2>&1) is older than 3.14"
 
 # The unversioned python3 link is hand-made (Homebrew's default moved to 3.15). Check it is still there
-# and still points at python@3.14, so its removal is caught before the guard's version check fails.
+# and still points at python@3.14, so a link that exists but points at another Homebrew Python (such as
+# 3.15) is caught.
 if [ -L /opt/homebrew/bin/python3 ]; then
   target=$(readlink /opt/homebrew/bin/python3)
   case "$target" in
