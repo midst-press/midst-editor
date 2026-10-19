@@ -144,6 +144,23 @@ describe('the shortcut table', () => {
       shortcutTable(sample('toString', 'Zq', 'Command+J', 'File'), [])
     ).toThrow('File > Zq');
   });
+
+  // #210: the table goes between its two markers, and a guide that has lost either is refused.
+  it('puts the table between the markers, keeping the guide either side', () => {
+    expect(withTable(`zq\n${TABLE_START}\nold\n${TABLE_END}\nxv`, 'new')).toBe(
+      `zq\n${TABLE_START}\n\nnew\n\n${TABLE_END}\nxv`
+    );
+  });
+
+  it.each([
+    ['the start marker', `zq\nold\n${TABLE_END}\nxv`],
+    ['the end marker', `zq\n${TABLE_START}\nold\nxv`],
+    ['the markers’ order', `zq\n${TABLE_END}\nold\n${TABLE_START}\nxv`],
+  ])('refuses a guide that has lost %s', (_name, guide) => {
+    expect(() => withTable(guide, 'new')).toThrow(
+      'docs/user-guide.md has lost its shortcuts:start or shortcuts:end marker.'
+    );
+  });
 });
 
 describe('the user guide', () => {
