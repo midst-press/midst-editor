@@ -47,6 +47,7 @@ import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
+import { activateLocale, i18n, pickLocale } from '../shared/i18n';
 
 class AppUpdater {
   constructor() {
@@ -181,10 +182,12 @@ const createWindow = async () => {
     if (mainWindow === null) return;
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: 'warning',
-      title: 'Unsaved changes',
-      message:
-        'Current document contains unsaved changes. Are you sure you want to proceed?',
-      buttons: ['Quit Anyway', 'Cancel'],
+      title: i18n._('dialog.unsavedChanges.title'),
+      message: i18n._('dialog.unsavedChanges.message'),
+      buttons: [
+        i18n._('dialog.unsavedChanges.quitAnyway'),
+        i18n._('button.cancel'),
+      ],
       // Return keeps the work: the default button is Cancel, never the one that discards (#40).
       defaultId: 1,
       // Dismissing the message box is Cancel too.
@@ -254,7 +257,7 @@ ipcMain.on('app-open', (filename: IpcMainEvent) => {
 // Save and Save As are enabled only while the editor is showing.
 const setSaveEnabled = (enabled: boolean) => {
   if (mainWindow === null) return;
-  ['save', 'save-as'].forEach((id) => {
+  ['menu.file.save', 'menu.file.saveAs'].forEach((id) => {
     const item = app.applicationMenu?.getMenuItemById(id);
     if (item) item.enabled = enabled;
   });
@@ -284,8 +287,11 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
 // Errors nothing caught are logged (name and frames only) and the poet is told; the app keeps running.
 registerUncaughtHandlers(process, (name) =>
   dialog.showErrorBox(
-    'Midst hit an unexpected error',
-    `${name}. It has been recorded in the log, ${logFileForPeople()}, which Help > Show Log File shows.`
+    i18n._('dialog.unexpectedError.title'),
+    i18n._('dialog.unexpectedError.message', {
+      name,
+      logFile: logFileForPeople(),
+    })
   )
 );
 
@@ -342,6 +348,9 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
+    // The menus, dialogs and window speak the system's first language the catalog has, else English
+    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
+    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {

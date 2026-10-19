@@ -32,6 +32,13 @@ describe('pickLocale', () => {
   });
 });
 
+describe('on import', () => {
+  it('has English active, so a word is English and never its bare id', () => {
+    expect(i18n.locale).toBe('en');
+    expect(i18n._('button.ok')).toBe('OK');
+  });
+});
+
 describe('activateLocale', () => {
   it('activates a catalog the app has', () => {
     expect(activateLocale('en')).toBe('en');

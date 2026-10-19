@@ -17,4 +17,6 @@ module.exports = {
   // No line numbers: an edit elsewhere in a file would rewrite every entry's reference.
   format: formatter({ lineNumbers: false }),
   compileNamespace: 'ts',
+  // Sorted by id, so extract writes the same file every time and keys sharing a prefix sit together.
+  orderBy: 'messageId',
 };

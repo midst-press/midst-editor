@@ -59,6 +59,7 @@ it.each([
   ['a concatenation', "{ sublabel: 'zq ' + count }"],
   ['a fallback', "{ toolTip: hint || 'zq hint' }"],
   ['a guard', "{ label: enabled && 'zq Save' }"],
+  ['a reason the poet is shown', "{ ok: false, reason: 'zq empty' }"],
   ['a cast', "{ checkboxLabel: ('zq remember' as string) }"],
 ])(
   'fails on words written out as %s, naming the line and property',
@@ -123,6 +124,16 @@ it('counts a dialog option object by its properties, not again as an argument', 
   );
   expect(lines(check().out)).toEqual([
     'src/main/menu.ts:1: message is written out; it belongs in the catalog.',
+  ]);
+});
+
+it('reads `name` as words in a filter declared away from the dialog, by its extensions', () => {
+  write(
+    'src/main/menu.ts',
+    "const FILTERS = [{ name: 'zq Midst', extensions: ['midst'] }];\n"
+  );
+  expect(lines(check().out)).toEqual([
+    'src/main/menu.ts:1: name is written out; it belongs in the catalog.',
   ]);
 });
 

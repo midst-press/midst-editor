@@ -16,6 +16,7 @@ import MenuBuilder, {
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
+import { catalogs, i18n } from '../shared/i18n';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -1274,6 +1275,39 @@ describe('the menu', () => {
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
 
+  // Every word in the menus comes from the catalog: each labelled item's id is a catalog key, and its
+  // label is that key's English, without the '&' on macOS (midst-infra docs/design/message-catalog.md).
+  it.each([
+    ['darwin', 'production'],
+    ['darwin', 'development'],
+    ['linux', 'production'],
+    ['linux', 'development'],
+  ])(
+    'labels every %s item (%s) from the catalog, by its id',
+    (platform, env) => {
+      process.env.NODE_ENV = env;
+      const english = catalogs.en as Record<string, unknown>;
+      const items: Item[] = [];
+      const walk = (list: Item[]) =>
+        list.forEach((item) => {
+          if (item.label !== undefined) items.push(item);
+          if (Array.isArray(item.submenu)) walk(item.submenu);
+        });
+      walk(build(platform));
+      expect(items.length).toBeGreaterThan(20);
+      items.forEach((item) => {
+        expect(
+          item.id !== undefined &&
+            Object.prototype.hasOwnProperty.call(english, item.id)
+        ).toBe(true);
+        const text = i18n._(item.id!);
+        expect(item.label).toBe(
+          platform === 'darwin' ? text.replace(/&/g, '') : text
+        );
+      });
+    }
+  );
+
   describe('entries from #121', () => {
     it('Select All on Windows and Linux is the selectAll role, not the macOS-only selector', () => {
       const item = sub(build('linux'), '&Edit', 'Select All') as Item & {
@@ -1393,8 +1427,11 @@ describe('the menu', () => {
       const template = build(platform);
       const saveItem = sub(template, fileLabels.top, fileLabels.save);
       const saveAsItem = sub(template, fileLabels.top, fileLabels.saveAs);
-      expect(saveItem).toMatchObject({ id: 'save', enabled: false });
-      expect(saveAsItem).toMatchObject({ id: 'save-as', enabled: false });
+      expect(saveItem).toMatchObject({ id: 'menu.file.save', enabled: false });
+      expect(saveAsItem).toMatchObject({
+        id: 'menu.file.saveAs',
+        enabled: false,
+      });
     });
 
     it('Save saves the document', async () => {

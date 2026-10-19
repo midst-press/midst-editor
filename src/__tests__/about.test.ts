@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { app, clipboard, dialog, shell } from 'electron';
-import { CREDITS, aboutLine, showAbout } from '../main/about';
+import { credits, aboutLine, showAbout } from '../main/about';
 
 jest.mock('electron', () => ({
   app: { isPackaged: true, getVersion: jest.fn(() => '0.3.0-beta.1') },
@@ -49,9 +49,9 @@ describe('aboutLine', () => {
   });
 });
 
-describe('CREDITS', () => {
+describe('credits', () => {
   it('names the director, then the developers, one to a line', () => {
-    expect(CREDITS.split('\n')).toEqual([
+    expect(credits().split('\n')).toEqual([
       'Director: Annelyse Gelman',
       '',
       'Developers:',
@@ -69,7 +69,7 @@ describe('showAbout', () => {
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const [parent, options] = showMessageBox.mock.calls[0];
     expect(parent).toBe(fakeWindow);
-    expect(options.detail).toBe(`${LINE}\n\n${CREDITS}`);
+    expect(options.detail).toBe(`${LINE}\n\n${credits()}`);
     expect(options.buttons).toEqual(['OK', 'Copy', 'User Guide']);
     // Return and Escape both close it without copying.
     expect(options.defaultId).toBe(0);
