@@ -23,6 +23,7 @@ jest.mock('electron', () => ({
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
   shell: { openExternal: jest.fn() },
   BrowserWindow: jest.fn(),
+  ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
 jest.mock('electron-log', () => ({

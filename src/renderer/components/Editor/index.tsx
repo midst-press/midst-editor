@@ -28,9 +28,14 @@ const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
   const navigate = useNavigate();
-  // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
-  // arrival, in an effect, then changes nothing React renders (GitHub #44).
-  const edited = useRef(false);
+  // Whether there has been typing since the editor last wrote the poem to the store. The first keystroke
+  // after a store write marks the document unsaved. Keyed to the store write, not to the last autosave: a
+  // save chosen from the menu writes the store (through the flush) and marks the document saved, and the
+  // next keystroke must mark it unsaved again at once. Otherwise New, Open, closing the window and Quit all
+  // saw it as saved for up to a second, and dropped that typing without the unsaved-changes prompt (#113).
+  // Never drawn, so a ref, not state: saving on arrival, in an effect, changes nothing React renders (GitHub
+  // #44).
+  const typedSinceStored = useRef(false);
 
   // Read once: toggling it reloads the window, which reads it again.
   const [spellcheckOn] = useState<boolean>(
@@ -72,11 +77,27 @@ export default function Editor() {
         JSON.stringify(history ?? doc.poemHistory)
       );
       window.electron.ipcRenderer.sendMessage('save-file', []);
-      edited.current = false;
+      typedSinceStored.current = false;
     },
     []
   );
   const autosave = useAutosave(latest, saveFileAndUpdateStore);
+
+  // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
+  // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
+  // too, before the unsaved-changes prompt, so the poem they would replace is the poem on screen (#113).
+  // The pending autosave is left to run.
+  useEffect(
+    () =>
+      window.electron.ipcRenderer.on('flush-editor', (id) => {
+        const doc = latest.current;
+        typedSinceStored.current = false;
+        window.electron.store.set('poem', doc.htmlString);
+        window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
+      }),
+    []
+  );
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(
@@ -102,8 +123,8 @@ export default function Editor() {
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
     setHtmlString(newHtml);
-    if (!edited.current) {
-      edited.current = true;
+    if (!typedSinceStored.current) {
+      typedSinceStored.current = true;
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
