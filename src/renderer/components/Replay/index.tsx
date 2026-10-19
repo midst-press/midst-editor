@@ -106,6 +106,8 @@ export default function Replay() {
     if (newStep > maxStep || newStep < 0) {
       return;
     }
+    // Moving the slider (drag, click or key) pauses: the poet is choosing a frame, and stays on it (#237).
+    pause();
     setStep(newStep);
   };
   useEffect(() => {
@@ -180,7 +182,13 @@ export default function Replay() {
       // would start the poem playing behind the list, and Escape is the list's own way to close.
       // Focus sits on the drawer's panel when it opens, so this asks the drawer, not the focused element.
       if (document.querySelector('.DraftDrawer')) return;
-      if ((e.target as HTMLElement | null)?.closest?.('input, textarea'))
+      // Text entry keeps its keys. The slider is an input too, but takes no Space, Enter or Escape, and it keeps
+      // the focus after a scrub, so it must not swallow them (#237).
+      if (
+        (e.target as HTMLElement | null)?.closest?.(
+          'textarea, input:not([type="range"])'
+        )
+      )
         return;
       if (e.key === 'Escape') {
         navigate('/editor');
