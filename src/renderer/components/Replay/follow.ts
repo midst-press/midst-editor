@@ -84,10 +84,21 @@ export interface Glide {
   to: number;
   frame: number;
   done: boolean;
+  el: HTMLElement;
 }
 
-/** True while a glide is still moving. */
-export const gliding = (g: Glide | null) => !!g && !g.done;
+/** True while a glide is still moving. If the page is hidden (Chromium does not run animation
+ * frames for a hidden page), the glide is finished immediately: scroll to target and stop. */
+export function gliding(g: Glide | null): boolean {
+  if (!g || g.done) return false;
+  if (document.hidden) {
+    cancelAnimationFrame(g.frame);
+    g.el.scrollTop = g.to;
+    g.done = true;
+    return false;
+  }
+  return true;
+}
 
 /**
  * Views shorter than this are not glided: a collapsed or hidden scroller reports a height near 0,
@@ -120,7 +131,7 @@ export function glideTo(
   const ms = glideMs(distance, el.clientHeight);
   let last = performance.now();
   let progress = 0;
-  const glide: Glide = { to, frame: 0, done: false };
+  const glide: Glide = { to, frame: 0, done: false, el };
   const tick = (now: number) => {
     // Advance by at most MAX_FRAME_MS per frame: after a stall (a slow phone, a busy machine) the
     // glide resumes where it was rather than jumping ahead by the time it lost.

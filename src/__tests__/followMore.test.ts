@@ -176,7 +176,8 @@ describe('ease', () => {
 });
 
 describe('gliding', () => {
-  const glide = (done: boolean): Glide => ({ to: 0, frame: 0, done });
+  const el = { scrollTop: 0 } as unknown as HTMLElement;
+  const glide = (done: boolean): Glide => ({ to: 0, frame: 0, done, el });
 
   it('is false for no glide', () => {
     expect(gliding(null)).toBe(false);
@@ -185,6 +186,27 @@ describe('gliding', () => {
   it('is true for a glide in flight and false once done', () => {
     expect(gliding(glide(false))).toBe(true);
     expect(gliding(glide(true))).toBe(false);
+  });
+
+  it('finishes a hidden glide: scrolls to target, stops the frame', () => {
+    const spy = jest.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    const raf = jest
+      .spyOn(globalThis, 'cancelAnimationFrame')
+      .mockImplementation(() => {});
+    const g = glide(false);
+    g.to = 42;
+    expect(gliding(g)).toBe(false);
+    expect(g.done).toBe(true);
+    expect(g.el.scrollTop).toBe(42);
+    expect(raf).toHaveBeenCalledWith(0);
+    spy.mockRestore();
+    raf.mockRestore();
+  });
+
+  it('a visible glide after a stall still counts as gliding', () => {
+    const spy = jest.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    expect(gliding(glide(false))).toBe(true);
+    spy.mockRestore();
   });
 });
 
