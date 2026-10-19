@@ -1,4 +1,9 @@
 import { useCurrentEditor } from '@tiptap/react';
+// Types only, erased from the build. toggleBold and toggleItalic are added to ChainedCommands by the bold and
+// italic extensions' `declare module '@tiptap/core'`, which StarterKit's types load. The extensions themselves
+// come in through vendor/midst-format, which this file does not import, so without this line a compile of this
+// file alone (ts-jest on a cold cache) does not see them (#231).
+import type {} from '@tiptap/starter-kit';
 import FormatBoldIcon from '@mui/icons-material/FormatBoldOutlined';
 import FormatItalicIcon from '@mui/icons-material/FormatItalicOutlined';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
