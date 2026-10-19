@@ -25,12 +25,12 @@ import { i18n } from '../../../shared/i18n';
 export const nothingToChange = () => i18n._('restart.nothingToChange');
 export const noHistory = () => i18n._('restart.noHistory');
 export const unreplayable = () => i18n._('restart.unreplayable');
-// Fixed messages: logged and shown, and never quote the poem.
+export const failedMessage = () => i18n._('restart.failed');
+// Fixed log messages, which never quote the poem.
 export const MISMATCH_LOG = 'the history does not replay to the current text';
 export const NO_DIFFERENCE_LOG =
   'the chosen frame and the current text have no difference';
 export const FAILED_LOG = 'restart from here failed';
-export const failedMessage = () => i18n._('restart.failed');
 
 const schema = getSchema(poemExtensions);
 // Parsed as the editor parses its content: by the browser's own DOM parser, whitespace preserved.
