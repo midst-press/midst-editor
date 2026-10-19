@@ -235,12 +235,6 @@
         "lines": 100,
         "statements": 100
       },
-      "./src/renderer/spellcheck/checkWholePoem.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
       "./src/renderer/search/FindBar.tsx": {
         "branches": 100,
         "functions": 100,
@@ -248,6 +242,12 @@
         "statements": 100
       },
       "./src/renderer/search/FindNotHere.tsx": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
+      "./src/renderer/spellcheck/checkWholePoem.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
