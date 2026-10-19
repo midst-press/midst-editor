@@ -114,6 +114,45 @@ describe('the command', () => {
     expect(lines.join('\n')).toMatch(/poems with fewer tabs converted\s+1/);
   });
 
+  // The archive is .midst.zip: one .midst inside, macOS `._` entries skipped.
+  const zipOf = (zipName, entries) => {
+    const src = fs.mkdtempSync(path.join(os.tmpdir(), 'tab-census-src-'));
+    try {
+      entries.forEach(([name, data]) =>
+        fs.writeFileSync(path.join(src, name), data)
+      );
+      const r = spawnSync(
+        'zip',
+        ['-q', '-j', path.join(dir, zipName), ...entries.map(([n]) => n)],
+        { cwd: src, encoding: 'utf8' }
+      );
+      if (r.status !== 0) throw new Error(`zip failed: ${r.stderr}`);
+    } finally {
+      fs.rmSync(src, { recursive: true, force: true });
+    }
+  };
+
+  it('reads a .midst.zip, skipping a ._ entry beside the poem', () => {
+    zipOf('a.midst.zip', [
+      ['a.midst', oldFile(STYLED + PLAIN)],
+      ['._a.midst', 'not a poem'],
+    ]);
+    const r = run();
+    expect(r.status).toBe(0);
+    expect(r.out).toContain('P1  raw 5 (styled 1, plain 4)  converted 5\n');
+  });
+
+  it('counts a .midst.zip holding two poems as a failed file', () => {
+    zipOf('a.midst.zip', [
+      ['a.midst', oldFile(PLAIN)],
+      ['b.midst', oldFile(PLAIN)],
+    ]);
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('file 1: Error');
+    expect(r.out).toMatch(/files read and converted\s+0/);
+  });
+
   it('counts a file that cannot be read by error class, and exits 1', () => {
     fs.writeFileSync(path.join(dir, 'a.midst'), '{not json');
     const r = run();

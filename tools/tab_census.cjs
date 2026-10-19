@@ -3,7 +3,7 @@
 // Read-only census of tabs, to confirm they survive conversion (GitHub #17; Stuart, 16 Oct: tabs show as tabs).
 // For a directory of .midst or .midst.zip files, counts the tabs in the text of each file's raw final old-format
 // frame and in its conversion (vendor/midst-format/convert). A tab is a literal U+0009 or any character reference
-// for it (&#9;, &#x9;, &Tab;), counted after the HTML is parsed, in text inside a <p>. The raw tabs are split by
+// for it (&#9;, &#x9;, &Tab;), counted after the HTML is parsed as a browser parses it (jsdom), in text inside a <p>. The raw tabs are split by
 // whether the nearest inline `white-space` around them is pre, pre-wrap, pre-line or break-spaces, which is
 // how #17 counted 601 styled and 77 unstyled.
 //
@@ -18,13 +18,23 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { parse, NodeType } = require('node-html-parser');
+const { JSDOM } = require('jsdom');
 
 const PRESERVING = /^(pre|pre-wrap|pre-line|break-spaces)$/;
+const TEXT_NODE = 3;
+const ELEMENT_NODE = 1;
+
+// HTML parsed as a browser parses it into an element, as the old editor's contenteditable did.
+const { document } = new JSDOM('<!doctype html><body></body>').window;
+function parseHtml(html) {
+  const root = document.createElement('div');
+  root.innerHTML = html;
+  return root;
+}
 
 // The `white-space` value an element's inline style sets, or null when it sets none.
 function inlineWhiteSpace(element) {
-  const style = (element.getAttribute && element.getAttribute('style')) || '';
+  const style = element.getAttribute('style') || '';
   const m = /(?:^|;)\s*white-space\s*:\s*([a-z-]+)/i.exec(style);
   return m ? m[1].toLowerCase() : null;
 }
@@ -33,20 +43,19 @@ function inlineWhiteSpace(element) {
 function countTabs(html) {
   const counts = { styled: 0, plain: 0 };
   const walk = (node, inP, ws) => {
-    if (node.nodeType === NodeType.TEXT_NODE) {
+    if (node.nodeType === TEXT_NODE) {
       if (!inP) return;
-      const n = (node.text.match(/\t/g) || []).length;
+      const n = (node.data.match(/\t/g) || []).length;
       if (PRESERVING.test(ws || '')) counts.styled += n;
       else counts.plain += n;
       return;
     }
-    const tag = (node.rawTagName || '').toLowerCase();
-    const own =
-      node.nodeType === NodeType.ELEMENT_NODE ? inlineWhiteSpace(node) : null;
-    for (const child of node.childNodes)
-      walk(child, inP || tag === 'p', own || ws);
+    if (node.nodeType !== ELEMENT_NODE) return;
+    const isP = node.tagName === 'P';
+    const own = inlineWhiteSpace(node);
+    for (const child of node.childNodes) walk(child, inP || isP, own || ws);
   };
-  walk(parse(html), false, null);
+  for (const child of parseHtml(html).childNodes) walk(child, false, null);
   return counts;
 }
 
