@@ -75,13 +75,10 @@ export function redrawFromState(view: EditorView): void {
   const { state } = view;
   const bookmark = state.selection.getBookmark();
   const { content } = state.doc;
-  const empty = state.schema.topNodeType.createAndFill();
-  if (!empty) return;
   const quiet = (tr: Transaction) =>
     tr.setMeta(HISTORY_KEY, false).setMeta(UPDATE_KEY, true);
-  view.dispatch(
-    quiet(state.tr.replaceWith(0, state.doc.content.size, empty.content))
-  );
+  // Deleting everything leaves the empty paragraph the schema requires.
+  view.dispatch(quiet(state.tr.delete(0, state.doc.content.size)));
   const back = view.state.tr.replaceWith(
     0,
     view.state.doc.content.size,
