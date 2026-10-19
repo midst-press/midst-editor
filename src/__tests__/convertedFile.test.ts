@@ -2,7 +2,11 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { convertedFilename, writeConvertedFile } from '../main/convertedFile';
+import {
+  convertedFilename,
+  existingConvertedCopy,
+  writeConvertedFile,
+} from '../main/convertedFile';
 
 // Synthetic contents only. The files are named .midst because the names are what is under test; they
 // live in a temporary directory and are removed after each test.
@@ -62,5 +66,81 @@ describe('writing a converted file', () => {
     const missing = path.join(dir, 'no-such-folder', 'poem.midst');
     expect(() => writeConvertedFile(missing, 'new')).toThrow(/ENOENT/);
     expect(fs.readdirSync(dir)).toEqual([]);
+  });
+});
+
+describe('finding an earlier converted copy (#7)', () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'converted-copy-'));
+  });
+  afterEach(() => {
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const at = (name: string) => path.join(dir, name);
+  const write = (name: string, secondsAgo: number) => {
+    fs.writeFileSync(at(name), 'zq');
+    const t = Date.now() / 1000 - secondsAgo;
+    fs.utimesSync(at(name), t, t);
+  };
+  const old = () => at('poem.midst');
+
+  it('finds none when nothing has been converted', () => {
+    write('poem.midst', 0);
+    expect(existingConvertedCopy(old())).toBeUndefined();
+  });
+
+  it('finds <name>-converted.midst', () => {
+    write('poem-converted.midst', 10);
+    expect(existingConvertedCopy(old())).toBe(at('poem-converted.midst'));
+  });
+
+  it('offers the copy changed most recently, not the first or the highest numbered', () => {
+    write('poem-converted.midst', 10);
+    write('poem-converted-2.midst', 300);
+    write('poem-converted-3.midst', 200);
+    expect(existingConvertedCopy(old())).toBe(at('poem-converted.midst'));
+  });
+
+  it('finds a copy across a gap in the numbering', () => {
+    write('poem-converted-3.midst', 10);
+    expect(existingConvertedCopy(old())).toBe(at('poem-converted-3.midst'));
+  });
+
+  it('breaks a tie in time by the later copy', () => {
+    write('poem-converted.midst', 50);
+    write('poem-converted-2.midst', 50);
+    expect(existingConvertedCopy(old())).toBe(at('poem-converted-2.midst'));
+  });
+
+  it('is not fooled by names that only look like a copy', () => {
+    write('poem-converted-x.midst', 0);
+    write('poem-converted-1.midst', 0);
+    write('poem-converted-02.midst', 0);
+    write('poem-converted.midst.bak', 0);
+    write('mypoem-converted.midst', 0);
+    write('poem-converted.txt', 0);
+    fs.mkdirSync(at('poem-converted-4.midst'));
+    expect(existingConvertedCopy(old())).toBeUndefined();
+  });
+
+  it('reads a name with characters a pattern would treat specially as plain text', () => {
+    write('a.b (1)+[x]-converted.midst', 0);
+    write('aXb (1)+[x]-converted.midst', 0);
+    expect(existingConvertedCopy(at('a.b (1)+[x].midst'))).toBe(
+      at('a.b (1)+[x]-converted.midst')
+    );
+  });
+
+  it('does not count a symbolic link with the name', () => {
+    write('elsewhere.txt', 0);
+    fs.symlinkSync(at('elsewhere.txt'), at('poem-converted.midst'));
+    expect(existingConvertedCopy(old())).toBeUndefined();
+  });
+
+  it('throws when the folder cannot be listed', () => {
+    expect(() =>
+      existingConvertedCopy(path.join(dir, 'no-such-folder', 'poem.midst'))
+    ).toThrow(/ENOENT/);
   });
 });
