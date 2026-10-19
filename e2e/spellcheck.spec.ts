@@ -81,3 +81,90 @@ test('a fresh start still shows the opening screen, not the editor', async () =>
     await app.close();
   }
 });
+
+// Red underline pixels in the editor, read in the main process from the window itself. Spelling marks are
+// drawn by Chromium below the DOM, so nothing in the page can see them. The thresholds are Silas's, calibrated
+// on #238: 0 before any typing, every misspelled word marked after.
+const redPixels = async (
+  app: Awaited<ReturnType<typeof launch>>['app'],
+  win: Awaited<
+    ReturnType<Awaited<ReturnType<typeof launch>>['app']['firstWindow']>
+  >
+) => {
+  const box = await win.locator('.ProseMirror').boundingBox();
+  if (!box) throw new Error('the editor has no box');
+  return app.evaluate(
+    async ({ BrowserWindow }, rect) => {
+      const image =
+        await BrowserWindow.getAllWindows()[0].webContents.capturePage(rect);
+      const bgra = image.toBitmap();
+      let n = 0;
+      for (let i = 0; i < bgra.length; i += 4) {
+        const [b, g, r] = [bgra[i], bgra[i + 1], bgra[i + 2]];
+        if (r > 180 && r - g > 60 && r - b > 60) n += 1;
+      }
+      return n;
+    },
+    {
+      x: Math.floor(box.x),
+      y: Math.floor(box.y),
+      width: Math.ceil(box.width),
+      height: Math.ceil(box.height),
+    }
+  );
+};
+
+test('switching spellcheck on marks the misspelled words before anything is typed, and changes nothing (#238)', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-spellcheck-marks-'));
+  const poemPath = join(work, 'marks.midst');
+  writeFileSync(poemPath, makeMidst('Thsi wrod isz badd', 0).file);
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the poem');
+    const editor = win.locator('.ProseMirror');
+    await expect(editor).toBeVisible({ timeout: 25_000 });
+    // CONTROL: with spellcheck off nothing is red, so red below is the marks.
+    await win.waitForTimeout(1_000);
+    expect(await redPixels(app, win)).toBe(0);
+
+    await toggleSpellcheck(app);
+    expect(
+      await waitUntil(() => readStore(userData).spellcheck === 'true', 10_000),
+      'the spellcheck setting never changed'
+    ).toBe(true);
+    await expect(win.locator('.ProseMirror')).toHaveAttribute(
+      'spellcheck',
+      'true',
+      {
+        timeout: 25_000,
+      }
+    );
+    const stored = readStore(userData);
+
+    await expect
+      .poll(() => redPixels(app, win), {
+        message: 'no word was marked before typing',
+        timeout: 5_000,
+      })
+      .toBeGreaterThan(0);
+
+    // The edit that made Chromium look is in neither the poem nor its history, nor does an undo bring it back.
+    await expect(win.locator('.ProseMirror')).toHaveText('Thsi wrod isz badd');
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].webContents.undo()
+    );
+    await win.waitForTimeout(1_000);
+    await expect(win.locator('.ProseMirror')).toHaveText('Thsi wrod isz badd');
+    const after = readStore(userData);
+    expect([after.poem, after.history, after.edited]).toEqual([
+      stored.poem,
+      stored.history,
+      stored.edited,
+    ]);
+  } finally {
+    await app.close();
+  }
+});

@@ -10,6 +10,7 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
@@ -237,6 +238,14 @@ export default function Editor() {
     },
     []
   );
+  // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
+  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
+  useEffect(() => {
+    if (!myEditor || !spellcheckOn) return undefined;
+    return checkWholePoemSoon(myEditor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+  }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
