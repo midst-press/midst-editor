@@ -82,6 +82,26 @@ test('a fresh start still shows the opening screen, not the editor', async () =>
   }
 });
 
+// The poem's own text drawn transparent, so a count sees only what Chromium draws for it, the spelling marks.
+// On GitHub's Ubuntu runner 49 pixels in the box counted as red with spellcheck off; the text is the only thing
+// drawn there, and its antialiasing is the likely source. Toggling spellcheck reloads the window, so this is
+// applied again after it.
+const hideText = async (
+  win: Awaited<
+    ReturnType<Awaited<ReturnType<typeof launch>>['app']['firstWindow']>
+  >
+) => {
+  await win.addStyleTag({
+    content:
+      '.ProseMirror, .ProseMirror * { color: transparent !important; caret-color: transparent !important; }',
+  });
+  // CONTROL: the style reached the poem.
+  await expect(win.locator('.ProseMirror')).toHaveCSS(
+    'color',
+    'rgba(0, 0, 0, 0)'
+  );
+};
+
 // Red underline pixels in the editor, read in the main process from the window itself. Spelling marks are
 // drawn by Chromium below the DOM, so nothing in the page can see them. The thresholds are Silas's, calibrated
 // on #238: 0 before any typing, every misspelled word marked after.
@@ -127,6 +147,7 @@ test('switching spellcheck on marks the misspelled words before anything is type
     const editor = win.locator('.ProseMirror');
     await expect(editor).toBeVisible({ timeout: 25_000 });
     // CONTROL: with spellcheck off nothing is red, so red below is the marks.
+    await hideText(win);
     await win.waitForTimeout(1_000);
     expect(await redPixels(app, win)).toBe(0);
 
@@ -144,6 +165,7 @@ test('switching spellcheck on marks the misspelled words before anything is type
     );
     const stored = readStore(userData);
 
+    await hideText(win);
     await expect
       .poll(() => redPixels(app, win), {
         message: 'no word was marked before typing',
