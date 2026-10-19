@@ -36,7 +36,8 @@ import {
 import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
-import FindNotHere, { FIND_IN_REPLAY } from '../../search/FindNotHere';
+import FindNotHere, { findInReplay } from '../../search/FindNotHere';
+import { i18n } from '../../../shared/i18n';
 
 export default function Replay() {
   const navigate = useNavigate();
@@ -200,13 +201,13 @@ export default function Replay() {
     <div style={{ backgroundColor: cssVar('background') }}>
       <div className="TopButtons">
         <Tooltip
-          title="Increase text size"
+          title={i18n._('textSize.increase')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
         >
           <button
-            aria-label="Increase text size"
+            aria-label={i18n._('textSize.increase')}
             type="button"
             onClick={fontSize.increase}
             disabled={!fontSize.canIncrease}
@@ -216,13 +217,13 @@ export default function Replay() {
           </button>
         </Tooltip>
         <Tooltip
-          title="Decrease text size"
+          title={i18n._('textSize.decrease')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
         >
           <button
-            aria-label="Decrease text size"
+            aria-label={i18n._('textSize.decrease')}
             type="button"
             disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
@@ -234,15 +235,15 @@ export default function Replay() {
         <Tooltip
           title={
             autoscroll.on
-              ? 'Following the writing as it replays. Click to stop scrolling.'
-              : 'Not following the writing: the page stays where you put it. Click to follow.'
+              ? i18n._('replay.follow.on')
+              : i18n._('replay.follow.off')
           }
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
         >
           <button
-            aria-label="Follow the writing"
+            aria-label={i18n._('replay.follow')}
             aria-pressed={autoscroll.on}
             type="button"
             className="icon-button size-icon"
@@ -318,7 +319,7 @@ export default function Replay() {
             }
           />
           <Tooltip
-            title={draftReason ?? 'Mark this moment as a draft'}
+            title={draftReason ?? i18n._('drafts.mark')}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
@@ -327,7 +328,7 @@ export default function Replay() {
           >
             <span>
               <button
-                aria-label="Mark this moment as a draft"
+                aria-label={i18n._('drafts.mark')}
                 aria-describedby={
                   draftReason ? 'replay-draft-reason' : undefined
                 }
@@ -358,7 +359,7 @@ export default function Replay() {
           </Tooltip>
           <RestartFromButton step={step} pause={pause} />
           <Tooltip
-            title="Drafts"
+            title={i18n._('drafts.title')}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
@@ -366,7 +367,7 @@ export default function Replay() {
             classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
           >
             <button
-              aria-label="Drafts"
+              aria-label={i18n._('drafts.title')}
               type="button"
               className="control-bar-icon"
               style={{ color: cssVar('onControlBar') }}
@@ -376,7 +377,7 @@ export default function Replay() {
             </button>
           </Tooltip>
           <Tooltip
-            title="Edit"
+            title={i18n._('replay.edit')}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
@@ -385,7 +386,7 @@ export default function Replay() {
           >
             <Link to="/editor">
               <button
-                aria-label="Edit"
+                aria-label={i18n._('replay.edit')}
                 type="button"
                 className="control-bar-icon"
                 style={{
@@ -419,7 +420,7 @@ export default function Replay() {
         showLabels={showLabels}
         setShowLabels={setShowLabels}
       />
-      <FindNotHere message={FIND_IN_REPLAY(window.electron.versions.isMac)} />
+      <FindNotHere message={findInReplay(window.electron.versions.isMac)} />
     </div>
   );
 }

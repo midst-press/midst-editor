@@ -15,21 +15,22 @@ import {
 import { cssVar } from '../../cssVars';
 import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
 import RestartIcon from './restartIcon';
+import { i18n } from '../../../shared/i18n';
 
 // Restart from an arbitrary point (GitHub #18). The poet picks a frame while replaying and presses this;
 // one change is APPENDED to the history so the current text becomes that frame's text. See
 // tracking/restartFrom.ts for the data layer.
 
-export const NOTHING_TO_CHANGE = 'This is already the current text';
-export const NO_HISTORY = 'There is no history to restart from';
-export const UNREPLAYABLE = 'This frame cannot be restarted from';
+// What the poet is told, read from the catalog when it is shown.
+export const nothingToChange = () => i18n._('restart.nothingToChange');
+export const noHistory = () => i18n._('restart.noHistory');
+export const unreplayable = () => i18n._('restart.unreplayable');
 // Fixed messages: logged and shown, and never quote the poem.
 export const MISMATCH_LOG = 'the history does not replay to the current text';
 export const NO_DIFFERENCE_LOG =
   'the chosen frame and the current text have no difference';
 export const FAILED_LOG = 'restart from here failed';
-export const SHOWN_MESSAGE =
-  'Could not restart from here. Nothing was changed.';
+export const failedMessage = () => i18n._('restart.failed');
 
 const schema = getSchema(poemExtensions);
 // Parsed as the editor parses its content: by the browser's own DOM parser, whitespace preserved.
@@ -45,14 +46,14 @@ class RefusedRestart extends Error {}
 type Availability = { reason: string | null; error: unknown };
 
 function availability(history: ChangeObj[], step: number): Availability {
-  if (history.length === 0) return { reason: NO_HISTORY, error: null };
+  if (history.length === 0) return { reason: noHistory(), error: null };
   try {
     return {
-      reason: wouldChange(history, step) ? null : NOTHING_TO_CHANGE,
+      reason: wouldChange(history, step) ? null : nothingToChange(),
       error: null,
     };
   } catch (error) {
-    return { reason: UNREPLAYABLE, error };
+    return { reason: unreplayable(), error };
   }
 }
 
@@ -117,7 +118,7 @@ export default function RestartFromButton({
   return (
     <>
       <Tooltip
-        title={reason ?? 'Restart from here'}
+        title={reason ?? i18n._('restart.button')}
         TransitionComponent={Zoom}
         enterDelay={1000}
         arrow
@@ -126,7 +127,7 @@ export default function RestartFromButton({
       >
         <span>
           <button
-            aria-label="Restart from here"
+            aria-label={i18n._('restart.button')}
             aria-describedby={reason ? 'replay-restart-reason' : undefined}
             type="button"
             className="control-bar-icon"
@@ -148,7 +149,7 @@ export default function RestartFromButton({
       </Tooltip>
       {failed && (
         <span role="alert" style={{ color: cssVar('errorLight') }}>
-          {SHOWN_MESSAGE}
+          {failedMessage()}
         </span>
       )}
     </>

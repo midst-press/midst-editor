@@ -22,6 +22,7 @@ import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import { rememberCursor, restoreCursor } from './cursorReturn';
+import { i18n } from '../../../shared/i18n';
 
 const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
@@ -267,7 +268,7 @@ export default function Editor() {
 
       <div className="Spacer">
         <Tooltip
-          title={draftReason ?? 'Mark this moment as a draft'}
+          title={draftReason ?? i18n._('drafts.mark')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -275,7 +276,7 @@ export default function Editor() {
         >
           <span>
             <button
-              aria-label="Mark this moment as a draft"
+              aria-label={i18n._('drafts.mark')}
               aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
@@ -294,7 +295,7 @@ export default function Editor() {
           </span>
         </Tooltip>
         <Tooltip
-          title="Replay"
+          title={i18n._('editor.replay')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -303,7 +304,11 @@ export default function Editor() {
           {/* Saves first, as the menu's toggle-edit-mode does. Leaving the editor cancels a pending
               autosave, so without this the keystrokes of the last second are not in the file. */}
           <Link to="/replay" onClick={() => saveFileAndUpdateStore()}>
-            <button aria-label="Replay" type="button" className="icon-button">
+            <button
+              aria-label={i18n._('editor.replay')}
+              type="button"
+              className="icon-button"
+            >
               <HistoryIcon fontSize="small" />
             </button>
           </Link>

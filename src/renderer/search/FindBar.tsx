@@ -7,16 +7,17 @@ import { KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import findInText, { Match } from './findInText';
 import { withHighlights } from './searchHighlight';
 import './FindBar.css';
+import { i18n } from '../../shared/i18n';
 
 // The find bar (GitHub #27): Edit > Find opens it, it searches the poem as it stands now, and it
 // selects each match in the poem in turn. Earlier frames are not searched.
 
 export const FIND_BAR_CLASS = 'find-bar';
-export const NO_MATCHES = 'No matches';
-export const TYPE_FIRST = 'Type the words to find first.';
-export const NOT_READY = 'The poem is still opening. Try again in a moment.';
-export const SEARCH_FAILED =
-  'The search did not work. The details are in the log.';
+// What the poet is told, read from the catalog when it is shown.
+export const noMatches = () => i18n._('find.noMatches');
+export const typeFirst = () => i18n._('find.typeFirst');
+export const notReady = () => i18n._('find.notReady');
+export const searchFailed = () => i18n._('find.failed');
 // Logged when a search throws. Fixed, so the log never holds the poet's words.
 export const SEARCH_FAILED_LOG = 'search in the poem failed';
 export const CLEAR_FAILED_LOG = 'clearing the search marks failed';
@@ -58,7 +59,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
     (text: string, keep = 0, select = true) => {
       if (!editor) {
         setFound(NOTHING);
-        setProblem(text ? NOT_READY : null);
+        setProblem(text ? notReady() : null);
         return;
       }
       try {
@@ -85,7 +86,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
           });
         }
         setFound(NOTHING);
-        setProblem(SEARCH_FAILED);
+        setProblem(searchFailed());
       }
     },
     [editor, show]
@@ -155,8 +156,8 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
   // When the search could not run, the alert says why; "No matches" would be untrue.
   let status = '';
   if (problem) status = '';
-  else if (query && total === 0) status = NO_MATCHES;
-  else if (total) status = `${found.current + 1} of ${total}`;
+  else if (query && total === 0) status = noMatches();
+  else if (total) status = i18n._('find.position', { current: found.current + 1, total });
 
   // Why the arrows are unavailable: nothing typed yet, or the status ("No matches").
   const describedBy = query ? 'find-bar-status' : 'find-bar-reason';
@@ -166,8 +167,8 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
       <input
         ref={input}
         type="text"
-        aria-label="Find in the poem"
-        placeholder="Find in the poem"
+        aria-label={i18n._('find.field')}
+        placeholder={i18n._('find.field')}
         value={query}
         spellCheck={false}
         onChange={(event) => {
@@ -181,13 +182,13 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
       </span>
       {!query && (
         <span id="find-bar-reason" hidden>
-          {TYPE_FIRST}
+          {typeFirst()}
         </span>
       )}
       <button
         type="button"
         className="icon-button"
-        aria-label="Previous match"
+        aria-label={i18n._('find.previous')}
         aria-describedby={describedBy}
         disabled={total === 0}
         onClick={() => step(-1)}
@@ -197,7 +198,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
       <button
         type="button"
         className="icon-button"
-        aria-label="Next match"
+        aria-label={i18n._('find.next')}
         aria-describedby={describedBy}
         disabled={total === 0}
         onClick={() => step(1)}
@@ -207,7 +208,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
       <button
         type="button"
         className="icon-button"
-        aria-label="Close find"
+        aria-label={i18n._('find.close')}
         onClick={close}
       >
         <CloseIcon fontSize="small" />

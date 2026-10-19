@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import './FindBar.css';
+import { i18n } from '../../shared/i18n';
 
 // Edit > Find is in the menu on every screen, but only the writing window has a find bar. A screen
 // without one renders this with its own words, so the shortcut says why instead of doing nothing.
 
-export const FIND_IN_REPLAY = (isMac: boolean) =>
-  `Find works while you are writing. Press Edit, or ${
-    isMac ? 'Command+T' : 'Ctrl+T'
-  }, to go back to the poem.`;
-export const FIND_BEFORE_OPEN = 'Find works once a poem is open.';
+// The shortcut is the menu's accelerator, written as Electron writes it, so it stays as it is in every language.
+export const findInReplay = (isMac: boolean) =>
+  i18n._('find.inReplay', { shortcut: isMac ? 'Command+T' : 'Ctrl+T' });
+export const findBeforeOpen = () => i18n._('find.beforeOpen');
 // How long the message stays, in milliseconds.
 export const SHOWN_FOR = 8000;
 
