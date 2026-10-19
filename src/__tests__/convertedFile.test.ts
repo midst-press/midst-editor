@@ -67,6 +67,19 @@ describe('writing a converted file', () => {
     expect(() => writeConvertedFile(missing, 'new')).toThrow(/ENOENT/);
     expect(fs.readdirSync(dir)).toEqual([]);
   });
+
+  // #210: when every name it may use is taken, it says so and writes over none of them.
+  it('throws when all 1000 names are taken, and every one is left as it was', () => {
+    const names = Array.from({ length: 1000 }, (_, i) =>
+      path.basename(convertedFilename('poem.midst', i + 1))
+    );
+    names.forEach((name) => fs.writeFileSync(path.join(dir, name), name));
+    expect(() =>
+      writeConvertedFile(path.join(dir, 'poem.midst'), 'new')
+    ).toThrow('No free name for the converted file after 1000 attempts');
+    expect(fs.readdirSync(dir).sort()).toEqual([...names].sort());
+    names.forEach((name) => expect(read(name)).toBe(name));
+  });
 });
 
 describe('finding an earlier converted copy (#7)', () => {
