@@ -2,7 +2,14 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import childProcess from 'child_process';
+import log from 'electron-log';
 import replaceFile from '../main/replaceFile';
+
+jest.mock('electron-log', () => ({
+  __esModule: true,
+  default: { warn: jest.fn(), error: jest.fn(), info: jest.fn() },
+}));
 
 // Synthetic contents only: invented words, never a poem.
 
@@ -149,9 +156,12 @@ describe('replaceFile (#95)', () => {
       p: fs.PathLike,
       flags: fs.OpenMode
     ) => {
-      tried.push(String(p));
-      // A crashed run's leftover holds the first name this save tries.
-      if (tried.length === 1) fs.writeFileSync(String(p), 'recovered work');
+      // A name is tried by opening it 'wx'. On macOS the save then reopens its own reserved file (#182).
+      if (flags === 'wx') {
+        tried.push(String(p));
+        // A crashed run's leftover holds the first name this save tries.
+        if (tried.length === 1) fs.writeFileSync(String(p), 'recovered work');
+      }
       return realOpen(p, flags);
     }) as never);
     replaceFile(target, 'zq xv');
@@ -294,5 +304,99 @@ describe('replaceFile (#95)', () => {
       .mockImplementation((() => 'xv.midst') as never);
     expect(() => replaceFile(link, 'zq')).toThrow('ELOOP');
     expect(listing()).toEqual(['xv.midst']);
+  });
+});
+
+// #182: on macOS a save keeps the poem's extended attributes (Finder tags, Finder comment) and creation date.
+// These use real files and the real `xattr` and `cp`, so they run on macOS only (CI's runner is macOS).
+const onMac = process.platform === 'darwin' ? describe : describe.skip;
+const xattr = (...args: string[]) =>
+  childProcess
+    .execFileSync('/usr/bin/xattr', args, { encoding: 'utf8' })
+    .trim();
+const CREATED = new Date('2020-01-02T03:04:05Z');
+// A poem with a user attribute and a 2020 creation date. Setting a modification time earlier than the creation
+// date moves the creation date back (macOS).
+const oldPoem = () => {
+  const target = path.join(dir, 'zq.midst');
+  fs.writeFileSync(target, 'zq old');
+  xattr('-w', 'user.zq', 'xv', target);
+  fs.utimesSync(target, new Date(), CREATED);
+  fs.utimesSync(target, new Date(), new Date());
+  expect(fs.statSync(target).birthtime.getTime()).toBe(CREATED.getTime());
+  return target;
+};
+
+onMac('replaceFile keeps the file metadata (#182, macOS)', () => {
+  it('keeps the extended attributes and the creation date, and writes the new poem', () => {
+    const target = oldPoem();
+    replaceFile(target, 'zq new');
+    expect(read(target)).toBe('zq new');
+    expect(xattr('-p', 'user.zq', target)).toBe('xv');
+    expect(fs.statSync(target).birthtime.getTime()).toBe(CREATED.getTime());
+    expect(listing()).toEqual(['zq.midst']);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('a write that fails after the clone leaves the old poem and its attributes as they were', () => {
+    const target = oldPoem();
+    failPartway();
+    expect(() => replaceFile(target, 'zq new')).toThrow('ENOSPC');
+    expect(read(target)).toBe('zq old');
+    expect(xattr('-p', 'user.zq', target)).toBe('xv');
+    expect(fs.statSync(target).birthtime.getTime()).toBe(CREATED.getTime());
+    expect(listing()).toEqual(['zq.midst']);
+  });
+
+  it('when the clone cannot be made, the poem is still saved, keeps its creation date, and the log says so', () => {
+    const target = oldPoem();
+    const cp = jest
+      .spyOn(childProcess, 'execFileSync')
+      .mockImplementationOnce((() => {
+        const err = new Error('cp failed');
+        (err as NodeJS.ErrnoException & { status: number }).status = 1;
+        throw err;
+      }) as never);
+    replaceFile(target, 'zq new');
+    expect(cp).toHaveBeenCalledWith(
+      '/bin/cp',
+      ['-c', fs.realpathSync(target), expect.stringMatching(PARTIAL)],
+      expect.anything()
+    );
+    expect(read(target)).toBe('zq new');
+    expect(fs.statSync(target).birthtime.getTime()).toBe(CREATED.getTime());
+    expect(log.warn).toHaveBeenCalledWith(
+      "save: the poem's Finder tags and comments could not be kept",
+      {
+        reason: 'cp exited 1',
+      }
+    );
+    expect(listing()).toEqual(['zq.midst']);
+  });
+
+  it('a new poem is written without a clone', () => {
+    const cp = jest.spyOn(childProcess, 'execFileSync');
+    const target = path.join(dir, 'zq.midst');
+    replaceFile(target, 'zq new');
+    expect(read(target)).toBe('zq new');
+    expect(cp).not.toHaveBeenCalled();
+  });
+});
+
+describe('replaceFile off macOS (#182)', () => {
+  it('saves as before, with no clone', () => {
+    const platform = Object.getOwnPropertyDescriptor(process, 'platform')!;
+    Object.defineProperty(process, 'platform', { value: 'linux' });
+    try {
+      const cp = jest.spyOn(childProcess, 'execFileSync');
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'zq old');
+      replaceFile(target, 'zq new');
+      expect(read(target)).toBe('zq new');
+      expect(cp).not.toHaveBeenCalled();
+      expect(listing()).toEqual(['zq.midst']);
+    } finally {
+      Object.defineProperty(process, 'platform', platform);
+    }
   });
 });
