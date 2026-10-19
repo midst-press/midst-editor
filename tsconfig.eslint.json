@@ -21,6 +21,7 @@
     "assets/**/*",
     ".erb/**/*",
     ".eslintrc.js",
+    "lingui.config.js",
     // Not present on every branch; an include pattern that matches nothing is harmless, and this
     // means the e2e suite is linted properly when it lands rather than hitting the same parse error.
     "e2e/**/*",
