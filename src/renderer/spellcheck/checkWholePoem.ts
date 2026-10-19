@@ -32,7 +32,7 @@ export const MISMATCH_LOG =
   'spellcheck: the editor changed while its spelling was being checked';
 
 // What the poet does that has to wait for the check to finish.
-const INPUT_EVENTS = [
+const INPUT_EVENTS: (keyof HTMLElementEventMap)[] = [
   'keydown',
   'beforeinput',
   'compositionstart',

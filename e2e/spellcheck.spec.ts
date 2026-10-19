@@ -144,12 +144,12 @@ test('switching spellcheck on marks the misspelled words before anything is type
     );
     const stored = readStore(userData);
 
-    let red = 0;
-    for (let i = 0; i < 20 && red === 0; i += 1) {
-      await win.waitForTimeout(250);
-      red = await redPixels(app, win);
-    }
-    expect(red, 'no word was marked before typing').toBeGreaterThan(0);
+    await expect
+      .poll(() => redPixels(app, win), {
+        message: 'no word was marked before typing',
+        timeout: 5_000,
+      })
+      .toBeGreaterThan(0);
 
     // The edit that made Chromium look is in neither the poem nor its history, nor does an undo bring it back.
     await expect(win.locator('.ProseMirror')).toHaveText('Thsi wrod isz badd');
