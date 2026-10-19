@@ -1,4 +1,4 @@
-# 0.5.1
+# 0.6.0
 
 - **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you
   are offline. It opens as usual.
