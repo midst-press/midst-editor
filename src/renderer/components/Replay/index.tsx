@@ -1,6 +1,13 @@
 import './Replay.css';
 import { useState, useEffect, useRef, useContext, useCallback } from 'react';
 import { reconstructHTML, ChangeObj } from '@midst-press/midst-format/history';
+import {
+  scrollParent,
+  targetScrollTop,
+  glideTo,
+  Glide,
+  gliding,
+} from '@midst-press/midst-format/follow';
 import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
@@ -26,13 +33,6 @@ import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import {
-  scrollParent,
-  targetScrollTop,
-  glideTo,
-  Glide,
-  gliding,
-} from './follow';
 import useAutoscroll from './useAutoscroll';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';

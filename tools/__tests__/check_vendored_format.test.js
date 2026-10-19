@@ -10,7 +10,11 @@ const path = require('path');
 
 const SCRIPT = path.join(__dirname, '..', 'check-vendored-format.mjs');
 const VENDOR = path.join(__dirname, '..', '..', 'vendor', 'midst-format');
-const VENDORED_FILES = 13; // 3 entry points x (cjs, mjs, d.ts, package.json) + the top-level package.json
+const VENDORED_FILES = 21; // 5 entry points x (cjs, mjs, d.ts, package.json) + the top-level package.json
+// The tag the committed VENDOR.md names, so a version bump does not have to edit this test.
+const TAG = /- Tag: `([^`]+)`/.exec(
+  fs.readFileSync(path.join(VENDOR, 'VENDOR.md'), 'utf8')
+)[1];
 
 let tmp;
 let dir;
@@ -136,7 +140,7 @@ describe('--rebuild', () => {
       '-m',
       'x'
     );
-    git(repo, 'tag', 'v0.2.0');
+    git(repo, 'tag', TAG);
     const via = (args, env) => check(['--dir', dir, '--rebuild', ...args], env);
     [via([repo]), via([], { MIDST_FORMAT_ROOT: repo })].forEach((r) => {
       expect(r.status).toBe(1);
