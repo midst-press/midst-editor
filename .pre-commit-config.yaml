@@ -73,6 +73,12 @@ repos:
         entry: npx --no-install prettier --write
         files: '\.(ts|tsx|js|jsx|json|css|scss|md|ya?ml)$'
         exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/'
+      - id: catalog-compile
+        name: compile the message catalog (typecheck reads locales/<lang>/messages.ts, which is generated)
+        language: system
+        entry: npx --no-install lingui compile
+        pass_filenames: false
+        files: '\.(ts|tsx|po)$'
       - id: typecheck
         name: tsc --noEmit (the build does NOT typecheck; it sets TS_NODE_TRANSPILE_ONLY)
         language: system
