@@ -68,6 +68,56 @@ it.each([
   }
 );
 
+it.each([
+  [
+    'dialog.showErrorBox',
+    "dialog.showErrorBox('zq title', `zq ${name} failed`);",
+    [1, 2],
+  ],
+  ['setTitle', "win.setTitle('zq Midst');", [1]],
+  [
+    'setRepresentedFilename',
+    "mainWindow.setRepresentedFilename('zq Untitled');",
+    [1],
+  ],
+])(
+  'fails on words passed as arguments to %s, by position',
+  (callee, call, positions) => {
+    write('src/main/main.ts', `${call}\n`);
+    const { status, out } = check();
+    expect(status).toBe(1);
+    expect(lines(out)).toEqual(
+      positions.map(
+        (n) =>
+          `src/main/main.ts:1: ${callee} argument ${n} is written out; it belongs in the catalog.`
+      )
+    );
+  }
+);
+
+it('passes computed or catalog arguments, and the same method names off other objects', () => {
+  write(
+    'src/main/main.ts',
+    [
+      "dialog.showErrorBox(i18n._('error.title'), detail);",
+      'mainWindow.setRepresentedFilename(path.basename(filename));',
+      "logger.showErrorBox('zq not a dialog');",
+      "store.set('zq-key', 1);",
+    ].join('\n')
+  );
+  expect(check().status).toBe(0);
+});
+
+it('counts a dialog option object by its properties, not again as an argument', () => {
+  write(
+    'src/main/menu.ts',
+    "dialog.showMessageBoxSync(win, { message: 'zq Saved' });\n"
+  );
+  expect(lines(check().out)).toEqual([
+    'src/main/menu.ts:1: message is written out; it belongs in the catalog.',
+  ]);
+});
+
 it('reads `name` as words only inside a dialog filter', () => {
   write(
     'src/main/main.ts',

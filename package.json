@@ -16,7 +16,7 @@
     "catalog:compile": "lingui compile",
     "catalog:extract": "lingui extract",
     "catalog:check": "node tools/check-catalog.mjs",
-    "catalog:report": "lingui extract && (git diff --quiet -- locales || echo 'catalog: lingui extract changed locales/, so the catalog does not match the code (report only)') && node tools/check-catalog.mjs --report-only && node tools/check-main-strings.mjs --report-only && eslint --plugin lingui --rule 'lingui/no-unlocalized-strings: warn' --ext .ts,.tsx src/renderer",
+    "catalog:report": "lingui extract && (test -z \"$(git status --porcelain -- locales)\" || echo 'catalog: lingui extract changed locales/, so the catalog does not match the code (report only)') && node tools/check-catalog.mjs --report-only && node tools/check-main-strings.mjs --report-only && eslint --plugin lingui --rule 'lingui/no-unlocalized-strings: warn' --ext .ts,.tsx src/renderer",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never",

@@ -9,7 +9,9 @@
 //
 // A finding is a property named for words a person sees (label, sublabel, toolTip, title, message, detail,
 // buttons, checkboxLabel, buttonLabel, nameFieldLabel, and `name` inside a dialog's `filters`) whose value
-// is written out: a string, a template, or an array or conditional holding one. A catalog call such as
+// is written out: a string, a template, or an array or conditional holding one. So is an argument written
+// out to a `dialog.*` call (`dialog.showErrorBox(title, content)` takes its words positionally) or to a
+// window's setTitle or setRepresentedFilename, which macOS shows in the title bar. A catalog call such as
 // i18n._('menu.file.save') is not a finding, and neither is anything computed elsewhere.
 //
 // Scans src/main/**/*.ts except tests, or the files given. Prints file:line and the property, never the
@@ -115,6 +117,18 @@ const propertyName = (prop) =>
     ? prop.name.text
     : undefined;
 
+const WORD_SETTERS = new Set(['setTitle', 'setRepresentedFilename']);
+
+/** `dialog.<name>`, setTitle or setRepresentedFilename, for a call whose arguments are words; else undefined. */
+function positionalWordsCallee(call) {
+  const fn = call.expression;
+  if (!ts.isPropertyAccessExpression(fn)) return undefined;
+  const method = fn.name.text;
+  if (ts.isIdentifier(fn.expression) && fn.expression.text === 'dialog')
+    return `dialog.${method}`;
+  return WORD_SETTERS.has(method) ? method : undefined;
+}
+
 /** The findings in one file's source, as { line, property }. */
 export function findings(fileName, text) {
   const source = ts.createSourceFile(
@@ -124,7 +138,22 @@ export function findings(fileName, text) {
     true
   );
   const found = [];
+  const at = (node) =>
+    source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
   const visit = (node, inFilters) => {
+    const callee = ts.isCallExpression(node)
+      ? positionalWordsCallee(node)
+      : undefined;
+    if (callee) {
+      node.arguments.forEach((arg, i) => {
+        if (isWrittenWords(arg)) {
+          found.push({
+            line: at(arg),
+            property: `${callee} argument ${i + 1}`,
+          });
+        }
+      });
+    }
     if (ts.isPropertyAssignment(node)) {
       const name = propertyName(node);
       const words = WORD_PROPERTIES.has(name) || (inFilters && name === 'name');
