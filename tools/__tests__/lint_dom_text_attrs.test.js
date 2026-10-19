@@ -2,16 +2,16 @@
  * @jest-environment node
  */
 // The renderer's lint rules for words in title, aria-valuetext and aria-description on a DOM element (#234,
-// #251), run through the real eslint and .eslintrc.js on a file written into the renderer. The file has to be on
-// disk inside src/renderer: the type-aware parser refuses a file outside the lint project, and the rules apply
-// only there. The directory is in .gitignore and .eslintignore, hence --no-ignore. Invented words only.
+// #251), run through the real eslint and .eslintrc.js. The type-aware parser needs the file on disk and in a
+// tsconfig, and the rules apply only under src/renderer, so the file is written into src/renderer of a temporary
+// tree with its own tsconfig. Not this repo's src: other tests read every file there. Invented words only.
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const DIR = path.join(ROOT, 'src', 'renderer', '__lint_scratch__');
-const FILE = path.join(DIR, `dom-text-attrs-${process.pid}.tsx`);
+let tree;
 
 const WORDS = 'Words a reader sees or hears belong in the message catalog';
 
@@ -37,12 +37,25 @@ const CASES = {
 let results;
 
 beforeAll(() => {
-  fs.mkdirSync(DIR, { recursive: true });
+  // The real path: on macOS the temp dir is a symlink, and the parser compares real paths with tsconfigRootDir.
+  tree = fs.realpathSync(
+    fs.mkdtempSync(path.join(os.tmpdir(), 'lint-dom-text-'))
+  );
+  const file = path.join(tree, 'src', 'renderer', 'cases.tsx');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(
+    path.join(tree, 'tsconfig.eslint.json'),
+    JSON.stringify({
+      extends: path.join(ROOT, 'tsconfig.json'),
+      compilerOptions: { skipLibCheck: true },
+      include: ['src/**/*'],
+    })
+  );
   const body = Object.entries(CASES).map(
     ([tag, jsx]) => `  // case:${tag}\n  out.push(${jsx});`
   );
   fs.writeFileSync(
-    FILE,
+    file,
     [
       "import i18n from '../i18n';",
       '',
@@ -59,13 +72,34 @@ beforeAll(() => {
     ].join('\n')
   );
   const r = spawnSync(
-    'npx',
-    ['eslint', '--no-ignore', '-f', 'json', path.relative(ROOT, FILE)],
-    { cwd: ROOT, encoding: 'utf8' }
+    path.join(ROOT, 'node_modules', '.bin', 'eslint'),
+    [
+      '--no-eslintrc',
+      '--config',
+      path.join(ROOT, '.eslintrc.js'),
+      '--resolve-plugins-relative-to',
+      ROOT,
+      '--parser-options',
+      `tsconfigRootDir:${tree}`,
+      '-f',
+      'json',
+      'src/renderer/cases.tsx',
+    ],
+    {
+      cwd: tree,
+      encoding: 'utf8',
+      // ts-node loads the webpack config for the import resolver, and would otherwise take the temporary tree's
+      // tsconfig from the working directory.
+      env: {
+        ...process.env,
+        TS_NODE_PROJECT: path.join(ROOT, 'tsconfig.json'),
+      },
+    }
   );
-  const lines = fs.readFileSync(FILE, 'utf8').split('\n');
+  const lines = fs.readFileSync(file, 'utf8').split('\n');
   results = { status: r.status, stderr: r.stderr, byTag: {} };
   const [{ messages }] = JSON.parse(r.stdout);
+  results.fatal = messages.filter((msg) => msg.ruleId === null);
   lines.forEach((l, i) => {
     const m = l.match(/\/\/ case:(\w+)$/);
     // The case is the line after its tag; eslint lines are 1-based.
@@ -73,12 +107,13 @@ beforeAll(() => {
   });
 }, 120_000);
 
-afterAll(() => {
-  fs.rmSync(FILE, { force: true });
-  if (fs.existsSync(DIR) && fs.readdirSync(DIR).length === 0) fs.rmdirSync(DIR);
-});
+afterAll(() => fs.rmSync(tree, { recursive: true, force: true }));
 
-const rules = (tag) => results.byTag[tag].map((m) => m.ruleId);
+// Formatting is left out: the temporary tree has no prettier config, and it is not what is tested here.
+const rules = (tag) =>
+  results.byTag[tag]
+    .map((m) => m.ruleId)
+    .filter((id) => id !== 'prettier/prettier');
 const words = (tag) =>
   results.byTag[tag].filter(
     (m) => m.ruleId === 'no-restricted-syntax' && m.message.startsWith(WORDS)
@@ -86,6 +121,8 @@ const words = (tag) =>
 
 it('eslint ran and reported errors (exit 1, not a crash)', () => {
   expect(results.status).toBe(1);
+  // A parse error also exits 1, with no rule id.
+  expect(results.fatal).toEqual([]);
   expect(Object.keys(results.byTag)).toHaveLength(
     Object.keys(CASES).length + 1
   );

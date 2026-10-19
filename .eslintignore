@@ -40,6 +40,3 @@ release/app/.erb
 
 # The vendored midst-format build is byte-exact and checked by tools/check-vendored-format.mjs; not ours to lint.
 vendor/midst-format
-
-# Written and removed by tools/__tests__/lint_dom_text_attrs.test.js, which lints it with --no-ignore.
-src/renderer/__lint_scratch__
