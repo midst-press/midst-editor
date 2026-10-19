@@ -10,6 +10,7 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import checkWholePoem from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
@@ -226,13 +227,21 @@ export default function Editor() {
   // Coming back from Replay, the cursor goes where it was (GitHub #24); otherwise the editor is focused as
   // before. Leaving, by any route, remembers it.
   const created = useRef<EditorType | null>(null);
+  // Cancels the spelling check below if the editor goes before it has finished.
+  const stopSpellcheck = useRef<() => void>(() => {});
   const onCreate = ({ editor }: { editor: EditorType }) => {
     if (!restoreCursor(editor)) editor.commands.focus();
     created.current = editor;
     setMyEditor(editor);
+    // Chromium marks nothing until the text is edited (GitHub #71): have it check the poem now.
+    if (spellcheckOn)
+      stopSpellcheck.current = checkWholePoem(editor.view, (message) =>
+        window.electron.log.warn(message)
+      );
   };
   useEffect(
     () => () => {
+      stopSpellcheck.current();
       if (created.current) rememberCursor(created.current);
     },
     []
