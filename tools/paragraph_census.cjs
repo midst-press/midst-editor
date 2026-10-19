@@ -7,15 +7,16 @@
 // blocks. Each line is classed by what a browser draws for it:
 //   empty       no text and no <br>: no height in a browser
 //   whitespace  only spaces, tabs or newlines, none under a preserving white-space: collapses, no height
-//   blank       a visible blank line: a <br>, a no-break space, or whitespace under an inline white-space of
-//               pre, pre-wrap, pre-line or break-spaces (cyril-9137f1ee, review of #227)
+//   blank       a visible blank line: a <br>, a no-break space, spaces under an inline white-space of pre,
+//               pre-wrap or break-spaces, or a newline under pre-line (cyril-9137f1ee, review of #227)
 //   zeroWidth   only zero-width characters (U+FEFF, U+200B-U+200D, U+2060), perhaps with whitespace
 //   text        anything else
 // The new editor draws every paragraph, so in the conversion an empty or whitespace-only paragraph is classed
 // `blank`: a raw `empty` line that converts to a `blank` one is a line the poet never saw (silas-397300f6, review of
-// #227). `shown` is the lines a reader sees (all but empty and whitespace), and gained/lost compare it. `brs` counts
-// the <br>s inside text lines (line breaks within one paragraph) on each side. `nestedP` is lexical: a count of <p>
-// tags opened inside an open <p> in the raw source, which the parser repairs and so cannot see.
+// #227). `shown` is the lines a reader sees (all but empty and whitespace), and gained/lost compare it. `brs`
+// counts the <br>s inside text lines that something follows (line breaks within one paragraph) on each side.
+// `nestedP` is lexical: a count of <p> tags opened inside an open <p> in the raw source, which the parser repairs
+// and so cannot see.
 //
 //   node tools/paragraph_census.cjs <dir> [--log <file>]
 //
@@ -54,12 +55,21 @@ const BLOCK = new Set([
   'PRE',
 ]);
 
-const PRESERVING = /^(pre|pre-wrap|pre-line|break-spaces)$/;
-const preserving = (el) => {
+// The inline white-space an element sets, or null.
+const whiteSpaceOf = (el) => {
   const m = /(?:^|;)\s*white-space\s*:\s*([a-z-]+)/i.exec(
     el.getAttribute('style') || ''
   );
-  return Boolean(m && PRESERVING.test(m[1].toLowerCase()));
+  return m ? m[1].toLowerCase() : null;
+};
+// Whether this element's text draws a blank line by its white-space: pre, pre-wrap and break-spaces keep spaces
+// and tabs; pre-line collapses them and keeps only newlines (cyril-9137f1ee, review of #227).
+const keepsBlank = (el) => {
+  const ws = whiteSpaceOf(el);
+  if (ws === 'pre-line') return /\n/.test(el.textContent);
+  return (
+    ['pre', 'pre-wrap', 'break-spaces'].includes(ws) && el.textContent !== ''
+  );
 };
 const elementsIn = (node) =>
   node.nodeType === ELEMENT_NODE ? [node, ...node.querySelectorAll('*')] : [];
@@ -74,16 +84,33 @@ function classOf(nodes, editor) {
   if (
     elements.some((el) => el.tagName === 'BR') ||
     text.includes('\u00a0') ||
-    (text !== '' &&
-      elements.some((el) => preserving(el) && el.textContent !== ''))
+    (text !== '' && elements.some(keepsBlank))
   )
     return 'blank';
   if (editor) return 'blank'; // the new editor draws every paragraph
   return text === '' ? 'empty' : 'whitespace';
 }
 
-const brsIn = (nodes) =>
-  nodes.flatMap(elementsIn).filter((el) => el.tagName === 'BR').length;
+// A <br> draws a line break only when something follows it in its line: text that does not collapse, or another
+// <br>. A trailing <br>, which contenteditable leaves behind, draws nothing (cyril-9137f1ee, review of #227).
+const brsIn = (nodes) => {
+  const last = nodes[nodes.length - 1];
+  return nodes
+    .flatMap(elementsIn)
+    .filter((el) => el.tagName === 'BR')
+    .filter((br) => {
+      const range = br.ownerDocument.createRange();
+      range.setStartAfter(br);
+      range.setEndAfter(
+        last.nodeType === ELEMENT_NODE ? last.lastChild || last : last
+      );
+      const after = range.cloneContents();
+      return (
+        /[^ \t\n\r\f]/.test(after.textContent) ||
+        after.querySelector('br') !== null
+      );
+    }).length;
+};
 
 // { empty, whitespace, blank, zeroWidth, text, brs, nestedP, total } for one HTML string. nestedP counts <p>
 // elements that a lenient parser would keep inside another <p> (an open <p> seen before the first one closed), so a

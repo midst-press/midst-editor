@@ -62,6 +62,10 @@ describe('linesOf', () => {
       '<p><span style="white-space: pre">  </span></p>',
     ],
     ['a <br> between blocks', '<p>zq</p><br><p>xv</p>'],
+    [
+      'a newline under pre-line',
+      '<p><span style="white-space: pre-line">\n</span></p>',
+    ],
   ])('a visible blank line: %s', (_name, html) => {
     expect(linesOf(html).blank).toBe(1);
     expect(linesOf(html).empty + linesOf(html).whitespace).toBe(0);
@@ -71,6 +75,21 @@ describe('linesOf', () => {
     expect(
       linesOf('<p><span><span>\u200b</span></span></p><p> \ufeff </p><p>zq</p>')
     ).toEqual(lines({ zeroWidth: 2, text: 1 }));
+  });
+
+  it('pre-line collapses spaces and tabs, so spaces under it draw nothing', () => {
+    expect(
+      linesOf('<p><span style="white-space: pre-line"> \t </span></p>')
+    ).toEqual(lines({ whitespace: 1 }));
+  });
+
+  it.each([
+    ['a trailing <br>', '<p>zq<br></p>', 0],
+    ['a trailing <br> before collapsible space', '<p>zq<br> </p>', 0],
+    ['a <br> before text in its block', '<p><span>zq<br></span>xv</p>', 1],
+    ['a <br> before another <br>', '<p>zq<br><br></p>', 1],
+  ])('counts a <br> only when something follows it: %s', (_name, html, n) => {
+    expect(linesOf(html).brs).toBe(n);
   });
 
   it('counts the <br>s inside text lines, which are line breaks within one paragraph', () => {
