@@ -1,5 +1,5 @@
 import { BrowserWindow, app, clipboard, dialog, shell } from 'electron';
-import { buildLabel } from '../shared/buildLabel';
+import { buildLabel } from '@midst-press/midst-format/build-label';
 import installedGuideUrl from './guideLink';
 
 // The commit and its date are written into the bundle when it is built
