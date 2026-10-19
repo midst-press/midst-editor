@@ -111,9 +111,8 @@ Use a Mac, or an account on one, that has no Midst installed.
 - [ ] **The installer's windows read correctly.** While doing the step above, read each window:
 
   - no warning that the package cannot be verified or is from an unidentified developer;
-  - the installer names the package `Midst <version>`, with the version being released. That name is
-    the only place the installer shows a version; it has no separate title or version line. For the
-    version of what was installed, use **Get Info** on the app, as in the step above;
+  - the installer's window reads **Install Midst**. It shows no version anywhere; the version being
+    released is confirmed with **Get Info** on the installed app, as in the step above;
   - the destination window offers the choices you expect, and choosing **Install for me only**
     instead (run the package a second time) puts Midst in `~/Applications`.
 
