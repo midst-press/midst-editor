@@ -9,6 +9,7 @@ import Zoom from '@mui/material/Zoom';
 import { useEffect } from 'react';
 import useFontSize from '../../fontSize/useFontSize';
 import setEditorSizeClass from '../../fontSize/setEditorSizeClass';
+import { i18n } from '../../../shared/i18n';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
@@ -30,14 +31,14 @@ function MenuBar() {
   return (
     <div className="TopButtons">
       <Tooltip
-        title="Increase text size"
+        title={i18n._('textSize.increase')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
         <span>
           <button
-            aria-label="Increase text size"
+            aria-label={i18n._('textSize.increase')}
             type="button"
             onClick={fontSize.increase}
             disabled={!fontSize.canIncrease}
@@ -48,14 +49,14 @@ function MenuBar() {
         </span>
       </Tooltip>
       <Tooltip
-        title="Decrease text size"
+        title={i18n._('textSize.decrease')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
         <span>
           <button
-            aria-label="Decrease text size"
+            aria-label={i18n._('textSize.decrease')}
             type="button"
             disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
@@ -65,9 +66,14 @@ function MenuBar() {
           </button>
         </span>
       </Tooltip>
-      <Tooltip title="Bold" TransitionComponent={Zoom} enterDelay={500} arrow>
+      <Tooltip
+        title={i18n._('format.bold')}
+        TransitionComponent={Zoom}
+        enterDelay={500}
+        arrow
+      >
         <button
-          aria-label="Bold"
+          aria-label={i18n._('format.bold')}
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editor.can().chain().focus().toggleBold().run()}
@@ -78,9 +84,14 @@ function MenuBar() {
           <FormatBoldIcon fontSize="small" />
         </button>
       </Tooltip>
-      <Tooltip title="Italic" TransitionComponent={Zoom} enterDelay={500} arrow>
+      <Tooltip
+        title={i18n._('format.italic')}
+        TransitionComponent={Zoom}
+        enterDelay={500}
+        arrow
+      >
         <button
-          aria-label="Italic"
+          aria-label={i18n._('format.italic')}
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editor.can().chain().focus().toggleItalic().run()}

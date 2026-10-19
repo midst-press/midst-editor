@@ -86,6 +86,9 @@ export const createMarker = (
   const number = highestNumber(meta, list) + 1;
   if (!Number.isSafeInteger(number))
     return { ok: false, reason: 'no-draft-number-left' };
+  // Stored in the poem, so it is the poem's data, not the app's words: it stays as it is until the design
+  // decides how a stored name is shown in another language (message-catalog.md, section 9, PR 9).
+  // eslint-disable-next-line lingui/no-unlocalized-strings
   const marker: DraftMarker = { index, defaultName: `Draft ${number}` };
   return {
     ok: true,
@@ -158,6 +161,8 @@ export const shownMarkers = (
     .filter(({ index }) => index >= 0 && index < historyLength)
     .map(({ index, name, defaultName }) => ({
       index,
+      // The same as the stored default name, so with it until PR 9.
+      // eslint-disable-next-line lingui/no-unlocalized-strings
       label: text(name) ?? text(defaultName) ?? 'Draft',
     }));
 };

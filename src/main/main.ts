@@ -48,6 +48,7 @@ import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
 import { activateLocale, i18n, pickLocale } from '../shared/i18n';
+import { LOCALE_ARGUMENT } from '../shared/localeArgument';
 
 class AppUpdater {
   constructor() {
@@ -139,6 +140,8 @@ const createWindow = async () => {
         : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
+      // The renderer shows its words in the language the menus use, chosen at whenReady.
+      additionalArguments: [`${LOCALE_ARGUMENT}${i18n.locale}`],
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),

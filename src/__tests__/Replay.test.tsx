@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
-import { FIND_IN_REPLAY } from '../renderer/search/FindNotHere';
+import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 
@@ -686,7 +686,7 @@ describe('Replay: going back to the editor', () => {
   it('Edit > Find says Find works while writing, and stays in Replay (GitHub #27)', () => {
     mount();
     bridge.emit('find-in-poem');
-    expect(screen.getByRole('alert')).toHaveTextContent(FIND_IN_REPLAY(true));
+    expect(screen.getByRole('alert')).toHaveTextContent(findInReplay(true));
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 

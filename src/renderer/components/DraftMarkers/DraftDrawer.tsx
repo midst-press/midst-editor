@@ -6,6 +6,7 @@ import Switch from '@mui/material/Switch';
 import { useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
 import RefusalAlert from './RefusalAlert';
+import { i18n } from '../../../shared/i18n';
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {
@@ -63,8 +64,8 @@ export default function DraftDrawer({
 
   return (
     <Drawer anchor="right" open={open} onClose={onClose}>
-      <div className="DraftDrawer" aria-label="Drafts">
-        <h2>Drafts</h2>
+      <div className="DraftDrawer" aria-label={i18n._('drafts.title')}>
+        <h2>{i18n._('drafts.title')}</h2>
         <RefusalAlert message={refusal} />
         <FormControlLabel
           control={
@@ -74,7 +75,7 @@ export default function DraftDrawer({
               onChange={(e) => setShowMarkers(e.target.checked)}
             />
           }
-          label="Show markers on the timeline"
+          label={i18n._('drafts.showMarkers')}
         />
         <FormControlLabel
           control={
@@ -84,15 +85,15 @@ export default function DraftDrawer({
               onChange={(e) => setShowLabels(e.target.checked)}
             />
           }
-          label="Show their names"
+          label={i18n._('drafts.showNames')}
         />
-        {markers.length === 0 ? <p>No drafts marked yet.</p> : null}
+        {markers.length === 0 ? <p>{i18n._('drafts.none')}</p> : null}
         <ul>
           {[...markers].reverse().map((marker) => (
             <li key={marker.index}>
               {naming === marker.index ? (
                 <input
-                  aria-label="Draft name"
+                  aria-label={i18n._('drafts.nameField')}
                   // The poet has just asked to name this draft.
                   // eslint-disable-next-line jsx-a11y/no-autofocus
                   autoFocus
@@ -117,7 +118,7 @@ export default function DraftDrawer({
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Rename draft"
+                aria-label={i18n._('drafts.rename')}
                 onClick={() => setNaming(marker.index)}
               >
                 <EditIcon fontSize="small" />
@@ -125,7 +126,7 @@ export default function DraftDrawer({
               <button
                 type="button"
                 className="icon-button"
-                aria-label="Delete draft"
+                aria-label={i18n._('drafts.delete')}
                 // Keeps the name field from saving a name for the draft being deleted.
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
