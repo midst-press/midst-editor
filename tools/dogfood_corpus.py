@@ -118,7 +118,10 @@ def manifest(converted: str, work: str) -> None:
                    ["structure"], ["opens", "text"]),
         "C-merge": (lambda d: "</p><p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p><p>", "", 1)),
                     ["structure"], ["opens", "text"]),
-        "C-history": (lambda d: len(d["history"]) >= 2, mutate_history, ["history", "storeHistory"], ["opens"]),
+        # historyReachable green: with the history walk blind, "history" reads False whatever the oracle would
+        # say, so a red history is only the oracle's verdict when the walk reached it (#192).
+        "C-history": (lambda d: len(d["history"]) >= 2, mutate_history, ["history", "storeHistory"],
+                      ["opens", "historyReachable"]),
         # Self-judged (feed == expected): an element the schema does not keep. text and struct cannot
         # see it, because the expectation loses it the same way; html must (silas-397300f6).
         "C-unsupported": (lambda d: "</p>" in d["text"], lambda d: dict(d, text=d["text"].replace("</p>", "<u>.</u></p>", 1)),
@@ -259,8 +262,9 @@ def summary(work: str) -> int:
     by_id = {c["id"]: c for c in manifest_cases}
     counts = {i: sum(1 for r in rows if r.get("id") == i) for i in ids}
     absent = [i for i, n in counts.items() if n != 1]
-    keys = ["opens", "text", "raw", "html", "structure", "history", "storeHistory", "unchangedAfterSettle", "unchangedAfterClose"]
-    short = ["open", "text", "raw", "html", "struct", "hist", "store", "settle", "close"]
+    keys = ["opens", "text", "raw", "html", "structure", "historyReachable", "history", "storeHistory", "unchangedAfterSettle",
+            "unchangedAfterClose"]
+    short = ["open", "text", "raw", "html", "struct", "reach", "hist", "store", "settle", "close"]
     print(f"{'id':13} {'frames':>7}  " + " ".join(f"{s:>6}" for s in short) + "   verdict")
     good = 0
     for r in rows:
