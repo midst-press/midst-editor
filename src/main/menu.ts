@@ -20,7 +20,7 @@ import {
 import store from './store';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
-import { writeConvertedFile } from './convertedFile';
+import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
 import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
 import { flushEditor } from './editorFlush';
@@ -464,18 +464,58 @@ export const openPath = (
         });
       }
     } else {
-      log.info('open: version not recognised; offering to convert', {
-        filePath,
-      });
-      const response = dialog.showMessageBoxSync(mainWindow, {
-        type: 'warning',
-        message: `Version not recognized. If this file is from an
+      // An old file converted before has a converted copy beside it, holding the poet's work since. Offer
+      // that copy first, and converting again as the other choice: they may want the original timelapse
+      // back, or a newer editor may convert it better (Stuart, #7). A folder that cannot be searched is
+      // logged, and the poet gets the plain offer to convert.
+      let copy: string | undefined;
+      try {
+        copy = existingConvertedCopy(filePath);
+      } catch (lookErr) {
+        log.warn('open: could not look for an earlier converted copy', {
+          filePath,
+          ...describeError(lookErr),
+        });
+      }
+      let response: number;
+      if (copy) {
+        log.info('open: version not recognised; a converted copy exists', {
+          filePath,
+          copy,
+        });
+        response = dialog.showMessageBoxSync(mainWindow, {
+          type: 'warning',
+          message:
+            'This file is from an older version of Midst, and it was converted before.',
+          detail: `The converted copy is ${path.basename(
+            copy
+          )}. Open it to carry on where you left off, or convert the original again into a new copy.`,
+          buttons: ['Cancel', 'Convert Again', 'Open Converted Copy'],
+          defaultId: 2,
+          cancelId: 0,
+        });
+        if (response === 2) {
+          log.info('open: opening the earlier converted copy', {
+            filePath,
+            copy,
+          });
+          openPath(mainWindow, darwin, copy);
+          return;
+        }
+      } else {
+        log.info('open: version not recognised; offering to convert', {
+          filePath,
+        });
+        response = dialog.showMessageBoxSync(mainWindow, {
+          type: 'warning',
+          message: `Version not recognized. If this file is from an
            older version of Midst, it may be possible to convert it.
            This will create a new file. Would you like to proceed?`,
-        buttons: ['Cancel', 'Convert File'],
-        defaultId: 1,
-        cancelId: 0,
-      });
+          buttons: ['Cancel', 'Convert File'],
+          defaultId: 1,
+          cancelId: 0,
+        });
+      }
       if (response === 1) {
         // Each stage can throw. Nothing caught them, so a failed conversion vanished inside this
         // callback and the poet was told nothing (#160).
@@ -838,7 +878,7 @@ export default class MenuBuilder {
             this.reloadItem('Reload', 'Command+R'),
             fullScreen,
             this.devToolsItem('Toggle Developer Tools', 'Alt+Command+I'),
-            ...this.textSizeItems('Command+=', 'Command+-'),
+            ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             MenuBuilder.appearanceItem(),
           ]
         : [

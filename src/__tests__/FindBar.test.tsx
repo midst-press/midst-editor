@@ -435,11 +435,17 @@ describe('FindBar: when it cannot search', () => {
     });
     type('qvz');
     expect(screen.getByRole('alert')).toHaveTextContent(SEARCH_FAILED);
+    // Logged once, by the error's name: the clear worked, so it logs nothing (#160).
+    expect(bridge.errors).toEqual([
+      { message: SEARCH_FAILED_LOG, meta: { error: 'TypeError' } },
+    ]);
     // No marks left over from the earlier search while the bar says it failed.
     expect(highlights(editor)).toHaveLength(0);
     type('q');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(status()).toHaveTextContent('1 of 3');
+    // The search that worked logs nothing more.
+    expect(bridge.errors).toHaveLength(1);
   });
 
   it('FB-X-4 a destroyed editor is searched but not touched', () => {

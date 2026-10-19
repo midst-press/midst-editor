@@ -60,6 +60,11 @@ jobs:
           pre-commit run --all-files --show-diff-on-failure
       - name: vendored midst-format matches its VENDOR.md hashes
         run: node tools/check-vendored-format.mjs
+      # The message catalog (midst-infra docs/design/message-catalog.md): does it match the code, is it
+      # consistent, and how many words are still written into the code. Report only for now: each migration
+      # PR makes the part it migrates enforcing.
+      - name: message catalog (report only)
+        run: npm run catalog:report
       # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/, so the hashes are not
       # the only check: they can be edited in the same commit as the files. midst-format is public on Gitea, so
       # the clone needs no key (the "private" premise was wrong; checked anonymously 19 Oct).

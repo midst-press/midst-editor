@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 // Where the conversion of an old-format file is written: beside the original, as
 // "<name>-converted.midst". If that name is taken, "<name>-converted-2.midst", then -3, and so on.
@@ -33,4 +34,37 @@ export const writeConvertedFile = (oldFilename: string, contents: string) => {
   throw new Error(
     `No free name for the converted file after ${MAX_ATTEMPTS} attempts`
   );
+};
+
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// The converted copy a poet most likely means when they open `oldFilename` again: of the files beside it
+// named as convertedFilename names them ("<name>-converted.midst", "<name>-converted-2.midst", ...), the one
+// changed most recently, which holds their latest work (#7). Found by listing the folder, so a gap in the
+// numbering (a deleted -converted.midst beside a -converted-2.midst) does not hide a copy. Undefined when
+// there is none. Only regular files count: a symbolic link with the name is not a copy this app wrote, just
+// as writeConvertedFile will not write through one. A folder that cannot be listed is thrown as it is, for the
+// caller to log.
+export const existingConvertedCopy = (oldFilename: string) => {
+  const folder = path.dirname(oldFilename);
+  const stem = path
+    .basename(convertedFilename(oldFilename))
+    .slice(0, -'-converted.midst'.length);
+  const named = new RegExp(
+    `^${escapeRegExp(stem)}-converted(?:-([2-9]|[1-9][0-9]+))?\\.midst$`
+  );
+  const copies = fs.readdirSync(folder).flatMap((name) => {
+    const match = named.exec(name);
+    if (!match) return [];
+    const file = path.join(folder, name);
+    const stat = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (!stat?.isFile()) return [];
+    const attempt = match[1] === undefined ? 1 : Number(match[1]);
+    return [{ file, mtimeMs: stat.mtimeMs, attempt }];
+  });
+  // Equal times (two copies written within a clock tick) go to the later copy, so the answer never rests on
+  // the order the folder happens to list.
+  copies.sort((a, b) => b.mtimeMs - a.mtimeMs || b.attempt - a.attempt);
+  return copies[0]?.file;
 };
