@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { dialogsSeen, launch, openDocument } from './harness';
+import { clickMenuItem, dialogsSeen, launch, openDocument } from './harness';
 
 // #113. Type, choose File > Save, type again, and then, within the second, leave the poem: open another
 // file, or close the window. The typing after Save must be kept in the file, or the poet asked before it
@@ -37,9 +37,7 @@ const leaveAfterSave = async (leave: Leave) => {
     await pm.click();
     await win.keyboard.press('End');
     await win.keyboard.type('QQA');
-    await app.evaluate(async ({ Menu }) => {
-      await Menu.getApplicationMenu()?.getMenuItemById('save')?.click();
-    });
+    await clickMenuItem(app, 'menu.file.save');
     await win.keyboard.type('QQB');
     expect(await pm.innerText()).toContain('QQB');
     const before = (await dialogsSeen(app)).length;
