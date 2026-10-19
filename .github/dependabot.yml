@@ -4,6 +4,11 @@ updates:
     directory: '/'
     schedule: { interval: monthly }
     open-pull-requests-limit: 3
+    # Lingui stays on 5.x until the move to 6 (midst-infra #110: 6 is ESM-only; Stuart, 19 Oct). The
+    # package.json range already says ">=5.9.5 <6"; this keeps dependabot from proposing 6 regardless.
+    ignore:
+      - dependency-name: '@lingui/*'
+        update-types: ['version-update:semver-major']
     groups:
       # One reviewable PR per group rather than thirty separate ones.
       all-dev:

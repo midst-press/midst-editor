@@ -12,6 +12,7 @@ import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
 import buildIdentity from '../scripts/build-identity';
+import { CatalogFreshnessPlugin } from '../../tools/catalog-freshness.cjs';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -47,6 +48,8 @@ const configuration: webpack.Configuration = {
   },
 
   plugins: [
+    // Refuse to bundle a missing or out-of-date compiled catalog (tools/catalog-freshness.cjs).
+    new CatalogFreshnessPlugin(webpackPaths.rootPath),
     new BundleAnalyzerPlugin({
       analyzerMode: process.env.ANALYZE === 'true' ? 'server' : 'disabled',
       analyzerPort: 8888,
