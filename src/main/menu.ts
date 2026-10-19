@@ -838,7 +838,7 @@ export default class MenuBuilder {
             this.reloadItem('Reload', 'Command+R'),
             fullScreen,
             this.devToolsItem('Toggle Developer Tools', 'Alt+Command+I'),
-            ...this.textSizeItems('Command+=', 'Command+-'),
+            ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             MenuBuilder.appearanceItem(),
           ]
         : [
