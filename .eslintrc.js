@@ -66,6 +66,8 @@ module.exports = {
               'editor.on',
               'editor.off',
               '*.classList.*',
+              // an editing command's name
+              '*.execCommand',
               'PluginKey',
               'Error',
               'RestartFromError',
