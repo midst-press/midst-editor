@@ -265,23 +265,24 @@ describe('converting an old file', () => {
     const pos = (content: string, lineNumber: string) =>
       convert([{ content, lineNumber }]).history[0].pos;
 
-    it('counts one for the document, one per line, and each character', () => {
-      expect(pos('<p>zq</p>', '0')).toBe(4);
-      expect(pos('<p></p>', '0')).toBe(2);
+    // midst-format v0.4.0: pos is a ProseMirror position, the end of the recorded line's block (format #36).
+    it('is the end of the line, in ProseMirror positions', () => {
+      expect(pos('<p>zq</p>', '0')).toBe(3);
+      expect(pos('<p><br></p>', '0')).toBe(1);
     });
 
-    it('counts only the lines up to the one being written', () => {
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(4);
+    it('is the end of the line being written, past the lines before it', () => {
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(3);
       expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '1')).toBe(7);
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(10);
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(11);
     });
 
-    it('counts a line break inside a line as two', () => {
-      expect(pos('<p>zq<br>xv</p>', '0')).toBe(8);
+    it('counts a line break inside a line as one position', () => {
+      expect(pos('<p>zq<br>xv</p>', '0')).toBe(6);
     });
 
     it('counts formatted text by its characters, not its tags', () => {
-      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(5);
+      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(4);
     });
   });
 });
@@ -388,9 +389,10 @@ describe('a selection marker left in an old file', () => {
     expect(steps[steps.length - 1]).toBe(c.text);
   });
 
-  it('keeps a line the poet left blank', () => {
+  // <p><br></p> is a blank line the poet saw; <p></p> drew nothing in the old player (#169, midst-format v0.4.0).
+  it('keeps a line the poet left blank, and drops an empty paragraph that showed nothing', () => {
     const c = convert([`${RANGY}<p>zq</p><p><br></p><p></p><p>xv</p>`]);
-    expect(paragraphs(c.text)).toEqual(['zq', '', '', 'xv']);
+    expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
   });
 
   it('keeps the paragraph and its text when the marker sits inside it, and drops the marker', () => {

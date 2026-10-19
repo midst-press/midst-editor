@@ -109,19 +109,21 @@ describe('censusOf, with the real converter', () => {
     expect(c.converted).toEqual(c.raw);
   });
 
-  it('a marker wrapped in a marker keeps its line, as an empty paragraph', () => {
+  // Since midst-format v0.4.0 (#169) the paragraph the removed marker leaves empty is dropped too.
+  it('a marker wrapped in a marker leaves no line in the conversion', () => {
     const c = censusOf(
       oldFile('<p>zq</p><p><span><span>\u200b</span></span></p><p>xv</p>'),
       convertMidstFile
     );
     expect(c.raw).toEqual(lines({ zeroWidth: 1, text: 2 }));
-    expect(c.converted).toEqual(lines({ blank: 1, text: 2 }));
+    expect(c.converted).toEqual(lines({ text: 2 }));
   });
 
-  it('a raw empty paragraph, which showed nothing, becomes a line the new editor shows', () => {
+  // #169, fixed in midst-format v0.4.0: before it, this paragraph became a line the new editor showed.
+  it('a raw empty paragraph, which showed nothing, shows nothing in the conversion either', () => {
     const c = censusOf(oldFile('<p>zq</p><p></p><p>xv</p>'), convertMidstFile);
     expect(c.raw).toEqual(lines({ text: 2, empty: 1 }));
-    expect(c.converted.shown).toBe(c.raw.shown + 1);
+    expect(c.converted.shown).toBe(c.raw.shown);
   });
 
   it('a nested <p> is seen: the browser showed two lines of text, and the conversion has one', () => {

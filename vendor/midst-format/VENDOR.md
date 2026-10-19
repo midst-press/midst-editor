@@ -1,7 +1,7 @@
 # Vendored: midst-format
 
-- Tag: `v0.3.0`
-- Commit: `32892cd3f0de8c44072d22a7d701d8e621bb210f`
+- Tag: `v0.4.0`
+- Commit: `8b65218d583e7b7b879905b7d0957deff051391d`
 - Repository: `The_Kindled/midst-format` on Gitea, `midst-press/midst-format` on GitHub
 
 SHA-256 of every vendored file except this one, sorted by path. `tools/check-vendored-format.mjs` parses this block.
@@ -11,9 +11,9 @@ SHA-256 of every vendored file except this one, sorted by path. `tools/check-ven
 7df5e095329285c986b837889189cbdeba197730553093bd9238e2ecfe04c7be  build-label/index.d.ts
 79934e32a53e347e835042cab9581445ddfb3ee0779c317b7a97786729acb9e4  build-label/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  build-label/package.json
-29041fcf8db18d62fe361487279f003db986195b30671b92ff05e1c795a6c78f  convert/index.cjs
-8ae6e76b8931aba19a10d8a835d1ef59c3c0e05329fd4e3c665283c7b0b486aa  convert/index.d.ts
-68327dea1229e24a72c85005aa6707fd2e4c6ffa6ce49e56b932ad52da1b7680  convert/index.mjs
+b99afbc11f6caccee4fee60d45222aaa800650ad7435e64a494a751ef88e57a4  convert/index.cjs
+7955c9c1061d047466306cf08d0c4b15da0019781a483cde5d78905e85fad82b  convert/index.d.ts
+f20e7b19001b87dc81f4bb1e14abeac838d43348a9385d66f99bc60890d4a58b  convert/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  convert/package.json
 a4b2c6e3207deb957505c20fd155033345f84d825eb78d1bb33e4cd33878c2ab  extensions/index.cjs
 422b5012243c7d85592ffb2c65c83bd45b7ec6d3cf812c1a58aee21e7adb2671  extensions/index.d.ts
@@ -27,7 +27,7 @@ ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  follow/package
 14fd1e9c7334e83157fc1fe0cbb1dacf99b76a8ab8619ce4af78558dca952e33  history/index.d.ts
 f8d34584761b047a462220a4b156b3db1866454ef3fc2d880042deba43316ba1  history/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  history/package.json
-ad9712c446fd80567f3328559e44dcfcfa8e31446be61e870353a47c2ea660a2  package.json
+c79f9c313e0f2be8ab1cf878c8504d38059be4f42bd5dd658ce429fcfebb8746  package.json
 ```
 
 Do not edit these files. To take a new version, rebuild the tag and replace this directory in its own PR: `node tools/check-vendored-format.mjs --rebuild <midst-format checkout>` rebuilds the tag named above and compares it with this directory.

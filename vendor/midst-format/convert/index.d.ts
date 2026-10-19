@@ -5,6 +5,7 @@ export declare const fileVersionMatchesCurrent: (data: string) => boolean;
 export declare const dropTrailingBreaks: (html: string) => string;
 export declare const ZERO_WIDTH_CHARS = "\\uFEFF\\u200B\\u200C\\u200D\\u2060";
 export declare const dropZeroWidthOnlyElements: (html: string) => string;
+export declare const dropInvisibleParagraphs: (html: string) => string;
 /**
  * Format B's per-poem presentation, as format C's `meta` (midst-format docs/META.md). Each field
  * is copied unchanged; a field B does not have is left out, so the reader's default applies.

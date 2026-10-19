@@ -1,6 +1,6 @@
 {
   "name": "@midst-press/midst-format",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "peerDependencies": {
     "@tiptap/core": "2.5.4",
