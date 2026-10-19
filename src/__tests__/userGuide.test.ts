@@ -73,15 +73,16 @@ describe('keysFor', () => {
 
 describe('the shortcut table', () => {
   const sample = (
+    id: string,
     label: string,
     accelerator?: string,
     menu = '&File'
-  ): TemplateItem[] => [{ label: menu, submenu: [{ label, accelerator }] }];
+  ): TemplateItem[] => [{ label: menu, submenu: [{ id, label, accelerator }] }];
 
   it('has one row for an item both platforms have, with each platform’s keys', () => {
     const table = shortcutTable(
-      sample('Save', 'Command+S', 'File'),
-      sample('&Save', 'Ctrl+S')
+      sample('menu.file.save', 'Save', 'Command+S', 'File'),
+      sample('menu.file.save', '&Save', 'Ctrl+S')
     );
     expect(table.split('\n')[2]).toBe(
       '| Save the poem | Command+S | Ctrl+S            | File > Save  |'
@@ -89,7 +90,10 @@ describe('the shortcut table', () => {
   });
 
   it('shows a dash, and says which platform, for an item only one has', () => {
-    const table = shortcutTable(sample('Quit', 'Command+Q', 'Midst'), []);
+    const table = shortcutTable(
+      sample('menu.app.quit', 'Quit', 'Command+Q', 'Midst'),
+      []
+    );
     expect(table.split('\n')[2]).toBe(
       '| Quit Midst | Command+Q | –                 | Midst > Quit (macOS only) |'
     );
@@ -97,8 +101,18 @@ describe('the shortcut table', () => {
 
   it('joins two labels for the same thing into one row and names both', () => {
     const table = shortcutTable(
-      sample('Show/hide spellcheck', 'Command+;', 'Edit'),
-      sample('Toggle Spellcheck', 'Ctrl+;', '&Edit')
+      sample(
+        'menu.edit.spellcheck.mac',
+        'Show/hide spellcheck',
+        'Command+;',
+        'Edit'
+      ),
+      sample(
+        'menu.edit.spellcheck.other',
+        'Toggle Spellcheck',
+        'Ctrl+;',
+        '&Edit'
+      )
     );
     expect(table.split('\n')).toHaveLength(3);
     expect(table).toContain(
@@ -121,9 +135,13 @@ describe('the shortcut table', () => {
   });
 
   it('refuses a shortcut that has no words, naming the item', () => {
-    expect(() => shortcutTable(sample('Zq', 'Command+J', 'File'), [])).toThrow(
-      'File > Zq'
-    );
+    expect(() =>
+      shortcutTable(sample('menu.zq', 'Zq', 'Command+J', 'File'), [])
+    ).toThrow('File > Zq');
+    // An id that is an Object.prototype name is not words either.
+    expect(() =>
+      shortcutTable(sample('toString', 'Zq', 'Command+J', 'File'), [])
+    ).toThrow('File > Zq');
   });
 });
 
@@ -163,14 +181,12 @@ describe('the user guide', () => {
   });
 
   it('has no words for a menu item that is no longer in the menus', () => {
-    const labels = new Set(
+    const ids = new Set(
       [...menuEntries(mac), ...menuEntries(other)]
         .filter((entry) => entry.accelerator)
-        .map((entry) => entry.label)
+        .map((entry) => entry.id)
     );
-    expect(
-      Object.keys(WHAT_IT_DOES).filter((label) => !labels.has(label))
-    ).toEqual([]);
+    expect(Object.keys(WHAT_IT_DOES).filter((id) => !ids.has(id))).toEqual([]);
   });
 
   it('names every menu item that has no shortcut', () => {
@@ -184,7 +200,7 @@ describe('the user guide', () => {
     expect(unnamed).toEqual([]);
   });
 
-  // Everything the app can show as text: the main process and the window.
+  // Everything the app can show as text: the main process, the window and the English catalog.
   const sourceText = () => {
     const files: string[] = [];
     const walk = (dir: string) =>
@@ -195,6 +211,8 @@ describe('the user guide', () => {
       });
     walk(path.join(root, 'src/main'));
     walk(path.join(root, 'src/renderer'));
+    // The words the app shows from the message catalog, which hold each one as a quoted msgstr.
+    files.push(path.join(root, 'locales/en/messages.po'));
     return (
       files
         .map((file) => fs.readFileSync(file, 'utf8'))

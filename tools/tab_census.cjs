@@ -180,4 +180,12 @@ function main(argv, convert = null) {
 
 if (require.main === module) process.exit(main(process.argv));
 
-module.exports = { countTabs, censusOf, main };
+module.exports = {
+  countTabs,
+  censusOf,
+  main,
+  parseHtml,
+  listFiles,
+  readMidst,
+  loadConverter,
+};
