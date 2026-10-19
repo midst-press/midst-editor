@@ -48,7 +48,7 @@
     ]
   },
   "jest": {
-    "globalSetup": "./tools/require-hooks.cjs",
+    "globalSetup": "./tools/jest-global-setup.cjs",
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
       "!src/**/*.d.ts",
