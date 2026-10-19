@@ -8,7 +8,8 @@
 //   node tools/check-main-strings.mjs [--root <dir>] [--report-only] [files...]
 //
 // A finding is a property named for words a person sees (label, sublabel, toolTip, title, message, detail,
-// buttons, checkboxLabel, buttonLabel, nameFieldLabel, and `name` inside a dialog's `filters`) whose value
+// buttons, checkboxLabel, buttonLabel, nameFieldLabel, reason, and `name` in a dialog file filter: an object
+// with `extensions`, or anything inside `filters`) whose value
 // is written out: a string, a template, or an array or conditional holding one. So is an argument written
 // out to a `dialog.*` call (`dialog.showErrorBox(title, content)` takes its words positionally) or to a
 // window's setTitle or setRepresentedFilename, which macOS shows in the title bar. A catalog call such as
@@ -36,6 +37,8 @@ const WORD_PROPERTIES = new Set([
   'checkboxLabel',
   'buttonLabel',
   'nameFieldLabel',
+  // A reason the poet is shown, such as why a save or an export failed.
+  'reason',
 ]);
 
 function usage(message) {
@@ -159,7 +162,12 @@ export function findings(fileName, text) {
     }
     if (ts.isPropertyAssignment(node)) {
       const name = propertyName(node);
-      const words = WORD_PROPERTIES.has(name) || (inFilters && name === 'name');
+      const isFilter =
+        ts.isObjectLiteralExpression(node.parent) &&
+        node.parent.properties.some((p) => propertyName(p) === 'extensions');
+      const words =
+        WORD_PROPERTIES.has(name) ||
+        (name === 'name' && (inFilters || isFilter));
       if (words && isWrittenWords(node.initializer)) {
         const { line } = source.getLineAndCharacterOfPosition(
           node.getStart(source)

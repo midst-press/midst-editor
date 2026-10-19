@@ -1,6 +1,7 @@
 import { generateJSON } from '@tiptap/html';
 import { JSONContent } from '@tiptap/core';
 import poemExtensions from '@midst-press/midst-format/extensions';
+import { i18n } from '../shared/i18n';
 
 // A poem's text, as it is now, written as a Rich Text Format file (GitHub #26).
 //
@@ -55,12 +56,18 @@ const joinAll = <T>(items: T[], each: (item: T) => Walk): Walk => {
 const inline = (node: JSONContent): Walk => {
   if (node.type === 'hardBreak') return { ok: true, rtf: '\\line ' };
   if (node.type !== 'text') {
-    return { ok: false, reason: `"${node.type}" inside a line` };
+    return {
+      ok: false,
+      reason: i18n._('rtf.refused.insideLine', { type: node.type }),
+    };
   }
   const words = joinAll(node.marks ?? [], (mark) =>
     MARKS[mark.type]
       ? { ok: true, rtf: MARKS[mark.type] }
-      : { ok: false, reason: `"${mark.type}" formatting` }
+      : {
+          ok: false,
+          reason: i18n._('rtf.refused.formatting', { type: mark.type }),
+        }
   );
   if (!words.ok) return words;
   const text = rtfText(node.text ?? '');
@@ -69,7 +76,10 @@ const inline = (node: JSONContent): Walk => {
 
 const paragraph = (node: JSONContent): Walk => {
   if (node.type !== 'paragraph') {
-    return { ok: false, reason: `"${node.type}"` };
+    return {
+      ok: false,
+      reason: i18n._('rtf.refused.node', { type: node.type }),
+    };
   }
   const line = joinAll(node.content ?? [], inline);
   return line.ok ? { ok: true, rtf: `${line.rtf}\\par\n` } : line;
@@ -83,14 +93,14 @@ export const docToRtf = (doc: JSONContent): RtfResult => {
   if (!hasText(doc)) {
     return {
       ok: false,
-      reason: 'The poem is empty, so there is nothing to export.',
+      reason: i18n._('rtf.empty'),
     };
   }
   const body = joinAll(doc.content ?? [], paragraph);
   if (!body.ok) {
     return {
       ok: false,
-      reason: `The poem contains ${body.reason}, which Midst cannot write to an RTF file. Nothing was exported.`,
+      reason: i18n._('rtf.cannotWrite', { what: body.reason }),
     };
   }
   return { ok: true, rtf: `${HEADER}${body.rtf}}\n` };

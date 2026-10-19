@@ -4,8 +4,10 @@
 //
 // src/__tests__/userGuide.test.ts builds both templates, makes the table and compares it with
 // the one in the guide.
+import { i18n } from '../shared/i18n';
 
 export interface TemplateItem {
+  id?: string;
   label?: string;
   accelerator?: string;
   type?: string;
@@ -13,36 +15,45 @@ export interface TemplateItem {
 }
 
 export interface MenuEntry {
+  id?: string;
   menu: string;
   label: string;
   accelerator?: string;
 }
 
-// What each menu item does, in the guide's words, by the item's label. Two labels with the same
-// words are one row of the table: the two platforms name the spellcheck item differently.
-export const WHAT_IT_DOES: Record<string, string> = {
-  New: 'Start a new poem',
-  Open: 'Open a poem',
-  Save: 'Save the poem',
-  'Save As': 'Save the poem as a new file',
-  Close: 'Close the window',
-  Undo: 'Undo',
-  Redo: 'Redo',
-  Cut: 'Cut',
-  Copy: 'Copy',
-  Paste: 'Paste',
-  'Select All': 'Select the whole poem',
-  'Toggle Timeline': 'Switch between writing and Replay',
-  Find: 'Find words in the poem',
-  'Show/hide spellcheck': 'Turn spellcheck on or off',
-  'Toggle Spellcheck': 'Turn spellcheck on or off',
-  'Toggle Full Screen': 'Fill the screen with Midst, or stop',
-  'Increase text size': 'Make the text larger',
-  'Decrease text size': 'Make the text smaller',
-  Minimize: 'Put the window away in the Dock',
-  'Hide Midst': 'Hide Midst',
-  'Hide Others': 'Hide every other app',
-  Quit: 'Quit Midst',
+// What each menu item with a shortcut does, in the guide's words, by the item's id (its catalog key,
+// menu.ts). Two items with the same words are one row of the table: the two platforms name the
+// spellcheck item differently, and Close is in Window on macOS and File elsewhere. Each is a catalog call
+// written out, so `lingui extract` sees every key.
+export const WHAT_IT_DOES: Record<string, () => string> = {
+  'menu.file.new': () => i18n._('menu.file.new.description'),
+  'menu.file.open': () => i18n._('menu.file.open.description'),
+  'menu.file.save': () => i18n._('menu.file.save.description'),
+  'menu.file.saveAs': () => i18n._('menu.file.saveAs.description'),
+  'menu.file.close': () => i18n._('menu.file.close.description'),
+  'menu.window.close': () => i18n._('menu.window.close.description'),
+  'menu.edit.undo': () => i18n._('menu.edit.undo.description'),
+  'menu.edit.redo': () => i18n._('menu.edit.redo.description'),
+  'menu.edit.cut': () => i18n._('menu.edit.cut.description'),
+  'menu.edit.copy': () => i18n._('menu.edit.copy.description'),
+  'menu.edit.paste': () => i18n._('menu.edit.paste.description'),
+  'menu.edit.selectAll': () => i18n._('menu.edit.selectAll.description'),
+  'menu.edit.toggleTimeline': () =>
+    i18n._('menu.edit.toggleTimeline.description'),
+  'menu.edit.find': () => i18n._('menu.edit.find.description'),
+  'menu.edit.spellcheck.mac': () =>
+    i18n._('menu.edit.spellcheck.mac.description'),
+  'menu.edit.spellcheck.other': () =>
+    i18n._('menu.edit.spellcheck.other.description'),
+  'menu.view.fullScreen': () => i18n._('menu.view.fullScreen.description'),
+  'menu.view.textSizeIncrease': () =>
+    i18n._('menu.view.textSizeIncrease.description'),
+  'menu.view.textSizeDecrease': () =>
+    i18n._('menu.view.textSizeDecrease.description'),
+  'menu.window.minimize': () => i18n._('menu.window.minimize.description'),
+  'menu.app.hide': () => i18n._('menu.app.hide.description'),
+  'menu.app.hideOthers': () => i18n._('menu.app.hideOthers.description'),
+  'menu.app.quit': () => i18n._('menu.app.quit.description'),
 };
 
 // Windows and Linux menus mark the letter to press with Alt as "&File". The guide shows the name.
@@ -58,6 +69,7 @@ export function menuEntries(template: TemplateItem[]): MenuEntry[] {
     items.forEach((item) => {
       if (!item.label) return;
       entries.push({
+        id: item.id,
         menu: plain(menu.label ?? ''),
         label: plain(item.label),
         accelerator: item.accelerator,
@@ -123,11 +135,15 @@ export function shortcutRows(
   const rows: Row[] = [];
   const add = (entry: MenuEntry, mac: boolean) => {
     if (!entry.accelerator) return;
-    const what = WHAT_IT_DOES[entry.label];
-    if (!what)
+    const describe =
+      entry.id && Object.prototype.hasOwnProperty.call(WHAT_IT_DOES, entry.id)
+        ? WHAT_IT_DOES[entry.id]
+        : undefined;
+    if (!describe)
       throw new Error(
         `The menu item "${entry.menu} > ${entry.label}" has a shortcut and no words in WHAT_IT_DOES (src/main/shortcutTable.ts).`
       );
+    const what = describe();
     let row = rows.find((candidate) => candidate.what === what);
     if (!row) {
       row = { what, mac: [], other: [], macWhere: [], otherWhere: [] };
@@ -147,9 +163,9 @@ const where = (row: Row) => {
   const mac = row.macWhere.join(', ');
   const other = row.otherWhere.join(', ');
   if (mac === other) return mac;
-  if (!other) return `${mac} (macOS only)`;
-  if (!mac) return `${other} (Windows and Linux only)`;
-  return `${mac} on macOS; ${other} on Windows and Linux`;
+  if (!other) return i18n._('guide.shortcuts.macOnly', { where: mac });
+  if (!mac) return i18n._('guide.shortcuts.otherOnly', { where: other });
+  return i18n._('guide.shortcuts.both', { mac, other });
 };
 
 /**
@@ -161,7 +177,12 @@ export function shortcutTable(
   otherTemplate: TemplateItem[]
 ): string {
   const cells = [
-    ['To do this', 'macOS', 'Windows and Linux', 'In the menus'],
+    [
+      i18n._('guide.shortcuts.what'),
+      i18n._('guide.shortcuts.mac'),
+      i18n._('guide.shortcuts.other'),
+      i18n._('guide.shortcuts.where'),
+    ],
     ...shortcutRows(macTemplate, otherTemplate).map((row) => [
       row.what,
       row.mac.join(', ') || '–',

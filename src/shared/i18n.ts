@@ -41,4 +41,8 @@ export function activateLocale(locale: string): string {
   return used;
 }
 
+// English from the first import, so a word looked up before the main process has chosen a language
+// (an early error dialog, a test) is English and never the bare id.
+activateLocale(SOURCE_LOCALE);
+
 export { i18n };
