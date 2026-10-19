@@ -49,7 +49,8 @@ export default function checkWholePoem(
   const doc = dom.ownerDocument;
   const text = firstText(dom);
   const selection = doc.getSelection();
-  if (!text || !selection) return () => {};
+  // Not in the document yet, there is no edit Chromium could see; with no text, nothing to check.
+  if (!dom.isConnected || !text || !selection) return () => {};
 
   const observer = (view as unknown as Observed).domObserver;
   const kept = Array.from({ length: selection.rangeCount }, (_, i) =>

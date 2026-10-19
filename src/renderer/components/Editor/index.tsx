@@ -227,25 +227,26 @@ export default function Editor() {
   // Coming back from Replay, the cursor goes where it was (GitHub #24); otherwise the editor is focused as
   // before. Leaving, by any route, remembers it.
   const created = useRef<EditorType | null>(null);
-  // Cancels the spelling check below if the editor goes before it has finished.
-  const stopSpellcheck = useRef<() => void>(() => {});
   const onCreate = ({ editor }: { editor: EditorType }) => {
     if (!restoreCursor(editor)) editor.commands.focus();
     created.current = editor;
     setMyEditor(editor);
-    // Chromium marks nothing until the text is edited (GitHub #71): have it check the poem now.
-    if (spellcheckOn)
-      stopSpellcheck.current = checkWholePoem(editor.view, (message) =>
-        window.electron.log.warn(message)
-      );
   };
   useEffect(
     () => () => {
-      stopSpellcheck.current();
       if (created.current) rememberCursor(created.current);
     },
     []
   );
+  // Chromium marks nothing until the text is edited (GitHub #71): have it check the poem as soon as the editor
+  // is in the page. Not in onCreate, where the editor's element is not yet in the document, so the edit that
+  // makes Chromium look has nowhere to happen (measured on #238). Cancelled if the editor goes first.
+  useEffect(() => {
+    if (!myEditor || !spellcheckOn) return undefined;
+    return checkWholePoem(myEditor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+  }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
