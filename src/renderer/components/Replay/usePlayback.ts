@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { gliding, Glide } from './follow';
+import { gliding, Glide } from '@midst-press/midst-format/follow';
 
 // One frame of the history every FRAME_MS while playing, held while a glide is under way.
 const FRAME_MS = 60;

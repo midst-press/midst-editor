@@ -1,4 +1,4 @@
-import { isPreRelease } from './buildLabel';
+import { isPreRelease } from '@midst-press/midst-format/build-label';
 
 // Where "Need Help?" on the opening screen sends the poet (GitHub #63, issue #105). A beta of the
 // editor goes to the beta site, a release to the public one. Decided from the app's own version

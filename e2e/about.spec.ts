@@ -7,7 +7,7 @@ import { launch } from './harness';
 // Issue #80: every platform has an About that says which build is running. This opens it from the
 // real application menu. The app under test runs from the built bundles and is not an installed
 // package, so the line it shows is the development one; the released wording is covered by the unit
-// tests of src/shared/buildLabel.ts and src/main/about.ts.
+// tests of midst-format's build-label and of src/main/about.ts.
 
 test('About Midst is in the menu, shows which build this is, and Copy copies it', async () => {
   const work = mkdtempSync(join(tmpdir(), 'midst-e2e-'));
