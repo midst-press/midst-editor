@@ -9,15 +9,20 @@
   },
   "main": "./src/main/main.ts",
   "scripts": {
+    "prebuild": "npm run catalog:compile",
     "build": "concurrently \"npm run build:main\" \"npm run build:renderer\"",
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
+    "catalog:compile": "lingui compile",
+    "catalog:extract": "lingui extract",
+    "catalog:check": "node tools/check-catalog.mjs",
+    "catalog:report": "lingui extract && (test -z \"$(git status --porcelain -- locales)\" || echo 'catalog: lingui extract changed locales/, so the catalog does not match the code (report only)') && node tools/check-catalog.mjs --report-only && node tools/check-main-strings.mjs --report-only && eslint --plugin lingui --rule 'lingui/no-unlocalized-strings: warn' --ext .ts,.tsx src/renderer",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "prepare": "node tools/install-hooks.cjs",
-    "prestart": "node tools/install-electron.cjs",
+    "prestart": "npm run catalog:compile && node tools/install-electron.cjs",
     "start": "ts-node ./.erb/scripts/check-port-in-use.js && npm run start:renderer",
     "start:main": "cross-env NODE_ENV=development electronmon -r ts-node/register/transpile-only .",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
@@ -260,6 +265,12 @@
         "functions": 100,
         "lines": 100,
         "statements": 100
+      },
+      "./src/shared/i18n.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
       }
     },
     "moduleDirectories": [
@@ -299,6 +310,7 @@
     "@emotion/react": "^11.13.0",
     "@emotion/styled": "^11.13.0",
     "@jshafto/custom-electron-titlebar-update": "^4.2.9",
+    "@lingui/core": ">=5.9.5 <6",
     "@midst-press/midst-format": "file:vendor/midst-format",
     "@mui/icons-material": "^5.16.4",
     "@mui/material": "^5.16.4",
@@ -310,7 +322,6 @@
     "electron-log": "^4.4.8",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
-    "node-html-parser": "^6.1.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.25.1"
@@ -318,6 +329,10 @@
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
     "@electron/rebuild": "^4.0.1",
+    "@lingui/cli": ">=5.9.5 <6",
+    "@lingui/conf": ">=5.9.5 <6",
+    "@lingui/format-po": ">=5.9.5 <6",
+    "@messageformat/parser": "5.2.0",
     "@playwright/test": "^1.64.0",
     "@pmmmwh/react-refresh-webpack-plugin": "^0.5.15",
     "@svgr/webpack": "^8.1.0",
@@ -356,6 +371,7 @@
     "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-jest": "^27.2.1",
     "eslint-plugin-jsx-a11y": "^6.7.1",
+    "eslint-plugin-lingui": "0.16.0",
     "eslint-plugin-prettier": "^4.2.5",
     "eslint-plugin-promise": "^6.1.1",
     "eslint-plugin-react": "^7.32.2",
@@ -368,6 +384,7 @@
     "jsdom": "^26.1.0",
     "mini-css-extract-plugin": "^2.7.6",
     "nyc": "18.0.0",
+    "pofile": "1.1.4",
     "prettier": "^2.8.8",
     "react-refresh": "^0.14.0",
     "react-refresh-typescript": "^2.0.12",

@@ -14,6 +14,7 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
+import { CatalogFreshnessPlugin } from '../../tools/catalog-freshness.cjs';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -102,6 +103,8 @@ const configuration: webpack.Configuration = {
   },
 
   plugins: [
+    // Refuse to bundle a missing or out-of-date compiled catalog (tools/catalog-freshness.cjs).
+    new CatalogFreshnessPlugin(webpackPaths.rootPath),
     /**
      * Create global constants which can be configured at compile time.
      *
