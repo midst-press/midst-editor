@@ -4,12 +4,12 @@ import { Editor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import FindBar, {
-  NO_MATCHES,
-  NOT_READY,
-  SEARCH_FAILED,
+  noMatches,
+  notReady,
+  searchFailed,
   SEARCH_FAILED_LOG,
   CLEAR_FAILED_LOG,
-  TYPE_FIRST,
+  typeFirst,
 } from '../renderer/search/FindBar';
 import findInText from '../renderer/search/findInText';
 import SearchHighlight, {
@@ -180,7 +180,7 @@ describe('FindBar: searching', () => {
     bridge.openBar();
     const before = selected(editor);
     type('zz');
-    expect(status()).toHaveTextContent(NO_MATCHES);
+    expect(status()).toHaveTextContent(noMatches());
     expect(screen.getByRole('button', { name: 'Next match' })).toBeDisabled();
     expect(
       screen.getByRole('button', { name: 'Previous match' })
@@ -252,7 +252,7 @@ describe('FindBar: moving between matches', () => {
     type('zz');
     const before = selected(editor);
     key('Enter');
-    expect(status()).toHaveTextContent(NO_MATCHES);
+    expect(status()).toHaveTextContent(noMatches());
     expect(selected(editor)).toEqual(before);
   });
 });
@@ -299,7 +299,7 @@ describe('FindBar: the poem and its history', () => {
     act(() => {
       editor.commands.setContent('<p>zz</p>', true);
     });
-    expect(status()).toHaveTextContent(NO_MATCHES);
+    expect(status()).toHaveTextContent(noMatches());
     expect(highlights(editor)).toHaveLength(0);
   });
 
@@ -360,12 +360,12 @@ describe('FindBar: why the arrows are unavailable', () => {
     bridge.openBar();
     const next = screen.getByRole('button', { name: 'Next match' });
     expect(next).toBeDisabled();
-    expect(next).toHaveAccessibleDescription(TYPE_FIRST);
+    expect(next).toHaveAccessibleDescription(typeFirst());
     type('zz');
-    expect(next).toHaveAccessibleDescription(NO_MATCHES);
+    expect(next).toHaveAccessibleDescription(noMatches());
     expect(
       screen.getByRole('button', { name: 'Previous match' })
-    ).toHaveAccessibleDescription(NO_MATCHES);
+    ).toHaveAccessibleDescription(noMatches());
   });
 });
 
@@ -375,7 +375,7 @@ describe('FindBar: when it cannot search', () => {
     bridge.openBar();
     expect(screen.queryByRole('alert')).toBeNull();
     type('qv');
-    expect(screen.getByRole('alert')).toHaveTextContent(NOT_READY);
+    expect(screen.getByRole('alert')).toHaveTextContent(notReady());
     expect(status()).toBeEmptyDOMElement();
     type('');
     expect(screen.queryByRole('alert')).toBeNull();
@@ -394,7 +394,7 @@ describe('FindBar: when it cannot search', () => {
     render(<FindBar editor={broken} />);
     bridge.openBar();
     type('qv');
-    expect(screen.getByRole('alert')).toHaveTextContent(SEARCH_FAILED);
+    expect(screen.getByRole('alert')).toHaveTextContent(searchFailed());
     expect(bridge.errors).toEqual([
       { message: SEARCH_FAILED_LOG, meta: { error: 'TypeError' } },
       // The broken editor cannot be cleared either: that is logged too, not thrown.
@@ -434,7 +434,7 @@ describe('FindBar: when it cannot search', () => {
       throw new TypeError('x');
     });
     type('qvz');
-    expect(screen.getByRole('alert')).toHaveTextContent(SEARCH_FAILED);
+    expect(screen.getByRole('alert')).toHaveTextContent(searchFailed());
     // Logged once, by the error's name: the clear worked, so it logs nothing (#160).
     expect(bridge.errors).toEqual([
       { message: SEARCH_FAILED_LOG, meta: { error: 'TypeError' } },

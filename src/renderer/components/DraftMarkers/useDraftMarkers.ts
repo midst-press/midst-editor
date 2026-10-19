@@ -12,6 +12,7 @@ import {
   changeStoredMarkers,
   readStoredMeta,
 } from 'renderer/tracking/markerStore';
+import { i18n } from '../../../shared/i18n';
 
 // The original editor showed its timeline, and so allowed a draft marker, only once a poem had more
 // than this many recorded changes.
@@ -36,21 +37,24 @@ export const refusalMessage = (
 ): string => {
   switch (reason) {
     case 'too-few-changes':
-      return `A draft can be marked once the poem has more than ${FRAMES_BEFORE_MARKERS} changes. This one has ${historyLength}.`;
+      return i18n._('drafts.refused.tooFewChanges', {
+        needed: FRAMES_BEFORE_MARKERS,
+        count: historyLength,
+      });
     case 'not-a-history-position':
-      return 'There is no moment here to mark.';
+      return i18n._('drafts.refused.noMoment');
     case 'position-has-a-marker':
-      return 'This moment already has a draft.';
+      return i18n._('drafts.refused.alreadyMarked');
     case 'no-draft-number-left':
-      return 'No more drafts can be numbered in this poem.';
+      return i18n._('drafts.refused.noNumberLeft');
     case 'no-marker-there':
-      return 'That draft is no longer there.';
+      return i18n._('drafts.refused.gone');
     case 'meta-unreadable':
     case 'markers-unreadable':
-      return 'The drafts of this poem could not be read, so nothing was changed.';
+      return i18n._('drafts.refused.unreadable');
     default:
       // It may have been kept: the change can fail after it was stored. The list shows what was.
-      return 'Something went wrong while changing this draft. The drafts list shows what was kept.';
+      return i18n._('drafts.refused.failed');
   }
 };
 
@@ -149,13 +153,13 @@ export default function useDraftMarkers(
   const reasonAt = useCallback(
     (index: number): string | null => {
       if (historyLength <= FRAMES_BEFORE_MARKERS) {
-        return `A draft can be marked once the poem has more than ${FRAMES_BEFORE_MARKERS} changes. This one has ${historyLength}.`;
+        return refusalMessage('too-few-changes', historyLength);
       }
       if (index < 0 || index >= historyLength) {
-        return 'There is no moment here to mark.';
+        return refusalMessage('not-a-history-position', historyLength);
       }
       if (markers.some((marker) => marker.index === index)) {
-        return 'This moment already has a draft.';
+        return refusalMessage('position-has-a-marker', historyLength);
       }
       return null;
     },

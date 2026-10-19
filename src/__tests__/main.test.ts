@@ -367,6 +367,17 @@ describe('main process', () => {
     );
   });
 
+  it('tells the renderer the language it chose, on its command line', async () => {
+    const { state } = await boot();
+    const { i18n } = await import('../shared/i18n');
+    const prefs = state.windows[0].options.webPreferences as {
+      additionalArguments: string[];
+    };
+    expect(prefs.additionalArguments).toEqual([
+      `--midst-locale=${i18n.locale}`,
+    ]);
+  });
+
   describe('closing the window', () => {
     const closeEvent = () => ({ preventDefault: jest.fn() });
 

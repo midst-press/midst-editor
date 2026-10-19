@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import fs from 'fs';
 import path from 'path';
+import PO from 'pofile';
 import MenuBuilder from '../main/menu';
 import {
   TABLE_END,
@@ -274,13 +275,24 @@ describe('the user guide', () => {
     expect(LEAD_INS.filter((name) => !used.includes(name))).toEqual([]);
   });
 
+  // The English of each catalog key.
+  const english = () =>
+    new Map(
+      PO.parse(
+        fs.readFileSync(path.join(root, 'locales/en/messages.po'), 'utf8')
+      ).items.map((item) => [item.msgid, item.msgstr[0]])
+    );
+
   it('names every button of the window', () => {
     const source = sourceText();
+    const words = english();
     const labels = new Set<string>();
-    const attribute = /aria-label="([^"]+)"/g;
+    // Written out, or read from the catalog by key.
+    const attribute = /aria-label=(?:"([^"]+)"|\{i18n\._\('([^']+)'\)\})/g;
     for (let m = attribute.exec(source); m; m = attribute.exec(source))
-      labels.add(m[1]);
+      labels.add(m[1] ?? (words.get(m[2]) as string));
     expect(labels.size).toBeGreaterThan(8);
+    expect(labels.has(undefined as unknown as string)).toBe(false);
     // The field a draft's name is typed in is described, not named.
     labels.delete('Draft name');
     const text = guide();
