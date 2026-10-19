@@ -94,7 +94,7 @@ describe('exposure', () => {
   });
 
   it('hands the renderer the locale the main process put on its command line', () => {
-    const argv = process.argv;
+    const { argv } = process;
     try {
       process.argv = [...argv, '--midst-locale=zq'];
       expect(loadPreload().locale).toBe('zq');
