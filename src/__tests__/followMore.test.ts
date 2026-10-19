@@ -190,7 +190,9 @@ describe('gliding', () => {
 
   it('finishes a hidden glide: scrolls to target, stops the frame', () => {
     const spy = jest.spyOn(document, 'hidden', 'get').mockReturnValue(true);
-    const raf = jest.spyOn(globalThis, 'cancelAnimationFrame').mockImplementation(() => {});
+    const raf = jest
+      .spyOn(globalThis, 'cancelAnimationFrame')
+      .mockImplementation(() => {});
     const g = glide(false);
     g.to = 42;
     expect(gliding(g)).toBe(false);

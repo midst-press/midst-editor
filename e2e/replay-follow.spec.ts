@@ -5,7 +5,13 @@ import {
   ElectronApplication,
   Page,
 } from '@playwright/test';
-import { mkdtempSync, writeFileSync, copyFileSync, existsSync, rmSync } from 'fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  copyFileSync,
+  existsSync,
+  rmSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join, dirname } from 'path';
 import { reconstructHTML } from '@midst-press/midst-format/history';
