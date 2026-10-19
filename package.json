@@ -62,10 +62,10 @@
         "statements": 100
       },
       "./src/main/convertedFile.ts": {
-        "branches": 90,
+        "branches": 100,
         "functions": 100,
-        "lines": 88,
-        "statements": 88
+        "lines": 100,
+        "statements": 100
       },
       "./src/main/fontSize.ts": {
         "branches": 100,

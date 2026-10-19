@@ -74,6 +74,34 @@ describe('replaceFile (#95)', () => {
     expect(listing()).toEqual([]);
   });
 
+  // #210: the close that follows a failed write fails too; the write's error is still the one reported.
+  it('a close that fails after a failed write still throws the write’s error, and leaves no temporary file', () => {
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, 'earlier work');
+    let writeFailed = false;
+    jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {
+      writeFailed = true;
+      const e = new Error('ENOSPC: no space left on device, write');
+      (e as NodeJS.ErrnoException).code = 'ENOSPC';
+      throw e;
+    });
+    // Only the close after the failed write fails: on macOS an earlier close comes before the write (the clone).
+    const realClose = fs.closeSync;
+    let failedClose = false;
+    jest.spyOn(fs, 'closeSync').mockImplementation((fd) => {
+      realClose(fd);
+      if (!writeFailed) return;
+      failedClose = true;
+      const e = new Error('EIO: xv') as NodeJS.ErrnoException;
+      e.code = 'EIO';
+      throw e;
+    });
+    expect(() => replaceFile(target, 'zq xv qj')).toThrow('ENOSPC');
+    expect(failedClose).toBe(true);
+    expect(read(target)).toBe('earlier work');
+    expect(listing()).toEqual(['zq.midst']);
+  });
+
   it('a rename that fails leaves the earlier file complete, and no temporary file', () => {
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, 'earlier work');
