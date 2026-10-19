@@ -1323,6 +1323,29 @@ describe('the menu', () => {
         'Command+Shift+S'
       );
     });
+
+    it('text size accelerators match between development and production macOS builds', () => {
+      // Development
+      process.env.NODE_ENV = 'development';
+      const devInc = sub(build('darwin'), 'View', 'Increase text size');
+      const devDec = sub(build('darwin'), 'View', 'Decrease text size');
+      // Production
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      const prodInc = sub(build('darwin'), 'View', 'Increase text size');
+      const prodDec = sub(build('darwin'), 'View', 'Decrease text size');
+      expect(devInc.accelerator).toBe(prodInc.accelerator);
+      expect(devDec.accelerator).toBe(prodDec.accelerator);
+      expect(devInc.accelerator).toBe('Command+Shift+=');
+      expect(devDec.accelerator).toBe('Command+Shift+-');
+    });
+
+    it('text size accelerators on Windows and Linux use Ctrl', () => {
+      const inc = sub(build('linux'), '&View', 'Increase text size');
+      const dec = sub(build('linux'), '&View', 'Decrease text size');
+      expect(inc.accelerator).toBe('Ctrl+=');
+      expect(dec.accelerator).toBe('Ctrl+-');
+    });
   });
 
   describe('buildMenu', () => {
