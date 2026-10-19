@@ -20,6 +20,7 @@ interface FakeWindow {
   show: jest.Mock;
   minimize: jest.Mock;
   destroy: jest.Mock;
+  isDestroyed: jest.Mock;
   setDocumentEdited: jest.Mock;
   setRepresentedFilename: jest.Mock;
   webContents: { send: jest.Mock; setWindowOpenHandler: jest.Mock };
@@ -29,7 +30,7 @@ interface ElectronState {
   ipc: Map<string, Handler[]>;
   appHandlers: Map<string, Handler[]>;
   windows: FakeWindow[];
-  dialogResponse: number;
+  dialogResponse: number | undefined;
   ready: Promise<void>;
   resolveReady: () => void;
   rejectReady: jest.Mock;
@@ -52,10 +53,11 @@ jest.mock('electron', () => {
     ipc: new Map<string, Handler[]>(),
     appHandlers: new Map<string, Handler[]>(),
     windows: [] as unknown[],
-    dialogResponse: 0,
+    // Unset on purpose: each test that shows a dialog must choose its answer.
+    dialogResponse: undefined as number | undefined,
     menuItems: {
-      save: { enabled: false },
-      'save-as': { enabled: false },
+      'menu.file.save': { enabled: false },
+      'menu.file.saveAs': { enabled: false },
     } as Record<string, { enabled: boolean }>,
   } as Record<string, unknown>;
   state.ready = new Promise<void>((resolve, reject) => {
@@ -78,6 +80,8 @@ jest.mock('electron', () => {
 
     destroy = jest.fn();
 
+    isDestroyed = jest.fn(() => false);
+
     setDocumentEdited = jest.fn();
 
     setRepresentedFilename = jest.fn();
@@ -97,7 +101,12 @@ jest.mock('electron', () => {
     mockState: state,
     app: {
       isPackaged: false,
+      // devUserData.ts runs on import; its behaviour is covered in devUserData.test.ts.
+      commandLine: { hasSwitch: () => true },
+      getPath: () => '/zq-appdata',
+      setPath: jest.fn(),
       getVersion: () => '9.9.9',
+      getPreferredSystemLanguages: jest.fn(() => ['en-NZ']),
       quit: jest.fn(),
       addRecentDocument: jest.fn(),
       on: (event: string, fn: Handler) =>
@@ -112,7 +121,12 @@ jest.mock('electron', () => {
     },
     BrowserWindow,
     dialog: {
-      showMessageBoxSync: jest.fn(() => state.dialogResponse),
+      showMessageBoxSync: jest.fn(() => {
+        if (state.dialogResponse === undefined) {
+          throw new Error('dialog answer not set by this test');
+        }
+        return state.dialogResponse;
+      }),
       showErrorBox: jest.fn(),
     },
     shell: { openExternal: jest.fn() },
@@ -139,8 +153,13 @@ jest.mock('electron-devtools-assembler', () => ({
   default: (...args: unknown[]) => mockInstallExtension(...args),
   REACT_DEVELOPER_TOOLS: 'react-devtools',
 }));
+// What the update check does; a test can make it reject or throw.
+const mockCheckForUpdates = jest.fn((): unknown => Promise.resolve(null));
 jest.mock('electron-updater', () => ({
-  autoUpdater: { checkForUpdatesAndNotify: jest.fn(), logger: null },
+  autoUpdater: {
+    checkForUpdatesAndNotify: jest.fn(() => mockCheckForUpdates()),
+    logger: null,
+  },
 }));
 
 jest.mock('electron-log', () => ({
@@ -163,6 +182,10 @@ jest.mock('electron-log', () => ({
 
 // The real handler registration would attach to the test runner's own process; its behaviour is
 // covered in logging.test.ts. Here only that main.ts registers it, and what it tells the poet.
+jest.mock('../main/logFile', () => ({
+  logFileForPeople: () => '~/Library/Logs/Midst/main.log',
+}));
+
 jest.mock('../main/logging', () => ({
   ...jest.requireActual('../main/logging'),
   registerUncaughtHandlers: jest.fn(),
@@ -193,6 +216,13 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  // The real one: which action failed is what the IPC tests below check is logged.
+  logIfRejected: (
+    ...args: Parameters<typeof import('../main/menu').logIfRejected>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .logIfRejected(...args),
   isDevelopment: () =>
     jest
       .requireActual<typeof import('../main/menu')>('../main/menu')
@@ -234,8 +264,13 @@ const boot = async (opts: { ready?: boolean } = {}) => {
       (state.ipc.get(channel) ?? []).map(async (fn) => fn(...args))
     );
   };
-  const fireWindow = (event: string, ...args: unknown[]) =>
-    Promise.all((win().handlers[event] ?? []).map(async (fn) => fn(...args)));
+  // Closing waits for the editor's answer (#236): let that settle before the test looks.
+  const fireWindow = async (event: string, ...args: unknown[]) => {
+    await Promise.all(
+      (win().handlers[event] ?? []).map(async (fn) => fn(...args))
+    );
+    await flush();
+  };
   const fireApp = async (event: string, ...args: unknown[]) => {
     await Promise.all(
       (state.appHandlers.get(event) ?? []).map(async (fn) => fn(...args))
@@ -328,10 +363,33 @@ describe('main process', () => {
     );
   });
 
+  it('chooses the language from the system before the window loads', async () => {
+    const { state } = await boot();
+    const electron = (await import('electron')) as unknown as {
+      app: { getPreferredSystemLanguages: jest.Mock };
+    };
+    const asked = electron.app.getPreferredSystemLanguages;
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(asked.mock.invocationCallOrder[0]).toBeLessThan(
+      (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('tells the renderer the language it chose, on its command line', async () => {
+    const { state } = await boot();
+    const { i18n } = await import('../shared/i18n');
+    const prefs = state.windows[0].options.webPreferences as {
+      additionalArguments: string[];
+    };
+    expect(prefs.additionalArguments).toEqual([
+      `--midst-locale=${i18n.locale}`,
+    ]);
+  });
+
   describe('closing the window', () => {
     const closeEvent = () => ({ preventDefault: jest.fn() });
 
-    it('lets a saved document close and clears the document from the store', async () => {
+    it('closes a saved document and clears it from the store', async () => {
       const { store, state, fireWindow } = await boot();
       store.set('edited', 'false');
       store.set('filename', '/a/zq.midst');
@@ -343,8 +401,9 @@ describe('main process', () => {
 
       await fireWindow('close', event);
 
-      expect(event.preventDefault).not.toHaveBeenCalled();
-      expect(state.windows[0].destroy).not.toHaveBeenCalled();
+      // Held for the editor's answer, then closed here (#236).
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
+      expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
       expect(
         ['filename', 'baseFilename', 'poem', 'history'].map((k) => store.get(k))
       ).toEqual([undefined, undefined, undefined, undefined]);
@@ -451,6 +510,156 @@ describe('main process', () => {
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
     });
 
+    // #236: Quit runs here at once, while the keystrokes typed just before it reach `edited` only by message.
+    describe('with the editor showing, it asks the editor first', () => {
+      const flushId = (w: { webContents: { send: jest.Mock } }) =>
+        w.webContents.send.mock.calls.find(([c]) => c === 'flush-editor')?.[1];
+
+      it('warns about keystrokes the editor reports before it answers, though edited was "false"', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'false');
+        store.set('poem', 'zq');
+        state.dialogResponse = 1;
+        const event = closeEvent();
+
+        await fireWindow('close', event);
+
+        // Held, asked, and nothing decided yet.
+        expect(event.preventDefault).toHaveBeenCalledTimes(1);
+        const id = flushId(state.windows[0]);
+        expect(typeof id).toBe('number');
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+
+        // The editor's messages, in their order: the keystrokes, then the answer.
+        store.set('edited', 'true');
+        store.set('poem', 'zq xv');
+        await fireIpc('editor-flushed', {}, [id]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq xv');
+      });
+
+      it('closes a saved poem only after the editor answers', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'false');
+        store.set('poem', 'zq');
+
+        await fireWindow('close', closeEvent());
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
+        expect(store.get('poem')).toBeUndefined();
+      });
+
+      it('a second close while the first waits asks the editor once and the poet once', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        state.dialogResponse = 1;
+        const second = closeEvent();
+
+        await fireWindow('close', closeEvent());
+        await fireWindow('close', second);
+
+        expect(second.preventDefault).toHaveBeenCalledTimes(1);
+        const asks = state.windows[0].webContents.send.mock.calls.filter(
+          ([c]) => c === 'flush-editor'
+        );
+        expect(asks).toHaveLength(1);
+        await fireIpc('editor-flushed', {}, [asks[0][1]]);
+        await flush();
+        expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+
+        // Once the poet has answered, closing again asks again.
+        await fireWindow('close', closeEvent());
+        expect(
+          state.windows[0].webContents.send.mock.calls.filter(
+            ([c]) => c === 'flush-editor'
+          )
+        ).toHaveLength(2);
+      });
+
+      it('with no answer from the editor, decides on edited as it stands, after the timeout', async () => {
+        const { store, electron, state, fireIpc, fireWindow } = await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        state.dialogResponse = 1;
+        // setImmediate stays real: the test's own settling uses it.
+        jest.useFakeTimers({ doNotFake: ['setImmediate'] });
+        try {
+          await fireWindow('close', closeEvent());
+          expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+          const { FLUSH_TIMEOUT_MS } = await import('../main/editorFlush');
+          await jest.advanceTimersByTimeAsync(FLUSH_TIMEOUT_MS);
+          expect(electron.dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+          expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        } finally {
+          jest.useRealTimers();
+        }
+      });
+
+      it('logs a check that fails, by name only, and the next close checks again', async () => {
+        const { store, electron, state, log, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        electron.dialog.showMessageBoxSync.mockImplementationOnce(() => {
+          throw new TypeError('zq secret');
+        });
+
+        await fireWindow('close', closeEvent());
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(log.error).toHaveBeenCalledWith(
+          'close: the check for unsaved changes failed',
+          expect.objectContaining({ name: 'TypeError' })
+        );
+        expect(
+          JSON.stringify((log.error as jest.Mock).mock.calls)
+        ).not.toContain('zq secret');
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        // Not stuck: closing again asks the editor again.
+        await fireWindow('close', closeEvent());
+        expect(
+          state.windows[0].webContents.send.mock.calls.filter(
+            ([c]) => c === 'flush-editor'
+          )
+        ).toHaveLength(2);
+      });
+
+      it('does nothing if the window was destroyed while it waited', async () => {
+        const { store, electron, state, fireIpc, fireWindow, flush } =
+          await boot();
+        await fireIpc('enable-save');
+        store.set('edited', 'true');
+        store.set('poem', 'zq');
+
+        await fireWindow('close', closeEvent());
+        state.windows[0].isDestroyed.mockReturnValue(true);
+        await fireIpc('editor-flushed', {}, [flushId(state.windows[0])]);
+        await flush();
+
+        expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
+        expect(state.windows[0].destroy).not.toHaveBeenCalled();
+        expect(store.get('poem')).toBe('zq');
+      });
+    });
+
     it('does not show a dialog for a window that has already closed', async () => {
       const { store, electron, fireWindow } = await boot();
       store.set('edited', 'true');
@@ -487,6 +696,24 @@ describe('main process', () => {
       }
     );
 
+    it.each([
+      ['save-file', 'save', 'autosave'],
+      ['new-file', 'newFile', 'new'],
+      ['button-open-file', 'openFile', 'open'],
+    ] as const)(
+      "when %s's action rejects, the log names it (#160)",
+      async (channel, fn, label) => {
+        const { menu, fireIpc, log } = await boot();
+        (menu[fn] as jest.Mock).mockRejectedValueOnce(new RangeError('zq'));
+        await fireIpc(channel);
+        await new Promise(process.nextTick);
+        expect(log.error).toHaveBeenCalledWith(
+          `${label}: failed`,
+          expect.objectContaining({ name: 'RangeError' })
+        );
+      }
+    );
+
     it('does nothing once the window has closed', async () => {
       const { menu, fireIpc, fireWindow } = await boot();
       await fireWindow('closed');
@@ -515,16 +742,32 @@ describe('main process', () => {
     it('enable-save enables Save and Save As', async () => {
       const { state, fireIpc } = await boot();
       await fireIpc('enable-save');
-      expect(state.menuItems.save.enabled).toBe(true);
-      expect(state.menuItems['save-as'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(true);
     });
 
     it('disable-save disables Save and Save As again', async () => {
       const { state, fireIpc } = await boot();
       await fireIpc('enable-save');
       await fireIpc('disable-save');
-      expect(state.menuItems.save.enabled).toBe(false);
-      expect(state.menuItems['save-as'].enabled).toBe(false);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
+    });
+
+    it('the menu asks the editor for the poem only while the editor is showing (#157)', async () => {
+      const { fireIpc } = await boot();
+      const { flushEditor } = await import('../main/editorFlush');
+      const send = jest.fn();
+      const win = { isDestroyed: () => false, webContents: { send } } as never;
+      await flushEditor(win);
+      expect(send).not.toHaveBeenCalled();
+      await fireIpc('enable-save');
+      flushEditor(win);
+      expect(send).toHaveBeenCalledWith('flush-editor', expect.any(Number));
+      send.mockClear();
+      await fireIpc('disable-save');
+      await flushEditor(win);
+      expect(send).not.toHaveBeenCalled();
     });
 
     it('survives a menu that is missing or has no such items', async () => {
@@ -532,19 +775,32 @@ describe('main process', () => {
       electron.app.applicationMenu = undefined;
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      electron.app.applicationMenu = {
-        getMenuItemById: jest.fn(() => null),
-      };
+      const lookups = jest.fn<null, [string]>(() => null);
+      electron.app.applicationMenu = { getMenuItemById: lookups };
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      expect(state.menuItems.save.enabled).toBe(false);
+      // The handlers did look for both items (they ran, they did not just return early).
+      expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
+        'menu.file.save',
+        'menu.file.save',
+        'menu.file.saveAs',
+        'menu.file.saveAs',
+      ]);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
+      // And a failed lookup left them working: with a real menu back, Save enables.
+      electron.app.applicationMenu = {
+        getMenuItemById: jest.fn((id: string) => state.menuItems[id]),
+      };
+      await fireIpc('enable-save');
+      expect(state.menuItems['menu.file.save'].enabled).toBe(true);
+      expect(state.menuItems['menu.file.saveAs'].enabled).toBe(true);
     });
 
     it('does nothing once the window has closed', async () => {
       const { state, fireIpc, fireWindow } = await boot();
       await fireWindow('closed');
       await fireIpc('enable-save');
-      expect(state.menuItems.save.enabled).toBe(false);
+      expect(state.menuItems['menu.file.save'].enabled).toBe(false);
     });
   });
 
@@ -600,6 +856,26 @@ describe('main process', () => {
       reads.restore();
     });
 
+    // #41: a file opened into a shown window was also held, and read again, without the unsaved-changes
+    // prompt, into the window made when the poet closed this one and came back from the Dock.
+    it('a file opened into a shown window is not held: closing and reopening the window reads nothing', async () => {
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(file, currentFile('<p>zq</p>'));
+      const { menu, state, fireApp, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      const reads = trackReadFile();
+      await fireWindow('closed');
+      await fireApp('activate', {}, false);
+      expect(state.windows).toHaveLength(2);
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(reads.calls()).toBe(0);
+      expect(menu.openFile).toHaveBeenCalledTimes(1);
+      reads.restore();
+    });
+
     it('open-file after the window exists asks the open handler to open it', async () => {
       const { menu, win, fireApp } = await boot();
       const event = { preventDefault: jest.fn() };
@@ -612,9 +888,12 @@ describe('main process', () => {
 
     it('tells the poet when a current-version file is corrupt and loads nothing', async () => {
       const file = path.join(dir, 'xv.midst');
-      fs.writeFileSync(file, 'midstVersion: 1\n{not json');
+      fs.writeFileSync(file, 'midstVersion: 1\n{not json POEM-SENTINEL');
       const reads = trackReadFile();
-      const { store, electron, win, fireApp, fireWindow } = await boot();
+      const { store, electron, state, win, fireApp, fireWindow, log } =
+        await boot();
+      // Error box with no buttons: the code ignores the return value.
+      state.dialogResponse = 0;
       await fireApp('open-file', { preventDefault: jest.fn() }, file);
 
       await fireWindow('ready-to-show');
@@ -629,6 +908,13 @@ describe('main process', () => {
       );
       expect(store.get('poem')).toBeUndefined();
       expect(win().webContents.send).not.toHaveBeenCalled();
+      expect(log.error).toHaveBeenCalledWith(
+        'open: the file could not be loaded',
+        expect.objectContaining({ filePath: file, name: 'SyntaxError' })
+      );
+      expect(JSON.stringify((log.error as jest.Mock).mock.calls)).not.toContain(
+        'POEM-SENTINEL'
+      );
       // Path consumed even on failure.
       await fireWindow('ready-to-show');
       expect(reads.calls()).toBe(1);
@@ -641,6 +927,8 @@ describe('main process', () => {
       const { store, electron, state, win, fireApp, fireWindow } = await boot({
         ready: false,
       });
+      // Error box with no buttons: the code ignores the return value.
+      state.dialogResponse = 0;
       await fireApp('open-file', { preventDefault: jest.fn() }, file);
       state.resolveReady();
       await new Promise<void>((resolve) => {
@@ -721,14 +1009,14 @@ describe('main process', () => {
         expect(fs.readFileSync(file, 'utf8')).toBe(original);
         const written = fs.readFileSync(converted, 'utf8');
         expect(written.startsWith('midstVersion: 1\n')).toBe(true);
-        expect(JSON.parse(written.split('\n')[1]).text).toContain('zq');
+        expect(JSON.parse(written.split('\n')[1]).text).toBe('<p>zq</p>');
         expect(store.get('filename')).toBe(converted);
         expect(store.get('baseFilename')).toBe('zq-converted.midst');
         // As File > Open does: the converted file is the one to find again.
         expect(electron.app.addRecentDocument).toHaveBeenCalledWith(converted);
         expect(win().webContents.send).toHaveBeenCalledWith(
           'open-file',
-          expect.stringContaining('zq'),
+          '<p>zq</p>',
           expect.any(Array),
           'zq-converted.midst'
         );
@@ -822,6 +1110,46 @@ describe('main process', () => {
       expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
     });
 
+    // 0.5.0: the check's rejection reached the unhandled-rejection handler, whose modal dialog froze
+    // the main process. A failed check is expected (offline, no feed, not installed) and is a warning.
+    it.each([
+      [
+        'rejects',
+        () => {
+          const e = new Error('ENOENT zq-path');
+          e.stack = 'Error: ENOENT zq-path';
+          return Promise.reject(e);
+        },
+      ],
+      [
+        'throws',
+        () => {
+          throw new TypeError('zq-sync');
+        },
+      ],
+    ])(
+      'an update check that %s is logged as a warning, name only, and is not left unhandled',
+      async (_how, outcome) => {
+        mockCheckForUpdates.mockImplementationOnce(outcome);
+        const unhandled = jest.fn();
+        process.on('unhandledRejection', unhandled);
+        try {
+          const { log, flush } = await boot();
+          await flush();
+          expect(log.warn).toHaveBeenCalledWith('update check failed', {
+            name: expect.stringMatching(/^(Error|TypeError)$/),
+            frames: expect.any(Array),
+          });
+          expect(JSON.stringify(jest.mocked(log.warn).mock.calls)).not.toMatch(
+            /zq-/
+          );
+          expect(unhandled).not.toHaveBeenCalled();
+        } finally {
+          process.off('unhandledRejection', unhandled);
+        }
+      }
+    );
+
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
       const [open] = win().webContents.setWindowOpenHandler.mock.calls[0] as [
@@ -843,6 +1171,19 @@ describe('main process', () => {
       );
     });
 
+    it('a help page the OS cannot open is logged with the action named (#160)', async () => {
+      const { electron, fireIpc, log } = await boot();
+      (electron.shell.openExternal as jest.Mock).mockRejectedValueOnce(
+        new Error('zq')
+      );
+      await fireIpc('open-help');
+      await new Promise(process.nextTick);
+      expect(log.error).toHaveBeenCalledWith(
+        'help: failed',
+        expect.objectContaining({ name: 'Error' })
+      );
+    });
+
     it('creates a new window on activate only when none is visible', async () => {
       const { state, fireApp } = await boot();
       await fireApp('activate', {}, true);
@@ -852,14 +1193,31 @@ describe('main process', () => {
     });
 
     it('a second window does not add a second set of renderer handlers', async () => {
-      const { menu, win, fireApp, fireIpc } = await boot();
+      const { menu, state, win, fireApp, fireIpc } = await boot();
       await fireApp('activate', {}, false);
+      // Gitea #38: every channel the renderer sends has one handler, however many windows there have been.
+      [
+        'save-file',
+        'new-file',
+        'button-open-file',
+        'app-open',
+        'enable-save',
+        'disable-save',
+      ].forEach((channel) =>
+        expect([channel, state.ipc.get(channel)?.length]).toEqual([channel, 1])
+      );
+      // ...and so does every other channel main.ts registers, named or not (Cyril, review of #183).
+      state.ipc.forEach((handlers, channel) =>
+        expect([channel, handlers.length]).toEqual([channel, 1])
+      );
       await fireIpc('save-file');
       await fireIpc('new-file');
       await fireIpc('button-open-file');
       expect(menu.save).toHaveBeenCalledTimes(1);
       expect(menu.newFile).toHaveBeenCalledTimes(1);
       expect(menu.openFile).toHaveBeenCalledTimes(1);
+      await fireIpc('app-open', ['/a/zq.midst']);
+      expect(menu.openFile).toHaveBeenCalledTimes(2);
       expect(menu.save).toHaveBeenCalledWith(win(), expect.anything(), false);
     });
 
@@ -1005,7 +1363,7 @@ describe('main process', () => {
       );
     });
 
-    it('tells the poet with the error name, and never a message', async () => {
+    it('tells the poet the error name and where the log is, and never a message', async () => {
       const { logging, electron } = await boot();
       const [, notify] = (logging.registerUncaughtHandlers as jest.Mock).mock
         .calls[0] as [unknown, typeof String];
@@ -1013,7 +1371,9 @@ describe('main process', () => {
       expect(electron.dialog.showErrorBox).toHaveBeenCalledTimes(1);
       const [title, content] = electron.dialog.showErrorBox.mock.calls[0];
       expect(title).toBe('Midst hit an unexpected error');
-      expect(content).toBe('TypeError. It has been recorded in the log.');
+      expect(content).toBe(
+        'TypeError. It has been recorded in the log, ~/Library/Logs/Midst/main.log, which Help > Show Log File shows.'
+      );
     });
   });
 });

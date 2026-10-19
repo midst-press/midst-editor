@@ -11,20 +11,42 @@ import {
 
 import path from 'path';
 import fs from 'fs';
-import store from './store';
-import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
-import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
-import { writeConvertedFile } from './convertedFile';
-import { poemToRtf } from './rtf';
-import { showAbout } from './about';
-import { USER_GUIDE_URL } from '../shared/userGuide';
 import {
   fileVersionMatchesCurrent,
   convertMidstFile,
   includeVersionInfo,
   serializeDocument,
-  loadDataIntoWorkspace,
-} from './util';
+} from '@midst-press/midst-format/convert';
+import store from './store';
+import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
+import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
+import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
+import replaceFile from './replaceFile';
+import { poemToRtf } from './rtf';
+import { flushEditor } from './editorFlush';
+import { showAbout } from './about';
+import { logFilePath } from './logFile';
+import installedGuideUrl from './guideLink';
+import { describeError } from '../shared/errorSummary';
+import { loadDataIntoWorkspace } from './util';
+import { i18n } from '../shared/i18n';
+
+// A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
+// (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
+// left to the uncaught-error handler, which also tells the poet. The promise is returned, settling once
+// the action has, so a test can await a menu click and read what it wrote.
+export const logIfRejected = (
+  label: string,
+  action: () => unknown
+): unknown => {
+  const result = action();
+  if (result instanceof Promise) {
+    return result.catch((err: unknown) =>
+      log.error(`${label}: failed`, describeError(err))
+    );
+  }
+  return result;
+};
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
   if (store.get('edited') === 'false') {
@@ -33,10 +55,9 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
 
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'warning',
-    title: 'Unsaved changes',
-    message:
-      'Current document contains unsaved changes. Are you sure you want to proceed?',
-    buttons: ['Proceed', 'Cancel'],
+    title: i18n._('dialog.unsavedChanges.title'),
+    message: i18n._('dialog.unsavedChanges.message'),
+    buttons: [i18n._('dialog.unsavedChanges.proceed'), i18n._('button.cancel')],
     // Return keeps the work: the default button is Cancel, never the one that discards (#40).
     defaultId: 1,
     // Dismissing the message box is Cancel too.
@@ -80,10 +101,11 @@ export const applyStoredAppearance = () => {
   nativeTheme.themeSource = appearanceOrDefault(store.get('appearance'));
 };
 
-const APPEARANCE_LABELS: Record<Appearance, string> = {
-  system: 'Follow System',
-  light: 'Light',
-  dark: 'Dark',
+// Looked up when the menu is built, in the language chosen then.
+const APPEARANCE_LABELS: Record<Appearance, () => string> = {
+  system: () => i18n._('menu.view.appearance.system'),
+  light: () => i18n._('menu.view.appearance.light'),
+  dark: () => i18n._('menu.view.appearance.dark'),
 };
 
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
@@ -107,7 +129,8 @@ const storedDocument = () => {
 
 // The name the save dialog offers. Without one, macOS offers whatever name was last typed into any save
 // panel, which can be another application's file (midst-press/midst-editor#52).
-const UNTITLED = 'Untitled.midst';
+const untitled = () => i18n._('file.untitled');
+const untitledMidst = () => `${untitled()}.midst`;
 
 // The folder a dialog opens in. From Electron 43 a dialog given no folder opens in Downloads, and the
 // system no longer remembers the last folder used, so the app remembers it: the folder of the last
@@ -121,9 +144,9 @@ const dialogFolder = (): string => {
 const rememberFolder = (file: string) =>
   store.set(LAST_FOLDER, path.dirname(file));
 
-const SAVE_FILTERS = [
-  { name: 'Midst', extensions: ['midst'] },
-  { name: 'All Files', extensions: ['*'] },
+const saveFilters = () => [
+  { name: i18n._('file.filter.midst'), extensions: ['midst'] },
+  { name: i18n._('file.filter.allFiles'), extensions: ['*'] },
 ];
 
 // Writes the stored document to `filename`, and only when the write has succeeded records it as saved:
@@ -159,7 +182,7 @@ const recordSaved = (
     mainWindow.setDocumentEdited(false);
     mainWindow.setRepresentedFilename(filename);
   }
-  mainWindow.setTitle(filename);
+  // The renderer titles the window from this name, in one place (#125); main does not set the title.
   mainWindow.webContents.send('set-filename', path.basename(filename));
   store.set('edited', JSON.stringify(false));
 };
@@ -187,10 +210,12 @@ const reportCouldNotSave = async (
   toldCouldNotSave = filename;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
-    title: 'Could not save',
-    message: `Midst could not save "${path.basename(filename)}".`,
-    detail: `${reason}\n\nYour poem is still open, and it has not been saved to that file. Choose "Save As…" to save it somewhere else.`,
-    buttons: ['Save As…', 'OK'],
+    title: i18n._('dialog.couldNotSave.title'),
+    message: i18n._('dialog.couldNotSave.message', {
+      fileName: path.basename(filename),
+    }),
+    detail: i18n._('dialog.couldNotSave.detail', { reason }),
+    buttons: [i18n._('dialog.couldNotSave.saveAs'), i18n._('button.ok')],
     defaultId: 0,
     cancelId: 1,
   });
@@ -202,35 +227,55 @@ const writeAndRecord = async (
   darwin: boolean,
   { text, history }: { text: string; history: string },
   {
-    label,
+    action,
     filename,
     byPoet,
     saveElsewhere,
   }: {
-    label: 'save' | 'saveAs';
+    action: 'save' | 'saveAs';
     filename: string;
     byPoet: boolean;
     saveElsewhere: () => Promise<void>;
   }
 ) => {
   const meta = (store.get('meta') as string | undefined) ?? '';
-  const fullContents = includeVersionInfo(
-    serializeDocument(text, history, meta)
-  );
+  let fullContents: string;
+  try {
+    fullContents = includeVersionInfo(serializeDocument(text, history, meta));
+  } catch (err) {
+    // A parse error's message can quote the poem, so the log has the error's name only, and the poet
+    // a fixed reason (#160).
+    log.error(`${action}: the document could not be prepared for writing`, {
+      filename,
+      ...describeError(err),
+    });
+    await reportCouldNotSave(mainWindow, darwin, {
+      filename,
+      reason: i18n._('dialog.couldNotSave.notPrepared'),
+      byPoet,
+      saveElsewhere,
+    });
+    return;
+  }
 
   // What was written WHERE. This is exactly the pairing that failed in #12: the path of the
   // newly-opened document beside the previously-loaded document's text. With this in the log,
   // that defect is diagnosable from a user's log file rather than needing demonstration files.
-  log.debug(`${label}: writing document`, {
+  log.debug(`${action}: writing document`, {
     filename,
     textChars: typeof text === 'string' ? text.length : 0,
     historyChars: typeof history === 'string' ? history.length : 0,
   });
   try {
-    fs.writeFileSync(filename, fullContents);
+    replaceFile(filename, fullContents);
   } catch (err) {
     const reason = (err as Error).message;
-    log.error(`${label}: the document was not written`, { filename, reason });
+    const { cleanupError } = err as { cleanupError?: unknown };
+    log.error(`${action}: the document was not written`, {
+      filename,
+      reason,
+      ...(cleanupError ? { cleanupError } : {}),
+    });
     await reportCouldNotSave(mainWindow, darwin, {
       filename,
       reason,
@@ -249,17 +294,17 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
     return;
   }
   const filename = dialog.showSaveDialogSync(mainWindow, {
-    title: 'Save file as...',
-    message: 'Save file as...',
+    title: i18n._('dialog.saveAs.title'),
+    message: i18n._('dialog.saveAs.message'),
     defaultPath:
       (store.get('filename') as string | undefined) ||
-      path.join(dialogFolder(), UNTITLED),
-    filters: SAVE_FILTERS,
+      path.join(dialogFolder(), untitledMidst()),
+    filters: saveFilters(),
   });
 
   if (filename) {
     await writeAndRecord(mainWindow, darwin, document, {
-      label: 'saveAs',
+      action: 'saveAs',
       filename,
       byPoet: true,
       saveElsewhere: () => saveAs(mainWindow, darwin),
@@ -271,22 +316,22 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
 // stored poem, as Save does. Whatever cannot be exported is said before anything is written, and the
 // file is written beside its final name and renamed into place, so a failed write leaves no part of a
 // file behind. Exporting changes nothing about the poem or its file.
-const RTF_FILTERS = [
-  { name: 'Rich Text Format', extensions: ['rtf'] },
-  { name: 'All Files', extensions: ['*'] },
+const rtfFilters = () => [
+  { name: i18n._('file.filter.rtf'), extensions: ['rtf'] },
+  { name: i18n._('file.filter.allFiles'), extensions: ['*'] },
 ];
 
 const cannotExport = (mainWindow: BrowserWindow, detail: string) =>
   dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
-    title: 'Could not export',
-    message: 'Midst could not export the poem as RTF.',
+    title: i18n._('dialog.couldNotExport.title'),
+    message: i18n._('dialog.couldNotExport.message'),
     detail,
   });
 
 const rtfDefaultPath = () => {
   const poemFile = store.get('filename') as string | undefined;
-  const base = poemFile ? path.basename(poemFile, '.midst') : 'Untitled';
+  const base = poemFile ? path.basename(poemFile, '.midst') : untitled();
   const folder =
     poemFile && fs.existsSync(path.dirname(poemFile))
       ? path.dirname(poemFile)
@@ -298,19 +343,21 @@ export const exportRtf = (mainWindow: BrowserWindow) => {
   const poem = store.get('poem') as string | undefined;
   if (poem === undefined) {
     log.error('exportRtf: no poem in the store; nothing written');
-    cannotExport(mainWindow, 'There is no poem open to export.');
+    cannotExport(mainWindow, i18n._('dialog.couldNotExport.noPoem'));
     return;
   }
   const result = poemToRtf(poem);
   if (!result.ok) {
+    // The reason names a node or mark type, never the poem's text.
+    log.warn('exportRtf: refused', { reason: result.reason });
     cannotExport(mainWindow, result.reason);
     return;
   }
   const filename = dialog.showSaveDialogSync(mainWindow, {
-    title: 'Export as RTF',
-    message: 'Export as RTF',
+    title: i18n._('dialog.exportRtf.title'),
+    message: i18n._('dialog.exportRtf.message'),
     defaultPath: rtfDefaultPath(),
-    filters: RTF_FILTERS,
+    filters: rtfFilters(),
   });
   if (!filename) return;
   const partial = `${filename}.${process.pid}.partial`;
@@ -323,7 +370,7 @@ export const exportRtf = (mainWindow: BrowserWindow) => {
     fs.rmSync(partial, { force: true });
     cannotExport(
       mainWindow,
-      `${reason}\n\nNo file was written. Your poem is unchanged.`
+      i18n._('dialog.couldNotExport.notWritten', { reason })
     );
   }
 };
@@ -344,14 +391,14 @@ export const save = async (
   const filename =
     stored ||
     dialog.showSaveDialogSync(mainWindow, {
-      title: 'To begin, create a new Midst document.',
-      message: 'To begin, create a new Midst document.',
-      defaultPath: path.join(dialogFolder(), UNTITLED),
-      filters: SAVE_FILTERS,
+      title: i18n._('dialog.firstSave.title'),
+      message: i18n._('dialog.firstSave.message'),
+      defaultPath: path.join(dialogFolder(), untitledMidst()),
+      filters: saveFilters(),
     });
   if (filename) {
     await writeAndRecord(mainWindow, darwin, document, {
-      label: 'save',
+      action: 'save',
       filename,
       byPoet: byPoet || !stored,
       saveElsewhere: () => saveAs(mainWindow, darwin),
@@ -361,7 +408,10 @@ export const save = async (
   }
 };
 
-export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
+// New and Open first take the poem from the editor (#113), so typing in the last second counts as an unsaved
+// change and the prompt asks about it.
+export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
+  await flushEditor(mainWindow);
   const cancel = handleUnsavedChanges(mainWindow);
   if (cancel) {
     return;
@@ -374,8 +424,7 @@ export const newFile = (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('edited', JSON.stringify(false));
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
-    mainWindow.setRepresentedFilename('Untitled');
-    mainWindow.setTitle('Untitled');
+    mainWindow.setRepresentedFilename(untitled());
   }
 };
 
@@ -392,46 +441,124 @@ export const openPath = (
     }
     if (err) {
       // A missing or unreadable file, or a folder: say so. It is not a file of another version (#114).
+      log.error('open: the file could not be read', {
+        filePath,
+        code: err.code,
+      });
       dialog.showMessageBoxSync(mainWindow, {
-        title: `Error`,
+        title: i18n._('dialog.error.title'),
         type: 'error',
-        message: `The file ${filePath} could not be opened: ${err.message}`,
+        message: i18n._('dialog.open.couldNotRead', {
+          filePath,
+          reason: err.message,
+        }),
       });
       return;
     }
     if (fileVersionMatchesCurrent(data)) {
       try {
         loadDataIntoWorkspace(filePath, data, mainWindow, darwin);
-      } catch {
+      } catch (loadErr) {
+        // The name only: a parse error's message quotes the file (#160).
+        log.error('open: the file could not be loaded', {
+          filePath,
+          ...describeError(loadErr),
+        });
         dialog.showMessageBoxSync(mainWindow, {
-          title: `Error`,
+          title: i18n._('dialog.error.title'),
           type: 'error',
-          message: `The file ${filePath} could not be opened. File may be corrupted. Please select another file and try again.`,
+          message: i18n._('dialog.open.corrupted', { filePath }),
         });
       }
     } else {
-      const response = dialog.showMessageBoxSync(mainWindow, {
-        type: 'warning',
-        message: `Version not recognized. If this file is from an
-           older version of Midst, it may be possible to convert it.
-           This will create a new file. Would you like to proceed?`,
-        buttons: ['Cancel', 'Convert File'],
-        defaultId: 1,
-        cancelId: 0,
-      });
-      if (response === 1) {
-        const newFileContents = convertMidstFile(data);
-        const newFilename = writeConvertedFile(
+      // An old file converted before has a converted copy beside it, holding the poet's work since. Offer
+      // that copy first, and converting again as the other choice: they may want the original timelapse
+      // back, or a newer editor may convert it better (Stuart, #7). A folder that cannot be searched is
+      // logged, and the poet gets the plain offer to convert.
+      let copy: string | undefined;
+      try {
+        copy = existingConvertedCopy(filePath);
+      } catch (lookErr) {
+        log.warn('open: could not look for an earlier converted copy', {
           filePath,
-          includeVersionInfo(newFileContents)
-        );
-        app.addRecentDocument(newFilename);
-        loadDataIntoWorkspace(
-          newFilename,
-          includeVersionInfo(newFileContents),
-          mainWindow,
-          darwin
-        );
+          ...describeError(lookErr),
+        });
+      }
+      let response: number;
+      if (copy) {
+        log.info('open: version not recognised; a converted copy exists', {
+          filePath,
+          copy,
+        });
+        response = dialog.showMessageBoxSync(mainWindow, {
+          type: 'warning',
+          message: i18n._('dialog.open.convertedCopyExists.message'),
+          detail: i18n._('dialog.open.convertedCopyExists.detail', {
+            fileName: path.basename(copy),
+          }),
+          buttons: [
+            i18n._('button.cancel'),
+            i18n._('dialog.open.convertedCopyExists.convertAgain'),
+            i18n._('dialog.open.convertedCopyExists.openCopy'),
+          ],
+          defaultId: 2,
+          cancelId: 0,
+        });
+        if (response === 2) {
+          log.info('open: opening the earlier converted copy', {
+            filePath,
+            copy,
+          });
+          openPath(mainWindow, darwin, copy);
+          return;
+        }
+      } else {
+        log.info('open: version not recognised; offering to convert', {
+          filePath,
+        });
+        response = dialog.showMessageBoxSync(mainWindow, {
+          type: 'warning',
+          message: i18n._('dialog.open.versionNotRecognized'),
+          buttons: [i18n._('button.cancel'), i18n._('dialog.open.convertFile')],
+          defaultId: 1,
+          cancelId: 0,
+        });
+      }
+      if (response === 1) {
+        // Each stage can throw. Nothing caught them, so a failed conversion vanished inside this
+        // callback and the poet was told nothing (#160).
+        let stage: 'convert' | 'write' | 'load' = 'convert';
+        let newFilename: string | undefined;
+        try {
+          const newFileContents = includeVersionInfo(convertMidstFile(data));
+          stage = 'write';
+          newFilename = writeConvertedFile(filePath, newFileContents);
+          stage = 'load';
+          app.addRecentDocument(newFilename);
+          loadDataIntoWorkspace(
+            newFilename,
+            newFileContents,
+            mainWindow,
+            darwin
+          );
+          log.info('open: converted', { filePath, newFilename });
+        } catch (convertErr) {
+          log.error('open: the file could not be converted', {
+            filePath,
+            stage,
+            ...(newFilename ? { newFilename } : {}),
+            ...describeError(convertErr),
+          });
+          dialog.showMessageBoxSync(mainWindow, {
+            title: i18n._('dialog.error.title'),
+            type: 'error',
+            message: newFilename
+              ? i18n._('dialog.open.convertedNotOpened', {
+                  filePath: newFilename,
+                })
+              : i18n._('dialog.open.notConverted', { filePath }),
+          });
+        }
       }
     }
   });
@@ -442,6 +569,7 @@ export const openFile = async (
   darwin: boolean,
   earlyFilename?: string[]
 ) => {
+  await flushEditor(mainWindow);
   const cancel = handleUnsavedChanges(mainWindow);
   if (cancel) {
     return;
@@ -451,12 +579,9 @@ export const openFile = async (
     filename = earlyFilename;
   } else {
     filename = dialog.showOpenDialogSync(mainWindow, {
-      title: 'Open...',
+      title: i18n._('dialog.open.title'),
       defaultPath: dialogFolder(),
-      filters: [
-        { name: 'Midst', extensions: ['midst'] },
-        { name: 'All Files', extensions: ['*'] },
-      ],
+      filters: saveFilters(),
     });
   }
 
@@ -505,7 +630,8 @@ export default class MenuBuilder {
 
       Menu.buildFromTemplate([
         {
-          label: 'Inspect element',
+          id: 'menu.dev.inspectElement',
+          label: i18n._('menu.dev.inspectElement'),
           click: () => {
             this.mainWindow.webContents.inspectElement(x, y);
           },
@@ -514,29 +640,42 @@ export default class MenuBuilder {
     });
   }
 
-  // The items both platforms have. Labels and accelerators are passed in because they differ: '&'
-  // marks the Alt-key letter on Windows and Linux, and macOS uses Command where they use Ctrl.
+  // The items both platforms have. Labels come from the catalog, and each item's id is its catalog
+  // key, which is how the user guide finds what the item does (shortcutTable.ts). A label marks the
+  // Alt-key letter with '&' for Windows and Linux; `label` drops it in the macOS template. Accelerators
+  // are passed in because macOS uses Command where the others use Ctrl.
+  //
+  // `darwin` is which template is being built, not which platform this is: the tests and the user
+  // guide build both templates on one machine. Each build method sets it before building.
+  private darwin = false;
 
-  private reloadItem(label: string, accelerator: string) {
+  private label(text: string) {
+    return this.darwin ? text.replace(/&/g, '') : text;
+  }
+
+  private reloadItem(accelerator: string) {
     return {
-      label,
+      id: 'menu.view.reload',
+      label: this.label(i18n._('menu.view.reload')),
       accelerator,
       click: () => this.mainWindow.webContents.reload(),
     };
   }
 
-  private fullScreenItem(label: string, accelerator: string) {
+  private fullScreenItem(accelerator: string) {
     return {
-      label,
+      id: 'menu.view.fullScreen',
+      label: this.label(i18n._('menu.view.fullScreen')),
       accelerator,
       click: () =>
         this.mainWindow.setFullScreen(!this.mainWindow.isFullScreen()),
     };
   }
 
-  private devToolsItem(label: string, accelerator: string) {
+  private devToolsItem(accelerator: string) {
     return {
-      label,
+      id: 'menu.view.devTools',
+      label: this.label(i18n._('menu.view.devTools')),
       accelerator,
       click: () => this.mainWindow.webContents.toggleDevTools(),
     };
@@ -545,24 +684,28 @@ export default class MenuBuilder {
   private textSizeItems(increase: string, decrease: string) {
     return [
       {
-        label: 'Increase text size',
+        id: 'menu.view.textSizeIncrease',
+        label: this.label(i18n._('menu.view.textSizeIncrease')),
         accelerator: increase,
         click: () => increaseFontSize(this.mainWindow),
       },
       {
-        label: 'Decrease text size',
+        id: 'menu.view.textSizeDecrease',
+        label: this.label(i18n._('menu.view.textSizeDecrease')),
         accelerator: decrease,
         click: () => decreaseFontSize(this.mainWindow),
       },
     ];
   }
 
-  private static appearanceItem(): MenuItemConstructorOptions {
+  private appearanceItem(): MenuItemConstructorOptions {
     const current = appearanceOrDefault(store.get('appearance'));
     return {
-      label: 'Appearance',
+      id: 'menu.view.appearance',
+      label: this.label(i18n._('menu.view.appearance')),
       submenu: APPEARANCES.map((appearance) => ({
-        label: APPEARANCE_LABELS[appearance],
+        id: `menu.view.appearance.${appearance}`,
+        label: this.label(APPEARANCE_LABELS[appearance]()),
         type: 'radio' as const,
         checked: appearance === current,
         click: () => setAppearance(appearance),
@@ -570,46 +713,60 @@ export default class MenuBuilder {
     };
   }
 
-  private modeItems(modifier: string, spellcheckLabel: string) {
+  // The spellcheck item has a different name on each platform.
+  private modeItems(modifier: string) {
     return [
       {
-        label: 'Find',
+        id: 'menu.edit.find',
+        label: this.label(i18n._('menu.edit.find')),
         accelerator: `${modifier}+F`,
         click: () => findInPoem(this.mainWindow),
       },
       {
-        label: 'Toggle Timeline',
+        id: 'menu.edit.toggleTimeline',
+        label: this.label(i18n._('menu.edit.toggleTimeline')),
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
-      {
-        label: spellcheckLabel,
-        accelerator: `${modifier}+;`,
-        click: () => toggleSpellcheck(this.mainWindow),
-      },
+      this.darwin
+        ? {
+            id: 'menu.edit.spellcheck.mac',
+            label: this.label(i18n._('menu.edit.spellcheck.mac')),
+            accelerator: `${modifier}+;`,
+            click: () => toggleSpellcheck(this.mainWindow),
+          }
+        : {
+            id: 'menu.edit.spellcheck.other',
+            label: this.label(i18n._('menu.edit.spellcheck.other')),
+            accelerator: `${modifier}+;`,
+            click: () => toggleSpellcheck(this.mainWindow),
+          },
     ];
   }
 
-  private saveItems(
-    saveLabel: string,
-    saveAsLabel: string,
-    keys: [string, string],
-    darwin: boolean
-  ) {
+  private saveItems(keys: [string, string], darwin: boolean) {
     // Disabled until the editor sends enable-save; main.ts finds them by id.
     return [
       {
-        id: 'save',
-        label: saveLabel,
+        id: 'menu.file.save',
+        label: this.label(i18n._('menu.file.save')),
         accelerator: keys[0],
-        click: () => save(this.mainWindow, darwin),
+        click: () =>
+          logIfRejected('save', async () => {
+            await flushEditor(this.mainWindow);
+            await save(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
       {
-        id: 'save-as',
-        label: saveAsLabel,
+        id: 'menu.file.saveAs',
+        label: this.label(i18n._('menu.file.saveAs')),
         accelerator: keys[1],
-        click: () => saveAs(this.mainWindow, darwin),
+        click: () =>
+          logIfRejected('saveAs', async () => {
+            await flushEditor(this.mainWindow);
+            await saveAs(this.mainWindow, darwin);
+          }),
         enabled: false,
       },
     ];
@@ -617,52 +774,145 @@ export default class MenuBuilder {
 
   private exportRtfItem() {
     return {
-      label: 'Export as RTF…',
-      click: () => exportRtf(this.mainWindow),
+      id: 'menu.file.exportRtf',
+      label: this.label(i18n._('menu.file.exportRtf')),
+      // exportRtf runs outside the flush's promise, as it did before the flush: a throw from it then reaches
+      // uncaughtException, which tells the poet. Inside the promise it would only be logged (Clement, #188).
+      click: () =>
+        logIfRejected('exportRtf', async () => {
+          await flushEditor(this.mainWindow);
+          setImmediate(() => exportRtf(this.mainWindow));
+        }),
     };
   }
 
   private aboutItem() {
-    return { label: 'About Midst', click: () => showAbout(this.mainWindow) };
+    return {
+      id: 'menu.app.about',
+      label: this.label(i18n._('menu.app.about')),
+      click: () => logIfRejected('about', () => showAbout(this.mainWindow)),
+    };
   }
 
-  private static helpItems(): MenuItemConstructorOptions[] {
+  private helpItems(): MenuItemConstructorOptions[] {
     return [
       {
-        label: 'Learn More',
-        click: () => shell.openExternal('https://midst.press'),
+        id: 'menu.help.learnMore',
+        label: this.label(i18n._('menu.help.learnMore')),
+        click: () =>
+          logIfRejected('learn more', () =>
+            shell.openExternal('https://midst.press')
+          ),
       },
       {
-        label: 'Documentation',
-        click: () => shell.openExternal(USER_GUIDE_URL),
+        id: 'menu.help.documentation',
+        label: this.label(i18n._('menu.help.documentation')),
+        click: () =>
+          logIfRejected('documentation', () =>
+            shell.openExternal(installedGuideUrl())
+          ),
+      },
+      // Shows the log in Finder, or File Explorer, so a poet can send it with a report without knowing where it is.
+      {
+        id: 'menu.help.showLogFile',
+        label: this.label(i18n._('menu.help.showLogFile')),
+        click: () => shell.showItemInFolder(logFilePath()),
       },
     ];
   }
 
+  // Edit's items. macOS sends each to the first responder by selector; Windows and Linux use roles.
+  private editItems(modifier: string, darwin: boolean) {
+    const item = (
+      id: string,
+      text: string,
+      accelerator: string,
+      action: string
+    ): DarwinMenuItemConstructorOptions =>
+      darwin
+        ? { id, label: this.label(text), accelerator, selector: `${action}:` }
+        : {
+            id,
+            label: this.label(text),
+            accelerator,
+            role: action as MenuItemConstructorOptions['role'],
+          };
+    return [
+      item('menu.edit.undo', i18n._('menu.edit.undo'), `${modifier}+Z`, 'undo'),
+      item(
+        'menu.edit.redo',
+        i18n._('menu.edit.redo'),
+        `Shift+${modifier}+Z`,
+        'redo'
+      ),
+      { type: 'separator' as const },
+      item('menu.edit.cut', i18n._('menu.edit.cut'), `${modifier}+X`, 'cut'),
+      item('menu.edit.copy', i18n._('menu.edit.copy'), `${modifier}+C`, 'copy'),
+      item(
+        'menu.edit.paste',
+        i18n._('menu.edit.paste'),
+        `${modifier}+V`,
+        'paste'
+      ),
+      // A role on Windows and Linux, as Cut, Copy and Paste beside it: `selector` is macOS only, so this item
+      // did nothing there (#121).
+      item(
+        'menu.edit.selectAll',
+        i18n._('menu.edit.selectAll'),
+        `${modifier}+A`,
+        'selectAll'
+      ),
+      ...this.modeItems(modifier),
+    ];
+  }
+
   buildDarwinTemplate(): MenuItemConstructorOptions[] {
+    this.darwin = true;
     const subMenuAbout: DarwinMenuItemConstructorOptions = {
-      label: 'Midst',
+      id: 'menu.app',
+      label: this.label(i18n._('menu.app')),
       submenu: [
         this.aboutItem(),
         { type: 'separator' },
-        { label: 'Services', submenu: [] },
-        { type: 'separator' },
-        { label: 'Hide Midst', accelerator: 'Command+H', selector: 'hide:' },
         {
-          label: 'Hide Others',
+          id: 'menu.app.services',
+          label: this.label(i18n._('menu.app.services')),
+          submenu: [],
+        },
+        { type: 'separator' },
+        {
+          id: 'menu.app.hide',
+          label: this.label(i18n._('menu.app.hide')),
+          accelerator: 'Command+H',
+          selector: 'hide:',
+        },
+        {
+          id: 'menu.app.hideOthers',
+          label: this.label(i18n._('menu.app.hideOthers')),
           accelerator: 'Command+Shift+H',
           selector: 'hideOtherApplications:',
         },
-        { label: 'Show All', selector: 'unhideAllApplications:' },
+        {
+          id: 'menu.app.showAll',
+          label: this.label(i18n._('menu.app.showAll')),
+          selector: 'unhideAllApplications:',
+        },
         { type: 'separator' },
-        { label: 'Quit', accelerator: 'Command+Q', click: () => app.quit() },
+        {
+          id: 'menu.app.quit',
+          label: this.label(i18n._('menu.app.quit')),
+          accelerator: 'Command+Q',
+          click: () => app.quit(),
+        },
       ],
     };
     const subMenuFile: DarwinMenuItemConstructorOptions = {
-      label: 'File',
+      id: 'menu.file',
+      label: this.label(i18n._('menu.file')),
       submenu: [
         {
-          label: 'New',
+          id: 'menu.file.new',
+          label: this.label(i18n._('menu.file.new')),
           accelerator: 'Command+N',
           click: () => {
             if (this.mainWindow.isDestroyed()) {
@@ -673,21 +923,18 @@ export default class MenuBuilder {
               store.set('edited', JSON.stringify(false));
               app.emit('activate', false);
             } else {
-              newFile(this.mainWindow, true);
+              logIfRejected('new', () => newFile(this.mainWindow, true));
             }
           },
         },
-        ...this.saveItems(
-          'Save',
-          'Save As',
-          ['Command+S', 'Command+S+Shift'],
-          true
-        ),
+        ...this.saveItems(['Command+S', 'Command+Shift+S'], true),
         this.exportRtfItem(),
         {
-          label: 'Open',
+          id: 'menu.file.open',
+          label: this.label(i18n._('menu.file.open')),
           accelerator: 'Command+O',
-          click: () => openFile(this.mainWindow, true),
+          click: () =>
+            logIfRejected('open', () => openFile(this.mainWindow, true)),
         },
         // commented this out since recent documents is not working
         // but leaving as a starting point to debug
@@ -704,58 +951,56 @@ export default class MenuBuilder {
       ],
     };
     const subMenuEdit: DarwinMenuItemConstructorOptions = {
-      label: 'Edit',
-      submenu: [
-        { label: 'Undo', accelerator: 'Command+Z', selector: 'undo:' },
-        { label: 'Redo', accelerator: 'Shift+Command+Z', selector: 'redo:' },
-        { type: 'separator' },
-        { label: 'Cut', accelerator: 'Command+X', selector: 'cut:' },
-        { label: 'Copy', accelerator: 'Command+C', selector: 'copy:' },
-        { label: 'Paste', accelerator: 'Command+V', selector: 'paste:' },
-        {
-          label: 'Select All',
-          accelerator: 'Command+A',
-          selector: 'selectAll:',
-        },
-        ...this.modeItems('Command', 'Show/hide spellcheck'),
-      ],
+      id: 'menu.edit',
+      label: this.label(i18n._('menu.edit')),
+      submenu: this.editItems('Command', true),
     };
-    const fullScreen = this.fullScreenItem(
-      'Toggle Full Screen',
-      'Ctrl+Command+F'
-    );
+    const fullScreen = this.fullScreenItem('Ctrl+Command+F');
     const subMenuView: MenuItemConstructorOptions = {
-      label: 'View',
+      id: 'menu.view',
+      label: this.label(i18n._('menu.view')),
       submenu: isDevelopment()
         ? [
-            this.reloadItem('Reload', 'Command+R'),
+            this.reloadItem('Command+R'),
             fullScreen,
-            this.devToolsItem('Toggle Developer Tools', 'Alt+Command+I'),
-            ...this.textSizeItems('Command+=', 'Command+-'),
-            MenuBuilder.appearanceItem(),
+            this.devToolsItem('Alt+Command+I'),
+            ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+            this.appearanceItem(),
           ]
         : [
             fullScreen,
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
-            MenuBuilder.appearanceItem(),
+            this.appearanceItem(),
           ],
     };
     const subMenuWindow: DarwinMenuItemConstructorOptions = {
-      label: 'Window',
+      id: 'menu.window',
+      label: this.label(i18n._('menu.window')),
       submenu: [
         {
-          label: 'Minimize',
+          id: 'menu.window.minimize',
+          label: this.label(i18n._('menu.window.minimize')),
           accelerator: 'Command+M',
           selector: 'performMiniaturize:',
         },
-        { label: 'Close', accelerator: 'Command+W', selector: 'performClose:' },
+        {
+          id: 'menu.window.close',
+          label: this.label(i18n._('menu.window.close')),
+          accelerator: 'Command+W',
+          selector: 'performClose:',
+        },
         { type: 'separator' },
-        { label: 'Bring All to Front', selector: 'arrangeInFront:' },
+        {
+          id: 'menu.window.bringAllToFront',
+          label: this.label(i18n._('menu.window.bringAllToFront')),
+          selector: 'arrangeInFront:',
+        },
       ],
     };
     const subMenuHelp: MenuItemConstructorOptions = {
-      label: 'Help',
-      submenu: MenuBuilder.helpItems(),
+      id: 'menu.help',
+      label: this.label(i18n._('menu.help')),
+      submenu: this.helpItems(),
     };
 
     return [
@@ -769,71 +1014,63 @@ export default class MenuBuilder {
   }
 
   buildDefaultTemplate(): MenuItemConstructorOptions[] {
-    const fullScreen = this.fullScreenItem('Toggle &Full Screen', 'F11');
+    this.darwin = false;
+    const fullScreen = this.fullScreenItem('F11');
     return [
       {
-        label: '&File',
+        id: 'menu.file',
+        label: this.label(i18n._('menu.file')),
         submenu: [
-          ...this.saveItems(
-            '&Save',
-            '&Save As',
-            ['Ctrl+S', 'Ctrl+Shift+S'],
-            false
-          ),
+          ...this.saveItems(['Ctrl+S', 'Ctrl+Shift+S'], false),
           this.exportRtfItem(),
           {
-            label: '&New',
+            id: 'menu.file.new',
+            label: this.label(i18n._('menu.file.new')),
             accelerator: 'Ctrl+N',
-            click: () => newFile(this.mainWindow, false),
+            click: () =>
+              logIfRejected('new', () => newFile(this.mainWindow, false)),
           },
           {
-            label: '&Open',
+            id: 'menu.file.open',
+            label: this.label(i18n._('menu.file.open')),
             accelerator: 'Ctrl+O',
-            click: () => openFile(this.mainWindow, false),
+            click: () =>
+              logIfRejected('open', () => openFile(this.mainWindow, false)),
           },
           {
-            label: '&Close',
+            id: 'menu.file.close',
+            label: this.label(i18n._('menu.file.close')),
             accelerator: 'Ctrl+W',
             click: () => this.mainWindow.close(),
           },
         ],
       },
       {
-        label: '&Edit',
-        submenu: [
-          { label: 'Undo', accelerator: 'Ctrl+Z', role: 'undo' },
-          { label: 'Redo', accelerator: 'Shift+Ctrl+Z', role: 'redo' },
-          { type: 'separator' },
-          { label: 'Cut', accelerator: 'Ctrl+X', role: 'cut' },
-          { label: 'Copy', accelerator: 'Ctrl+C', role: 'copy' },
-          { label: 'Paste', accelerator: 'Ctrl+V', role: 'paste' },
-          {
-            label: 'Select All',
-            accelerator: 'Ctrl+A',
-            selector: 'selectall',
-          } as MenuItemConstructorOptions,
-          ...this.modeItems('Ctrl', 'Toggle Spellcheck'),
-        ],
+        id: 'menu.edit',
+        label: this.label(i18n._('menu.edit')),
+        submenu: this.editItems('Ctrl', false),
       },
       {
-        label: '&View',
+        id: 'menu.view',
+        label: this.label(i18n._('menu.view')),
         submenu: isDevelopment()
           ? [
-              this.reloadItem('&Reload', 'Ctrl+R'),
+              this.reloadItem('Ctrl+R'),
               fullScreen,
-              this.devToolsItem('Toggle &Developer Tools', 'Alt+Ctrl+I'),
+              this.devToolsItem('Alt+Ctrl+I'),
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
-              MenuBuilder.appearanceItem(),
+              this.appearanceItem(),
             ]
           : [
               fullScreen,
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
-              MenuBuilder.appearanceItem(),
+              this.appearanceItem(),
             ],
       },
       {
-        label: 'Help',
-        submenu: [...MenuBuilder.helpItems(), this.aboutItem()],
+        id: 'menu.help',
+        label: this.label(i18n._('menu.help')),
+        submenu: [...this.helpItems(), this.aboutItem()],
       },
     ];
   }

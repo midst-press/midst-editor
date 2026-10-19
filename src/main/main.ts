@@ -8,6 +8,8 @@
  * When running `npm run build` or `npm run build:main`, this file is compiled to
  * `./src/main.js` using webpack. This gives us some performance wins.
  */
+// First, before anything opens the store or the log: a development build keeps its own (Gitea #151).
+import './devUserData';
 import {
   attachTitlebarToWindow,
   setupTitlebar,
@@ -37,17 +39,27 @@ import MenuBuilder, {
   newFile,
   openFile,
   openPath,
+  logIfRejected,
 } from './menu';
 import store from './store';
+import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
+import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
+import { describeError } from '../shared/errorSummary';
+import { activateLocale, i18n, pickLocale } from '../shared/i18n';
+import { LOCALE_ARGUMENT } from '../shared/localeArgument';
 
 class AppUpdater {
   constructor() {
     // Level is whatever the user has configured; see src/main/logging.ts.
     applyLogLevel();
     autoUpdater.logger = log;
-    autoUpdater.checkForUpdatesAndNotify();
+    // A failed check is expected (offline, no feed, an app not installed through its package) and must
+    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
+    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
+      log.warn('update check failed', describeError(error))
+    );
   }
 }
 
@@ -56,6 +68,8 @@ let mainWindow: BrowserWindow | null = null;
 setupTitlebar();
 
 let earlyPath = '';
+// Whether the current window has been shown. Until then, ready-to-show is what opens a requested file.
+let windowShown = false;
 
 ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
@@ -126,6 +140,8 @@ const createWindow = async () => {
         : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
+      // The renderer shows its words in the language the menus use, chosen at whenReady.
+      additionalArguments: [`${LOCALE_ARGUMENT}${i18n.locale}`],
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
@@ -150,40 +166,64 @@ const createWindow = async () => {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
     }
+    windowShown = true;
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    windowShown = false;
   });
+  // Closing asks the editor for the poem first, as Save does (#157), and only then reads `edited` (#236). Quit,
+  // Close and Save are menu items, run in this process, while a keystroke reaches the editor first and `edited`
+  // follows it here by message. So a quit straight after typing found `edited` still "false" from the last save,
+  // closed without asking, and lost those keystrokes, and so did Save then Quit, closing before the save had the
+  // poem. The editor's answer comes after the messages it sent before it, so `edited` is current once it arrives.
+  //   - The close is held while the editor answers (at most FLUSH_TIMEOUT_MS, then `edited` as it stands), and
+  //     a second close in that time waits for the first.
+  //   - Saved: the document is cleared and the window destroyed. Unsaved: the poet is asked, as before.
+  let closeChecking = false;
   mainWindow.on('close', (event) => {
-    if (store.get('edited') === 'false') {
-      clearDocument();
-      return;
-    }
-
-    // If the window has unsaved changes, prevents it from closing
     event.preventDefault();
-
-    if (mainWindow === null) return;
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'warning',
-      title: 'Unsaved changes',
-      message:
-        'Current document contains unsaved changes. Are you sure you want to proceed?',
-      buttons: ['Quit Anyway', 'Cancel'],
-      // Return keeps the work: the default button is Cancel, never the one that discards (#40).
-      defaultId: 1,
-      // Dismissing the message box is Cancel too.
-      cancelId: 1,
-    });
-
-    if (choice === 0) {
-      // If the user selects "Quit Anyway", forces the window to close
-      // and removes the file from the store
-      clearDocument();
-      if (mainWindow === null) return;
-      mainWindow.destroy();
-    }
+    if (closeChecking || mainWindow === null) return;
+    closeChecking = true;
+    const win = mainWindow;
+    const decide = async () => {
+      try {
+        await flushEditor(win);
+        if (win.isDestroyed()) return;
+        if (store.get('edited') === 'false') {
+          clearDocument();
+          win.destroy();
+          return;
+        }
+        const choice = dialog.showMessageBoxSync(win, {
+          type: 'warning',
+          title: i18n._('dialog.unsavedChanges.title'),
+          message: i18n._('dialog.unsavedChanges.message'),
+          buttons: [
+            i18n._('dialog.unsavedChanges.quitAnyway'),
+            i18n._('button.cancel'),
+          ],
+          // Return keeps the work: the default button is Cancel, never the one that discards (#40).
+          defaultId: 1,
+          // Dismissing the message box is Cancel too.
+          cancelId: 1,
+        });
+        if (choice === 0) {
+          // "Quit Anyway": the document is removed from the store and the window closed.
+          clearDocument();
+          win.destroy();
+        }
+      } finally {
+        closeChecking = false;
+      }
+    };
+    decide().catch((err) =>
+      log.error(
+        'close: the check for unsaved changes failed',
+        describeError(err)
+      )
+    );
   });
 
   const menuBuilder = new MenuBuilder(mainWindow);
@@ -207,20 +247,23 @@ const createWindow = async () => {
 ipcMain.on('save-file', () => {
   if (mainWindow === null) return;
   // One of the editor's own saves, not the poet choosing Save: a failure is reported once per file.
-  save(mainWindow, isDarwin(), false);
+  const win = mainWindow;
+  logIfRejected('autosave', () => save(win, isDarwin(), false));
 });
 ipcMain.on('new-file', () => {
   if (mainWindow === null) return;
-  newFile(mainWindow, isDarwin());
+  const win = mainWindow;
+  logIfRejected('new', () => newFile(win, isDarwin()));
 });
 ipcMain.on('button-open-file', () => {
   if (mainWindow === null) return;
-  openFile(mainWindow, isDarwin());
+  const win = mainWindow;
+  logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
 // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
 ipcMain.on('open-help', () => {
-  shell.openExternal(helpUrl(app.getVersion()));
+  logIfRejected('help', () => shell.openExternal(helpUrl(app.getVersion())));
 });
 
 ipcMain.on('app-open', (filename: IpcMainEvent) => {
@@ -228,19 +271,28 @@ ipcMain.on('app-open', (filename: IpcMainEvent) => {
   // (#12), so which file the OS asked us to open is worth having in the log.
   log.info('os requested open', { filename });
   if (mainWindow === null) return;
-  openFile(mainWindow, isDarwin(), filename as unknown as string[]);
+  const win = mainWindow;
+  logIfRejected('os open', () =>
+    openFile(win, isDarwin(), filename as unknown as string[])
+  );
 });
 
 // Save and Save As are enabled only while the editor is showing.
 const setSaveEnabled = (enabled: boolean) => {
   if (mainWindow === null) return;
-  ['save', 'save-as'].forEach((id) => {
+  ['menu.file.save', 'menu.file.saveAs'].forEach((id) => {
     const item = app.applicationMenu?.getMenuItemById(id);
     if (item) item.enabled = enabled;
   });
 };
-ipcMain.on('enable-save', () => setSaveEnabled(true));
-ipcMain.on('disable-save', () => setSaveEnabled(false));
+ipcMain.on('enable-save', () => {
+  setEditorShowing(true);
+  setSaveEnabled(true);
+});
+ipcMain.on('disable-save', () => {
+  setEditorShowing(false);
+  setSaveEnabled(false);
+});
 
 // IPC listener
 ipcMain.on('electron-store-get', async (event, val) => {
@@ -258,8 +310,11 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
 // Errors nothing caught are logged (name and frames only) and the poet is told; the app keeps running.
 registerUncaughtHandlers(process, (name) =>
   dialog.showErrorBox(
-    'Midst hit an unexpected error',
-    `${name}. It has been recorded in the log.`
+    i18n._('dialog.unexpectedError.title'),
+    i18n._('dialog.unexpectedError.message', {
+      name,
+      logFile: logFileForPeople(),
+    })
   )
 );
 
@@ -306,13 +361,19 @@ app.on('open-file', async (event, filename) => {
   // store the filename, so it can be used once the window is ready
   // on other operating systems, this will need to be handled differently
   event.preventDefault();
-  earlyPath = filename;
-  ipcMain.emit('app-open', [earlyPath]);
+  // Held for ready-to-show only while no window has been shown. Once one has, app-open opens the file (with
+  // the unsaved-changes prompt) and nothing is held: a path left here was read straight into the next
+  // window, without the prompt, after the poet closed this one and reopened from the Dock (#41).
+  if (!windowShown) earlyPath = filename;
+  ipcMain.emit('app-open', [filename]);
 });
 
 app
   .whenReady()
   .then(() => {
+    // The menus, dialogs and window speak the system's first language the catalog has, else English
+    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
+    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {

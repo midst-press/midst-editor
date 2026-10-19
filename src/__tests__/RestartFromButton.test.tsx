@@ -2,24 +2,24 @@ import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useContext, useEffect, useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import {
+  ChangeObj,
+  compareStrings,
+  reconstruct,
+} from '@midst-press/midst-format/history';
 import Replay from '../renderer/components/Replay';
 import RestartIcon from '../renderer/components/Replay/restartIcon';
 import {
   FAILED_LOG,
   MISMATCH_LOG,
   NO_DIFFERENCE_LOG,
-  NO_HISTORY,
-  NOTHING_TO_CHANGE,
-  SHOWN_MESSAGE,
-  UNREPLAYABLE,
+  noHistory,
+  nothingToChange,
+  failedMessage,
+  unreplayable,
 } from '../renderer/components/Replay/RestartFromButton';
 import { HistoryContext, TextContext } from '../renderer/context';
 import { RestartFromError } from '../renderer/tracking/restartFrom';
-import {
-  ChangeObj,
-  compareStrings,
-  reconstruct,
-} from '../renderer/tracking/utils';
 
 // jest.mock is hoisted above the imports; `mockRestartFrom` is read only when a test calls it.
 const mockRestartFrom = jest.fn();
@@ -188,7 +188,7 @@ describe('Restart from here', () => {
     expect(restartButton()).toBeDisabled();
     const reasonId = restartButton().getAttribute('aria-describedby') as string;
     expect(document.getElementById(reasonId)).toHaveTextContent(
-      NOTHING_TO_CHANGE
+      nothingToChange()
     );
   });
 
@@ -203,7 +203,7 @@ describe('Restart from here', () => {
     mount([], '');
     expect(restartButton()).toBeDisabled();
     const reasonId = restartButton().getAttribute('aria-describedby') as string;
-    expect(document.getElementById(reasonId)).toHaveTextContent(NO_HISTORY);
+    expect(document.getElementById(reasonId)).toHaveTextContent(noHistory());
     expect(logError).not.toHaveBeenCalled();
   });
 
@@ -215,7 +215,7 @@ describe('Restart from here', () => {
     mount();
     expect(restartButton()).toBeDisabled();
     const reasonId = restartButton().getAttribute('aria-describedby') as string;
-    expect(document.getElementById(reasonId)).toHaveTextContent(UNREPLAYABLE);
+    expect(document.getElementById(reasonId)).toHaveTextContent(unreplayable());
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError.mock.calls[0][0]).toBe(message);
     expect(JSON.stringify(logError.mock.calls)).not.toContain('zq');
@@ -291,7 +291,7 @@ describe('Restart from here', () => {
     fireEvent.click(restartButton());
     expect(logError).toHaveBeenCalledTimes(1);
     expect(logError.mock.calls[0][0]).toBe(MISMATCH_LOG);
-    expect(screen.getByRole('alert')).toHaveTextContent(SHOWN_MESSAGE);
+    expect(screen.getByRole('alert')).toHaveTextContent(failedMessage());
     expect(
       events.filter((e) => e[0] !== 'store.set' || e[1] === 'edited')
     ).toEqual([]);
@@ -322,7 +322,7 @@ describe('Restart from here', () => {
     expect(logError.mock.calls[0][1]).toMatchObject({
       name: 'RestartFromError',
     });
-    expect(screen.getByRole('alert')).toHaveTextContent(SHOWN_MESSAGE);
+    expect(screen.getByRole('alert')).toHaveTextContent(failedMessage());
     expect(events).toEqual([]);
   });
 

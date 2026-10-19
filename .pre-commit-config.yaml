@@ -7,12 +7,16 @@ default_install_hook_types: [pre-commit, commit-msg, pre-push]
 # The checks run on commit, and in CI by `pre-commit run`. Only the hooks below that name another stage run there:
 # the closing-keyword check on the commit message, the force-push refusal on push.
 default_stages: [pre-commit, manual]
+# The vendored build is byte-exact (vendor/midst-format/VENDOR.md): no whitespace fixer, line-ending fixer or
+# formatter may touch it, so each of those hooks excludes it. The vendored-format hook below guards it.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
+        exclude: ^vendor/midst-format/
       - id: end-of-file-fixer
+        exclude: ^vendor/midst-format/
       - id: check-merge-conflict
       - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json
@@ -21,10 +25,11 @@ repos:
         # check-json is a STRICT JSON decoder, so it rejects the file for being what it is
         # meant to be. No coverage is lost: eslint loads that config on every run and fails
         # loudly if it is malformed, which is a stronger check than this one.
-        exclude: ^tsconfig\.eslint\.json$
+        exclude: ^tsconfig\.eslint\.json$|^vendor/midst-format/
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
+        exclude: ^vendor/midst-format/
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=2048]
@@ -37,8 +42,9 @@ repos:
         language: fail
         entry: >-
           Poem timelapses are the poets' work and must not enter git. A public push cannot be
-          withdrawn. Keep them with the archive and point MIDST_CORPUS at it. See DATA.md.
-        files: '(\.midst$|\.midst\.zip$|(^|/)static/static/assets/poems/)'
+          withdrawn. Keep real poems outside this repository; tests write synthetic ones. See
+          "Never commit poem content" in CONTRIBUTING.md.
+        files: '(\.midst$|\.midst\.zip$)'
 
       - id: forbid-logs
         name: logs must never be committed
@@ -47,6 +53,13 @@ repos:
           Log files carry absolute paths, usernames and environment details. yarn-error.log in the
           fork point contained a contributor's home directory and full shell PATH.
         files: '(\.log$|(^|/)logs/)'
+
+      - id: vendored-format
+        name: vendor/midst-format matches the SHA-256 block in its VENDOR.md
+        language: system
+        entry: node tools/check-vendored-format.mjs
+        pass_filenames: false
+        files: '^vendor/midst-format/|^tools/check-vendored-format\.mjs$'
 
       - id: version-consistent
         name: one app version (release/app/package.json is what installers carry)
@@ -59,7 +72,13 @@ repos:
         language: system
         entry: npx --no-install prettier --write
         files: '\.(ts|tsx|js|jsx|json|css|scss|md|ya?ml)$'
-        exclude: '(package-lock\.json|yarn\.lock)$'
+        exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/'
+      - id: catalog-compile
+        name: compile the message catalog (typecheck reads locales/<lang>/messages.ts, which is generated)
+        language: system
+        entry: npx --no-install lingui compile
+        pass_filenames: false
+        files: '\.(ts|tsx|po)$'
       - id: typecheck
         name: tsc --noEmit (the build does NOT typecheck; it sets TS_NODE_TRANSPILE_ONLY)
         language: system
@@ -71,6 +90,13 @@ repos:
         language: system
         entry: npx --no-install eslint --max-warnings=0
         files: '\.(ts|tsx|js|jsx)$'
+        # One process for every file. The config is type-aware (parserOptions.project), so each eslint process builds
+        # the whole TypeScript program first, and pre-commit's default is one process per CPU: 32 programs at once on
+        # the Studio's runner, 85 s of a gates job. Measured locally on 163 files: one process 9.5 s, ten 13.7 s,
+        # thirty-two at once 37.7 s. Same files, same rules, same verdict.
+        require_serial: true
+        # Named explicitly, an ignored file is a warning, which fails this hook: the vendored build is checked by its hashes instead.
+        exclude: ^vendor/midst-format/
 
       # ---- closing keywords. GitHub applies "fixes #25" in a commit message to ITS issue 25, which is not
       # ours: our commits use Gitea's numbers. Two GitHub items were closed that way (midst-infra #14). ----
@@ -80,11 +106,17 @@ repos:
         entry: python3 tools/closing_refs.py --message-file
         stages: [commit-msg]
       - id: midst-infra-copies
-        name: tools/closing_refs.py, tools/issue_flow.py and tools/refuse_force_push.py are copies from midst-infra (change them there first, then here with the checksums)
+        name: tools/closing_refs.py, tools/issue_flow.py, tools/refuse_force_push.py, tools/install-hooks.cjs, tools/require-hooks.cjs and tools/test-install-hooks.cjs are copies from midst-infra (change them there first, then here with the checksums)
         language: system
         entry: shasum -a 256 -c tools/midst-infra-copies.sha256
         pass_filenames: false
-        files: '^tools/(closing_refs\.py|issue_flow\.py|refuse_force_push\.py|midst-infra-copies\.sha256)$'
+        files: '^tools/(closing_refs\.py|issue_flow\.py|refuse_force_push\.py|install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs|midst-infra-copies\.sha256)$'
+      - id: test-install-hooks
+        name: tools/test-install-hooks.cjs (the git-hook installer, a copy from midst-infra #37)
+        language: system
+        entry: node --test tools/test-install-hooks.cjs
+        pass_filenames: false
+        files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
 
       # ---- a pushed branch is never rewritten. The servers refuse it (Gitea and GitHub); this says so before
       # anything is sent, and what to do instead. A copy from midst-infra, tested there. ----

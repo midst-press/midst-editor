@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import path from 'path';
-import { reconstruct } from '../renderer/tracking/utils';
+import { reconstruct } from '@midst-press/midst-format/history';
 import {
   convertMidstFile,
   dropTrailingBreaks,
@@ -8,11 +8,10 @@ import {
   fileVersionMatchesCurrent,
   getFileVersion,
   includeVersionInfo,
-  loadDataIntoWorkspace,
-  resolveHtmlPath,
   serializeDocument,
   stripVersionInfo,
-} from '../main/util';
+} from '@midst-press/midst-format/convert';
+import { loadDataIntoWorkspace, resolveHtmlPath } from '../main/util';
 
 // Synthetic documents only: invented words, never a poem.
 //
@@ -46,6 +45,23 @@ describe('the version header', () => {
     expect(getFileVersion('midstVersion: v0.0.1\n{"text":""}')).toBe('v0.0.1');
   });
 
+  // #32: a file whose line endings were changed to Windows ones is still a current file.
+  it('reads a header that ends in CRLF', () => {
+    expect(getFileVersion('midstVersion: 1\r\n{"text":""}')).toBe('1');
+    expect(fileVersionMatchesCurrent('midstVersion: 1\r\n{}')).toBe(true);
+    expect(stripVersionInfo('midstVersion: 1\r\n{"text":""}')).toBe(
+      '{"text":""}'
+    );
+  });
+
+  // An older Windows editor saves UTF-8 with a byte order mark (silas-397300f6, review of #196).
+  it('reads a header after a UTF-8 byte order mark, with CRLF too', () => {
+    const file = '\uFEFFmidstVersion: 1\r\n{"text":""}';
+    expect(getFileVersion(file)).toBe('1');
+    expect(fileVersionMatchesCurrent(file)).toBe(true);
+    expect(stripVersionInfo(file)).toBe('{"text":""}');
+  });
+
   it('accepts both versions the editor has written, and no other', () => {
     expect(fileVersionMatchesCurrent('midstVersion: 1\n{}')).toBe(true);
     expect(fileVersionMatchesCurrent('midstVersion: v0.0.1\n{}')).toBe(true);
@@ -60,6 +76,10 @@ describe('the version header', () => {
     ['a header with no space after the colon', 'midstVersion:1\n{}'],
     ['a version on the second line', '{}\nmidstVersion: 1'],
     ['text that merely contains a colon', '{"content":"<p>zq: 1</p>"}'],
+    // #32: the header's name is checked, not just whatever follows the first ': '.
+    ['another key with a current value', 'title: 1\n{}'],
+    ['the header name inside a longer key', 'xmidstVersion: 1\n{}'],
+    ['a current value followed by more', 'midstVersion: 1 zq\n{}'],
   ])('does not take %s for a current file', (_name, data) => {
     expect(fileVersionMatchesCurrent(data)).toBe(false);
   });
@@ -171,6 +191,16 @@ describe('the file body the editor saves', () => {
     expect(JSON.parse(body).meta).toEqual({ title: 'zq title' });
   });
 
+  // Only an object can hold an author (#181); any other meta a file holds is written back as it is.
+  it.each([
+    ['null', null],
+    ['an array', [1]],
+    ['a string', 'zq'],
+  ])('writes back a meta that is %s unchanged', (_label, meta) => {
+    const body = serializeDocument('<p>zq</p>', '[]', JSON.stringify(meta));
+    expect(JSON.parse(body).meta).toEqual(meta);
+  });
+
   it('is one line, so the version header stays the only other line', () => {
     const body = serializeDocument('<p>zq</p><p>xv</p>', '[]', '');
     expect(body).not.toContain('\n');
@@ -235,23 +265,24 @@ describe('converting an old file', () => {
     const pos = (content: string, lineNumber: string) =>
       convert([{ content, lineNumber }]).history[0].pos;
 
-    it('counts one for the document, one per line, and each character', () => {
-      expect(pos('<p>zq</p>', '0')).toBe(4);
-      expect(pos('<p></p>', '0')).toBe(2);
+    // midst-format v0.4.0: pos is a ProseMirror position, the end of the recorded line's block (format #36).
+    it('is the end of the line, in ProseMirror positions', () => {
+      expect(pos('<p>zq</p>', '0')).toBe(3);
+      expect(pos('<p><br></p>', '0')).toBe(1);
     });
 
-    it('counts only the lines up to the one being written', () => {
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(4);
+    it('is the end of the line being written, past the lines before it', () => {
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '0')).toBe(3);
       expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '1')).toBe(7);
-      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(10);
+      expect(pos('<p>zq</p><p>xv</p><p>kj</p>', '2')).toBe(11);
     });
 
-    it('counts a line break inside a line as two', () => {
-      expect(pos('<p>zq<br>xv</p>', '0')).toBe(8);
+    it('counts a line break inside a line as one position', () => {
+      expect(pos('<p>zq<br>xv</p>', '0')).toBe(6);
     });
 
     it('counts formatted text by its characters, not its tags', () => {
-      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(5);
+      expect(pos('<p>z<strong>q</strong><em>x</em></p>', '0')).toBe(4);
     });
   });
 });
@@ -358,9 +389,10 @@ describe('a selection marker left in an old file', () => {
     expect(steps[steps.length - 1]).toBe(c.text);
   });
 
-  it('keeps a line the poet left blank', () => {
+  // <p><br></p> is a blank line the poet saw; <p></p> drew nothing in the old player (#169, midst-format v0.4.0).
+  it('keeps a line the poet left blank, and drops an empty paragraph that showed nothing', () => {
     const c = convert([`${RANGY}<p>zq</p><p><br></p><p></p><p>xv</p>`]);
-    expect(paragraphs(c.text)).toEqual(['zq', '', '', 'xv']);
+    expect(paragraphs(c.text)).toEqual(['zq', '', 'xv']);
   });
 
   it('keeps the paragraph and its text when the marker sits inside it, and drops the marker', () => {

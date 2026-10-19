@@ -25,8 +25,10 @@ on:
   push:
     branches: [main]
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A PR's runs share its ref; each push to main gets its own group, so a newer one cannot cancel it even while pending.
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  # Cancel a superseded run on a PR only: every push to main keeps its own verdict (midst-infra #102).
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 defaults:
@@ -56,6 +58,20 @@ jobs:
           cache="${PRE_COMMIT_HOME:-${XDG_CACHE_HOME:-$HOME/.cache}/pre-commit}"
           if [ -d "$cache" ]; then echo "pre-commit cache: present at $cache"; else echo "pre-commit cache: none yet at $cache"; fi
           pre-commit run --all-files --show-diff-on-failure
+      - name: vendored midst-format matches its VENDOR.md hashes
+        run: node tools/check-vendored-format.mjs
+      # The message catalog (midst-infra docs/design/message-catalog.md): the catalog matches the code, it is
+      # consistent, and the main process writes no words of its own. The renderer's are checked by eslint, in
+      # the pre-commit step (lingui/no-unlocalized-strings).
+      - name: message catalog
+        run: npm run catalog:check
+      # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/, so the hashes are not
+      # the only check: they can be edited in the same commit as the files. midst-format is public on Gitea, so
+      # the clone needs no key (the "private" premise was wrong; checked anonymously 19 Oct).
+      - name: vendored midst-format equals a rebuild of its tag
+        run: |
+          git clone --quiet http://gitea-server:3000/The_Kindled/midst-format.git "$RUNNER_TEMP/midst-format"
+          MIDST_FORMAT_ROOT="$RUNNER_TEMP/midst-format" node tools/check-vendored-format.mjs --rebuild
       # The jest setup file refuses to run until both bundles exist; see .github/workflows/ci.yml.
       - run: npm run build
       - run: npm test -- --coverage

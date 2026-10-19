@@ -2,16 +2,21 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, Menu, nativeTheme, shell } from 'electron';
+import { app, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
+import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
+  logIfRejected,
   newFile,
   openFile,
   save,
   saveAs,
 } from '../main/menu';
 import { showAbout } from '../main/about';
+import { setEditorShowing } from '../main/editorFlush';
+import * as rtf from '../main/rtf';
+import { catalogs, i18n } from '../shared/i18n';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -30,14 +35,24 @@ jest.mock('electron', () => ({
     showOpenDialogSync: jest.fn(),
   },
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
-  shell: { openExternal: jest.fn() },
+  shell: { openExternal: jest.fn(), showItemInFolder: jest.fn() },
   nativeTheme: { themeSource: 'system' },
   BrowserWindow: jest.fn(),
+  ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
+jest.mock('../main/logFile', () => ({
+  logFilePath: () => '/zq/Logs/Midst/main.log',
+}));
 jest.mock('electron-log', () => ({
   __esModule: true,
-  default: { debug: jest.fn(), info: jest.fn(), error: jest.fn() },
+  // Every level, so a new log call at any level can be asserted rather than throwing (#160).
+  default: {
+    debug: jest.fn(),
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+  },
 }));
 jest.mock('../main/store', () => ({
   __esModule: true,
@@ -48,9 +63,24 @@ jest.mock('../main/store', () => ({
 }));
 
 const showMessageBox = dialog.showMessageBoxSync as jest.Mock;
+const logError = log.error as jest.Mock;
+const logWarn = log.warn as jest.Mock;
+const logInfo = log.info as jest.Mock;
+// Every line logged, as text, to check that no poem text reached the log.
+const everythingLogged = () =>
+  JSON.stringify(
+    [log.debug, log.info, log.warn, log.error].map(
+      (f) => (f as jest.Mock).mock.calls
+    )
+  );
 const showSaveDialog = dialog.showSaveDialogSync as jest.Mock;
 const showOpenDialog = dialog.showOpenDialogSync as jest.Mock;
 const buildFromTemplate = Menu.buildFromTemplate as jest.Mock;
+// editorFlush's one handler for the editor's answer, registered at import (before any clearAllMocks).
+type Answer = Parameters<typeof ipcMain.on>[1];
+const editorAnswers = (ipcMain.on as jest.Mock).mock.calls.find(
+  ([channel]) => channel === 'editor-flushed'
+)?.[1] as Answer;
 
 const makeWindow = () => ({
   webContents: {
@@ -100,13 +130,29 @@ const trackFsCallback = (name: 'readFile') => {
     real(...args);
   }) as never);
 };
+// Export as RTF runs on the next turn of the event loop, after the editor's flush has answered.
+const exportRan = () =>
+  new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+
 const ioDone = async () => {
   await Promise.all(pendingIo.splice(0));
+};
+
+// clearAllMocks keeps mockReturnValue between tests, so a dialog answer set by one test would
+// reach the next. Each dialog mock is reset to throw: every test sets the answers it needs.
+const unsetAnswer = () => {
+  throw new Error('dialog answer not set by this test');
 };
 
 beforeEach(() => {
   mockStore.clear();
   jest.clearAllMocks();
+  [showMessageBox, showSaveDialog, showOpenDialog].forEach((dialogMock) => {
+    dialogMock.mockReset();
+    dialogMock.mockImplementation(unsetAnswer);
+  });
   pendingIo.length = 0;
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-test-'));
   trackFsCallback('readFile');
@@ -171,7 +217,7 @@ describe('save', () => {
     expect(mockStore.get('edited')).toBe('false');
     expect(mockStore.get('filename')).toBe(target);
     expect(mockStore.get('baseFilename')).toBe('zq.midst');
-    expect(win.setTitle).toHaveBeenCalledWith(target);
+    expect(win.setTitle).not.toHaveBeenCalled();
     expect(win.webContents.send).toHaveBeenCalledWith(
       'set-filename',
       'zq.midst'
@@ -239,6 +285,9 @@ describe('save', () => {
     expect(mockStore.get('filename')).toBeUndefined();
     expect(mockStore.get('baseFilename')).toBeUndefined();
     expect(win.webContents.send.mock.calls).toEqual([['cancel-save']]);
+    expect(logError).toHaveBeenCalledWith(
+      'save: no document in the store; nothing written'
+    );
   });
 
   it.each(['poem', 'history'])(
@@ -255,14 +304,26 @@ describe('save', () => {
     }
   );
 
-  it('does not keep the chosen filename when the document cannot be written', async () => {
-    seedDocument({ filename: '', history: '{not json' });
+  it('a document that cannot be prepared: keeps no filename, tells the poet, and logs the error by name only (#160)', async () => {
+    seedDocument({ filename: '', history: '{not json POEM-SENTINEL' });
     showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
-    await expect(save(asWindow(makeWindow()), false)).rejects.toThrow();
+    showMessageBox.mockReturnValue(OK);
+    await save(asWindow(makeWindow()), false);
     await ioDone();
     expect(dirListing()).toEqual([]);
     expect(mockStore.get('filename')).toBe('');
     expect(mockStore.get('baseFilename')).toBeUndefined();
+    expect(showMessageBox.mock.calls[0][1].detail).toContain(
+      'The poem could not be prepared for saving.'
+    );
+    expect(logError).toHaveBeenCalledWith(
+      'save: the document could not be prepared for writing',
+      expect.objectContaining({
+        filename: path.join(dir, 'zq.midst'),
+        name: 'SyntaxError',
+      })
+    );
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
   });
 
   it('when the poet cancels the dialog, writes nothing, keeps the edited state and says so', async () => {
@@ -302,6 +363,13 @@ describe('save', () => {
       expect(options.cancelId).toBe(OK);
       // OK asks for nothing more.
       expect(showSaveDialog).not.toHaveBeenCalled();
+      expect(logError).toHaveBeenCalledWith(
+        'save: the document was not written',
+        expect.objectContaining({
+          filename: target,
+          reason: expect.stringContaining('ENOENT'),
+        })
+      );
     });
 
     it('does not touch the macOS edited dot elsewhere', async () => {
@@ -420,6 +488,31 @@ describe('save', () => {
       expect(win.setDocumentEdited).not.toHaveBeenCalled();
     });
 
+    it('when the leftover file cannot be removed either, tells the poet why the save failed and logs both (#95)', async () => {
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, 'earlier work');
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      jest.spyOn(fs, 'renameSync').mockImplementation(() => {
+        throw new Error('EIO: zq');
+      });
+      jest.spyOn(fs, 'rmSync').mockImplementation(() => {
+        const e = new Error('EBUSY: xv') as NodeJS.ErrnoException;
+        e.code = 'EBUSY';
+        throw e;
+      });
+      await save(asWindow(makeWindow()), true);
+      expect(showMessageBox.mock.calls[0][1].detail).toContain('EIO: zq');
+      expect(showMessageBox.mock.calls[0][1].detail).not.toContain('EBUSY');
+      expect(log.error).toHaveBeenCalledWith(
+        'save: the document was not written',
+        expect.objectContaining({
+          reason: 'EIO: zq',
+          cleanupError: expect.objectContaining({ code: 'EBUSY' }),
+        })
+      );
+    });
+
     it('leaves an existing file that cannot be replaced as it was', async () => {
       // Root may write to a read-only file, so there is nothing to observe as root.
       if (process.getuid?.() === 0) return;
@@ -483,7 +576,7 @@ describe('saveAs', () => {
       'set-filename',
       'xv.midst'
     );
-    expect(win.setTitle).toHaveBeenCalledWith(chosen);
+    expect(win.setTitle).not.toHaveBeenCalled();
   });
 
   it('writes meta back unchanged', async () => {
@@ -535,14 +628,21 @@ describe('saveAs', () => {
     }
   );
 
-  it('does not keep the chosen filename when the document cannot be written', async () => {
+  it('a document that cannot be prepared: keeps the previous filename, tells the poet, and logs by name only (#160)', async () => {
     const previous = path.join(dir, 'zq.midst');
-    seedDocument({ filename: previous, history: '{not json' });
+    seedDocument({ filename: previous, history: '{not json POEM-SENTINEL' });
     showSaveDialog.mockReturnValue(path.join(dir, 'xv.midst'));
-    await expect(saveAs(asWindow(makeWindow()), false)).rejects.toThrow();
+    showMessageBox.mockReturnValue(OK);
+    await saveAs(asWindow(makeWindow()), false);
     await ioDone();
     expect(dirListing()).toEqual([]);
     expect(mockStore.get('filename')).toBe(previous);
+    expect(showMessageBox).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith(
+      'saveAs: the document could not be prepared for writing',
+      expect.objectContaining({ name: 'SyntaxError' })
+    );
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
   });
 
   it('when the poet cancels, changes nothing', async () => {
@@ -642,6 +742,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('an empty poem: says why, and asks for no file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument({ poem: '<p></p>' });
     exportRtf(asWindow(makeWindow()));
     expect(showSaveDialog).not.toHaveBeenCalled();
@@ -650,15 +751,22 @@ describe('exportRtf (GitHub #26)', () => {
       title: ERROR_TITLE,
       detail: 'The poem is empty, so there is nothing to export.',
     });
+    expect(logWarn).toHaveBeenCalledWith('exportRtf: refused', {
+      reason: 'The poem is empty, so there is nothing to export.',
+    });
   });
 
   it('no poem in the store: says so, and asks for no file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument();
     mockStore.delete('poem');
     exportRtf(asWindow(makeWindow()));
     expect(showSaveDialog).not.toHaveBeenCalled();
     expect(showMessageBox.mock.calls[0][1].detail).toBe(
       'There is no poem open to export.'
+    );
+    expect(logError).toHaveBeenCalledWith(
+      'exportRtf: no poem in the store; nothing written'
     );
   });
 
@@ -671,6 +779,7 @@ describe('exportRtf (GitHub #26)', () => {
   });
 
   it('a file that cannot be written: says why, and leaves no part of a file', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument();
     showSaveDialog.mockReturnValue(unwritable().replace(/midst$/, 'rtf'));
     exportRtf(asWindow(makeWindow()));
@@ -679,9 +788,14 @@ describe('exportRtf (GitHub #26)', () => {
       'No file was written.'
     );
     expect(dirListing()).toEqual([]);
+    expect(logError).toHaveBeenCalledWith(
+      'exportRtf: the file was not written',
+      expect.objectContaining({ reason: expect.stringContaining('ENOENT') })
+    );
   });
 
   it('a write that fails partway leaves an existing file of that name as it was', () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     const chosen = path.join(dir, 'zq.rtf');
     fs.writeFileSync(chosen, 'earlier export');
     seedDocument();
@@ -697,10 +811,10 @@ describe('exportRtf (GitHub #26)', () => {
 });
 
 describe('newFile', () => {
-  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', () => {
+  it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', async () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
-    newFile(asWindow(makeWindow()), false);
+    await newFile(asWindow(makeWindow()), false);
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const options = showMessageBox.mock.calls[0][1];
     expect(options.buttons).toEqual(['Proceed', 'Cancel']);
@@ -714,24 +828,24 @@ describe('newFile', () => {
   // ask, as the window's close handler does.
   it.each([['true'], [undefined], ['']])(
     'asks before discarding the document when edited is %p',
-    (edited) => {
+    async (edited) => {
       seedDocument();
       if (edited === undefined) mockStore.delete('edited');
       else mockStore.set('edited', edited);
       showMessageBox.mockReturnValue(1);
       const win = makeWindow();
-      newFile(asWindow(win), false);
+      await newFile(asWindow(win), false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('poem')).toBe('<p>xv</p>');
       expect(win.webContents.send).not.toHaveBeenCalled();
     }
   );
 
-  it('when the poet cancels, keeps the document and tells the renderer nothing', () => {
+  it('when the poet cancels, keeps the document and tells the renderer nothing', async () => {
     seedDocument({ edited: 'true', filename: '/x/zq.midst' });
     showMessageBox.mockReturnValue(1);
     const win = makeWindow();
-    newFile(asWindow(win), true);
+    await newFile(asWindow(win), true);
     expect(mockStore.get('poem')).toBe('<p>xv</p>');
     expect(mockStore.get('filename')).toBe('/x/zq.midst');
     expect(mockStore.get('edited')).toBe('true');
@@ -739,7 +853,7 @@ describe('newFile', () => {
     expect(win.setTitle).not.toHaveBeenCalled();
   });
 
-  it('when the poet proceeds, clears the document and tells the renderer', () => {
+  it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
       edited: 'true',
       filename: '/x/zq.midst',
@@ -748,7 +862,7 @@ describe('newFile', () => {
     });
     showMessageBox.mockReturnValue(0);
     const win = makeWindow();
-    newFile(asWindow(win), false);
+    await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
     expect(mockStore.get('history')).toBe('[]');
     expect(mockStore.get('meta')).toBe('');
@@ -758,23 +872,23 @@ describe('newFile', () => {
     expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
   });
 
-  it('with no unsaved changes, does not ask', () => {
+  it('with no unsaved changes, does not ask', async () => {
     seedDocument({ edited: 'false' });
     const win = makeWindow();
-    newFile(asWindow(win), false);
+    await newFile(asWindow(win), false);
     expect(showMessageBox).not.toHaveBeenCalled();
     expect(mockStore.get('poem')).toBe('');
     expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
   });
 
-  it('on macOS, titles the window Untitled; elsewhere does not', () => {
+  it("on macOS, represents the document as Untitled; the title is the renderer's on every platform (#125)", async () => {
     seedDocument({ edited: 'false' });
     const mac = makeWindow();
-    newFile(asWindow(mac), true);
-    expect(mac.setTitle).toHaveBeenCalledWith('Untitled');
+    await newFile(asWindow(mac), true);
+    expect(mac.setTitle).not.toHaveBeenCalled();
     expect(mac.setRepresentedFilename).toHaveBeenCalledWith('Untitled');
     const other = makeWindow();
-    newFile(asWindow(other), false);
+    await newFile(asWindow(other), false);
     expect(other.setTitle).not.toHaveBeenCalled();
   });
 });
@@ -875,12 +989,22 @@ describe('openFile', () => {
   });
 
   it('a file of the current version that cannot be parsed shows an error and leaves the open document alone', async () => {
+    showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
     seedDocument({ edited: 'false', filename: '/x/xv.midst' });
     const target = path.join(dir, 'zq.midst');
-    fs.writeFileSync(target, 'midstVersion: 1\n{not json');
+    fs.writeFileSync(target, 'midstVersion: 1\n{not json POEM-SENTINEL');
     const win = makeWindow();
     await openFile(asWindow(win), false, [target]);
     await ioDone();
+    expect(logError).toHaveBeenCalledWith(
+      'open: the file could not be loaded',
+      {
+        filePath: target,
+        name: 'SyntaxError',
+        frames: expect.any(Array),
+      }
+    );
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const options = showMessageBox.mock.calls[0][1];
     expect(options.type).toBe('error');
@@ -897,6 +1021,7 @@ describe('openFile', () => {
     ])(
       'when the path %s, says it could not be opened, with the reason, and offers no conversion',
       async (_case, target, code) => {
+        showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
         seedDocument({ edited: 'false' });
         const win = makeWindow();
         await openFile(asWindow(win), false, [target(dir)]);
@@ -907,6 +1032,10 @@ describe('openFile', () => {
         expect(shown.message).toContain(target(dir));
         expect(shown.message).toContain(code);
         expect(shown.buttons).toBeUndefined();
+        expect(logError).toHaveBeenCalledWith(
+          'open: the file could not be read',
+          { filePath: target(dir), code }
+        );
         expect(mockStore.get('poem')).toBe('<p>xv</p>');
         expect(win.webContents.send).not.toHaveBeenCalled();
       }
@@ -985,6 +1114,216 @@ describe('openFile', () => {
       );
     });
 
+    it('logs that the version was not recognised, and the conversion', async () => {
+      seedDocument({ edited: 'false' });
+      const target = path.join(dir, 'zq.midst');
+      fs.writeFileSync(target, oldFile);
+      showMessageBox.mockReturnValue(1);
+      await openFile(asWindow(makeWindow()), false, [target]);
+      await ioDone();
+      expect(logInfo).toHaveBeenCalledWith(
+        'open: version not recognised; offering to convert',
+        { filePath: target }
+      );
+      expect(logInfo).toHaveBeenCalledWith('open: converted', {
+        filePath: target,
+        newFilename: path.join(dir, 'zq-converted.midst'),
+      });
+    });
+
+    describe('when it was converted before (#7)', () => {
+      const withCopy = () => {
+        seedDocument({ edited: 'false' });
+        const target = path.join(dir, 'zq.midst');
+        fs.writeFileSync(target, oldFile);
+        const copy = path.join(dir, 'zq-converted.midst');
+        fs.writeFileSync(copy, goodFile('<p>zq kept</p>'));
+        return { target, copy };
+      };
+
+      it('offers the converted copy, by name, as the default, with converting again as the other choice', async () => {
+        withCopy();
+        showMessageBox.mockReturnValue(0);
+        await openFile(asWindow(makeWindow()), false, [
+          path.join(dir, 'zq.midst'),
+        ]);
+        await ioDone();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        const options = showMessageBox.mock.calls[0][1];
+        expect(options.buttons).toEqual([
+          'Cancel',
+          'Convert Again',
+          'Open Converted Copy',
+        ]);
+        expect(options.defaultId).toBe(2);
+        expect(options.cancelId).toBe(0);
+        expect(options.detail).toContain('zq-converted.midst');
+      });
+
+      it('on Open Converted Copy, loads the copy and writes nothing', async () => {
+        const { target, copy } = withCopy();
+        showMessageBox.mockReturnValue(2);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        await ioDone();
+        expect(dirListing()).toEqual(['zq-converted.midst', 'zq.midst']);
+        expect(readBack(target)).toBe(oldFile);
+        expect(readBack(copy)).toBe(goodFile('<p>zq kept</p>'));
+        expect(mockStore.get('filename')).toBe(copy);
+        expect(win.webContents.send).toHaveBeenCalledWith(
+          'open-file',
+          '<p>zq kept</p>',
+          history,
+          'zq-converted.midst'
+        );
+        expect(logInfo).toHaveBeenCalledWith(
+          'open: opening the earlier converted copy',
+          { filePath: target, copy }
+        );
+      });
+
+      it('on Convert Again, writes a new copy beside the old one and keeps it', async () => {
+        const { target, copy } = withCopy();
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        const again = path.join(dir, 'zq-converted-2.midst');
+        expect(dirListing()).toEqual([
+          'zq-converted-2.midst',
+          'zq-converted.midst',
+          'zq.midst',
+        ]);
+        expect(readBack(copy)).toBe(goodFile('<p>zq kept</p>'));
+        expect(mockStore.get('filename')).toBe(again);
+        expect(app.addRecentDocument).toHaveBeenCalledWith(again);
+      });
+
+      it('on Cancel, writes nothing and loads nothing', async () => {
+        const { target } = withCopy();
+        showMessageBox.mockReturnValue(0);
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        expect(dirListing()).toEqual(['zq-converted.midst', 'zq.midst']);
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      });
+
+      it('a folder that cannot be searched: logs why, and offers the plain conversion', async () => {
+        const { target } = withCopy();
+        const real = fs.readdirSync;
+        jest.spyOn(fs, 'readdirSync').mockImplementation(((
+          ...args: Parameters<typeof fs.readdirSync>
+        ) => {
+          if (args[0] === dir) {
+            throw Object.assign(new Error('EACCES: POEM-SENTINEL'), {
+              code: 'EACCES',
+            });
+          }
+          return real(...args);
+        }) as never);
+        showMessageBox.mockReturnValue(0);
+        await openFile(asWindow(makeWindow()), false, [target]);
+        await ioDone();
+        (fs.readdirSync as jest.Mock).mockRestore();
+        expect(showMessageBox.mock.calls[0][1].buttons).toEqual([
+          'Cancel',
+          'Convert File',
+        ]);
+        const warned = (log.warn as jest.Mock).mock.calls.find(
+          (c) => c[0] === 'open: could not look for an earlier converted copy'
+        );
+        expect(warned?.[1]).toMatchObject({ filePath: target, name: 'Error' });
+        expect(JSON.stringify(warned)).not.toContain('POEM-SENTINEL');
+      });
+    });
+
+    describe('when the conversion fails (#160)', () => {
+      const failingAt = async (
+        stage: 'convert' | 'write' | 'load',
+        content: string
+      ) => {
+        seedDocument({ edited: 'false' });
+        const target = path.join(dir, 'zq.midst');
+        fs.writeFileSync(target, content);
+        showMessageBox.mockReturnValueOnce(1).mockReturnValue(undefined);
+        if (stage === 'write') {
+          jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {
+            throw Object.assign(new Error('EACCES: POEM-SENTINEL'), {
+              code: 'EACCES',
+            });
+          });
+        }
+        if (stage === 'load') {
+          (app.addRecentDocument as jest.Mock).mockImplementationOnce(() => {
+            throw new TypeError('POEM-SENTINEL');
+          });
+        }
+        const win = makeWindow();
+        await openFile(asWindow(win), false, [target]);
+        await ioDone();
+        return { target, win };
+      };
+
+      it('a file that cannot be converted: says so, writes nothing, and logs the stage and the error by name', async () => {
+        const { target, win } = await failingAt(
+          'convert',
+          '{"POEM-SENTINEL": '
+        );
+        expect(dirListing()).toEqual(['zq.midst']);
+        expect(showMessageBox.mock.calls[1][1]).toMatchObject({
+          type: 'error',
+          message: `The file ${target} could not be converted. The original file is unchanged.`,
+        });
+        expect(logError).toHaveBeenCalledWith(
+          'open: the file could not be converted',
+          expect.objectContaining({
+            filePath: target,
+            stage: 'convert',
+            name: 'SyntaxError',
+          })
+        );
+        expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      });
+
+      it('a converted file that cannot be written: says so, and logs the write stage', async () => {
+        const { target } = await failingAt('write', oldFile);
+        expect(showMessageBox.mock.calls[1][1].message).toBe(
+          `The file ${target} could not be converted. The original file is unchanged.`
+        );
+        const meta = logError.mock.calls.find(
+          (c) => c[0] === 'open: the file could not be converted'
+        )?.[1];
+        expect(meta).toMatchObject({ stage: 'write', name: 'Error' });
+        expect(meta).not.toHaveProperty('newFilename');
+        expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+      });
+
+      it('a converted file that cannot be opened: names the file written, and logs the load stage', async () => {
+        const { target } = await failingAt('load', oldFile);
+        const converted = path.join(dir, 'zq-converted.midst');
+        expect(dirListing()).toEqual(['zq-converted.midst', 'zq.midst']);
+        expect(showMessageBox.mock.calls[1][1].message).toBe(
+          `The converted file ${converted} was written, but could not be opened.`
+        );
+        expect(logError).toHaveBeenCalledWith(
+          'open: the file could not be converted',
+          expect.objectContaining({
+            filePath: target,
+            stage: 'load',
+            newFilename: converted,
+            name: 'TypeError',
+          })
+        );
+        expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+      });
+    });
+
     it('on Convert, never overwrites an earlier converted file', async () => {
       seedDocument({ edited: 'false' });
       const target = path.join(dir, 'zq.midst');
@@ -1044,6 +1383,79 @@ describe('the menu', () => {
     new MenuBuilder(asWindow(win)).buildMenu();
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
+
+  // Every word in the menus comes from the catalog: each labelled item's id is a catalog key, and its
+  // label is that key's English, without the '&' on macOS (midst-infra docs/design/message-catalog.md).
+  it.each([
+    ['darwin', 'production'],
+    ['darwin', 'development'],
+    ['linux', 'production'],
+    ['linux', 'development'],
+  ])(
+    'labels every %s item (%s) from the catalog, by its id',
+    (platform, env) => {
+      process.env.NODE_ENV = env;
+      const english = catalogs.en as Record<string, unknown>;
+      const items: Item[] = [];
+      const walk = (list: Item[]) =>
+        list.forEach((item) => {
+          if (item.label !== undefined) items.push(item);
+          if (Array.isArray(item.submenu)) walk(item.submenu);
+        });
+      walk(build(platform));
+      expect(items.length).toBeGreaterThan(20);
+      items.forEach((item) => {
+        expect(
+          item.id !== undefined &&
+            Object.prototype.hasOwnProperty.call(english, item.id)
+        ).toBe(true);
+        const text = i18n._(item.id!);
+        expect(item.label).toBe(
+          platform === 'darwin' ? text.replace(/&/g, '') : text
+        );
+      });
+    }
+  );
+
+  describe('entries from #121', () => {
+    it('Select All on Windows and Linux is the selectAll role, not the macOS-only selector', () => {
+      const item = sub(build('linux'), '&Edit', 'Select All') as Item & {
+        role?: string;
+        selector?: string;
+      };
+      expect(item.role).toBe('selectAll');
+      expect(item.selector).toBeUndefined();
+    });
+
+    it('Save As on macOS is written modifiers first', () => {
+      expect(sub(build('darwin'), 'File', 'Save As').accelerator).toBe(
+        'Command+Shift+S'
+      );
+    });
+
+    it('text size accelerators match between development and production macOS builds', () => {
+      // Development
+      process.env.NODE_ENV = 'development';
+      const devInc = sub(build('darwin'), 'View', 'Increase text size');
+      const devDec = sub(build('darwin'), 'View', 'Decrease text size');
+      // Production
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      const prodInc = sub(build('darwin'), 'View', 'Increase text size');
+      const prodDec = sub(build('darwin'), 'View', 'Decrease text size');
+      expect(devInc.accelerator).toBe(prodInc.accelerator);
+      expect(devDec.accelerator).toBe(prodDec.accelerator);
+      expect(devInc.accelerator).toBe('Command+Shift+=');
+      expect(devDec.accelerator).toBe('Command+Shift+-');
+    });
+
+    it('text size accelerators on Windows and Linux use Ctrl', () => {
+      const inc = sub(build('linux'), '&View', 'Increase text size');
+      const dec = sub(build('linux'), '&View', 'Decrease text size');
+      expect(inc.accelerator).toBe('Ctrl+=');
+      expect(dec.accelerator).toBe('Ctrl+-');
+    });
+  });
 
   describe('buildMenu', () => {
     it('builds the macOS template on darwin, installs it and returns the menu', () => {
@@ -1147,8 +1559,11 @@ describe('the menu', () => {
       const template = build(platform);
       const saveItem = sub(template, fileLabels.top, fileLabels.save);
       const saveAsItem = sub(template, fileLabels.top, fileLabels.saveAs);
-      expect(saveItem).toMatchObject({ id: 'save', enabled: false });
-      expect(saveAsItem).toMatchObject({ id: 'save-as', enabled: false });
+      expect(saveItem).toMatchObject({ id: 'menu.file.save', enabled: false });
+      expect(saveAsItem).toMatchObject({
+        id: 'menu.file.saveAs',
+        enabled: false,
+      });
     });
 
     it('Save saves the document', async () => {
@@ -1162,12 +1577,124 @@ describe('the menu', () => {
       expect(win.setDocumentEdited).toHaveBeenCalledTimes(isMac ? 1 : 0);
     });
 
-    it('Export as RTF… asks for a file and writes the poem there as RTF', () => {
+    describe('the poem is taken from the editor first, not from the store it writes a second late (#157)', () => {
+      // The editor is showing and holds a newer poem than the store: it writes it when asked, then answers.
+      const editorHolding = (win: FakeWindow, poem: string) => {
+        setEditorShowing(true);
+        win.webContents.send.mockImplementation(
+          (channel: string, id: unknown) => {
+            if (channel !== 'flush-editor') return;
+            mockStore.set('poem', poem);
+            editorAnswers({} as never, [id]);
+          }
+        );
+      };
+      afterEach(() => setEditorShowing(false));
+
+      it('Save', async () => {
+        const target = path.join(dir, 'zq.midst');
+        seedDocument({ filename: target });
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.save)
+          .click!();
+        expect(readBack(target)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Save As', async () => {
+        const chosen = path.join(dir, 'xv.midst');
+        seedDocument({ filename: path.join(dir, 'zq.midst') });
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, fileLabels.saveAs)
+          .click!();
+        expect(readBack(chosen)).toContain('"text":"<p>xv qj</p>"');
+      });
+
+      it('Export as RTF…', async () => {
+        const chosen = path.join(dir, 'zq.rtf');
+        seedDocument();
+        showSaveDialog.mockReturnValue(chosen);
+        const win = makeWindow();
+        editorHolding(win, '<p>xv qj</p>');
+        await sub(build(platform, win), fileLabels.top, 'Export as RTF…')
+          .click!();
+        await exportRan();
+        expect(readBack(chosen)).toContain('xv qj');
+      });
+    });
+
+    describe('New and Open ask the editor first, so the prompt knows about the last second of typing (#113)', () => {
+      // Saved, but the editor holds typing no store write has carried: it marks the document unsaved.
+      const editorTypedSinceSave = (win: FakeWindow) => {
+        setEditorShowing(true);
+        win.webContents.send.mockImplementation(
+          (channel: string, id: unknown) => {
+            if (channel !== 'flush-editor') return;
+            mockStore.set('edited', 'true');
+            editorAnswers({} as never, [id]);
+          }
+        );
+      };
+      afterEach(() => setEditorShowing(false));
+
+      it('New', async () => {
+        seedDocument({ edited: 'false' });
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        editorTypedSinceSave(win);
+        await sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        expect(mockStore.get('poem')).toBe('<p>xv</p>');
+      });
+
+      it('Open', async () => {
+        seedDocument({ edited: 'false' });
+        showMessageBox.mockReturnValue(1);
+        const win = makeWindow();
+        editorTypedSinceSave(win);
+        await sub(build(platform, win), fileLabels.top, fileLabels.open)
+          .click!();
+        expect(showMessageBox).toHaveBeenCalledTimes(1);
+        expect(showOpenDialog).not.toHaveBeenCalled();
+      });
+    });
+
+    it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {
       const chosen = path.join(dir, 'zq.rtf');
       seedDocument();
       showSaveDialog.mockReturnValue(chosen);
-      sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+      await exportRan();
       expect(readBack(chosen)).toMatch(/^\{\\rtf1[\s\S]*xv\\par\n\}\n$/);
+    });
+
+    // On main a throw from exportRtf is synchronous, so it reaches uncaughtException and the poet is
+    // told. After the flush it must still escape on its own, not settle a promise that is only logged.
+    it('Export as RTF… a throw from the export escapes the promise, as before the flush (#188)', async () => {
+      seedDocument();
+      const deferred: Array<() => void> = [];
+      const immediate = jest.spyOn(global, 'setImmediate').mockImplementation(((
+        fn: () => void
+      ) => {
+        deferred.push(fn);
+      }) as never);
+      const toRtf = jest.spyOn(rtf, 'poemToRtf').mockImplementation(() => {
+        throw new Error('zq export failed');
+      });
+      try {
+        await sub(build(platform), fileLabels.top, 'Export as RTF…').click!();
+        expect(deferred).toHaveLength(1);
+        expect(() => deferred[0]()).toThrow('zq export failed');
+        expect(log.error).not.toHaveBeenCalledWith(
+          'exportRtf: failed',
+          expect.anything()
+        );
+      } finally {
+        immediate.mockRestore();
+        toRtf.mockRestore();
+      }
     });
 
     // The document already has a file, so plain Save would write there without asking. Save As
@@ -1185,16 +1712,19 @@ describe('the menu', () => {
       expect(fs.existsSync(current)).toBe(false);
     });
 
-    it('New guards unsaved changes before clearing the document', () => {
+    it('New guards unsaved changes before clearing the document', async () => {
       seedDocument({ edited: 'true' });
       showMessageBox.mockReturnValue(1);
       const win = makeWindow();
-      sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
+      await sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('poem')).toBe('<p>xv</p>');
       showMessageBox.mockReturnValue(0);
-      sub(buildFromTemplate.mock.calls[0][0], fileLabels.top, fileLabels.nw)
-        .click!();
+      await sub(
+        buildFromTemplate.mock.calls[0][0],
+        fileLabels.top,
+        fileLabels.nw
+      ).click!();
       expect(mockStore.get('poem')).toBe('');
     });
 
@@ -1296,6 +1826,24 @@ describe('the menu', () => {
       );
     });
 
+    it('Documentation in an installed app opens the guide at that version’s release tag (#102)', () => {
+      const packaged = app as unknown as {
+        isPackaged?: boolean;
+        getVersion?: () => string;
+      };
+      packaged.isPackaged = true;
+      packaged.getVersion = () => '0.5.0';
+      try {
+        sub(build(platform), helpTop, 'Documentation').click!();
+        expect(shell.openExternal).toHaveBeenLastCalledWith(
+          'https://github.com/midst-press/midst-editor/blob/v0.5.0/docs/user-guide.md'
+        );
+      } finally {
+        delete packaged.isPackaged;
+        delete packaged.getVersion;
+      }
+    });
+
     it('About Midst opens the About box on this window, from the menu this platform expects', () => {
       const win = makeWindow();
       const template = build(platform, win);
@@ -1305,6 +1853,30 @@ describe('the menu', () => {
       // One About per platform: macOS has it in the application menu only.
       const other = find(template, isMac ? helpTop : fileLabels.top).submenu!;
       expect(other.map((i) => i.label)).not.toContain('About Midst');
+    });
+
+    it('an About box that fails is logged with the action named, not left to the unhandled-rejection handler (#160)', async () => {
+      (showAbout as jest.Mock).mockRejectedValueOnce(new TypeError('zq'));
+      sub(
+        build(platform, makeWindow()),
+        isMac ? 'Midst' : helpTop,
+        'About Midst'
+      ).click!();
+      await new Promise(process.nextTick);
+      expect(logError).toHaveBeenCalledWith(
+        'about: failed',
+        expect.objectContaining({ name: 'TypeError' })
+      );
+    });
+
+    it('a help link the OS cannot open is logged with the action named (#160)', async () => {
+      (shell.openExternal as jest.Mock).mockRejectedValueOnce(new Error('zq'));
+      sub(build(platform), helpTop, 'Documentation').click!();
+      await new Promise(process.nextTick);
+      expect(logError).toHaveBeenCalledWith(
+        'documentation: failed',
+        expect.objectContaining({ name: 'Error' })
+      );
     });
 
     it('production View menu has no Reload or Developer Tools', () => {
@@ -1440,6 +2012,22 @@ describe('the menu', () => {
     });
   });
 
+  describe('Help > Show Log File', () => {
+    it.each([
+      ['darwin', 'Help'],
+      ['linux', 'Help'],
+    ])('on %s shows the log file in the file browser', (platform, menu) => {
+      process.env.NODE_ENV = 'production';
+      const template = build(platform);
+      const item = sub(template, menu, 'Show Log File');
+      expect(item.accelerator).toBeUndefined();
+      item.click!();
+      expect(shell.showItemInFolder).toHaveBeenCalledWith(
+        '/zq/Logs/Midst/main.log'
+      );
+    });
+  });
+
   describe('View > Appearance (GitHub #16)', () => {
     type Radio = Item & { type?: string; checked?: boolean };
     const appearance = (platform: string) => {
@@ -1518,5 +2106,50 @@ describe('applyStoredAppearance (GitHub #16)', () => {
     if (stored !== undefined) mockStore.set('appearance', stored);
     applyStoredAppearance();
     expect(nativeTheme.themeSource).toBe(expected);
+  });
+});
+
+describe('logIfRejected (#160)', () => {
+  it('logs a rejection with the action named, by the error name only', async () => {
+    logIfRejected('zq', () => Promise.reject(new RangeError('POEM-SENTINEL')));
+    await new Promise(process.nextTick);
+    expect(logError).toHaveBeenCalledTimes(1);
+    expect(logError).toHaveBeenCalledWith('zq: failed', {
+      name: 'RangeError',
+      frames: expect.any(Array),
+    });
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+  });
+
+  it('returns a promise that settles once the action has, so a click can be awaited', async () => {
+    let done = false;
+    const settled = logIfRejected('zq', async () => {
+      await new Promise(process.nextTick);
+      done = true;
+    });
+    expect(settled).toBeInstanceOf(Promise);
+    expect(done).toBe(false);
+    await settled;
+    expect(done).toBe(true);
+    await expect(
+      logIfRejected('xv', () => Promise.reject(new Error('zq')))
+    ).resolves.toBeUndefined();
+    expect(logIfRejected('qj', () => 7)).toBe(7);
+  });
+
+  it('logs nothing when the action resolves, or returns no promise', async () => {
+    logIfRejected('zq', () => Promise.resolve(1));
+    logIfRejected('xv', () => undefined);
+    await new Promise(process.nextTick);
+    expect(logError).not.toHaveBeenCalled();
+  });
+
+  it('leaves a synchronous throw to the uncaught-error handler, which also tells the poet', () => {
+    expect(() =>
+      logIfRejected('zq', () => {
+        throw new Error('xv');
+      })
+    ).toThrow('xv');
+    expect(logError).not.toHaveBeenCalled();
   });
 });

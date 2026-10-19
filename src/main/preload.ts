@@ -5,6 +5,7 @@ import {
   TitlebarColor,
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
+import { localeFromArgv } from '../shared/localeArgument';
 import { TITLEBAR_BACKGROUND } from './appearance';
 
 export type Channels =
@@ -23,6 +24,8 @@ export type Channels =
   | 'enable-save'
   | 'disable-save'
   | 'cancel-save'
+  | 'flush-editor'
+  | 'editor-flushed'
   | 'app-open';
 
 let titlebar: CustomTitlebar | null = null;
@@ -135,6 +138,8 @@ const electronHandler = {
   versions: {
     isMac: process.platform === 'darwin',
   },
+  // The language the main process chose, which the renderer activates before it shows anything.
+  locale: localeFromArgv(process.argv),
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

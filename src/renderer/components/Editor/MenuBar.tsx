@@ -1,4 +1,9 @@
 import { useCurrentEditor } from '@tiptap/react';
+// Types only, erased from the build. toggleBold and toggleItalic are added to ChainedCommands by the bold and
+// italic extensions' `declare module '@tiptap/core'`, which StarterKit's types load. The extensions themselves
+// come in through vendor/midst-format, which this file does not import, so without this line a compile of this
+// file alone (ts-jest on a cold cache) does not see them (#231).
+import type {} from '@tiptap/starter-kit';
 import FormatBoldIcon from '@mui/icons-material/FormatBoldOutlined';
 import FormatItalicIcon from '@mui/icons-material/FormatItalicOutlined';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
@@ -9,6 +14,7 @@ import Zoom from '@mui/material/Zoom';
 import { useEffect } from 'react';
 import useFontSize from '../../fontSize/useFontSize';
 import setEditorSizeClass from '../../fontSize/setEditorSizeClass';
+import { i18n } from '../../../shared/i18n';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
@@ -30,14 +36,14 @@ function MenuBar() {
   return (
     <div className="TopButtons">
       <Tooltip
-        title="Increase text size"
+        title={i18n._('textSize.increase')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
         <span>
           <button
-            aria-label="Increase text size"
+            aria-label={i18n._('textSize.increase')}
             type="button"
             onClick={fontSize.increase}
             disabled={!fontSize.canIncrease}
@@ -48,14 +54,14 @@ function MenuBar() {
         </span>
       </Tooltip>
       <Tooltip
-        title="Decrease text size"
+        title={i18n._('textSize.decrease')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
         <span>
           <button
-            aria-label="Decrease text size"
+            aria-label={i18n._('textSize.decrease')}
             type="button"
             disabled={!fontSize.canDecrease}
             className="icon-button size-icon"
@@ -65,9 +71,14 @@ function MenuBar() {
           </button>
         </span>
       </Tooltip>
-      <Tooltip title="Bold" TransitionComponent={Zoom} enterDelay={500} arrow>
+      <Tooltip
+        title={i18n._('format.bold')}
+        TransitionComponent={Zoom}
+        enterDelay={500}
+        arrow
+      >
         <button
-          aria-label="Bold"
+          aria-label={i18n._('format.bold')}
           type="button"
           onClick={() => editor.chain().focus().toggleBold().run()}
           disabled={!editor.can().chain().focus().toggleBold().run()}
@@ -78,9 +89,14 @@ function MenuBar() {
           <FormatBoldIcon fontSize="small" />
         </button>
       </Tooltip>
-      <Tooltip title="Italic" TransitionComponent={Zoom} enterDelay={500} arrow>
+      <Tooltip
+        title={i18n._('format.italic')}
+        TransitionComponent={Zoom}
+        enterDelay={500}
+        arrow
+      >
         <button
-          aria-label="Italic"
+          aria-label={i18n._('format.italic')}
           type="button"
           onClick={() => editor.chain().focus().toggleItalic().run()}
           disabled={!editor.can().chain().focus().toggleItalic().run()}

@@ -9,6 +9,7 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import { dependencies } from '../../package.json';
 import checkNodeEnv from '../scripts/check-node-env';
+import dllEntries from './dllEntries';
 
 checkNodeEnv('development');
 
@@ -31,9 +32,7 @@ const configuration: webpack.Configuration = {
   module: require('./webpack.config.renderer.dev').default.module,
 
   entry: {
-    renderer: Object.keys(dependencies || {}).filter(
-      (it) => !it.includes('tiptap')
-    ),
+    renderer: dllEntries(dependencies),
   },
 
   output: {

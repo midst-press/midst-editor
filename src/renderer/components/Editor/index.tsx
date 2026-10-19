@@ -4,33 +4,40 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import poemExtensions from 'shared/poemExtensions';
+import poemExtensions from '@midst-press/midst-format/extensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
+import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import { ChangeObj, compareStrings } from '../../tracking/utils';
 import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
 import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import { rememberCursor, restoreCursor } from './cursorReturn';
+import { i18n } from '../../../shared/i18n';
 
 const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
   const navigate = useNavigate();
-  // Whether this poem has been marked edited since its last save. Never drawn, so a ref, not state: saving on
-  // arrival, in an effect, then changes nothing React renders (GitHub #44).
-  const edited = useRef(false);
+  // Whether there has been typing since the editor last wrote the poem to the store. The first keystroke
+  // after a store write marks the document unsaved. Keyed to the store write, not to the last autosave: a
+  // save chosen from the menu writes the store (through the flush) and marks the document saved, and the
+  // next keystroke must mark it unsaved again at once. Otherwise New, Open, closing the window and Quit all
+  // saw it as saved for up to a second, and dropped that typing without the unsaved-changes prompt (#113).
+  // Never drawn, so a ref, not state: saving on arrival, in an effect, changes nothing React renders (GitHub
+  // #44).
+  const typedSinceStored = useRef(false);
 
   // Read once: toggling it reloads the window, which reads it again.
   const [spellcheckOn] = useState<boolean>(
@@ -72,11 +79,27 @@ export default function Editor() {
         JSON.stringify(history ?? doc.poemHistory)
       );
       window.electron.ipcRenderer.sendMessage('save-file', []);
-      edited.current = false;
+      typedSinceStored.current = false;
     },
     []
   );
   const autosave = useAutosave(latest, saveFileAndUpdateStore);
+
+  // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
+  // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
+  // too, before the unsaved-changes prompt, so the poem they would replace is the poem on screen (#113).
+  // The pending autosave is left to run.
+  useEffect(
+    () =>
+      window.electron.ipcRenderer.on('flush-editor', (id) => {
+        const doc = latest.current;
+        typedSinceStored.current = false;
+        window.electron.store.set('poem', doc.htmlString);
+        window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
+      }),
+    []
+  );
   useEffect(() => {
     saveFileAndUpdateStore();
     const removeCancelSave = window.electron.ipcRenderer.on(
@@ -102,8 +125,8 @@ export default function Editor() {
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
     setHtmlString(newHtml);
-    if (!edited.current) {
-      edited.current = true;
+    if (!typedSinceStored.current) {
+      typedSinceStored.current = true;
       window.electron.store.set('edited', JSON.stringify(true));
     }
 
@@ -127,7 +150,7 @@ export default function Editor() {
   useEffect(() => {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
-      (savedPoem, savedHistory, savedFilename) => {
+      (savedPoem, savedHistory) => {
         // Advance the generation so an autosave already in flight for the PREVIOUS document
         // abandons its write instead of sending that poem's text to this file's path, and point the
         // ref at the new document immediately rather than waiting for the re-render.
@@ -139,7 +162,6 @@ export default function Editor() {
         setHtmlString(savedPoem as string);
 
         setPoemHistory(savedHistory as ChangeObj[]);
-        window.electron.titlebar.updateTitle(savedFilename as string);
         if (myEditor) {
           myEditor.commands.setContent(savedPoem as string);
         }
@@ -216,6 +238,14 @@ export default function Editor() {
     },
     []
   );
+  // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
+  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
+  useEffect(() => {
+    if (!myEditor || !spellcheckOn) return undefined;
+    return checkWholePoemSoon(myEditor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+  }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
@@ -247,7 +277,7 @@ export default function Editor() {
 
       <div className="Spacer">
         <Tooltip
-          title={draftReason ?? 'Mark this moment as a draft'}
+          title={draftReason ?? i18n._('drafts.mark')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -255,7 +285,7 @@ export default function Editor() {
         >
           <span>
             <button
-              aria-label="Mark this moment as a draft"
+              aria-label={i18n._('drafts.mark')}
               aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
@@ -274,7 +304,7 @@ export default function Editor() {
           </span>
         </Tooltip>
         <Tooltip
-          title="Replay"
+          title={i18n._('editor.replay')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -283,7 +313,11 @@ export default function Editor() {
           {/* Saves first, as the menu's toggle-edit-mode does. Leaving the editor cancels a pending
               autosave, so without this the keystrokes of the last second are not in the file. */}
           <Link to="/replay" onClick={() => saveFileAndUpdateStore()}>
-            <button aria-label="Replay" type="button" className="icon-button">
+            <button
+              aria-label={i18n._('editor.replay')}
+              type="button"
+              className="icon-button"
+            >
               <HistoryIcon fontSize="small" />
             </button>
           </Link>

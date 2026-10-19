@@ -5,8 +5,8 @@ import type { ElectronHandler } from 'main/preload';
 import LandingDialog from '../renderer/components/LandingDialog';
 import { HistoryContext, TextContext } from '../renderer/context';
 import FindNotHere, {
-  FIND_BEFORE_OPEN,
-  FIND_IN_REPLAY,
+  findBeforeOpen,
+  findInReplay,
   SHOWN_FOR,
 } from '../renderer/search/FindNotHere';
 
@@ -85,9 +85,9 @@ describe('FindNotHere', () => {
   });
 
   it('FN-5 the Replay message names the Mac or the other keys', () => {
-    expect(FIND_IN_REPLAY(true)).toContain('Command+T');
-    expect(FIND_IN_REPLAY(false)).toContain('Ctrl+T');
-    expect(FIND_IN_REPLAY(false)).not.toContain('Command');
+    expect(findInReplay(true)).toContain('Command+T');
+    expect(findInReplay(false)).toContain('Ctrl+T');
+    expect(findInReplay(false)).not.toContain('Command');
   });
 });
 
@@ -105,6 +105,6 @@ describe('the opening screen', () => {
       </MemoryRouter>
     );
     bridge.find();
-    expect(screen.getByRole('alert')).toHaveTextContent(FIND_BEFORE_OPEN);
+    expect(screen.getByRole('alert')).toHaveTextContent(findBeforeOpen());
   });
 });

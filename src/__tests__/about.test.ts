@@ -1,6 +1,6 @@
 /** @jest-environment node */
 import { app, clipboard, dialog, shell } from 'electron';
-import { CREDITS, aboutLine, showAbout } from '../main/about';
+import { credits, aboutLine, showAbout } from '../main/about';
 
 jest.mock('electron', () => ({
   app: { isPackaged: true, getVersion: jest.fn(() => '0.3.0-beta.1') },
@@ -49,9 +49,9 @@ describe('aboutLine', () => {
   });
 });
 
-describe('CREDITS', () => {
+describe('credits', () => {
   it('names the director, then the developers, one to a line', () => {
-    expect(CREDITS.split('\n')).toEqual([
+    expect(credits().split('\n')).toEqual([
       'Director: Annelyse Gelman',
       '',
       'Developers:',
@@ -69,7 +69,7 @@ describe('showAbout', () => {
     expect(showMessageBox).toHaveBeenCalledTimes(1);
     const [parent, options] = showMessageBox.mock.calls[0];
     expect(parent).toBe(fakeWindow);
-    expect(options.detail).toBe(`${LINE}\n\n${CREDITS}`);
+    expect(options.detail).toBe(`${LINE}\n\n${credits()}`);
     expect(options.buttons).toEqual(['OK', 'Copy', 'User Guide']);
     // Return and Escape both close it without copying.
     expect(options.defaultId).toBe(0);
@@ -91,12 +91,21 @@ describe('showAbout', () => {
     expect(writeText.mock.calls[0][0]).not.toContain('Annelyse');
   });
 
-  it('opens the user guide in the browser when User Guide is chosen, and copies nothing', async () => {
+  it('opens the guide for this version, at its release tag, when User Guide is chosen, and copies nothing (#102)', async () => {
+    showMessageBox.mockResolvedValue({ response: 2 });
+    await showAbout(fakeWindow);
+    expect(openExternal).toHaveBeenCalledWith(
+      'https://github.com/midst-press/midst-editor/blob/v0.3.0-beta.1/docs/user-guide.md'
+    );
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('a development build opens the guide on main (#102)', async () => {
+    setPackaged(false);
     showMessageBox.mockResolvedValue({ response: 2 });
     await showAbout(fakeWindow);
     expect(openExternal).toHaveBeenCalledWith(
       'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
     );
-    expect(writeText).not.toHaveBeenCalled();
   });
 });

@@ -5,12 +5,18 @@ import {
   ElectronApplication,
   Page,
 } from '@playwright/test';
-import { mkdtempSync, writeFileSync, copyFileSync, existsSync } from 'fs';
+import {
+  mkdtempSync,
+  writeFileSync,
+  copyFileSync,
+  existsSync,
+  rmSync,
+} from 'fs';
 import { tmpdir } from 'os';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { reconstructHTML } from '@midst-press/midst-format/history';
 import { makeJumpingMidst } from './fixtures';
 import { launch, openDocument, readStore } from './harness';
-import { reconstructHTML } from '../src/renderer/tracking/utils';
 
 // Does Replay keep the WRITING on screen, and get there gently?
 //
@@ -526,6 +532,7 @@ WINDOWS.forEach((w) =>
       assertFollows(`autoscroll test poem, ${w.name}`, verdict(rec));
     } finally {
       await app.close();
+      rmSync(dirname(poemPath), { recursive: true, force: true });
     }
   })
 );

@@ -27,11 +27,11 @@ jest.mock('../main/store', () => {
   };
 });
 
-type Transport = { level: string; resolvePath?: unknown };
+type Transport = { level: string; resolvePathFn?: unknown };
 type FileTransport = Transport & {
-  format: (record: unknown) => string;
+  format: (params: { message: unknown }) => unknown[];
   maxSize: number;
-  archiveLog: (file: unknown) => void;
+  archiveLogFn: (file: unknown) => void;
 };
 type Loaded = {
   mod: typeof import('../main/logging');
@@ -153,35 +153,32 @@ describe('logging', () => {
       const dir = path.join('some', 'scratch-dir');
       process.env.MIDST_LOG_DIR = dir;
       const { log } = load();
-      const resolve = log.transports.file.resolvePath as () => string;
+      const resolve = log.transports.file.resolvePathFn as () => string;
       expect(resolve()).toBe(path.join(dir, 'main.log'));
     });
 
-    it('leaves resolvePath alone when unset', () => {
+    it('leaves resolvePathFn alone when unset', () => {
       const { log } = load();
-      expect(log.transports.file.resolvePath).toBeUndefined();
+      expect(log.transports.file.resolvePathFn).toBeUndefined();
     });
 
-    it('leaves resolvePath alone when set to an empty string', () => {
+    it('leaves resolvePathFn alone when set to an empty string', () => {
       process.env.MIDST_LOG_DIR = '';
       const { log } = load();
-      expect(log.transports.file.resolvePath).toBeUndefined();
+      expect(log.transports.file.resolvePathFn).toBeUndefined();
     });
   });
 
   // ---- the strict JSONL line ----
   describe('formatRecord', () => {
     const date = new Date('2026-10-16T01:02:03.456Z');
-    const record = (
-      data: unknown[],
-      scope: { label?: string } | null = null
-    ) => ({
+    const record = (data: unknown[], scope?: string) => ({
       date,
       level: 'warn',
       scope,
       data,
     });
-    const fmt = (data: unknown[], scope: { label?: string } | null = null) => {
+    const fmt = (data: unknown[], scope?: string) => {
       const { mod } = load();
       const line = mod.formatRecord(record(data, scope));
       expect(line).not.toContain('\n');
@@ -237,10 +234,10 @@ describe('logging', () => {
     });
 
     it('is source main without a scope or with another scope, renderer for the renderer scope', () => {
-      expect(fmt(['zq'], null).parsed.source).toBe('main');
-      expect(fmt(['zq'], { label: 'other' }).parsed.source).toBe('main');
-      expect(fmt(['zq'], {}).parsed.source).toBe('main');
-      expect(fmt(['zq'], { label: 'renderer' }).parsed.source).toBe('renderer');
+      expect(fmt(['zq']).parsed.source).toBe('main');
+      expect(fmt(['zq'], 'other').parsed.source).toBe('main');
+      expect(fmt(['zq'], '').parsed.source).toBe('main');
+      expect(fmt(['zq'], 'renderer').parsed.source).toBe('renderer');
     });
 
     it('keeps newlines inside a message on one line', () => {
@@ -339,7 +336,7 @@ describe('logging', () => {
           throw 'a string';
         },
       };
-      expect(fmt(['zq', bad], { label: 'renderer' }).parsed).toMatchObject({
+      expect(fmt(['zq', bad], 'renderer').parsed).toMatchObject({
         msg: 'log entry could not be serialised',
         error: 'string',
         source: 'renderer',
@@ -388,10 +385,12 @@ describe('logging', () => {
       });
     });
 
-    it('is installed as the file transport format', () => {
+    it('is installed as the file transport format, from the message', () => {
       const { log, mod } = load();
-      const r = record(['zq', { n: 1 }]);
-      expect(log.transports.file.format(r)).toBe(mod.formatRecord(r));
+      const r = record(['zq', { n: 1 }], 'renderer');
+      expect(log.transports.file.format({ message: r })).toEqual([
+        mod.formatRecord(r),
+      ]);
     });
   });
 
@@ -562,7 +561,7 @@ describe('logging', () => {
       const { log } = load();
       expect(log.transports.file.maxSize).toBe(5 * 1024 * 1024);
       const file = fakeFile(main());
-      log.transports.file.archiveLog(file);
+      log.transports.file.archiveLogFn(file);
       expect(file.clear).toHaveBeenCalledTimes(1);
       expect(log.transports.console).toHaveBeenCalledTimes(1);
       const msg = log.transports.console.mock.calls[0][0];
@@ -575,7 +574,7 @@ describe('logging', () => {
     it('rotates a real file through the installed hook', () => {
       const { log } = load();
       fs.writeFileSync(main(), 'now');
-      log.transports.file.archiveLog(fakeFile(main()));
+      log.transports.file.archiveLogFn(fakeFile(main()));
       expect(fs.readFileSync(archive(1), 'utf8')).toBe('now');
       expect(log.transports.console).not.toHaveBeenCalled();
     });
@@ -608,19 +607,29 @@ describe('logging', () => {
       ]);
     });
 
-    it.each(['uncaughtException', 'unhandledRejection'])(
-      '%s is logged as "uncaught error" with name and frames only, and the poet is told',
-      (event) => {
-        const { handlers, log, notify } = setup();
-        handlers.get(event)!(new RangeError(`bad ${SECRET}`));
-        expect(log.error).toHaveBeenCalledTimes(1);
-        const [msg, meta] = log.error.mock.calls[0];
-        expect(msg).toBe('uncaught error');
-        expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
-        expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
-        expect(notify).toHaveBeenCalledWith('RangeError');
-      }
-    );
+    it('an uncaught exception is logged as "uncaught error" with name and frames only, and the poet is told', () => {
+      const { handlers, log, notify } = setup();
+      handlers.get('uncaughtException')!(new RangeError(`bad ${SECRET}`));
+      expect(log.error).toHaveBeenCalledTimes(1);
+      const [msg, meta] = log.error.mock.calls[0];
+      expect(msg).toBe('uncaught error');
+      expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
+      expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
+      expect(notify).toHaveBeenCalledWith('RangeError');
+    });
+
+    // 0.5.0: a failed update check rejected, the handler called notify (a modal dialog), and the main
+    // process blocked behind it: no poem opened at launch and SIGTERM went unhandled.
+    it('an unhandled rejection is logged as "unhandled rejection" with name and frames only, and the poet is NOT interrupted', () => {
+      const { handlers, log, notify } = setup();
+      handlers.get('unhandledRejection')!(new RangeError(`bad ${SECRET}`));
+      expect(log.error).toHaveBeenCalledTimes(1);
+      const [msg, meta] = log.error.mock.calls[0];
+      expect(msg).toBe('unhandled rejection');
+      expect(meta).toEqual({ name: 'RangeError', frames: expect.any(Array) });
+      expect(JSON.stringify(log.error.mock.calls)).not.toContain(SECRET);
+      expect(notify).not.toHaveBeenCalled();
+    });
 
     it('the entry written to the file has the message "uncaught error" and no message text', () => {
       const { handlers, log, mod } = setup();
@@ -628,7 +637,6 @@ describe('logging', () => {
       const line = mod.formatRecord({
         date: new Date(),
         level: 'error',
-        scope: null,
         data: log.error.mock.calls[0],
       });
       const parsed = JSON.parse(line);
@@ -644,11 +652,11 @@ describe('logging', () => {
     it('logs a rejection that is not an Error without its content', () => {
       const { handlers, log, notify } = setup();
       handlers.get('unhandledRejection')!(`a string with ${SECRET}`);
-      expect(log.error).toHaveBeenCalledWith('uncaught error', {
+      expect(log.error).toHaveBeenCalledWith('unhandled rejection', {
         name: 'NonError',
         frames: [],
       });
-      expect(notify).toHaveBeenCalledWith('NonError');
+      expect(notify).not.toHaveBeenCalled();
     });
 
     it('logs, and does not throw, when telling the poet fails', () => {
