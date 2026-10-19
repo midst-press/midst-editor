@@ -90,6 +90,11 @@ repos:
         language: system
         entry: npx --no-install eslint --max-warnings=0
         files: '\.(ts|tsx|js|jsx)$'
+        # One process for every file. The config is type-aware (parserOptions.project), so each eslint process builds
+        # the whole TypeScript program first, and pre-commit's default is one process per CPU: 32 programs at once on
+        # the Studio's runner, 85 s of a gates job. Measured locally on 163 files: one process 9.5 s, ten 13.7 s,
+        # thirty-two at once 37.7 s. Same files, same rules, same verdict.
+        require_serial: true
         # Named explicitly, an ignored file is a warning, which fails this hook: the vendored build is checked by its hashes instead.
         exclude: ^vendor/midst-format/
 
