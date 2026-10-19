@@ -69,8 +69,16 @@ const cloneOnto = (poem: string, partial: string): string | null => {
     });
     return null;
   } catch (err) {
-    const e = err as NodeJS.ErrnoException & { status?: number };
-    return e.code ?? `cp exited ${e.status ?? 'abnormally'}`;
+    const e = err as NodeJS.ErrnoException & {
+      status?: number;
+      stderr?: Buffer | string;
+    };
+    const why = e.code ?? `cp exited ${e.status ?? 'abnormally'}`;
+    // cp's own words say why (a volume that refuses, a missing file): a path and a reason, never poem text.
+    const said = String(e.stderr ?? '')
+      .trim()
+      .slice(0, 200);
+    return said ? `${why}: ${said}` : why;
   }
 };
 
@@ -132,7 +140,8 @@ const replaceFile = (filename: string, contents: string) => {
           "save: the poem's Finder tags and comments could not be kept",
           { reason: why }
         );
-      // r+ keeps the cloned file and its attributes; after a failed clone the file is recreated.
+      // r+ keeps the cloned file and its attributes. After a failed clone, 'w' empties whatever cp left in
+      // place (or creates the file if cp removed it); the attributes are not kept.
       fd = fs.openSync(partial, why === null ? 'r+' : 'w');
       fs.ftruncateSync(fd, 0);
     }

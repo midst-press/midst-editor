@@ -355,7 +355,10 @@ onMac('replaceFile keeps the file metadata (#182, macOS)', () => {
       .spyOn(childProcess, 'execFileSync')
       .mockImplementationOnce((() => {
         const err = new Error('cp failed');
-        (err as NodeJS.ErrnoException & { status: number }).status = 1;
+        Object.assign(err, {
+          status: 1,
+          stderr: Buffer.from('cp: zq.midst: Operation not supported\n'),
+        });
         throw err;
       }) as never);
     replaceFile(target, 'zq new');
@@ -369,7 +372,7 @@ onMac('replaceFile keeps the file metadata (#182, macOS)', () => {
     expect(log.warn).toHaveBeenCalledWith(
       "save: the poem's Finder tags and comments could not be kept",
       {
-        reason: 'cp exited 1',
+        reason: 'cp exited 1: cp: zq.midst: Operation not supported',
       }
     );
     expect(listing()).toEqual(['zq.midst']);
