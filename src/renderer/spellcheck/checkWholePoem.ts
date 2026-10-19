@@ -51,7 +51,7 @@ function firstText(root: HTMLElement): Text | null {
     NodeFilter.SHOW_TEXT
   );
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    if ((node.textContent ?? '') !== '') return node as Text;
+    if ((node as Text).data !== '') return node as Text;
   }
   return null;
 }
@@ -91,7 +91,7 @@ export default function checkWholePoem(view: EditorView, log: Log): () => void {
   observer.stop();
   INPUT_EVENTS.forEach((type) => dom.addEventListener(type, finish, true));
   const caret = doc.createRange();
-  caret.setStart(text, (text.textContent ?? '').length);
+  caret.setStart(text, text.data.length);
   caret.collapse(true);
   selection.removeAllRanges();
   selection.addRange(caret);
