@@ -10,7 +10,7 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
-import checkWholePoem from '../../spellcheck/checkWholePoem';
+import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
@@ -238,12 +238,11 @@ export default function Editor() {
     },
     []
   );
-  // Chromium marks nothing until the text is edited (GitHub #71): have it check the poem as soon as the editor
-  // is in the page. Not in onCreate, where the editor's element is not yet in the document, so the edit that
-  // makes Chromium look has nowhere to happen (measured on #238). Cancelled if the editor goes first.
+  // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
+  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
   useEffect(() => {
     if (!myEditor || !spellcheckOn) return undefined;
-    return checkWholePoem(myEditor.view, (message) =>
+    return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
   }, [myEditor, spellcheckOn]);

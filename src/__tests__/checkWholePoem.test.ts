@@ -1,5 +1,8 @@
 import type { EditorView } from '@tiptap/pm/view';
 import checkWholePoem, {
+  AGAIN_MS,
+  checkWholePoemSoon,
+  FIRST_MS,
   MISMATCH_LOG,
   PAUSE_MS,
 } from '../renderer/spellcheck/checkWholePoem';
@@ -118,5 +121,58 @@ describe('checkWholePoem', () => {
     jest.advanceTimersByTime(PAUSE_MS);
     expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
     expect(observer.start).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['keydown', 'beforeinput', 'compositionstart', 'mousedown'])(
+    "a %s in the editor finishes it before the poet's input lands",
+    (type) => {
+      const before = dom.innerHTML;
+      checkWholePoem(view(), jest.fn());
+      dom.dispatchEvent(new Event(type, { bubbles: true }));
+      expect(calls).toEqual(['stop', 'insertText " "', 'delete', 'start']);
+      expect(dom.innerHTML).toBe(before);
+      jest.advanceTimersByTime(PAUSE_MS);
+      expect(calls).toHaveLength(4);
+    }
+  );
+
+  it('stops listening once it has finished', () => {
+    checkWholePoem(view(), jest.fn());
+    jest.advanceTimersByTime(PAUSE_MS);
+    dom.dispatchEvent(new Event('keydown', { bubbles: true }));
+    expect(calls).toHaveLength(4);
+  });
+});
+
+describe('checkWholePoemSoon', () => {
+  it('checks at FIRST_MS and again at AGAIN_MS, and not before', () => {
+    checkWholePoemSoon(view(), jest.fn());
+    jest.advanceTimersByTime(FIRST_MS - 1);
+    expect(calls).toEqual([]);
+    jest.advanceTimersByTime(1 + PAUSE_MS);
+    expect(calls).toEqual(['stop', 'insertText " "', 'delete', 'start']);
+    jest.advanceTimersByTime(AGAIN_MS - FIRST_MS - PAUSE_MS - 1);
+    expect(calls).toHaveLength(4);
+    jest.advanceTimersByTime(1 + PAUSE_MS);
+    expect(calls).toHaveLength(8);
+  });
+
+  it('cancelled before it starts, it never touches the editor', () => {
+    const cancel = checkWholePoemSoon(view(), jest.fn());
+    cancel();
+    jest.advanceTimersByTime(AGAIN_MS + PAUSE_MS);
+    expect(calls).toEqual([]);
+  });
+
+  it('cancelled during a check, it finishes that one and starts no other', () => {
+    const before = dom.innerHTML;
+    const cancel = checkWholePoemSoon(view(), jest.fn());
+    jest.advanceTimersByTime(FIRST_MS);
+    expect(calls).toEqual(['stop', 'insertText " "']);
+    cancel();
+    expect(calls).toEqual(['stop', 'insertText " "', 'delete', 'start']);
+    expect(dom.innerHTML).toBe(before);
+    jest.advanceTimersByTime(AGAIN_MS + PAUSE_MS);
+    expect(calls).toHaveLength(4);
   });
 });

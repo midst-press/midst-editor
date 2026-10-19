@@ -8,15 +8,15 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
-import checkWholePoem from '../renderer/spellcheck/checkWholePoem';
+import { checkWholePoemSoon } from '../renderer/spellcheck/checkWholePoem';
 
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
   __esModule: true,
-  default: jest.fn(() => jest.fn()),
+  checkWholePoemSoon: jest.fn(() => jest.fn()),
 }));
-const mockCheck = checkWholePoem as unknown as jest.Mock;
+const mockCheck = checkWholePoemSoon as unknown as jest.Mock;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
