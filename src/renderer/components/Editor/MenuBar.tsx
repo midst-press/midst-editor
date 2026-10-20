@@ -15,6 +15,7 @@ import { useEffect } from 'react';
 import useFontSize from '../../fontSize/useFontSize';
 import setEditorSizeClass from '../../fontSize/setEditorSizeClass';
 import { i18n } from '../../../shared/i18n';
+import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
@@ -32,11 +33,25 @@ function MenuBar() {
   if (!editor) {
     return null;
   }
+  // Why each button cannot be used now, or null when it can (#284, GitHub #66). tiptap says only that a mark cannot
+  // be applied here, not why, so Bold and Italic give a general reason.
+  const largestReason = fontSize.canIncrease
+    ? null
+    : i18n._('textSize.largest');
+  const smallestReason = fontSize.canDecrease
+    ? null
+    : i18n._('textSize.smallest');
+  const boldReason = editor.can().chain().focus().toggleBold().run()
+    ? null
+    : i18n._('format.bold.unavailable');
+  const italicReason = editor.can().chain().focus().toggleItalic().run()
+    ? null
+    : i18n._('format.italic.unavailable');
 
   return (
     <div className="TopButtons">
       <Tooltip
-        title={i18n._('textSize.increase')}
+        title={largestReason ?? i18n._('textSize.increase')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
@@ -44,17 +59,26 @@ function MenuBar() {
         <span>
           <button
             aria-label={i18n._('textSize.increase')}
+            aria-describedby={
+              largestReason ? 'editor-largest-reason' : undefined
+            }
             type="button"
             onClick={fontSize.increase}
-            disabled={!fontSize.canIncrease}
+            disabled={largestReason !== null}
             className="icon-button size-icon"
+            style={largestReason ? UNAVAILABLE_STYLE : undefined}
           >
             <TextIncreaseIcon fontSize="small" />
           </button>
+          {largestReason && (
+            <span id="editor-largest-reason" hidden>
+              {largestReason}
+            </span>
+          )}
         </span>
       </Tooltip>
       <Tooltip
-        title={i18n._('textSize.decrease')}
+        title={smallestReason ?? i18n._('textSize.decrease')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
@@ -62,50 +86,79 @@ function MenuBar() {
         <span>
           <button
             aria-label={i18n._('textSize.decrease')}
+            aria-describedby={
+              smallestReason ? 'editor-smallest-reason' : undefined
+            }
             type="button"
-            disabled={!fontSize.canDecrease}
-            className="icon-button size-icon"
             onClick={fontSize.decrease}
+            disabled={smallestReason !== null}
+            className="icon-button size-icon"
+            style={smallestReason ? UNAVAILABLE_STYLE : undefined}
           >
             <TextDecreaseIcon fontSize="small" />
           </button>
+          {smallestReason && (
+            <span id="editor-smallest-reason" hidden>
+              {smallestReason}
+            </span>
+          )}
         </span>
       </Tooltip>
       <Tooltip
-        title={i18n._('format.bold')}
+        title={boldReason ?? i18n._('format.bold')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
-        <button
-          aria-label={i18n._('format.bold')}
-          type="button"
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          disabled={!editor.can().chain().focus().toggleBold().run()}
-          className={
-            editor.isActive('bold') ? 'is-active icon-button' : 'icon-button'
-          }
-        >
-          <FormatBoldIcon fontSize="small" />
-        </button>
+        <span>
+          <button
+            aria-label={i18n._('format.bold')}
+            aria-describedby={boldReason ? 'editor-bold-reason' : undefined}
+            type="button"
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            disabled={boldReason !== null}
+            className={
+              editor.isActive('bold') ? 'is-active icon-button' : 'icon-button'
+            }
+            style={boldReason ? UNAVAILABLE_STYLE : undefined}
+          >
+            <FormatBoldIcon fontSize="small" />
+          </button>
+          {boldReason && (
+            <span id="editor-bold-reason" hidden>
+              {boldReason}
+            </span>
+          )}
+        </span>
       </Tooltip>
       <Tooltip
-        title={i18n._('format.italic')}
+        title={italicReason ?? i18n._('format.italic')}
         TransitionComponent={Zoom}
         enterDelay={500}
         arrow
       >
-        <button
-          aria-label={i18n._('format.italic')}
-          type="button"
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          disabled={!editor.can().chain().focus().toggleItalic().run()}
-          className={
-            editor.isActive('italic') ? 'is-active icon-button' : 'icon-button'
-          }
-        >
-          <FormatItalicIcon fontSize="small" />
-        </button>
+        <span>
+          <button
+            aria-label={i18n._('format.italic')}
+            aria-describedby={italicReason ? 'editor-italic-reason' : undefined}
+            type="button"
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            disabled={italicReason !== null}
+            className={
+              editor.isActive('italic')
+                ? 'is-active icon-button'
+                : 'icon-button'
+            }
+            style={italicReason ? UNAVAILABLE_STYLE : undefined}
+          >
+            <FormatItalicIcon fontSize="small" />
+          </button>
+          {italicReason && (
+            <span id="editor-italic-reason" hidden>
+              {italicReason}
+            </span>
+          )}
+        </span>
       </Tooltip>
     </div>
   );

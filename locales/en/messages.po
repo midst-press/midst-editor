@@ -493,10 +493,20 @@ msgstr "Bold"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.bold.unavailable"
+msgstr "Bold can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.italic"
 msgstr "Italic"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.italic.unavailable"
+msgstr "Italic can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -1115,11 +1125,13 @@ msgid "textSize.increase"
 msgstr "Increase text size"
 
 #. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Replay/index.tsx
 msgid "textSize.largest"
 msgstr "The text is already at its largest size."
 
 #. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Replay/index.tsx
 msgid "textSize.smallest"
 msgstr "The text is already at its smallest size."

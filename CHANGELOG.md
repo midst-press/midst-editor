@@ -9,8 +9,9 @@
 - **Midst no longer checks for a new version when it opens.** The check could not work in the installed
   app, and it would have installed a new version without asking. When Midst can update itself, it will ask
   you first.
-- **In the replay, a button you cannot use says why.** With no history to replay, the play button says so when
-  you point at it, and so do the text size buttons at the largest and smallest sizes. Those buttons also look
+- **A button you cannot use says why, in the replay and in the editor.** With no history to replay, the play
+  button says so when you point at it, and so do the text size buttons at the largest and smallest sizes. In the
+  editor, Bold and Italic say so where they can't be used, such as in a code block. These buttons also look
   unavailable now.
 - **When Midst cannot save, it says so once and keeps showing it.** If the first save of a new poem fails,
   Midst no longer opens the save panel again every time you pause in typing; choose **File** > **Save** when you
