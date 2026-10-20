@@ -1,3 +1,10 @@
+# 0.7.0
+
+- **Midst no longer checks for a new version when it opens.** The check could not work in the installed
+  app, and it would have installed a new version without asking. When Midst can update itself, it will ask
+  you first.
+- Under the hood: the unused updater library is removed.
+
 # 0.6.0
 
 - **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you
