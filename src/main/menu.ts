@@ -700,7 +700,7 @@ export default class MenuBuilder {
   }
 
   // The items both platforms have. Labels come from the catalog, and each item's id is its catalog
-  // key, which is how the user guide finds what the item does (shortcutTable.ts). A label marks the
+  // key, which shortcutTable.ts uses to name what the item does. A label marks the
   // Alt-key letter with '&' for Windows and Linux; `label` drops it in the macOS template. Accelerators
   // are passed in because macOS uses Command where the others use Ctrl.
   //
