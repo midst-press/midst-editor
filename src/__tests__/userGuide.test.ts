@@ -11,31 +11,8 @@ import {
   withTable,
 } from '../main/shortcutTable';
 
-// The user guide (issue #99) must say what the app says. Its shortcut table is made from the menu
-// templates of menu.ts, and every name it prints in bold must be a name the app shows.
-
-jest.mock('electron', () => ({
-  app: {
-    quit: jest.fn(),
-    emit: jest.fn(),
-    getPath: jest.fn(),
-    getPreferredSystemLanguages: jest.fn(() => ['en']),
-  },
-  dialog: {},
-  Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
-  shell: { openExternal: jest.fn() },
-  BrowserWindow: jest.fn(),
-  ipcMain: { on: jest.fn() },
-}));
-jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
-jest.mock('electron-log', () => ({
-  __esModule: true,
-  default: { debug: jest.fn(), info: jest.fn(), error: jest.fn() },
-}));
-jest.mock('../main/store', () => ({
-  __esModule: true,
-  default: { get: jest.fn(), set: jest.fn() },
-}));
+// The shortcut table (shortcutTable.ts) and the public user guide, which for now is the Under
+// Construction placeholder (issue #99).
 
 const root = path.join(__dirname, '../..');
 const guidePath = path.join(root, 'docs/user-guide.md');

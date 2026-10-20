@@ -1,9 +1,11 @@
-// The keyboard shortcut table of docs/user-guide.md, made from the menu templates of menu.ts so
-// the guide cannot say one key while the menu has another (issue #99). Nothing here imports
-// Electron: the functions take the templates as plain data.
+// A keyboard shortcut table for the user guide, made from the menu templates of menu.ts so the
+// guide cannot say one key while the menu has another. Nothing here imports Electron: the
+// functions take the templates as plain data.
 //
-// src/__tests__/userGuide.test.ts builds both templates, makes the table and compares it with
-// the one in the guide.
+// The public guide is an Under Construction placeholder for now and has no table (issue #99), so
+// nothing writes one into it. When the real guide brings the markers back, the writer has to come
+// back with them: a test that builds both templates and puts the table between the markers.
+// src/__tests__/userGuide.test.ts tests the functions here.
 import { i18n } from '../shared/i18n';
 
 export interface TemplateItem {
@@ -200,7 +202,7 @@ export function shortcutTable(
 }
 
 export const TABLE_START =
-  '<!-- shortcuts:start. This table is made from src/main/menu.ts. Do not edit it by hand: run UPDATE_GUIDE=1 npx jest src/__tests__/userGuide.test.ts -->';
+  '<!-- shortcuts:start. This table is made from src/main/menu.ts. Do not edit it by hand. -->';
 export const TABLE_END = '<!-- shortcuts:end -->';
 
 /** The guide with the table between its two markers replaced. Throws when a marker is missing. */
