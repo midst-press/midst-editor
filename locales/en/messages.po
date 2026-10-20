@@ -565,6 +565,7 @@ msgid "landing.welcome"
 msgstr "Welcome to Midst!"
 
 #. js-lingui-explicit-id
+#: src/main/main.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.app"

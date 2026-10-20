@@ -155,6 +155,14 @@ const createWindow = async () => {
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 
+  // A page with no title of its own (the opening screen's is empty, #194) leaves Electron to name the window after
+  // the page's file, index.html, which the Window menu, Mission Control and the Dock show. It is called Midst there.
+  mainWindow.on('page-title-updated', (event, title, explicitSet) => {
+    if (explicitSet && title !== '') return;
+    event.preventDefault();
+    mainWindow?.setTitle(i18n._('menu.app'));
+  });
+
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
       throw new Error('"mainWindow" is not defined');
