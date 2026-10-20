@@ -2,6 +2,7 @@ export declare const getFileVersion: (data: string) => string;
 export declare const stripVersionInfo: (data: string) => string;
 export declare const includeVersionInfo: (data: string) => string;
 export declare const fileVersionMatchesCurrent: (data: string) => boolean;
+export declare const asBrowserParsed: (html: string) => string;
 export declare const dropTrailingBreaks: (html: string) => string;
 export declare const ZERO_WIDTH_CHARS = "\\uFEFF\\u200B\\u200C\\u200D\\u2060";
 export declare const dropZeroWidthOnlyElements: (html: string) => string;

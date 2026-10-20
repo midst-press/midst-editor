@@ -4,6 +4,8 @@
   its own name, with the American flag beside English, and in **View** > **Language**; for now that is English.
   Midst starts in English until you choose, whatever your computer's language, and remembers your choice. The
   menus and the window change at once, and the poem does not.
+- **Poems from the old Midst now convert exactly.** Every one of the 54 archive poems converts to the lines the
+  old Midst showed (midst-format v0.5.0).
 - **A deleted draft can be put back.** For 5 seconds after you delete a draft, the drafts list shows **Undo**,
   which brings it back with its name, its number and its place in the list.
 - **Midst no longer checks for a new version when it opens.** The check could not work in the installed

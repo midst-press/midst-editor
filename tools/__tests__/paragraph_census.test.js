@@ -126,11 +126,12 @@ describe('censusOf, with the real converter', () => {
     expect(c.converted.shown).toBe(c.raw.shown);
   });
 
-  it('a nested <p> is seen: the browser showed two lines of text, and the conversion has one', () => {
+  // midst-format v0.5.0: the conversion reads the source as a browser built it, so both lines are kept.
+  it('a nested <p> is seen: the browser showed two lines of text, and the conversion has both', () => {
     const c = censusOf(oldFile('<p>zq<p>xv</p></p>'), convertMidstFile);
     expect(c.raw.text).toBe(2);
     expect(c.raw.nestedP).toBe(1);
-    expect(c.converted.text).toBe(1);
+    expect(c.converted.text).toBe(2);
   });
 });
 
