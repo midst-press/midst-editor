@@ -1,0 +1,1 @@
+Before/after screenshots for the design questions to Annelyse (20 Oct 2026). Image hosting only: this branch has no history in common with main and is never merged. All poem text shown is invented test content.
