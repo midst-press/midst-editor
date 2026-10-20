@@ -25,6 +25,7 @@ export type Channels =
   | 'enable-save'
   | 'disable-save'
   | 'cancel-save'
+  | 'set-not-saved'
   | 'flush-editor'
   | 'editor-flushed'
   | 'app-open';

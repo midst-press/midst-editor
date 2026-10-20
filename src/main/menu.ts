@@ -29,6 +29,7 @@ import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
 import { loadDataIntoWorkspace } from './util';
+import * as saveFailure from './saveFailurePolicy';
 import {
   activateLocale,
   i18n,
@@ -176,15 +177,28 @@ const saveFilters = () => [
 // callback, and the callback would then mark those keystrokes as saved.
 //
 // When the write fails nothing is recorded: the document keeps its previous filename and stays
-// unsaved. Whether the poet is told depends on who started the save:
-//   - `byPoet`: they chose Save or Save As, or have just picked the file in a dialog. Always told.
-//   - otherwise it is one of the editor's own saves (on opening a document, a second after typing,
-//     on leaving for the replay). Not told when nothing was unsaved: opening a read-only poem to
-//     read it is not a failure worth a message. And told only ONCE per file while it keeps failing:
-//     an autosave follows every pause in typing, and a message after each one would make a poem in
-//     a read-only place impossible to work on. The macOS edited dot stays on throughout.
+// unsaved. Whether the poet is told, and how the window shows it, is saveFailurePolicy.ts (#94).
+// `byPoet` is true when they chose Save or Save As, or have just picked the file in a dialog.
 // `saveElsewhere` is what "Save As…" in that message does.
-let toldCouldNotSave: string | undefined;
+
+// Off macOS the window's title says when the poem is not saved; the renderer sets it (#94). Sent only when
+// that changes. On macOS the edited dot says it instead.
+const sayWhetherSaved = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  wasShown: boolean
+) => {
+  const shown = saveFailure.showsNotSaved();
+  if (!darwin && shown !== wasShown)
+    mainWindow.webContents.send('set-not-saved', shown);
+};
+
+// The window now holds another document: nothing about the last one's failed saves applies to it.
+const forgetSaveFailures = (mainWindow: BrowserWindow, darwin: boolean) => {
+  const wasShown = saveFailure.showsNotSaved();
+  saveFailure.startAgain();
+  sayWhetherSaved(mainWindow, darwin, wasShown);
+};
 
 // The write succeeded: the document is now this file, and saved.
 const recordSaved = (
@@ -192,7 +206,7 @@ const recordSaved = (
   darwin: boolean,
   filename: string
 ) => {
-  toldCouldNotSave = undefined;
+  forgetSaveFailures(mainWindow, darwin);
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   rememberFolder(filename);
@@ -213,19 +227,26 @@ const reportCouldNotSave = async (
     filename,
     reason,
     byPoet,
+    firstSave,
     saveElsewhere,
   }: {
     filename: string;
     reason: string;
     byPoet: boolean;
+    firstSave: boolean;
     saveElsewhere: () => Promise<void>;
   }
 ) => {
-  const nothingUnsaved = store.get('edited') === 'false';
-  if (!byPoet && nothingUnsaved) return;
-  if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
-  if (!byPoet && toldCouldNotSave === filename) return;
-  toldCouldNotSave = filename;
+  const wasShown = saveFailure.showsNotSaved();
+  const tell = saveFailure.failed({
+    filename,
+    byPoet,
+    firstSave,
+    nothingUnsaved: store.get('edited') === 'false',
+  });
+  if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
+  sayWhetherSaved(mainWindow, darwin, wasShown);
+  if (!tell) return;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
     title: i18n._('dialog.couldNotSave.title'),
@@ -248,11 +269,13 @@ const writeAndRecord = async (
     action,
     filename,
     byPoet,
+    firstSave,
     saveElsewhere,
   }: {
     action: 'save' | 'saveAs';
     filename: string;
     byPoet: boolean;
+    firstSave: boolean;
     saveElsewhere: () => Promise<void>;
   }
 ) => {
@@ -271,6 +294,7 @@ const writeAndRecord = async (
       filename,
       reason: i18n._('dialog.couldNotSave.notPrepared'),
       byPoet,
+      firstSave,
       saveElsewhere,
     });
     return;
@@ -298,6 +322,7 @@ const writeAndRecord = async (
       filename,
       reason,
       byPoet,
+      firstSave,
       saveElsewhere,
     });
     return;
@@ -325,6 +350,7 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
       action: 'saveAs',
       filename,
       byPoet: true,
+      firstSave: !store.get('filename'),
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   }
@@ -406,6 +432,14 @@ export const save = async (
     return;
   }
   const stored = store.get('filename') as string | undefined;
+  if (!stored && !saveFailure.mayAskWhereToSave(byPoet)) {
+    // Its first save failed, and the panel would otherwise open at every pause in typing (#94). The poem
+    // stays unsaved: Save and Save As still ask where it goes, and closing the window warns that it is unsaved.
+    log.info(
+      'autosave: not asking again where to save a document whose first save failed'
+    );
+    return;
+  }
   const filename =
     stored ||
     dialog.showSaveDialogSync(mainWindow, {
@@ -419,6 +453,7 @@ export const save = async (
       action: 'save',
       filename,
       byPoet: byPoet || !stored,
+      firstSave: !stored,
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   } else {
@@ -440,6 +475,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
+  forgetSaveFailures(mainWindow, darwin);
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
@@ -961,6 +997,7 @@ export default class MenuBuilder {
               store.set('meta', '');
               store.set('filename', '');
               store.set('edited', JSON.stringify(false));
+              saveFailure.startAgain();
               app.emit('activate', false);
             } else {
               logIfRejected('new', () => newFile(this.mainWindow, true));
