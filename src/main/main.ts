@@ -25,7 +25,6 @@ import {
 } from 'electron';
 import debug from 'electron-debug';
 import log from 'electron-log';
-import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import {
   applyLogLevel,
@@ -49,19 +48,6 @@ import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
 import { activateLocale, i18n, pickLocale } from '../shared/i18n';
 import { LOCALE_ARGUMENT } from '../shared/localeArgument';
-
-class AppUpdater {
-  constructor() {
-    // Level is whatever the user has configured; see src/main/logging.ts.
-    applyLogLevel();
-    autoUpdater.logger = log;
-    // A failed check is expected (offline, no feed, an app not installed through its package) and must
-    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
-    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
-      log.warn('update check failed', describeError(error))
-    );
-  }
-}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -236,9 +222,9 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
-  new AppUpdater();
+  // The log level is whatever the user has configured; see src/main/logging.ts. (There is no update
+  // check: removed until self-update can ask first, #178, #269.)
+  applyLogLevel();
 };
 
 // The renderer's requests. Registered once, here: createWindow runs again on activate, and while
