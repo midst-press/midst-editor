@@ -1,3 +1,8 @@
+# 0.8.0
+
+- **The user guide is under construction.** **Help** > **Documentation** and the **User Guide** button in About
+  Midst still open it, and for now it says so. The guide for poets will come closer to the public release.
+
 # 0.7.0
 
 - **Choose the language Midst speaks.** The languages Midst has are at the top of the opening screen, each by
