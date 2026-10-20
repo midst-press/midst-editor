@@ -32,10 +32,7 @@ export const REREAD_FAILED_LOG = 'draft markers could not be read back';
 export const UNDO_MS = 5000;
 
 export type ChangeRefusal =
-  | MarkerRefusal
-  | 'meta-unreadable'
-  | 'too-few-changes'
-  | 'change-threw';
+  MarkerRefusal | 'meta-unreadable' | 'too-few-changes' | 'change-threw';
 
 // What the poet is told for each refusal.
 export const refusalMessage = (

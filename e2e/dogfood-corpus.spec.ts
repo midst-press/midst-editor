@@ -147,8 +147,7 @@ cases.forEach((c) => {
         };
         /* eslint-enable no-unused-vars */
         const el = document.querySelector('.ProseMirror') as
-          | (Element & { editor?: Ed })
-          | null;
+          (Element & { editor?: Ed }) | null;
         const ed = el?.editor;
         if (!el || !ed) return { reach: false };
         const { domParser } = ed.schema.cached;

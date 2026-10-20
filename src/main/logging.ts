@@ -234,12 +234,7 @@ export function registerUncaughtHandlers(
 }
 
 export type LogLevel =
-  | 'error'
-  | 'warn'
-  | 'info'
-  | 'verbose'
-  | 'debug'
-  | 'silly';
+  'error' | 'warn' | 'info' | 'verbose' | 'debug' | 'silly';
 
 const LEVELS: LogLevel[] = [
   'error',

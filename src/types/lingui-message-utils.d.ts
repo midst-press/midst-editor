@@ -12,7 +12,7 @@ declare module '@lingui/message-utils/compileMessage' {
     | [
         name: string,
         type?: string,
-        format?: null | string | unknown | CompiledIcuChoices
+        format?: null | string | unknown | CompiledIcuChoices,
       ];
   type CompiledMessage = CompiledMessageToken[];
   type MapTextFn = (value: string) => string;
