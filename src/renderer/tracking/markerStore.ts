@@ -30,8 +30,7 @@ export const readStoredMeta = (store: MetaStore): Meta | null => {
 };
 
 export type StoredChange =
-  | MarkerResult
-  | { ok: false; reason: 'meta-unreadable' };
+  MarkerResult | { ok: false; reason: 'meta-unreadable' };
 
 // Applies one marker change to the stored document. When the change is accepted the new meta is
 // stored, the document is marked as having unsaved changes, and `save` is called. Every accepted

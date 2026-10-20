@@ -102,7 +102,7 @@ describe('languageName', () => {
     const spy = jest
       .spyOn(Intl, 'DisplayNames')
       .mockImplementation(
-        () => ({ of: () => undefined } as unknown as Intl.DisplayNames)
+        () => ({ of: () => undefined }) as unknown as Intl.DisplayNames
       );
     try {
       expect(languageName('zq')).toBe('zq');

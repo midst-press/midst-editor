@@ -21,7 +21,7 @@ let observer: { stop: jest.Mock; start: jest.Mock };
 let fake: { composing: boolean; state: { doc: object } };
 
 const view = () =>
-  ({ dom, domObserver: observer, ...fake } as unknown as EditorView);
+  ({ dom, domObserver: observer, ...fake }) as unknown as EditorView;
 
 beforeEach(() => {
   jest.useFakeTimers();

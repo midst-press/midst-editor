@@ -28,8 +28,7 @@ export type MarkerRefusal =
   | 'markers-unreadable'; // meta.draftMarkers exists and is not a list: left alone
 
 export type MarkerResult =
-  | { ok: true; meta: Meta }
-  | { ok: false; reason: MarkerRefusal };
+  { ok: true; meta: Meta } | { ok: false; reason: MarkerRefusal };
 
 const DEFAULT_NAME = /^Draft (\d+)$/;
 
