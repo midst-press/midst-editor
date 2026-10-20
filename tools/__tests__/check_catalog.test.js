@@ -57,12 +57,16 @@ const writeCatalog = ({ en = EN, fr = FR, locales = ['en', 'fr'] } = {}) => {
   if (en) write('locales/en/messages.po', po('en', en));
   if (fr) write('locales/fr/messages.po', po('fr', fr));
 };
-const check = (...args) => {
+// CATALOG_BASE is never inherited: a value set for CI's catalog step must not reach these runs (#287).
+const runCheck = (env, args) => {
+  const { CATALOG_BASE: _, ...rest } = process.env;
   const r = spawnSync('node', [SCRIPT, '--root', root, ...args], {
     encoding: 'utf8',
+    env: { ...rest, ...env },
   });
   return { status: r.status, out: r.stdout + r.stderr };
 };
+const check = (...args) => runCheck({}, args);
 
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), 'check-catalog-'));
@@ -354,5 +358,76 @@ describe('modes and usage', () => {
     expect(check('--nope').status).toBe(2);
     fs.rmSync(path.join(root, 'lingui.config.js'));
     expect(check().status).toBe(2);
+  });
+});
+
+// #287: an English entry new since the base and not marked draft would skip the review list. The base here is the
+// temp root's own git history: the catalog is committed, then changed.
+describe('new English entries against the base', () => {
+  const git = (...args) => {
+    const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')}: ${r.stderr}`);
+  };
+  const commitBase = () => {
+    writeCatalog();
+    git('init', '-q');
+    git('add', '-A');
+    git(
+      '-c',
+      'user.name=zq',
+      '-c',
+      'user.email=zq@example.invalid',
+      'commit',
+      '-q',
+      '-m',
+      'base'
+    );
+  };
+  const withEnglish = (extra) => writeCatalog({ en: [...EN, ...extra] });
+  const atBase = (...args) => runCheck({ CATALOG_BASE: 'HEAD' }, args);
+
+  it('fails on a new entry with no draft mark, naming it', () => {
+    commitBase();
+    withEnglish([{ id: 'menu.file.export', text: 'zq Export' }]);
+    const r = atBase();
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('New-entry check: against HEAD');
+    expect(r.out).toContain(
+      'locales/en/messages.po: menu.file.export is new and not marked draft (#, fuzzy)'
+    );
+    expect(r.out).not.toContain('zq Export');
+  });
+
+  it('passes a new entry marked draft, and lists it for review', () => {
+    commitBase();
+    withEnglish([{ id: 'menu.file.export', text: 'zq Export', fuzzy: true }]);
+    const r = atBase();
+    expect(r.status).toBe(0);
+    expect(r.out).toContain('locales/en/messages.po: menu.file.export');
+  });
+
+  it('passes entries the base already had, marked or not', () => {
+    commitBase();
+    const r = atBase();
+    expect(r.status).toBe(0);
+    expect(r.out).toContain('Catalog: no problems.');
+  });
+
+  it('says it did not run when there is no base, and checks the rest', () => {
+    writeCatalog({
+      en: [...EN, { id: 'menu.file.export', text: 'zq Export' }],
+    });
+    const r = check();
+    expect(r.status).toBe(0);
+    expect(r.out).toContain('New-entry check NOT RUN: no base');
+  });
+
+  it('exits 2 when the base cannot be read, rather than reporting nothing new', () => {
+    commitBase();
+    const r = runCheck({ CATALOG_BASE: 'no-such-ref' }, []);
+    expect(r.status).toBe(2);
+    expect(r.out).toContain(
+      'cannot read locales/en/messages.po at no-such-ref'
+    );
   });
 });
