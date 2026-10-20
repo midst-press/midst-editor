@@ -105,7 +105,8 @@ jobs:
         run: |
           command -v xvfb-run >/dev/null || { echo 'xvfb-run is not installed in the runner container'; exit 1; }
           # Electron's sandbox needs unprivileged user namespaces; Ubuntu's AppArmor can block them.
-          unshare --user --map-root-user true || { echo 'unprivileged user namespaces are blocked in the runner container (kernel.apparmor_restrict_unprivileged_userns)'; exit 1; }
+          # MEASURING (#272): reported, not enforced, until a run shows whether Electron starts without them.
+          unshare --user --map-root-user true || echo '::warning::unprivileged user namespaces are blocked in the runner container'
       - run: npm ci --ignore-scripts
       - run: npm run build
       # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself. Without
