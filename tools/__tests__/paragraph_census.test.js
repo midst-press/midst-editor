@@ -109,7 +109,6 @@ describe('censusOf, with the real converter', () => {
     expect(c.converted).toEqual(c.raw);
   });
 
-  // Since midst-format v0.4.0 (#169) the paragraph the removed marker leaves empty is dropped too.
   // midst-format #76 (in v0.5.0): Chromium draws a line for a paragraph holding only a SHOWN zero-width element,
   // so the conversion keeps it as a blank line (cora-2f1e43dc, on #289). A hidden marker still leaves none (#92).
   it('a shown zero-width element alone in a paragraph is a blank line, as the browser draws it', () => {
