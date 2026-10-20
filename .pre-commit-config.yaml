@@ -33,6 +33,7 @@ repos:
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=2048]
+        exclude: '^assets/Assets\.car$'
 
   # ---- local guards. These enforce policy mechanically rather than by discipline. ----
   - repo: local
@@ -67,6 +68,13 @@ repos:
         entry: tools/check_version.sh
         pass_filenames: false
         files: '(^|/)package(-lock)?\.json$|^tools/(check|set)_version\.sh$'
+      - id: check-icon-assets
+        name: icon assets and packaging config match (Assets.car, CFBundleIconName)
+        language: system
+        entry: tools/check-icon-assets.sh
+        pass_filenames: false
+        files: '^assets/|^tools/(compile|check)-icon|^package\.json$'
+
       - id: prettier
         name: prettier (repo's own pinned version)
         language: system
