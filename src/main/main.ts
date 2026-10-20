@@ -40,6 +40,7 @@ import MenuBuilder, {
   openFile,
   openPath,
   logIfRejected,
+  setLanguage,
 } from './menu';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
@@ -47,7 +48,12 @@ import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
-import { activateLocale, chosenLocale, i18n } from '../shared/i18n';
+import {
+  activateLocale,
+  chosenLocale,
+  i18n,
+  languageOrder,
+} from '../shared/i18n';
 
 class AppUpdater {
   constructor() {
@@ -256,6 +262,16 @@ ipcMain.on('button-open-file', () => {
   if (mainWindow === null) return;
   const win = mainWindow;
   logIfRejected('open', () => openFile(win, isDarwin()));
+});
+
+// The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
+// Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
+ipcMain.on('language-order', (event) => {
+  event.returnValue = languageOrder(app.getPreferredSystemLanguages());
+});
+ipcMain.on('set-language', (_event, args: unknown) => {
+  const [tag] = Array.isArray(args) ? args : [];
+  if (typeof tag === 'string' && mainWindow) setLanguage(tag, mainWindow);
 });
 
 // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.

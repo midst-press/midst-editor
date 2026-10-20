@@ -110,8 +110,8 @@ export const applyStoredAppearance = () => {
 // none, and the app is in English (chosenLocale). The menus are rebuilt in the new language at once, and
 // every window is told, so the menus and the window always agree.
 export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
-  store.set('language', locale);
   const used = activateLocale(locale);
+  store.set('language', used);
   // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
   new MenuBuilder(mainWindow).applyMenu();
   BrowserWindow.getAllWindows().forEach((w) =>

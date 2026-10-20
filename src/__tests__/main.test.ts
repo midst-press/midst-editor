@@ -213,6 +213,7 @@ jest.mock('../main/menu', () => ({
   __esModule: true,
   default: jest.fn(() => ({ buildMenu: jest.fn() })),
   applyStoredAppearance: jest.fn(),
+  setLanguage: jest.fn(),
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
@@ -383,6 +384,29 @@ describe('main process', () => {
     expect(read.mock.invocationCallOrder[asked]).toBeLessThan(
       (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
     );
+  });
+
+  describe('the languages on the opening screen (editor #265)', () => {
+    it("answers their order: English, then the system's own, then the rest", async () => {
+      const { fireIpc } = await boot();
+      const event = { returnValue: undefined as unknown };
+      await fireIpc('language-order', event);
+      expect(event.returnValue).toEqual(['en']);
+    });
+
+    it('hands a chosen language to setLanguage with the window', async () => {
+      const { fireIpc, menu, win } = await boot();
+      await fireIpc('set-language', {}, ['zq']);
+      expect(menu.setLanguage).toHaveBeenCalledWith('zq', win());
+    });
+
+    it('ignores a message that names no language', async () => {
+      const { fireIpc, menu } = await boot();
+      await fireIpc('set-language', {}, [3]);
+      await fireIpc('set-language', {}, 'en');
+      await fireIpc('set-language', {}, undefined);
+      expect(menu.setLanguage).not.toHaveBeenCalled();
+    });
   });
 
   it('passes the renderer no language on its command line: it reads the store (editor #265)', async () => {

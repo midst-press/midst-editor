@@ -1,7 +1,7 @@
 # 0.7.0
 
-- **Choose the language Midst speaks.** **View** > **Language** lists the languages Midst has, each by its
-  own name; for now that is English. Midst starts in English until you choose, whatever your computer's
+- **Choose the language Midst speaks.** The languages Midst has are at the top of the opening screen, each by
+  its own name, with the American flag beside English, and in **View** > **Language**; for now that is English. Midst starts in English until you choose, whatever your computer's
   language, and remembers your choice. The menus and the window change at once, and the poem does not.
 
 # 0.6.0

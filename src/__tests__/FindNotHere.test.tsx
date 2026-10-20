@@ -15,6 +15,7 @@ type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 const installBridge = () => {
   const listeners: Record<string, Listener[]> = {};
   (window as unknown as { electron: unknown }).electron = {
+    languageOrder: () => ['en'],
     versions: { isMac: false },
     store: { get: () => undefined, set: () => undefined },
     titlebar: { updateTitle: () => undefined },

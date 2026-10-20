@@ -535,6 +535,12 @@ msgid "landing.getStarted"
 msgstr "Get Started:"
 
 #. js-lingui-explicit-id
+#: src/renderer/language/LanguageChoices.tsx
+#, fuzzy
+msgid "landing.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/LandingDialog/index.tsx
 #, fuzzy
 msgid "landing.needHelp"

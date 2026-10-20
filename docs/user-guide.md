@@ -140,7 +140,7 @@ Midst can be light or dark. Choose **View** > **Appearance**, then **Light** or 
 
 ## Language
 
-Midst's menus and buttons are in English until you choose another language. Choose **View** > **Language**, then a language by its own name: English first, then your computer's language if Midst has it, then the rest. The words change at once. This does not change the poem, and Midst remembers what you chose.
+Midst's menus and buttons are in English until you choose another language. The languages are at the top of the opening screen, each by its own name, with the American flag beside English; you can also choose **View** > **Language**. English comes first, then your computer's language if Midst has it, then the rest. The words change at once. This does not change the poem, and Midst remembers what you chose.
 
 ## Keyboard shortcuts
 

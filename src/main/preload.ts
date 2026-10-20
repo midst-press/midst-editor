@@ -13,6 +13,7 @@ export type Channels =
   | 'set-filename'
   | 'set-font-size'
   | 'set-locale'
+  | 'set-language'
   | 'toggle-edit-mode'
   | 'save-file'
   | 'toggle-spellcheck'
@@ -137,6 +138,10 @@ const electronHandler = {
   },
   versions: {
     isMac: process.platform === 'darwin',
+  },
+  // The languages in the order the main process shows them: English, the system's own, the rest (editor #265).
+  languageOrder(): string[] {
+    return ipcRenderer.sendSync('language-order');
   },
 };
 

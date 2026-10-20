@@ -20,6 +20,7 @@ import MenuBuilder, {
   openFile,
   save,
   saveAs,
+  setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
@@ -2153,6 +2154,15 @@ describe('the menu', () => {
       new MenuBuilder(asWindow(makeWindow())).buildMenu();
       const template = buildFromTemplate.mock.calls[0][0] as Item[];
       expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+    });
+
+    it('stores English, never the tag, for a language with no catalog', () => {
+      const win = makeWindow();
+      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+        jest.fn(() => [win]);
+      setLanguage('xx', asWindow(win));
+      expect(mockStore.get('language')).toBe('en');
+      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
     });
 
     it('choosing a language stores it, rebuilds the menus once and tells every window', () => {

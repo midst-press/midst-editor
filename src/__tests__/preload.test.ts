@@ -89,7 +89,14 @@ describe('exposure', () => {
     expect(mockExposeInMainWorld).toHaveBeenCalledTimes(1);
     expect(mockExposeInMainWorld.mock.calls[0][0]).toBe('electron');
     expect(Object.keys(api).sort()).toEqual(
-      ['ipcRenderer', 'log', 'store', 'titlebar', 'versions'].sort()
+      [
+        'ipcRenderer',
+        'languageOrder',
+        'log',
+        'store',
+        'titlebar',
+        'versions',
+      ].sort()
     );
   });
 
@@ -178,6 +185,14 @@ describe('ipcRenderer.once', () => {
     unsubscribe();
     expect(mockIpc.removeListener).toHaveBeenCalledTimes(1);
     expect(mockIpc.removeListener).toHaveBeenCalledWith('app-open', listener);
+  });
+});
+
+describe('languageOrder (editor #265)', () => {
+  it("asks the main process for the languages' order, synchronously", () => {
+    mockIpc.sendSync.mockReturnValue(['en', 'zq']);
+    expect(loadPreload().languageOrder()).toEqual(['en', 'zq']);
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('language-order');
   });
 });
 
