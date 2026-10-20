@@ -110,13 +110,15 @@ describe('censusOf, with the real converter', () => {
   });
 
   // Since midst-format v0.4.0 (#169) the paragraph the removed marker leaves empty is dropped too.
-  it('a marker wrapped in a marker leaves no line in the conversion', () => {
+  // midst-format #76 (in v0.5.0): Chromium draws a line for a paragraph holding only a SHOWN zero-width element,
+  // so the conversion keeps it as a blank line (cora-2f1e43dc, on #289). A hidden marker still leaves none (#92).
+  it('a shown zero-width element alone in a paragraph is a blank line, as the browser draws it', () => {
     const c = censusOf(
       oldFile('<p>zq</p><p><span><span>\u200b</span></span></p><p>xv</p>'),
       convertMidstFile
     );
     expect(c.raw).toEqual(lines({ zeroWidth: 1, text: 2 }));
-    expect(c.converted).toEqual(lines({ text: 2 }));
+    expect(c.converted).toEqual(lines({ text: 2, blank: 1 }));
   });
 
   // #169, fixed in midst-format v0.4.0: before it, this paragraph became a line the new editor showed.
