@@ -10,7 +10,7 @@ const path = require('path');
 
 const SCRIPT = path.join(__dirname, '..', 'check-vendored-format.mjs');
 const VENDOR = path.join(__dirname, '..', '..', 'vendor', 'midst-format');
-const VENDORED_FILES = 21; // 5 entry points x (cjs, mjs, d.ts, package.json) + the top-level package.json
+const VENDORED_FILES = 22; // 5 entry points x (cjs, mjs, d.ts, package.json) + the top-level package.json + THIRD_PARTY_NOTICES.md (v0.5.0)
 // The tag the committed VENDOR.md names, so a version bump does not have to edit this test.
 const TAG = /- Tag: `([^`]+)`/.exec(
   fs.readFileSync(path.join(VENDOR, 'VENDOR.md'), 'utf8')
