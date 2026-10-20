@@ -273,20 +273,31 @@ export default function Replay() {
             backgroundColor: cssVar('controlBar'),
           }}
         >
-          <button
-            type="button"
-            ref={playPauseButton}
-            style={{ color: cssVar('onControlBar') }}
-            onClick={playing ? pause : play}
-            disabled={!poemHistory.length}
-            className="control-bar-icon control-icon-gap"
+          {/* Named like every other button here (#101): a screen reader said only "button". */}
+          <Tooltip
+            title={playing ? i18n._('replay.pause') : i18n._('replay.play')}
+            TransitionComponent={Zoom}
+            enterDelay={1000}
+            arrow
           >
-            {playing ? (
-              <PauseIcon fontSize="small" />
-            ) : (
-              <PlayArrowIcon fontSize="small" />
-            )}
-          </button>
+            <button
+              type="button"
+              ref={playPauseButton}
+              aria-label={
+                playing ? i18n._('replay.pause') : i18n._('replay.play')
+              }
+              style={{ color: cssVar('onControlBar') }}
+              onClick={playing ? pause : play}
+              disabled={!poemHistory.length}
+              className="control-bar-icon control-icon-gap"
+            >
+              {playing ? (
+                <PauseIcon fontSize="small" />
+              ) : (
+                <PlayArrowIcon fontSize="small" />
+              )}
+            </button>
+          </Tooltip>
           <Slider
             min={0}
             max={maxStep}
