@@ -422,6 +422,8 @@ export default function Replay() {
         }}
         onRename={drafts.rename}
         onDelete={drafts.remove}
+        canUndo={drafts.canUndoDelete}
+        onUndo={drafts.undoDelete}
         refusal={drafts.refusal}
         showMarkers={showMarkers}
         setShowMarkers={setShowMarkers}

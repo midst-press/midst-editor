@@ -19,6 +19,8 @@ interface HarnessProps {
   startNaming: number | null;
   markers: typeof MARKERS;
   refusal: string | null;
+  canUndo: boolean;
+  onUndo: jest.Mock;
 }
 
 function Harness({
@@ -29,6 +31,8 @@ function Harness({
   startNaming,
   markers,
   refusal,
+  canUndo,
+  onUndo,
 }: HarnessProps) {
   const [naming, setNaming] = useState<number | null>(startNaming);
   const [showMarkers, setShowMarkers] = useState(true);
@@ -43,6 +47,8 @@ function Harness({
       onJump={onJump}
       onRename={onRename}
       onDelete={onDelete}
+      canUndo={canUndo}
+      onUndo={onUndo}
       refusal={refusal}
       showMarkers={showMarkers}
       setShowMarkers={(shown) => {
@@ -69,6 +75,8 @@ const show = (given: Partial<HarnessProps> = {}) =>
       startNaming={given.startNaming ?? null}
       markers={given.markers ?? MARKERS}
       refusal={given.refusal ?? null}
+      canUndo={given.canUndo ?? false}
+      onUndo={given.onUndo ?? jest.fn()}
     />
   );
 
@@ -171,5 +179,18 @@ describe('DraftDrawer: refusal', () => {
   it('shows no alert when nothing was refused', () => {
     show();
     expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('offers Undo after a delete, and Undo calls back (#277)', () => {
+    const onUndo = jest.fn();
+    show({ canUndo: true, onUndo });
+    expect(screen.getByRole('status')).toHaveTextContent('Draft deleted.');
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows no Undo when there is nothing to undo', () => {
+    show();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 });
