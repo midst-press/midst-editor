@@ -25,6 +25,19 @@ done
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 14) else 1)' 2>/dev/null ||
   violation "$(python3 --version 2>&1) is older than 3.14"
 
+# The unversioned python3 link is hand-made (Homebrew's default moved to 3.15). Check it is still there
+# and still points at python@3.14, so a link that exists but points at another Homebrew Python (such as
+# 3.15) is caught.
+if [ -L /opt/homebrew/bin/python3 ]; then
+  target=$(readlink /opt/homebrew/bin/python3)
+  case "$target" in
+    *python@3.14*) echo "python3 link -> $target" ;;
+    *) violation "python3 link points at $target, not python@3.14" ;;
+  esac
+else
+  violation "/opt/homebrew/bin/python3 is not a symlink (the hand-made link to python@3.14 is gone)"
+fi
+
 if [ ! -r "$nvmrc" ]; then
   violation "cannot read $nvmrc"
 elif ! have=$(node -p 'process.versions.node.split(".")[0]' 2>&1); then

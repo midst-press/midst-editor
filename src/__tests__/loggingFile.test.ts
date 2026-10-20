@@ -63,6 +63,13 @@ describe('logging.ts through the real electron-log file transport', () => {
     expect(lines().join('\n')).not.toContain('SECRET');
   });
 
+  it('keeps the argument after a "%c" in a message (electron-log drops it as a style before formatting)', () => {
+    log.warn('zq %c xv', 'qz');
+    expect(lines().map((l) => JSON.parse(l))).toEqual([
+      expect.objectContaining({ msg: 'zq %c xv', meta: 'qz' }),
+    ]);
+  });
+
   it('rotates at maxSize into main.1.log ... main.5.log, every line in every file parses', () => {
     log.transports.file.maxSize = 400;
     for (let i = 0; i < 120; i += 1) log.info(`entry ${i}`, { i });

@@ -10,6 +10,7 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
@@ -22,6 +23,7 @@ import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import { rememberCursor, restoreCursor } from './cursorReturn';
+import { i18n } from '../../../shared/i18n';
 
 const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
@@ -236,6 +238,14 @@ export default function Editor() {
     },
     []
   );
+  // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
+  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
+  useEffect(() => {
+    if (!myEditor || !spellcheckOn) return undefined;
+    return checkWholePoemSoon(myEditor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+  }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
   const [sizeClass] = useState(() =>
@@ -267,7 +277,7 @@ export default function Editor() {
 
       <div className="Spacer">
         <Tooltip
-          title={draftReason ?? 'Mark this moment as a draft'}
+          title={draftReason ?? i18n._('drafts.mark')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -275,7 +285,7 @@ export default function Editor() {
         >
           <span>
             <button
-              aria-label="Mark this moment as a draft"
+              aria-label={i18n._('drafts.mark')}
               aria-describedby={draftReason ? 'editor-draft-reason' : undefined}
               type="button"
               className="icon-button"
@@ -294,7 +304,7 @@ export default function Editor() {
           </span>
         </Tooltip>
         <Tooltip
-          title="Replay"
+          title={i18n._('editor.replay')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
@@ -303,7 +313,11 @@ export default function Editor() {
           {/* Saves first, as the menu's toggle-edit-mode does. Leaving the editor cancels a pending
               autosave, so without this the keystrokes of the last second are not in the file. */}
           <Link to="/replay" onClick={() => saveFileAndUpdateStore()}>
-            <button aria-label="Replay" type="button" className="icon-button">
+            <button
+              aria-label={i18n._('editor.replay')}
+              type="button"
+              className="icon-button"
+            >
               <HistoryIcon fontSize="small" />
             </button>
           </Link>

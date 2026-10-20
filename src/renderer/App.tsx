@@ -84,6 +84,8 @@ export default function App() {
     return (
       <>
         <CssBaseline />
+        {/* Outside Electron (a browser on the dev server), with no preload: never what a poet sees. */}
+        {/* eslint-disable-next-line lingui/no-unlocalized-strings */}
         <ThemeProvider theme={theme}>Hello</ThemeProvider>
       </>
     );

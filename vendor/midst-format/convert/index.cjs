@@ -31,6 +31,7 @@ var convert_exports = {};
 __export(convert_exports, {
   ZERO_WIDTH_CHARS: () => ZERO_WIDTH_CHARS,
   convertMidstFile: () => convertMidstFile,
+  dropInvisibleParagraphs: () => dropInvisibleParagraphs,
   dropTrailingBreaks: () => dropTrailingBreaks,
   dropZeroWidthOnlyElements: () => dropZeroWidthOnlyElements,
   fileVersionMatchesCurrent: () => fileVersionMatchesCurrent,
@@ -42,6 +43,7 @@ __export(convert_exports, {
 });
 module.exports = __toCommonJS(convert_exports);
 var import_html = require("@tiptap/html");
+var import_core = require("@tiptap/core");
 var import_history = require("../history/index.cjs");
 var import_extensions = __toESM(require("../extensions/index.cjs"));
 var CURRENT_VERSION = "1";
@@ -63,25 +65,32 @@ var fileVersionMatchesCurrent = (data) => {
   const firstVersion = getFileVersion(data);
   return CURRENT_VERSION_LIST.includes(firstVersion);
 };
-var getTextLengthFromJSONContent = (doc) => {
-  var _a;
-  if (doc.type === "text") {
-    return ((_a = doc.text) == null ? void 0 : _a.length) || 0;
-  }
-  if (doc.type === "hardBreak") {
-    return 2;
-  }
-  if (doc.type === "paragraph" || doc.type === "doc") {
-    const contents = doc.content || [];
-    const lengths = contents.map((item) => {
-      return getTextLengthFromJSONContent(item);
-    });
-    const amount = lengths.reduce((partialSum, a) => partialSum + a, 1);
-    return amount;
-  }
-  return 0;
+var schema = (0, import_core.getSchema)(import_extensions.default);
+var endOfBlock = (doc, index) => {
+  const blocks = index >= 0 ? Math.min(doc.childCount, index + 1) : 0;
+  let size = 0;
+  for (let i = 0; i < blocks; i += 1) size += doc.child(i).nodeSize;
+  return blocks === 0 ? 0 : size - 1;
 };
-var TRAILING_BREAK = /<br\s*\/?>((?:\s*<\/(?:em|strong|i|b|u|span|s|strike|a)>)*\s*<\/p>)/gi;
+var frameJSON = (html) => (0, import_html.generateJSON)(dropTrailingBreaks(html), import_extensions.default, {
+  preserveWhitespace: true
+});
+var keptBlock = (source, lineNumber) => {
+  const line = Number(lineNumber);
+  if (!Number.isFinite(line) || line < 0) return -1;
+  if (dropInvisibleParagraphs(source) === source) return Math.floor(line);
+  const text = schema.nodeFromJSON(frameJSON(source)).textContent;
+  let mark = "\uE000";
+  while (source.includes(mark) || text.includes(mark)) mark += "\uE000";
+  const marked = markInvisibleParagraphs(source, mark);
+  const before = schema.nodeFromJSON(frameJSON(marked));
+  const last = Math.min(before.childCount, Math.floor(line) + 1);
+  let kept = 0;
+  for (let i = 0; i < last; i += 1)
+    if (before.child(i).textContent !== mark) kept += 1;
+  return kept - 1;
+};
+var TRAILING_BREAK = /<br\s*\/?>((?:\s|<\/(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)>|<(?:em|strong|i|b|u|span|s|strike|a|font|sup|sub)\b(?![^>]*[\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\w-]*\s*:)[^>]*>)*<\/p>)/gi;
 var dropTrailingBreaks = (html) => html.replace(TRAILING_BREAK, "$1");
 var ZERO_WIDTH_CHARS = "\\uFEFF\\u200B\\u200C\\u200D\\u2060";
 var ZERO_WIDTH_ENTITY_CODES = [65279, 8203, 8204, 8205, 8288];
@@ -101,6 +110,23 @@ var dropZeroWidthOnlyElements = (html) => {
   }
   return current;
 };
+var INLINE_TAGS = "em|strong|i|b|u|span|s|strike|a|font|sup|sub";
+var NO_BOX_STYLE = `(?![^>]*[\\s;"'](?:white-space|display|min-height|height|margin|padding|border)[\\w-]*\\s*:)`;
+var INVISIBLE_PARAGRAPH = new RegExp(
+  `<p\\b${NO_BOX_STYLE}[^>]*>(?:[ \\n\\r\\f]|<(?:${INLINE_TAGS})\\b${NO_BOX_STYLE}[^>]*>|</(?:${INLINE_TAGS})>)*</p>`,
+  "gi"
+);
+var replaceInvisibleParagraphs = (html, by) => {
+  let current = html;
+  let next = current.replace(INVISIBLE_PARAGRAPH, by);
+  while (next !== current) {
+    current = next;
+    next = current.replace(INVISIBLE_PARAGRAPH, by);
+  }
+  return current;
+};
+var dropInvisibleParagraphs = (html) => replaceInvisibleParagraphs(html, "");
+var markInvisibleParagraphs = (html, mark) => replaceInvisibleParagraphs(html, `<p>${mark}</p>`);
 var metaFromOldMidst = (old = {}) => {
   const meta = {};
   if ("editorFontFamily" in old) meta.fontFamily = old.editorFontFamily;
@@ -132,19 +158,11 @@ var convertMidstFile = (oldMidst) => {
   const oldMidstJSON = JSON.parse(oldMidst);
   const frames = oldMidstJSON.editorTimelineFrames;
   const newFrames = frames.map((el) => {
-    const jsonContentAtFrame = (0, import_html.generateJSON)(
-      dropTrailingBreaks(dropZeroWidthOnlyElements(el.content)),
-      import_extensions.default,
-      {
-        preserveWhitespace: true
-      }
-    );
+    const source = dropZeroWidthOnlyElements(el.content);
+    const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
     const htmlContentAtFrame = (0, import_html.generateHTML)(jsonContentAtFrame, import_extensions.default);
-    const truncatedJsonContentAtFrame = {
-      ...jsonContentAtFrame,
-      content: jsonContentAtFrame.content.slice(0, Number(el.lineNumber) + 1)
-    };
-    const position = getTextLengthFromJSONContent(truncatedJsonContentAtFrame);
+    const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
     return {
       content: htmlContentAtFrame,
       pos: position,

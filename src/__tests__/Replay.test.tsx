@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
-import { FIND_IN_REPLAY } from '../renderer/search/FindNotHere';
+import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 
@@ -270,14 +270,48 @@ describe('Replay: playback', () => {
     expect(shown(container).length).toBeLessThan(10);
   });
 
-  it('keeps playing past a seek made during playback', () => {
+  // #237: a seek during playback pauses on the chosen frame (it used to play on from there).
+  it('pauses on the frame a seek during playback chooses, and stays there', () => {
     const { container } = mount();
     seek(10);
     fireEvent.click(playButton());
     advance(60);
     seek(30);
-    advance(60 * 2);
-    expect(shown(container).length).toBeGreaterThanOrEqual(31);
+    expect(playButton()).toBeInTheDocument();
+    const at = shown(container);
+    advance(60 * 5);
+    expect(shown(container)).toEqual(at);
+    expect(slider()).toHaveValue('30');
+  });
+
+  // #237: the slider keeps the focus after a scrub; Space, Enter and Escape still work from it.
+  it('takes Space and Enter from the focused slider after a scrub', () => {
+    mount();
+    seek(10);
+    slider().focus();
+    fireEvent.keyDown(slider(), { key: ' ' });
+    expect(pauseButton()).toBeInTheDocument();
+    fireEvent.keyDown(slider(), { key: 'Enter' });
+    expect(playButton()).toBeInTheDocument();
+  });
+
+  it('leaves the timeline with Escape from the focused slider after a scrub', () => {
+    mount();
+    seek(10);
+    slider().focus();
+    fireEvent.keyDown(slider(), { key: 'Escape' });
+    expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+  });
+
+  // The step itself is the browser's (a range input's own arrow keys), which jsdom does not do. What this
+  // file owns: the replay's key handler leaves the arrows alone, and nothing moves the focus off the slider.
+  it('leaves an arrow key on the slider to the slider: the focus stays there, and nothing plays', () => {
+    mount();
+    seek(10);
+    slider().focus();
+    fireEvent.keyDown(slider(), { key: 'ArrowLeft' });
+    expect(document.activeElement).toBe(slider());
+    expect(playButton()).toBeInTheDocument();
   });
 
   it('starts and stops playback from Space and Enter, and ignores them in a text field', () => {
@@ -686,7 +720,7 @@ describe('Replay: going back to the editor', () => {
   it('Edit > Find says Find works while writing, and stays in Replay (GitHub #27)', () => {
     mount();
     bridge.emit('find-in-poem');
-    expect(screen.getByRole('alert')).toHaveTextContent(FIND_IN_REPLAY(true));
+    expect(screen.getByRole('alert')).toHaveTextContent(findInReplay(true));
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 

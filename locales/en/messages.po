@@ -12,3 +12,1060 @@ msgstr ""
 "Last-Translator: \n"
 "Language-Team: \n"
 "Plural-Forms: \n"
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#: src/main/menu.ts
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.cancel"
+msgstr "Cancel"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.ok"
+msgstr "OK"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#, fuzzy
+msgid "dialog.about.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#, fuzzy
+msgid "dialog.about.credits"
+msgstr ""
+"Director: Annelyse Gelman\n"
+"\n"
+"Developers:\n"
+"Stuart Swerdloff and the SJS Targeted Solutions Kindled team\n"
+"Juliet Shafto\n"
+"Jason Gillis-Grier"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#, fuzzy
+msgid "dialog.about.message"
+msgstr "Midst"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#, fuzzy
+msgid "dialog.about.title"
+msgstr "About Midst"
+
+#. js-lingui-explicit-id
+#: src/main/about.ts
+#, fuzzy
+msgid "dialog.about.userGuide"
+msgstr "User Guide"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExport.message"
+msgstr "Midst could not export the poem as RTF."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExport.noPoem"
+msgstr "There is no poem open to export."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExport.notWritten"
+msgstr ""
+"{reason}\n"
+"\n"
+"No file was written. Your poem is unchanged."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExport.title"
+msgstr "Could not export"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotSave.detail"
+msgstr ""
+"{reason}\n"
+"\n"
+"Your poem is still open, and it has not been saved to that file. Choose \"Save As…\" to save it somewhere else."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotSave.message"
+msgstr "Midst could not save \"{fileName}\"."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotSave.notPrepared"
+msgstr "The poem could not be prepared for saving."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotSave.saveAs"
+msgstr "Save As…"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotSave.title"
+msgstr "Could not save"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.error.title"
+msgstr "Error"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportRtf.message"
+msgstr "Export as RTF"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportRtf.title"
+msgstr "Export as RTF"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.firstSave.message"
+msgstr "To begin, create a new Midst document."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.firstSave.title"
+msgstr "To begin, create a new Midst document."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.convertAgain"
+msgstr "Convert Again"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.detail"
+msgstr "The converted copy is {fileName}. Open it to carry on where you left off, or convert the original again into a new copy."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.message"
+msgstr "This file is from an older version of Midst, and it was converted before."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedCopyExists.openCopy"
+msgstr "Open Converted Copy"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertedNotOpened"
+msgstr "The converted file {filePath} was written, but could not be opened."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.convertFile"
+msgstr "Convert File"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.corrupted"
+msgstr "The file {filePath} could not be opened. File may be corrupted. Please select another file and try again."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.couldNotRead"
+msgstr "The file {filePath} could not be opened: {reason}"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.notConverted"
+msgstr "The file {filePath} could not be converted. The original file is unchanged."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.title"
+msgstr "Open..."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.open.versionNotRecognized"
+msgstr ""
+"Version not recognized. If this file is from an\n"
+"           older version of Midst, it may be possible to convert it.\n"
+"           This will create a new file. Would you like to proceed?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.saveAs.message"
+msgstr "Save file as..."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.saveAs.title"
+msgstr "Save file as..."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.unexpectedError.message"
+msgstr "{name}. It has been recorded in the log, {logFile}, which Help > Show Log File shows."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.unexpectedError.title"
+msgstr "Midst hit an unexpected error"
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.unsavedChanges.message"
+msgstr "Current document contains unsaved changes. Are you sure you want to proceed?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.unsavedChanges.proceed"
+msgstr "Proceed"
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.unsavedChanges.quitAnyway"
+msgstr "Quit Anyway"
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.unsavedChanges.title"
+msgstr "Unsaved changes"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.delete"
+msgstr "Delete draft"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/index.tsx
+#: src/renderer/components/Editor/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "drafts.mark"
+msgstr "Mark this moment as a draft"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.nameField"
+msgstr "Draft name"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.none"
+msgstr "No drafts marked yet."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.alreadyMarked"
+msgstr "This moment already has a draft."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.failed"
+msgstr "Something went wrong while changing this draft. The drafts list shows what was kept."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.gone"
+msgstr "That draft is no longer there."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.noMoment"
+msgstr "There is no moment here to mark."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.noNumberLeft"
+msgstr "No more drafts can be numbered in this poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.tooFewChanges"
+msgstr "A draft can be marked once the poem has more than {needed} changes. This one has {count}."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
+#, fuzzy
+msgid "drafts.refused.unreadable"
+msgstr "The drafts of this poem could not be read, so nothing was changed."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.rename"
+msgstr "Rename draft"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.showMarkers"
+msgstr "Show markers on the timeline"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.showNames"
+msgstr "Show their names"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "drafts.title"
+msgstr "Drafts"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/index.tsx
+#: src/renderer/components/Editor/index.tsx
+#, fuzzy
+msgid "editor.replay"
+msgstr "Replay"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "file.filter.allFiles"
+msgstr "All Files"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "file.filter.midst"
+msgstr "Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "file.filter.rtf"
+msgstr "Rich Text Format"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/renderer/WindowTitle.tsx
+#, fuzzy
+msgid "file.untitled"
+msgstr "Untitled"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindNotHere.tsx
+#, fuzzy
+msgid "find.beforeOpen"
+msgstr "Find works once a poem is open."
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.close"
+msgstr "Close find"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.failed"
+msgstr "The search did not work. The details are in the log."
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.field"
+msgstr "Find in the poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindNotHere.tsx
+#, fuzzy
+msgid "find.inReplay"
+msgstr "Find works while you are writing. Press Edit, or {shortcut}, to go back to the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.next"
+msgstr "Next match"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.noMatches"
+msgstr "No matches"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.notReady"
+msgstr "The poem is still opening. Try again in a moment."
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.position"
+msgstr "{current} of {total}"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.previous"
+msgstr "Previous match"
+
+#. js-lingui-explicit-id
+#: src/renderer/search/FindBar.tsx
+#, fuzzy
+msgid "find.typeFirst"
+msgstr "Type the words to find first."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.bold"
+msgstr "Bold"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.italic"
+msgstr "Italic"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.both"
+msgstr "{mac} on macOS; {other} on Windows and Linux"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.mac"
+msgstr "macOS"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.macOnly"
+msgstr "{where} (macOS only)"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.other"
+msgstr "Windows and Linux"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.otherOnly"
+msgstr "{where} (Windows and Linux only)"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.what"
+msgstr "To do this"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "guide.shortcuts.where"
+msgstr "In the menus"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/LandingDialog/index.tsx
+#, fuzzy
+msgid "landing.getStarted"
+msgstr "Get Started:"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/LandingDialog/index.tsx
+#, fuzzy
+msgid "landing.needHelp"
+msgstr "Need Help?"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/LandingDialog/index.tsx
+#, fuzzy
+msgid "landing.newFile"
+msgstr "New File..."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/LandingDialog/index.tsx
+#, fuzzy
+msgid "landing.openFile"
+msgstr "Open File..."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/LandingDialog/index.tsx
+#, fuzzy
+msgid "landing.welcome"
+msgstr "Welcome to Midst!"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app"
+msgstr "Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.about"
+msgstr "About Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.hide"
+msgstr "Hide Midst"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.app.hide.description"
+msgstr "Hide Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.hideOthers"
+msgstr "Hide Others"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.app.hideOthers.description"
+msgstr "Hide every other app"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.quit"
+msgstr "Quit"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.app.quit.description"
+msgstr "Quit Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.services"
+msgstr "Services"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.app.showAll"
+msgstr "Show All"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.dev.inspectElement"
+msgstr "Inspect element"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit"
+msgstr "&Edit"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.copy"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.copy.description"
+msgstr "Copy"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.cut"
+msgstr "Cut"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.cut.description"
+msgstr "Cut"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.find"
+msgstr "Find"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.find.description"
+msgstr "Find words in the poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.paste"
+msgstr "Paste"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.paste.description"
+msgstr "Paste"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.redo"
+msgstr "Redo"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.redo.description"
+msgstr "Redo"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.selectAll"
+msgstr "Select All"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.selectAll.description"
+msgstr "Select the whole poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.spellcheck.mac"
+msgstr "Show/hide spellcheck"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.spellcheck.mac.description"
+msgstr "Turn spellcheck on or off"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.spellcheck.other"
+msgstr "Toggle Spellcheck"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.spellcheck.other.description"
+msgstr "Turn spellcheck on or off"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.toggleTimeline"
+msgstr "Toggle Timeline"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.toggleTimeline.description"
+msgstr "Switch between writing and Replay"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.undo"
+msgstr "Undo"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.edit.undo.description"
+msgstr "Undo"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file"
+msgstr "&File"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.close"
+msgstr "&Close"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.file.close.description"
+msgstr "Close the window"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.exportRtf"
+msgstr "Export as RTF…"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.new"
+msgstr "&New"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.file.new.description"
+msgstr "Start a new poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.open"
+msgstr "&Open"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.file.open.description"
+msgstr "Open a poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.save"
+msgstr "&Save"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.file.save.description"
+msgstr "Save the poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.saveAs"
+msgstr "&Save As"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.file.saveAs.description"
+msgstr "Save the poem as a new file"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.help"
+msgstr "Help"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.help.documentation"
+msgstr "Documentation"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.help.learnMore"
+msgstr "Learn More"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.help.showLogFile"
+msgstr "Show Log File"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view"
+msgstr "&View"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.appearance"
+msgstr "Appearance"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.appearance.dark"
+msgstr "Dark"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.appearance.light"
+msgstr "Light"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.appearance.system"
+msgstr "Follow System"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.devTools"
+msgstr "Toggle &Developer Tools"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.fullScreen"
+msgstr "Toggle &Full Screen"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.view.fullScreen.description"
+msgstr "Fill the screen with Midst, or stop"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.reload"
+msgstr "&Reload"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.textSizeDecrease"
+msgstr "Decrease text size"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.view.textSizeDecrease.description"
+msgstr "Make the text smaller"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.textSizeIncrease"
+msgstr "Increase text size"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.view.textSizeIncrease.description"
+msgstr "Make the text larger"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.window"
+msgstr "Window"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.window.bringAllToFront"
+msgstr "Bring All to Front"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.window.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.window.close.description"
+msgstr "Close the window"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.window.minimize"
+msgstr "Minimize"
+
+#. js-lingui-explicit-id
+#: src/main/shortcutTable.ts
+#, fuzzy
+msgid "menu.window.minimize.description"
+msgstr "Put the window away in the Dock"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.edit"
+msgstr "Edit"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.follow"
+msgstr "Follow the writing"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.follow.off"
+msgstr "Not following the writing: the page stays where you put it. Click to follow."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.follow.on"
+msgstr "Following the writing as it replays. Click to stop scrolling."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#, fuzzy
+msgid "restart.button"
+msgstr "Restart from here"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#, fuzzy
+msgid "restart.failed"
+msgstr "Could not restart from here. Nothing was changed."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#, fuzzy
+msgid "restart.noHistory"
+msgstr "There is no history to restart from"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#, fuzzy
+msgid "restart.nothingToChange"
+msgstr "This is already the current text"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/RestartFromButton.tsx
+#, fuzzy
+msgid "restart.unreplayable"
+msgstr "This frame cannot be restarted from"
+
+#. js-lingui-explicit-id
+#: src/main/rtf.ts
+#, fuzzy
+msgid "rtf.cannotWrite"
+msgstr "The poem contains {what}, which Midst cannot write to an RTF file. Nothing was exported."
+
+#. js-lingui-explicit-id
+#: src/main/rtf.ts
+#, fuzzy
+msgid "rtf.empty"
+msgstr "The poem is empty, so there is nothing to export."
+
+#. js-lingui-explicit-id
+#: src/main/rtf.ts
+#, fuzzy
+msgid "rtf.refused.formatting"
+msgstr "\"{type}\" formatting"
+
+#. js-lingui-explicit-id
+#: src/main/rtf.ts
+#, fuzzy
+msgid "rtf.refused.insideLine"
+msgstr "\"{type}\" inside a line"
+
+#. js-lingui-explicit-id
+#: src/main/rtf.ts
+#, fuzzy
+msgid "rtf.refused.node"
+msgstr "\"{type}\""
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "textSize.decrease"
+msgstr "Decrease text size"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "textSize.increase"
+msgstr "Increase text size"

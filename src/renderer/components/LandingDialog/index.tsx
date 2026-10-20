@@ -4,7 +4,8 @@ import { HistoryContext, TextContext } from 'renderer/context';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import './LandingDialog.css';
 import Logo from './LogoThin';
-import FindNotHere, { FIND_BEFORE_OPEN } from '../../search/FindNotHere';
+import FindNotHere, { findBeforeOpen } from '../../search/FindNotHere';
+import { i18n } from '../../../shared/i18n';
 
 export default function LandingDialog() {
   const navigate = useNavigate();
@@ -48,21 +49,21 @@ export default function LandingDialog() {
     <div className="outer-container">
       <div className="message-container">
         <Logo />
-        <h1 className="welcome-message">Welcome to Midst!</h1>
-        <h2 className="welcome-message">Get Started:</h2>
+        <h1 className="welcome-message">{i18n._('landing.welcome')}</h1>
+        <h2 className="welcome-message">{i18n._('landing.getStarted')}</h2>
         <div className="file-button-container">
           <button type="button" onClick={newFile}>
-            New File...
+            {i18n._('landing.newFile')}
           </button>
           <button type="button" onClick={openFile}>
-            Open File...
+            {i18n._('landing.openFile')}
           </button>
         </div>
         <button type="button" className="help-link" onClick={openHelp}>
-          Need Help?
+          {i18n._('landing.needHelp')}
         </button>
       </div>
-      <FindNotHere message={FIND_BEFORE_OPEN} />
+      <FindNotHere message={findBeforeOpen()} />
     </div>
   );
 }

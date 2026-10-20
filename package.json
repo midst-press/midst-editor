@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "author": {
     "name": "Stuart Swerdloff",
     "url": "https://midst.press"
@@ -14,9 +14,8 @@
     "build:main": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.main.prod.ts",
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
     "catalog:compile": "lingui compile",
-    "catalog:extract": "lingui extract",
-    "catalog:check": "node tools/check-catalog.mjs",
-    "catalog:report": "lingui extract && (test -z \"$(git status --porcelain -- locales)\" || echo 'catalog: lingui extract changed locales/, so the catalog does not match the code (report only)') && node tools/check-catalog.mjs --report-only && node tools/check-main-strings.mjs --report-only && eslint --plugin lingui --rule 'lingui/no-unlocalized-strings: warn' --ext .ts,.tsx src/renderer",
+    "catalog:extract": "lingui extract --clean",
+    "catalog:check": "lingui extract --clean && (test -z \"$(git status --porcelain -- locales)\" || (git status --porcelain -- locales; echo 'catalog: the catalog does not match the code. Run npm run catalog:extract and commit locales/.'; exit 1)) && node tools/check-catalog.mjs && node tools/check-main-strings.mjs",
     "postinstall": "ts-node .erb/scripts/check-native-dep.js && electron-builder install-app-deps && cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --config ./.erb/configs/webpack.config.renderer.dev.dll.ts",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "package": "ts-node ./.erb/scripts/clean.js dist && npm run build && electron-builder build --publish never",
@@ -48,7 +47,7 @@
     ]
   },
   "jest": {
-    "globalSetup": "./tools/require-hooks.cjs",
+    "globalSetup": "./tools/jest-global-setup.cjs",
     "collectCoverageFrom": [
       "src/**/*.{ts,tsx}",
       "!src/**/*.d.ts",
@@ -63,10 +62,10 @@
         "statements": 100
       },
       "./src/main/convertedFile.ts": {
-        "branches": 90,
+        "branches": 100,
         "functions": 100,
-        "lines": 88,
-        "statements": 88
+        "lines": 100,
+        "statements": 100
       },
       "./src/main/fontSize.ts": {
         "branches": 100,
@@ -111,12 +110,6 @@
         "statements": 98.9
       },
       "./src/renderer/HandleTab.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "./src/renderer/components/Replay/follow.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
@@ -177,12 +170,6 @@
         "statements": 100
       },
       "./src/renderer/uncaughtErrors.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "./src/shared/buildLabel.ts": {
         "branches": 100,
         "functions": 100,
         "lines": 100,
@@ -260,6 +247,12 @@
         "lines": 100,
         "statements": 100
       },
+      "./src/renderer/spellcheck/checkWholePoem.ts": {
+        "branches": 100,
+        "functions": 100,
+        "lines": 100,
+        "statements": 100
+      },
       "./src/main/devUserData.ts": {
         "branches": 100,
         "functions": 100,
@@ -319,7 +312,7 @@
     "@tiptap/react": "2.5.4",
     "@tiptap/starter-kit": "2.5.4",
     "date-fns": "^2.30.0",
-    "electron-log": "^4.4.8",
+    "electron-log": "^5.4.4",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.3.0",
     "react": "^18.3.1",
@@ -398,7 +391,7 @@
     "webpack": "^5.85.0",
     "webpack-bundle-analyzer": "^4.9.0",
     "webpack-cli": "^5.1.1",
-    "webpack-dev-server": "^4.15.0",
+    "webpack-dev-server": "^5.2.7",
     "webpack-merge": "^5.9.0"
   },
   "build": {

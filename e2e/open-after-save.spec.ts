@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { dialogsSeen, launch, openDocument } from './harness';
+import { clickMenuItem, dialogsSeen, launch, openDocument } from './harness';
 
 // #113. Type, choose File > Save, type again, and then, within the second, leave the poem: open another
 // file, or close the window. The typing after Save must be kept in the file, or the poet asked before it
@@ -37,14 +37,13 @@ const leaveAfterSave = async (leave: Leave) => {
     await pm.click();
     await win.keyboard.press('End');
     await win.keyboard.type('QQA');
-    await app.evaluate(async ({ Menu }) => {
-      await Menu.getApplicationMenu()?.getMenuItemById('save')?.click();
-    });
+    await clickMenuItem(app, 'menu.file.save');
     await win.keyboard.type('QQB');
     expect(await pm.innerText()).toContain('QQB');
     const before = (await dialogsSeen(app)).length;
     await leave(app, pathB, userData);
-    const prompted = (await dialogsSeen(app)).length > before;
+    // The app may have quit with the window (closing a saved poem); then it showed no dialog.
+    const prompted = (await dialogsSeen(app).catch(() => [])).length > before;
 
     // Past the autosave, so whatever it would write is on the disk.
     await new Promise((resolve) => {
@@ -68,11 +67,32 @@ test('keystrokes typed after Save and before an open are either kept or asked ab
   );
 });
 
-// Silas, review of #190: closing reads the same mark, and cannot wait for the editor.
+// Silas, review of #190: closing reads the same mark. Since #236 it asks the editor first and decides when the
+// editor answers, so this waits for the decision: a dialog, or the window gone.
 test('keystrokes typed after Save and before the window closes are either kept or asked about', async () => {
   await leaveAfterSave(async (app) => {
+    // Cancel, recorded where dialogsSeen reads: a window that asks stays open, so the outcome can be read.
+    await app.evaluate(({ dialog }) => {
+      const g = globalThis as unknown as { capturedDialogs: string[] };
+      dialog.showMessageBoxSync = ((_w: unknown, o: { message?: string }) => {
+        g.capturedDialogs.push(o?.message ?? '(no message)');
+        return 1;
+      }) as typeof dialog.showMessageBoxSync;
+    });
+    const before = (await dialogsSeen(app)).length;
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0]?.close();
     });
+    // The app quits when the window goes, and then cannot be asked: that is "closed".
+    await expect
+      .poll(
+        () =>
+          dialogsSeen(app).then(
+            (seen) => (seen.length > before ? 'asked' : 'pending'),
+            () => 'closed'
+          ),
+        { message: 'the close was never decided', timeout: 10_000 }
+      )
+      .not.toBe('pending');
   });
 });

@@ -33,3 +33,7 @@ To package apps for the local platform:
 ```bash
 npm run package
 ```
+
+## Licence
+
+From the commit where the licence changed (`1ed9400`) onwards, this project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later). Earlier versions were released under the MIT licence; the original MIT notice is kept in [LICENSE-MIT](LICENSE-MIT).

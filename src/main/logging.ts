@@ -17,7 +17,7 @@ import store from './store';
 // electron-updater; it was doing nothing else, while diagnostics went to bare console calls that
 // nobody running an installer ever sees.
 //
-// Where the file goes (electron-log v4 defaults):
+// Where the file goes (electron-log's defaults, the same in v4 and v5):
 //   macOS    ~/Library/Logs/<app>/main.log
 //   Windows  %USERPROFILE%\AppData\Roaming\<app>\logs\main.log
 //   Linux    ~/.config/<app>/logs/main.log
@@ -26,16 +26,17 @@ import store from './store';
 // run that opens real poems leaves no record of them in the user's persistent log (the open handler
 // logs every path it is asked to open). Unset in normal use, which keeps the defaults above.
 const logDir = process.env.MIDST_LOG_DIR;
-if (logDir) log.transports.file.resolvePath = () => join(logDir, 'main.log');
+if (logDir) log.transports.file.resolvePathFn = () => join(logDir, 'main.log');
 
 // ---- The file is strict JSONL: one JSON object per line, so a person or a script can read it back.
 // {"ts": <ISO>, "level", "source": "main"|"renderer", "msg": <fixed text>, "meta": <value, omitted when
 // there is none>}. The console keeps electron-log's human format.
 
+// electron-log's message: `scope` is the label a `log.scope(label)` logger gave it, or absent.
 export type LogRecord = {
   date: Date;
   level: string;
-  scope?: { label?: string } | null;
+  scope?: string;
   data: unknown[];
 };
 
@@ -68,7 +69,7 @@ function isoOf(date: unknown): string {
 export function formatRecord(record: LogRecord): string {
   const ts = isoOf(record.date);
   const level = String(record.level);
-  const source = record.scope?.label === 'renderer' ? 'renderer' : 'main';
+  const source = record.scope === 'renderer' ? 'renderer' : 'main';
   try {
     const { data } = record;
     const hasMsg = typeof data[0] === 'string';
@@ -93,7 +94,12 @@ export function formatRecord(record: LogRecord): string {
   }
 }
 
-log.transports.file.format = (message: LogRecord) => formatRecord(message);
+// electron-log v5 calls a format function with the message and writes the one string returned. It is formatted
+// from the message itself, whose data no earlier transform (v5's removeStyles drops the argument after a "%c")
+// has touched.
+log.transports.file.format = ({ message }) => [
+  formatRecord(message as LogRecord),
+];
 
 // ---- Rotation: main.log -> main.1.log -> ... -> main.5.log, the oldest dropped.
 export const ARCHIVES_KEPT = 5;
@@ -181,7 +187,7 @@ export function rotateLogs(
 }
 
 log.transports.file.maxSize = MAX_LOG_BYTES;
-log.transports.file.archiveLog = (file) =>
+log.transports.file.archiveLogFn = (file) =>
   // `clear` and `writeLine` exist at runtime on electron-log's file object but not in its typings.
   rotateLogs(file as unknown as LogFile, (message, error) =>
     log.transports.console({

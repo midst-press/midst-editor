@@ -5,6 +5,8 @@ export default function LogoThin() {
       xmlns="http://www.w3.org/2000/svg"
       viewBox="0 0 313 96"
     >
+      {/* The logo's name, which is the product's name in every language. */}
+      {/* eslint-disable-next-line lingui/no-unlocalized-strings */}
       <title>midst_</title>
       <path d="M179.2,60.15a1,1,0,0,1-1-1V18.21a1,1,0,0,1,2,0V59.15A1,1,0,0,1,179.2,60.15Z" />
       <path d="M205.39,60.15H193.58a1,1,0,0,1-1-1V18.21a1,1,0,0,1,1-1h11.81a21.47,21.47,0,1,1,0,42.94Zm-10.81-2h10.81a19.47,19.47,0,1,0,0-38.94H194.58Z" />

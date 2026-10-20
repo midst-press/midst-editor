@@ -42,11 +42,13 @@ import MenuBuilder, {
   logIfRejected,
 } from './menu';
 import store from './store';
-import { setEditorShowing } from './editorFlush';
+import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
+import { activateLocale, i18n, pickLocale } from '../shared/i18n';
+import { LOCALE_ARGUMENT } from '../shared/localeArgument';
 
 class AppUpdater {
   constructor() {
@@ -138,6 +140,8 @@ const createWindow = async () => {
         : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
+      // The renderer shows its words in the language the menus use, chosen at whenReady.
+      additionalArguments: [`${LOCALE_ARGUMENT}${i18n.locale}`],
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
@@ -169,35 +173,57 @@ const createWindow = async () => {
     mainWindow = null;
     windowShown = false;
   });
+  // Closing asks the editor for the poem first, as Save does (#157), and only then reads `edited` (#236). Quit,
+  // Close and Save are menu items, run in this process, while a keystroke reaches the editor first and `edited`
+  // follows it here by message. So a quit straight after typing found `edited` still "false" from the last save,
+  // closed without asking, and lost those keystrokes, and so did Save then Quit, closing before the save had the
+  // poem. The editor's answer comes after the messages it sent before it, so `edited` is current once it arrives.
+  //   - The close is held while the editor answers (at most FLUSH_TIMEOUT_MS, then `edited` as it stands), and
+  //     a second close in that time waits for the first.
+  //   - Saved: the document is cleared and the window destroyed. Unsaved: the poet is asked, as before.
+  let closeChecking = false;
   mainWindow.on('close', (event) => {
-    if (store.get('edited') === 'false') {
-      clearDocument();
-      return;
-    }
-
-    // If the window has unsaved changes, prevents it from closing
     event.preventDefault();
-
-    if (mainWindow === null) return;
-    const choice = dialog.showMessageBoxSync(mainWindow, {
-      type: 'warning',
-      title: 'Unsaved changes',
-      message:
-        'Current document contains unsaved changes. Are you sure you want to proceed?',
-      buttons: ['Quit Anyway', 'Cancel'],
-      // Return keeps the work: the default button is Cancel, never the one that discards (#40).
-      defaultId: 1,
-      // Dismissing the message box is Cancel too.
-      cancelId: 1,
-    });
-
-    if (choice === 0) {
-      // If the user selects "Quit Anyway", forces the window to close
-      // and removes the file from the store
-      clearDocument();
-      if (mainWindow === null) return;
-      mainWindow.destroy();
-    }
+    if (closeChecking || mainWindow === null) return;
+    closeChecking = true;
+    const win = mainWindow;
+    const decide = async () => {
+      try {
+        await flushEditor(win);
+        if (win.isDestroyed()) return;
+        if (store.get('edited') === 'false') {
+          clearDocument();
+          win.destroy();
+          return;
+        }
+        const choice = dialog.showMessageBoxSync(win, {
+          type: 'warning',
+          title: i18n._('dialog.unsavedChanges.title'),
+          message: i18n._('dialog.unsavedChanges.message'),
+          buttons: [
+            i18n._('dialog.unsavedChanges.quitAnyway'),
+            i18n._('button.cancel'),
+          ],
+          // Return keeps the work: the default button is Cancel, never the one that discards (#40).
+          defaultId: 1,
+          // Dismissing the message box is Cancel too.
+          cancelId: 1,
+        });
+        if (choice === 0) {
+          // "Quit Anyway": the document is removed from the store and the window closed.
+          clearDocument();
+          win.destroy();
+        }
+      } finally {
+        closeChecking = false;
+      }
+    };
+    decide().catch((err) =>
+      log.error(
+        'close: the check for unsaved changes failed',
+        describeError(err)
+      )
+    );
   });
 
   const menuBuilder = new MenuBuilder(mainWindow);
@@ -254,7 +280,7 @@ ipcMain.on('app-open', (filename: IpcMainEvent) => {
 // Save and Save As are enabled only while the editor is showing.
 const setSaveEnabled = (enabled: boolean) => {
   if (mainWindow === null) return;
-  ['save', 'save-as'].forEach((id) => {
+  ['menu.file.save', 'menu.file.saveAs'].forEach((id) => {
     const item = app.applicationMenu?.getMenuItemById(id);
     if (item) item.enabled = enabled;
   });
@@ -284,8 +310,11 @@ ipcMain.on('electron-store-set', async (event, key, val) => {
 // Errors nothing caught are logged (name and frames only) and the poet is told; the app keeps running.
 registerUncaughtHandlers(process, (name) =>
   dialog.showErrorBox(
-    'Midst hit an unexpected error',
-    `${name}. It has been recorded in the log, ${logFileForPeople()}, which Help > Show Log File shows.`
+    i18n._('dialog.unexpectedError.title'),
+    i18n._('dialog.unexpectedError.message', {
+      name,
+      logFile: logFileForPeople(),
+    })
   )
 );
 
@@ -342,6 +371,9 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
+    // The menus, dialogs and window speak the system's first language the catalog has, else English
+    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
+    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {
