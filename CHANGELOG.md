@@ -9,6 +9,9 @@
 - **Midst no longer checks for a new version when it opens.** The check could not work in the installed
   app, and it would have installed a new version without asking. When Midst can update itself, it will ask
   you first.
+- **In the replay, a button you cannot use says why.** With no history to replay, the play button says so when
+  you point at it, and so do the text size buttons at the largest and smallest sizes. Those buttons also look
+  unavailable now.
 - **When Midst cannot save, it says so once and keeps showing it.** If the first save of a new poem fails,
   Midst no longer opens the save panel again every time you pause in typing; choose **File** > **Save** when you
   are ready to try again. On Windows and Linux the window's title says "(not saved)" until a save works, as the

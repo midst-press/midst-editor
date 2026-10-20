@@ -1031,6 +1031,11 @@ msgid "replay.play"
 msgstr "Play"
 
 #. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+msgid "replay.play.unavailable"
+msgstr "There is nothing to replay yet: this poem has no history."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #, fuzzy
@@ -1108,6 +1113,16 @@ msgstr "Decrease text size"
 #, fuzzy
 msgid "textSize.increase"
 msgstr "Increase text size"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+msgid "textSize.largest"
+msgstr "The text is already at its largest size."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+msgid "textSize.smallest"
+msgstr "The text is already at its smallest size."
 
 #. js-lingui-explicit-id
 #: src/renderer/WindowTitle.tsx

@@ -195,6 +195,33 @@ describe('Replay: initial frame and slider', () => {
     expect(playButton()).toBeDisabled();
   });
 
+  // #273, GitHub #66: a control that cannot be used says why.
+  it('says why there is no playback for an empty history, and looks unavailable', () => {
+    mount([]);
+    expect(playButton()).toHaveAccessibleDescription(
+      'There is nothing to replay yet: this poem has no history.'
+    );
+    expect(playButton()).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('has no reason and looks available when there is a history to play', () => {
+    mount();
+    expect(playButton()).toBeEnabled();
+    expect(playButton()).toHaveAccessibleDescription('');
+    expect(playButton()).not.toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('shows the reason in a tooltip over the disabled play button', async () => {
+    mount([]);
+    // A disabled button gets no mouse events; the span around it does, and opens the tooltip.
+    fireEvent.mouseOver(playButton().parentElement as HTMLElement);
+    expect(
+      await screen.findByRole('tooltip', {}, { timeout: 3000 })
+    ).toHaveTextContent(
+      'There is nothing to replay yet: this poem has no history.'
+    );
+  });
+
   it('shows the frame the slider is moved to', () => {
     const { container } = mount();
     seek(9);
@@ -418,6 +445,54 @@ describe('Replay: text size', () => {
       ['store.set', 'font-size', '2'],
       ['store.set', 'font-size', '1'],
     ]);
+  });
+
+  // #273, GitHub #66: at a limit the button says why it cannot be used.
+  it('at the largest size, the increase button says so and looks unavailable', () => {
+    bridge = installBridge({ 'font-size': '4', meta: '' });
+    mount();
+    const up = screen.getByRole('button', { name: 'Increase text size' });
+    const down = screen.getByRole('button', { name: 'Decrease text size' });
+    expect(up).toHaveAccessibleDescription(
+      'The text is already at its largest size.'
+    );
+    expect(up).toHaveStyle({ opacity: '0.38' });
+    expect(down).toHaveAccessibleDescription('');
+    expect(down).not.toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('at the smallest size, the decrease button says so and looks unavailable', () => {
+    bridge = installBridge({ 'font-size': '0', meta: '' });
+    mount();
+    const down = screen.getByRole('button', { name: 'Decrease text size' });
+    expect(down).toHaveAccessibleDescription(
+      'The text is already at its smallest size.'
+    );
+    expect(down).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('MUI no longer warns about a disabled button inside a tooltip (#273)', () => {
+    const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      bridge = installBridge({ 'font-size': '4', meta: '' });
+      mount([]);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Decrease text size' })
+      );
+      for (let i = 0; i < 4; i += 1)
+        fireEvent.click(
+          screen.getByRole('button', { name: 'Decrease text size' })
+        );
+      expect(
+        screen.getByRole('button', { name: 'Decrease text size' })
+      ).toBeDisabled();
+      const warned = errors.mock.calls.filter((c) =>
+        String(c[0]).includes('disabled `button` child')
+      );
+      expect(warned).toEqual([]);
+    } finally {
+      errors.mockRestore();
+    }
   });
 
   it('stops at 4 and at 0 without storing anything past the limit', () => {

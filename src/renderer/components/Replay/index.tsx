@@ -75,6 +75,10 @@ export default function Replay() {
   }, [htmlString, poemHistory]);
   const drafts = useDraftMarkers(poemHistory.length, saveDocument);
   const draftReason = drafts.reasonAt(step);
+  // Why a button cannot be used now, or null when it can (#273).
+  const playReason = poemHistory.length
+    ? null
+    : i18n._('replay.play.unavailable');
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
     ?.nameDraftAt;
@@ -87,6 +91,12 @@ export default function Replay() {
     : 'history-height-short';
 
   const fontSize = useFontSize();
+  const largestReason = fontSize.canIncrease
+    ? null
+    : i18n._('textSize.largest');
+  const smallestReason = fontSize.canDecrease
+    ? null
+    : i18n._('textSize.smallest');
 
   const editor = useEditor({
     extensions: poemExtensions,
@@ -208,37 +218,60 @@ export default function Replay() {
   return (
     <div style={{ backgroundColor: cssVar('background') }}>
       <div className="TopButtons">
+        {/* At the largest or smallest size the button says so (#273, GitHub #66), as the play button does. */}
         <Tooltip
-          title={i18n._('textSize.increase')}
+          title={largestReason ?? i18n._('textSize.increase')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
         >
-          <button
-            aria-label={i18n._('textSize.increase')}
-            type="button"
-            onClick={fontSize.increase}
-            disabled={!fontSize.canIncrease}
-            className="icon-button size-icon"
-          >
-            <TextIncreaseIcon fontSize="small" />
-          </button>
+          <span>
+            <button
+              aria-label={i18n._('textSize.increase')}
+              aria-describedby={
+                largestReason ? 'replay-largest-reason' : undefined
+              }
+              type="button"
+              onClick={fontSize.increase}
+              disabled={largestReason !== null}
+              className="icon-button size-icon"
+              style={largestReason ? UNAVAILABLE_STYLE : undefined}
+            >
+              <TextIncreaseIcon fontSize="small" />
+            </button>
+            {largestReason && (
+              <span id="replay-largest-reason" hidden>
+                {largestReason}
+              </span>
+            )}
+          </span>
         </Tooltip>
         <Tooltip
-          title={i18n._('textSize.decrease')}
+          title={smallestReason ?? i18n._('textSize.decrease')}
           TransitionComponent={Zoom}
           enterDelay={1000}
           arrow
         >
-          <button
-            aria-label={i18n._('textSize.decrease')}
-            type="button"
-            disabled={!fontSize.canDecrease}
-            className="icon-button size-icon"
-            onClick={fontSize.decrease}
-          >
-            <TextDecreaseIcon fontSize="small" />
-          </button>
+          <span>
+            <button
+              aria-label={i18n._('textSize.decrease')}
+              aria-describedby={
+                smallestReason ? 'replay-smallest-reason' : undefined
+              }
+              type="button"
+              disabled={smallestReason !== null}
+              className="icon-button size-icon"
+              style={smallestReason ? UNAVAILABLE_STYLE : undefined}
+              onClick={fontSize.decrease}
+            >
+              <TextDecreaseIcon fontSize="small" />
+            </button>
+            {smallestReason && (
+              <span id="replay-smallest-reason" hidden>
+                {smallestReason}
+              </span>
+            )}
+          </span>
         </Tooltip>
         <Tooltip
           title={
@@ -273,30 +306,46 @@ export default function Replay() {
             backgroundColor: cssVar('controlBar'),
           }}
         >
-          {/* Named like every other button here (#101): a screen reader said only "button". */}
+          {/* Named like every other button here (#101): a screen reader said only "button". With no history
+              it cannot play and says why (#273, GitHub #66): in its tooltip, which needs the span because a
+              disabled button gets no mouse events, and as its description. */}
           <Tooltip
-            title={playing ? i18n._('replay.pause') : i18n._('replay.play')}
+            title={
+              playReason ??
+              (playing ? i18n._('replay.pause') : i18n._('replay.play'))
+            }
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
           >
-            <button
-              type="button"
-              ref={playPauseButton}
-              aria-label={
-                playing ? i18n._('replay.pause') : i18n._('replay.play')
-              }
-              style={{ color: cssVar('onControlBar') }}
-              onClick={playing ? pause : play}
-              disabled={!poemHistory.length}
-              className="control-bar-icon control-icon-gap"
-            >
-              {playing ? (
-                <PauseIcon fontSize="small" />
-              ) : (
-                <PlayArrowIcon fontSize="small" />
+            <span className="control-icon-gap">
+              <button
+                type="button"
+                ref={playPauseButton}
+                aria-label={
+                  playing ? i18n._('replay.pause') : i18n._('replay.play')
+                }
+                aria-describedby={playReason ? 'replay-play-reason' : undefined}
+                style={{
+                  color: cssVar('onControlBar'),
+                  ...(playReason ? UNAVAILABLE_STYLE : {}),
+                }}
+                onClick={playing ? pause : play}
+                disabled={playReason !== null}
+                className="control-bar-icon"
+              >
+                {playing ? (
+                  <PauseIcon fontSize="small" />
+                ) : (
+                  <PlayArrowIcon fontSize="small" />
+                )}
+              </button>
+              {playReason && (
+                <span id="replay-play-reason" hidden>
+                  {playReason}
+                </span>
               )}
-            </button>
+            </span>
           </Tooltip>
           <Slider
             min={0}
