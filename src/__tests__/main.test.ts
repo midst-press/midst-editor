@@ -11,6 +11,11 @@ import { helpUrl } from '../shared/helpUrl';
 // (jest.resetModules) and a fresh electron stand-in. The stand-in RECORDS what main.ts registers;
 // the tests then call the recorded handlers the way electron would.
 
+// 30 s per test, not Jest's 5 s, for this file only (#281). Each test does milliseconds of work and none waits on
+// wall time, but on a starved CI host the file took 174 s against 4 s idle, and two tests ran out of 5 s waiting
+// for the CPU. A test that truly hangs still fails, in 30 s.
+jest.setTimeout(30_000);
+
 type Handler = jest.Mock;
 
 interface FakeWindow {
