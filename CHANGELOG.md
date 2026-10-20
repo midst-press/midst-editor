@@ -1,7 +1,7 @@
 # 0.8.0
 
 - **The user guide is under construction.** **Help** > **Documentation** and the **User Guide** button in About
-  Midst still open it, and for now it says so. The guide for poets will come closer to the public release.
+  Midst still open it, and for now it says so.
 
 # 0.7.0
 
