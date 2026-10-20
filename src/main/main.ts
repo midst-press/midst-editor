@@ -25,7 +25,6 @@ import {
 } from 'electron';
 import debug from 'electron-debug';
 import log from 'electron-log';
-import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import {
   applyLogLevel,
@@ -54,19 +53,6 @@ import {
   i18n,
   languageOrder,
 } from '../shared/i18n';
-
-class AppUpdater {
-  constructor() {
-    // Level is whatever the user has configured; see src/main/logging.ts.
-    applyLogLevel();
-    autoUpdater.logger = log;
-    // A failed check is expected (offline, no feed, an app not installed through its package) and must
-    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
-    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
-      log.warn('update check failed', describeError(error))
-    );
-  }
-}
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -247,9 +233,9 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
-  new AppUpdater();
+  // The log level is whatever the user has configured; see src/main/logging.ts. (There is no update
+  // check: removed until self-update can ask first, #178, #269.)
+  applyLogLevel();
 };
 
 // The renderer's requests. Registered once, here: createWindow runs again on activate, and while
@@ -392,6 +378,10 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
+    // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
+    // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
+    applyLogLevel();
+    log.info('started', { version: app.getVersion() });
     // The menus, dialogs and window speak the language the poet chose from View > Language, else
     // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
     // rebuilds the menus and tells the window (setLanguage).
