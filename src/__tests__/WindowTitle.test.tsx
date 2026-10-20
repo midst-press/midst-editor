@@ -128,6 +128,28 @@ describe('the window title (#125)', () => {
     expect(titles).toEqual(['Untitled']);
   });
 
+  // #94: off macOS, main says when a failed save has left the poem unsaved.
+  it('says the poem is not saved while main says so, and stops when a save works or a file opens', () => {
+    render(<App />);
+    emit('open-file', '<p>xv</p>', [], 'xv.midst');
+    emit('set-not-saved', true);
+    expect(last()).toBe('xv.midst (not saved)');
+    emit('set-not-saved', false);
+    expect(last()).toBe('xv.midst');
+    emit('set-not-saved', true);
+    emit('open-file', '<p>zq</p>', [], 'zq.midst');
+    expect(last()).toBe('zq.midst');
+  });
+
+  it('says an untitled poem is not saved, and nothing on the opening screen', () => {
+    render(<App />);
+    emit('open-file', '', [], '');
+    emit('set-not-saved', true);
+    expect(last()).toBe('Untitled (not saved)');
+    fireEvent.click(screen.getByText('leave'));
+    expect(last()).toBe('');
+  });
+
   it('is set once per change, not on every render', () => {
     render(<App />);
     emit('open-file', '<p>xv</p>', [], 'xv.midst');

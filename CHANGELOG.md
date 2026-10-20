@@ -9,6 +9,10 @@
 - **Midst no longer checks for a new version when it opens.** The check could not work in the installed
   app, and it would have installed a new version without asking. When Midst can update itself, it will ask
   you first.
+- **When Midst cannot save, it says so once and keeps showing it.** If the first save of a new poem fails,
+  Midst no longer opens the save panel again every time you pause in typing; choose **File** > **Save** when you
+  are ready to try again. On Windows and Linux the window's title says "(not saved)" until a save works, as the
+  dot in the close button does on a Mac.
 - Under the hood: the unused updater library is removed.
 
 # 0.6.0

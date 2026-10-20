@@ -1108,3 +1108,8 @@ msgstr "Decrease text size"
 #, fuzzy
 msgid "textSize.increase"
 msgstr "Increase text size"
+
+#. js-lingui-explicit-id
+#: src/renderer/WindowTitle.tsx
+msgid "window.notSaved"
+msgstr "{name} (not saved)"

@@ -3,6 +3,7 @@ import path from 'path';
 import { URL } from 'url';
 import { stripVersionInfo } from '@midst-press/midst-format/convert';
 import store from './store';
+import * as saveFailure from './saveFailurePolicy';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -27,6 +28,9 @@ export const loadDataIntoWorkspace = (
   store.set('meta', meta === undefined ? '' : JSON.stringify(meta));
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
+  // Another document: the last one's failed saves no longer apply (#94). The renderer clears its "not saved" on
+  // 'open-file'.
+  saveFailure.startAgain();
   mainWindow.webContents.send(
     'open-file',
     text,
