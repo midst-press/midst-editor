@@ -1005,6 +1005,20 @@ msgid "replay.follow.on"
 msgstr "Following the writing as it replays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.pause"
+msgstr "Pause"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.play"
+msgstr "Play"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #, fuzzy

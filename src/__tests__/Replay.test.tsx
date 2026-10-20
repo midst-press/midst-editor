@@ -314,6 +314,15 @@ describe('Replay: playback', () => {
     expect(playButton()).toBeInTheDocument();
   });
 
+  // #101: a screen reader said only "button" here.
+  it('names the play button Play, and Pause while it plays', () => {
+    mount();
+    seek(10);
+    expect(playButton()).toHaveAccessibleName('Play');
+    fireEvent.click(playButton());
+    expect(pauseButton()).toHaveAccessibleName('Pause');
+  });
+
   it('starts and stops playback from Space and Enter, and ignores them in a text field', () => {
     mount();
     seek(10);
