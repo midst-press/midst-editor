@@ -10,6 +10,7 @@ const sendMessage = jest.fn();
 beforeEach(() => {
   sendMessage.mockReset();
   (window as unknown as { electron: unknown }).electron = {
+    languageOrder: () => ['en'],
     versions: { isMac: false },
     store: { get: () => undefined, set: () => undefined },
     titlebar: { updateTitle: () => undefined },
@@ -37,5 +38,14 @@ describe('the opening screen’s buttons', () => {
     expect(sendMessage).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: i18n._(label) }));
     expect(sendMessage.mock.calls).toEqual([[channel, []]]);
+  });
+});
+
+describe('the opening screen’s languages (editor #265)', () => {
+  it('shows them with nothing to open first, English with its flag', () => {
+    const group = screen.getByRole('group', { name: 'Language' });
+    const english = screen.getByRole('button', { name: 'English' });
+    expect(group).toContainElement(english);
+    expect(english.querySelector('svg.language-flag')).not.toBeNull();
   });
 });

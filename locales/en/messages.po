@@ -547,6 +547,12 @@ msgid "landing.getStarted"
 msgstr "Get Started:"
 
 #. js-lingui-explicit-id
+#: src/renderer/language/LanguageChoices.tsx
+#, fuzzy
+msgid "landing.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/LandingDialog/index.tsx
 #, fuzzy
 msgid "landing.needHelp"
@@ -912,6 +918,12 @@ msgstr "Toggle &Full Screen"
 #, fuzzy
 msgid "menu.view.fullScreen.description"
 msgstr "Fill the screen with Midst, or stop"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.language"
+msgstr "Language"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts

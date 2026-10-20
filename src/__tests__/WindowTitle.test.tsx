@@ -47,6 +47,7 @@ beforeEach(() => {
   stored = {};
   window.sessionStorage.clear();
   (window as unknown as { electron: unknown }).electron = {
+    languageOrder: () => ['en'],
     store: {
       get: (k: string) => stored[k],
       set: (k: string, v: string) => {

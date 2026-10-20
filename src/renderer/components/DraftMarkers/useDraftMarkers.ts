@@ -82,8 +82,12 @@ export default function useDraftMarkers(
     readStoredMeta(window.electron.store)
   );
 
-  // Why the last change was refused, in words for the poet; null after an accepted change.
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // Why the last change was refused; null after an accepted change. Kept as the reason and put into words when
+  // returned, so it follows View > Language (editor #265).
+  const [refused, setRefusal] = useState<{
+    reason: ChangeRefusal;
+    historyLength: number;
+  } | null>(null);
   // The last delete, while it can still be undone: the marker exactly as it was, and its place in the list.
   const [deleted, setDeleted] = useState<{
     marker: DraftMarker;
@@ -117,7 +121,7 @@ export default function useDraftMarkers(
         index,
         historyLength,
       });
-      setRefusal(refusalMessage(reason, historyLength));
+      setRefusal({ reason, historyLength });
       return false;
     },
     [historyLength]
@@ -156,7 +160,7 @@ export default function useDraftMarkers(
             errorName: reread instanceof Error ? reread.name : typeof reread,
           });
         }
-        setRefusal(refusalMessage('change-threw', historyLength));
+        setRefusal({ reason: 'change-threw', historyLength });
         return false;
       }
     },
@@ -232,6 +236,8 @@ export default function useDraftMarkers(
     );
   }, [apply, deleted]);
 
+  const refusal =
+    refused && refusalMessage(refused.reason, refused.historyLength);
   return {
     markers,
     reasonAt,

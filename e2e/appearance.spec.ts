@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makePlayableMidst } from './fixtures';
-import { launch, openDocument, readStore } from './harness';
+import { launch, openDocument, readStore, shot } from './harness';
 
 // GitHub #16: View > Appearance switches the editor's interface between light and dark. This drives the
 // real menu item in the main process, then reads the custom properties the renderer actually resolved at
@@ -23,35 +23,6 @@ const choose = (app: ElectronApplication, label: string) =>
     if (!item) throw new Error(`no View > Appearance > ${wanted}`);
     item.click();
   }, label);
-
-// A screenshot of the window once it is on screen. The window is created hidden and shown on ready-to-show, and
-// under Xvfb on Linux a capture taken before then fails with "Unable to capture screenshot" (GitHub e2e-linux).
-// So wait until the main process says the window is visible, then capture, retrying only that one error a few
-// times while the compositor catches up.
-const shot = async (app: ElectronApplication, win: Page, path: string) => {
-  await expect
-    .poll(() =>
-      app.evaluate(({ BrowserWindow }) =>
-        BrowserWindow.getAllWindows().some((w) => w.isVisible())
-      )
-    )
-    .toBe(true);
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      // eslint-disable-next-line no-await-in-loop
-      await win.screenshot({ path });
-      return;
-    } catch (error) {
-      if (
-        attempt >= 5 ||
-        !String(error).includes('Unable to capture screenshot')
-      )
-        throw error;
-      // eslint-disable-next-line no-await-in-loop
-      await win.waitForTimeout(500);
-    }
-  }
-};
 
 const rootColours = (win: Page) =>
   win.evaluate(() => {

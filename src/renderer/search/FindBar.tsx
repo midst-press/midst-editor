@@ -18,6 +18,12 @@ export const noMatches = () => i18n._('find.noMatches');
 export const typeFirst = () => i18n._('find.typeFirst');
 export const notReady = () => i18n._('find.notReady');
 export const searchFailed = () => i18n._('find.failed');
+// A problem is kept as which one it is and put into words when shown, so it follows View > Language.
+type Problem = 'not-ready' | 'search-failed';
+const PROBLEM_WORDS: Record<Problem, () => string> = {
+  'not-ready': notReady,
+  'search-failed': searchFailed,
+};
 // Logged when a search throws. Fixed, so the log never holds the poet's words.
 export const SEARCH_FAILED_LOG = 'search in the poem failed';
 export const CLEAR_FAILED_LOG = 'clearing the search marks failed';
@@ -32,7 +38,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [found, setFound] = useState<Found>(NOTHING);
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<Problem | null>(null);
   // Counts the times Edit > Find was chosen, so choosing it again with the bar open refocuses it.
   const [asked, setAsked] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -59,7 +65,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
     (text: string, keep = 0, select = true) => {
       if (!editor) {
         setFound(NOTHING);
-        setProblem(text ? notReady() : null);
+        setProblem(text ? 'not-ready' : null);
         return;
       }
       try {
@@ -86,7 +92,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
           });
         }
         setFound(NOTHING);
-        setProblem(searchFailed());
+        setProblem('search-failed');
       }
     },
     [editor, show]
@@ -216,7 +222,7 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
       </button>
       {problem && (
         <span className="find-bar-problem" role="alert">
-          {problem}
+          {PROBLEM_WORDS[problem]()}
         </span>
       )}
     </div>

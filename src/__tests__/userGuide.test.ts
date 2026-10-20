@@ -19,7 +19,12 @@ import {
 // templates of menu.ts, and every name it prints in bold must be a name the app shows.
 
 jest.mock('electron', () => ({
-  app: { quit: jest.fn(), emit: jest.fn(), getPath: jest.fn() },
+  app: {
+    quit: jest.fn(),
+    emit: jest.fn(),
+    getPath: jest.fn(),
+    getPreferredSystemLanguages: jest.fn(() => ['en']),
+  },
   dialog: {},
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
   shell: { openExternal: jest.fn() },

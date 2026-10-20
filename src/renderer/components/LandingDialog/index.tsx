@@ -6,6 +6,7 @@ import './LandingDialog.css';
 import Logo from './LogoThin';
 import FindNotHere, { findBeforeOpen } from '../../search/FindNotHere';
 import { i18n } from '../../../shared/i18n';
+import LanguageChoices from '../../language/LanguageChoices';
 
 export default function LandingDialog() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ export default function LandingDialog() {
 
   return (
     <div className="outer-container">
+      <LanguageChoices />
       <div className="message-container">
         <Logo />
         <h1 className="welcome-message">{i18n._('landing.welcome')}</h1>
