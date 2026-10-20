@@ -493,6 +493,7 @@ msgstr "Bold"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.bold.unavailable"
 msgstr "Bold can't be used in this part of the poem."
 
@@ -505,6 +506,7 @@ msgstr "Italic"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.italic.unavailable"
 msgstr "Italic can't be used in this part of the poem."
 
@@ -1042,6 +1044,7 @@ msgstr "Play"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "replay.play.unavailable"
 msgstr "There is nothing to replay yet: this poem has no history."
 
@@ -1127,16 +1130,19 @@ msgstr "Increase text size"
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "textSize.largest"
 msgstr "The text is already at its largest size."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "textSize.smallest"
 msgstr "The text is already at its smallest size."
 
 #. js-lingui-explicit-id
 #: src/renderer/WindowTitle.tsx
+#, fuzzy
 msgid "window.notSaved"
 msgstr "{name} (not saved)"
