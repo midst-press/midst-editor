@@ -378,6 +378,10 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
+    // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
+    // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
+    applyLogLevel();
+    log.info('started', { version: app.getVersion() });
     // The menus, dialogs and window speak the language the poet chose from View > Language, else
     // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
     // rebuilds the menus and tells the window (setLanguage).

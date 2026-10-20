@@ -1158,6 +1158,14 @@ describe('main process', () => {
 
     // The stored level is applied when the window is made. It used to happen only inside the update
     // check's constructor (removed, #178), so this is its own test now.
+    it('logs its start-up once, with the version', async () => {
+      const { log } = await boot();
+      const started = jest
+        .mocked(log.info)
+        .mock.calls.filter(([msg]) => msg === 'started');
+      expect(started).toEqual([['started', { version: '9.9.9' }]]);
+    });
+
     it('applies the stored log level at startup', async () => {
       const { store, log, state, flush } = await boot({ ready: false });
       store.set('logLevel', 'debug');
@@ -1347,6 +1355,8 @@ describe('main process', () => {
       'log-message at level %s is forwarded to the renderer scope as %s, with the message unchanged',
       async (level, method) => {
         const { log, fireIpc } = await boot();
+        // Start-up logs through the main-process logger ('started'); only what the forwarding does counts here.
+        jest.mocked(log[method]).mockClear();
         await fireIpc('log-message', {}, level, 'zq');
         expect(rendererScope(log)[method]).toHaveBeenCalledWith('zq');
         await fireIpc('log-message', {}, level, 'xv', { n: 1 });
