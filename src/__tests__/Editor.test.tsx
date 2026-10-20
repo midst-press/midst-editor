@@ -198,7 +198,7 @@ beforeAll(() => {
       item: () => null,
       length: 0,
       [Symbol.iterator]: [][Symbol.iterator],
-    } as unknown as DOMRectList);
+    }) as unknown as DOMRectList;
   Element.prototype.scrollIntoView = jest.fn();
 });
 

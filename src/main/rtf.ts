@@ -11,8 +11,7 @@ import { i18n } from '../shared/i18n';
 // cannot quietly produce a file that is missing part of the poem.
 
 export type RtfResult =
-  | { ok: true; rtf: string }
-  | { ok: false; reason: string };
+  { ok: true; rtf: string } | { ok: false; reason: string };
 
 // The editor shows poems in the system font, which RTF cannot name. Helvetica, or Arial where there is
 // no Helvetica, is the nearest that every reader has.

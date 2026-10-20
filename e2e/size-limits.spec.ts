@@ -204,7 +204,7 @@ test('size limits: open, type, save, replay', async () => {
       ipcMain.prependListener('save-file', () => g.saves.push(Date.now()));
     });
     versions = await app.evaluate(
-      () => ({ ...process.versions } as Record<string, string>)
+      () => ({ ...process.versions }) as Record<string, string>
     );
     win = await app.firstWindow();
     win.on('crash', () => crashes.push('renderer crashed (page crash event)'));
