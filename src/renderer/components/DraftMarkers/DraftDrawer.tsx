@@ -19,6 +19,9 @@ interface Props {
   onJump: (index: number) => void;
   onRename: (index: number, name: string) => void;
   onDelete: (index: number) => void;
+  // A draft was just deleted and can still be put back (#277).
+  canUndo: boolean;
+  onUndo: () => void;
   // Why the last change was refused, shown here because the drawer covers the page.
   refusal: string | null;
   showMarkers: boolean;
@@ -29,7 +32,8 @@ interface Props {
 /* eslint-enable no-unused-vars */
 
 // The list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
-// moment, rename it, or delete it (at once, with no question, as the original did).
+// moment, rename it, or delete it. A delete happens at once, as the original did, and can be undone for a few
+// seconds (#277).
 export default function DraftDrawer({
   open,
   onClose,
@@ -39,6 +43,8 @@ export default function DraftDrawer({
   onJump,
   onRename,
   onDelete,
+  canUndo,
+  onUndo,
   refusal,
   showMarkers,
   setShowMarkers,
@@ -67,6 +73,14 @@ export default function DraftDrawer({
       <div className="DraftDrawer" aria-label={i18n._('drafts.title')}>
         <h2>{i18n._('drafts.title')}</h2>
         <RefusalAlert message={refusal} />
+        {canUndo ? (
+          <p role="status" className="DraftUndo">
+            {i18n._('drafts.deleted')}{' '}
+            <button type="button" onClick={onUndo}>
+              {i18n._('drafts.undo')}
+            </button>
+          </p>
+        ) : null}
         <FormControlLabel
           control={
             <Switch

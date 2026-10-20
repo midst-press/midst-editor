@@ -1,3 +1,12 @@
+# 0.7.0
+
+- **Choose the language Midst speaks.** The languages Midst has are at the top of the opening screen, each by
+  its own name, with the American flag beside English, and in **View** > **Language**; for now that is English.
+  Midst starts in English until you choose, whatever your computer's language, and remembers your choice. The
+  menus and the window change at once, and the poem does not.
+- **A deleted draft can be put back.** For 5 seconds after you delete a draft, the drafts list shows **Undo**,
+  which brings it back with its name, its number and its place in the list.
+
 # 0.6.0
 
 - **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you

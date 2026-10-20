@@ -142,6 +142,43 @@ export const deleteMarker = (meta: Meta, index: number): MarkerResult => {
   };
 };
 
+// The marker at `index` and where it sits in the stored list, so a delete can be undone with the marker exactly as
+// it was (its own name, default name and any keys this app does not know). Null when there is none.
+export const markerAt = (
+  meta: Meta,
+  index: number
+): { marker: DraftMarker; position: number } | null => {
+  const list = storedList(meta);
+  if (list === null) return null;
+  const position = positionOf(list, index);
+  return position === -1
+    ? null
+    : { marker: list[position] as DraftMarker, position };
+};
+
+// Puts back a deleted marker (#277), at its old place in the list, or at the end when the list has since become
+// shorter. Its number was never given out again, so it keeps it. Refused when another marker now holds its position.
+export const restoreMarker = (
+  meta: Meta,
+  marker: DraftMarker,
+  position: number
+): MarkerResult => {
+  const list = storedList(meta);
+  if (list === null) return { ok: false, reason: 'markers-unreadable' };
+  if (positionOf(list, marker.index) !== -1)
+    return { ok: false, reason: 'position-has-a-marker' };
+  const at = Math.min(Math.max(position, 0), list.length);
+  const restored = [...list.slice(0, at), marker, ...list.slice(at)];
+  return {
+    ok: true,
+    meta: {
+      ...meta,
+      draftMarkers: restored,
+      highestDraftNumber: highestNumber(meta, restored),
+    },
+  };
+};
+
 export interface ShownMarker {
   index: number;
   label: string;

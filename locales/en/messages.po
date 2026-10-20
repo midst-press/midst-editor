@@ -283,6 +283,12 @@ msgid "drafts.delete"
 msgstr "Delete draft"
 
 #. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.deleted"
+msgstr "Draft deleted."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Replay/index.tsx
@@ -371,6 +377,12 @@ msgstr "Show their names"
 #, fuzzy
 msgid "drafts.title"
 msgstr "Drafts"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.undo"
+msgstr "Undo"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
@@ -533,6 +545,12 @@ msgstr "In the menus"
 #, fuzzy
 msgid "landing.getStarted"
 msgstr "Get Started:"
+
+#. js-lingui-explicit-id
+#: src/renderer/language/LanguageChoices.tsx
+#, fuzzy
+msgid "landing.language"
+msgstr "Language"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/LandingDialog/index.tsx
@@ -904,6 +922,12 @@ msgstr "Fill the screen with Midst, or stop"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "menu.view.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "menu.view.reload"
 msgstr "&Reload"
 
@@ -991,6 +1015,20 @@ msgstr "Not following the writing: the page stays where you put it. Click to fol
 #, fuzzy
 msgid "replay.follow.on"
 msgstr "Following the writing as it replays. Click to stop scrolling."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.pause"
+msgstr "Pause"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.play"
+msgstr "Play"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx

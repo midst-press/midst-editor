@@ -1,0 +1,30 @@
+.language-choices {
+  position: absolute;
+  top: 48px;
+  right: 24px;
+  display: flex;
+  gap: 8px;
+}
+
+.language-choices button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.language-choices button[aria-pressed='true'] {
+  border-color: currentColor;
+}
+
+.language-flag {
+  display: block;
+  outline: 1px solid rgba(0, 0, 0, 0.15);
+}

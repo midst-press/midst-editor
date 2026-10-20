@@ -1,9 +1,11 @@
 import { act, renderHook } from '@testing-library/react';
+import { activateLocale, i18n } from '../shared/i18n';
 import useDraftMarkers, {
   FAILED_LOG,
   FRAMES_BEFORE_MARKERS,
   REFUSED_LOG,
   REREAD_FAILED_LOG,
+  UNDO_MS,
 } from '../renderer/components/DraftMarkers/useDraftMarkers';
 
 // Synthetic names only.
@@ -391,6 +393,26 @@ describe('useDraftMarkers: a refused change', () => {
     expect(JSON.stringify([message, meta])).not.toContain('zq-private-name');
   });
 
+  it('puts a refusal showing when the language changes into the new words (editor #265)', () => {
+    install(undefined);
+    const { result, rerender } = renderHook(() =>
+      useDraftMarkers(LONG, jest.fn())
+    );
+    act(() => {
+      result.current.remove(5);
+    });
+    try {
+      i18n.loadAndActivate({
+        locale: 'zq',
+        messages: { 'drafts.refused.gone': 'ZQ-GONE' },
+      });
+      rerender();
+      expect(result.current.refusal).toBe('ZQ-GONE');
+    } finally {
+      activateLocale('en');
+    }
+  });
+
   it('clears the message when the next change is accepted', () => {
     install(undefined);
     const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
@@ -570,5 +592,136 @@ describe('useDraftMarkers: a change that throws', () => {
       FAILED_LOG,
       expect.objectContaining({ errorName: 'string' })
     );
+  });
+});
+
+describe('useDraftMarkers: undoing a delete (#277)', () => {
+  const MARKED = {
+    highestDraftNumber: 2,
+    draftMarkers: [
+      { index: 3, defaultName: 'Draft 1' },
+      { index: 9, name: 'zq', defaultName: 'Draft 2', timestamp: 4 },
+    ],
+  };
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  it('deletes at once and saves, then Undo puts the draft back as it was and saves again', () => {
+    const bridge = install(MARKED);
+    const save = jest.fn();
+    const { result } = renderHook(() => useDraftMarkers(LONG, save));
+    act(() => {
+      result.current.remove(9);
+    });
+    expect(bridge.storedMeta().draftMarkers).toEqual([MARKED.draftMarkers[0]]);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.current.canUndoDelete).toBe(true);
+
+    let undone: boolean | undefined;
+    act(() => {
+      undone = result.current.undoDelete();
+    });
+    expect(undone).toBe(true);
+    expect(bridge.storedMeta()).toEqual(MARKED);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(result.current.canUndoDelete).toBe(false);
+    expect(result.current.markers).toEqual([
+      { index: 3, label: 'Draft 1' },
+      { index: 9, label: 'zq' },
+    ]);
+  });
+
+  it('can no longer be undone once the time is up, and the delete stands', () => {
+    const bridge = install(MARKED);
+    const save = jest.fn();
+    const { result } = renderHook(() => useDraftMarkers(LONG, save));
+    act(() => {
+      result.current.remove(9);
+    });
+    act(() => {
+      jest.advanceTimersByTime(UNDO_MS - 1);
+    });
+    expect(result.current.canUndoDelete).toBe(true);
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(result.current.canUndoDelete).toBe(false);
+    let undone: boolean | undefined;
+    act(() => {
+      undone = result.current.undoDelete();
+    });
+    expect(undone).toBe(false);
+    expect(bridge.storedMeta().draftMarkers).toEqual([MARKED.draftMarkers[0]]);
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second delete restarts the time, and Undo puts back the later one only', () => {
+    const bridge = install(MARKED);
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    act(() => {
+      result.current.remove(9);
+    });
+    act(() => {
+      jest.advanceTimersByTime(UNDO_MS - 1000);
+    });
+    act(() => {
+      result.current.remove(3);
+    });
+    act(() => {
+      jest.advanceTimersByTime(UNDO_MS - 1);
+    });
+    act(() => {
+      result.current.undoDelete();
+    });
+    expect(bridge.storedMeta().draftMarkers).toEqual([MARKED.draftMarkers[0]]);
+  });
+
+  it('refuses, and says so, when a new draft now holds that moment', () => {
+    const bridge = install(MARKED);
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    act(() => {
+      result.current.remove(9);
+    });
+    act(() => {
+      result.current.create(9);
+    });
+    let undone: boolean | undefined;
+    act(() => {
+      undone = result.current.undoDelete();
+    });
+    expect(undone).toBe(false);
+    expect(result.current.refusal).not.toBeNull();
+    expect(bridge.logError).toHaveBeenCalledWith(
+      REFUSED_LOG,
+      expect.objectContaining({
+        reason: 'position-has-a-marker',
+        action: 'undo-delete',
+      })
+    );
+  });
+
+  it('offers no undo into another document', () => {
+    const bridge = install(MARKED);
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    act(() => {
+      result.current.remove(9);
+    });
+    act(() => {
+      bridge.openAnother({ draftMarkers: [] });
+    });
+    expect(result.current.canUndoDelete).toBe(false);
+    act(() => {
+      result.current.undoDelete();
+    });
+    expect(bridge.storedMeta()).toEqual({ draftMarkers: [] });
+  });
+
+  it('offers no undo after a delete that was refused', () => {
+    install(MARKED);
+    const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
+    act(() => {
+      result.current.remove(4);
+    });
+    expect(result.current.canUndoDelete).toBe(false);
   });
 });
