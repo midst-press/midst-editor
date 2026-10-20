@@ -6,6 +6,10 @@
   menus and the window change at once, and the poem does not.
 - **A deleted draft can be put back.** For 5 seconds after you delete a draft, the drafts list shows **Undo**,
   which brings it back with its name, its number and its place in the list.
+- **Midst no longer checks for a new version when it opens.** The check could not work in the installed
+  app, and it would have installed a new version without asking. When Midst can update itself, it will ask
+  you first.
+- Under the hood: the unused updater library is removed.
 
 # 0.6.0
 

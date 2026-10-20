@@ -156,14 +156,6 @@ jest.mock('electron-devtools-assembler', () => ({
   default: (...args: unknown[]) => mockInstallExtension(...args),
   REACT_DEVELOPER_TOOLS: 'react-devtools',
 }));
-// What the update check does; a test can make it reject or throw.
-const mockCheckForUpdates = jest.fn((): unknown => Promise.resolve(null));
-jest.mock('electron-updater', () => ({
-  autoUpdater: {
-    checkForUpdatesAndNotify: jest.fn(() => mockCheckForUpdates()),
-    logger: null,
-  },
-}));
 
 jest.mock('electron-log', () => ({
   __esModule: true,
@@ -251,7 +243,6 @@ const boot = async (opts: { ready?: boolean } = {}) => {
   const titlebar = await import(
     '@jshafto/custom-electron-titlebar-update/main'
   );
-  const { autoUpdater } = await import('electron-updater');
   await import('../main/main');
   const state = electron.mockState;
   const flush = () =>
@@ -288,7 +279,6 @@ const boot = async (opts: { ready?: boolean } = {}) => {
     log,
     logging,
     titlebar,
-    autoUpdater,
     flush,
     win,
     fireIpc,
@@ -1155,8 +1145,8 @@ describe('main process', () => {
       expect(String(win().options.icon).endsWith(file)).toBe(true);
     });
 
-    it('builds the menu and the titlebar for the window and checks for updates', async () => {
-      const { menu, titlebar, autoUpdater, win } = await boot();
+    it('builds the menu and the titlebar for the window', async () => {
+      const { menu, titlebar, win } = await boot();
       expect(menu.default).toHaveBeenCalledWith(win());
       const builder = jest.mocked(menu.default).mock.results[0].value as {
         buildMenu: jest.Mock;
@@ -1164,48 +1154,26 @@ describe('main process', () => {
       expect(builder.buildMenu).toHaveBeenCalledTimes(1);
       expect(titlebar.setupTitlebar).toHaveBeenCalledTimes(1);
       expect(titlebar.attachTitlebarToWindow).toHaveBeenCalledWith(win());
-      expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
     });
 
-    // 0.5.0: the check's rejection reached the unhandled-rejection handler, whose modal dialog froze
-    // the main process. A failed check is expected (offline, no feed, not installed) and is a warning.
-    it.each([
-      [
-        'rejects',
-        () => {
-          const e = new Error('ENOENT zq-path');
-          e.stack = 'Error: ENOENT zq-path';
-          return Promise.reject(e);
-        },
-      ],
-      [
-        'throws',
-        () => {
-          throw new TypeError('zq-sync');
-        },
-      ],
-    ])(
-      'an update check that %s is logged as a warning, name only, and is not left unhandled',
-      async (_how, outcome) => {
-        mockCheckForUpdates.mockImplementationOnce(outcome);
-        const unhandled = jest.fn();
-        process.on('unhandledRejection', unhandled);
-        try {
-          const { log, flush } = await boot();
-          await flush();
-          expect(log.warn).toHaveBeenCalledWith('update check failed', {
-            name: expect.stringMatching(/^(Error|TypeError)$/),
-            frames: expect.any(Array),
-          });
-          expect(JSON.stringify(jest.mocked(log.warn).mock.calls)).not.toMatch(
-            /zq-/
-          );
-          expect(unhandled).not.toHaveBeenCalled();
-        } finally {
-          process.off('unhandledRejection', unhandled);
-        }
-      }
-    );
+    // The stored level is applied when the window is made. It used to happen only inside the update
+    // check's constructor (removed, #178), so this is its own test now.
+    it('logs its start-up once, with the version', async () => {
+      const { log } = await boot();
+      const started = jest
+        .mocked(log.info)
+        .mock.calls.filter(([msg]) => msg === 'started');
+      expect(started).toEqual([['started', { version: '9.9.9' }]]);
+    });
+
+    it('applies the stored log level at startup', async () => {
+      const { store, log, state, flush } = await boot({ ready: false });
+      store.set('logLevel', 'debug');
+      state.resolveReady();
+      await flush();
+      expect(log.transports.file.level).toBe('debug');
+      expect(log.transports.console.level).toBe('debug');
+    });
 
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
@@ -1387,6 +1355,8 @@ describe('main process', () => {
       'log-message at level %s is forwarded to the renderer scope as %s, with the message unchanged',
       async (level, method) => {
         const { log, fireIpc } = await boot();
+        // Start-up logs through the main-process logger ('started'); only what the forwarding does counts here.
+        jest.mocked(log[method]).mockClear();
         await fireIpc('log-message', {}, level, 'zq');
         expect(rendererScope(log)[method]).toHaveBeenCalledWith('zq');
         await fireIpc('log-message', {}, level, 'xv', { n: 1 });
