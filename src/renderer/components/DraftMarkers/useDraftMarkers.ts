@@ -2,10 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   createMarker,
   deleteMarker,
+  DraftMarker,
+  markerAt,
   MarkerRefusal,
   MarkerResult,
   Meta,
   renameMarker,
+  restoreMarker,
   shownMarkers,
 } from 'renderer/tracking/draftMarkers';
 import {
@@ -23,6 +26,10 @@ export const FRAMES_BEFORE_MARKERS = 50;
 export const REFUSED_LOG = 'draft marker change refused';
 export const FAILED_LOG = 'draft marker change failed';
 export const REREAD_FAILED_LOG = 'draft markers could not be read back';
+
+// How long a deleted draft can be put back (#277). A delete takes effect at once and is saved, as before;
+// undoing it is a second change.
+export const UNDO_MS = 5000;
 
 export type ChangeRefusal =
   | MarkerRefusal
@@ -81,6 +88,16 @@ export default function useDraftMarkers(
     reason: ChangeRefusal;
     historyLength: number;
   } | null>(null);
+  // The last delete, while it can still be undone: the marker exactly as it was, and its place in the list.
+  const [deleted, setDeleted] = useState<{
+    marker: DraftMarker;
+    position: number;
+  } | null>(null);
+  useEffect(() => {
+    if (deleted === null) return undefined;
+    const expire = setTimeout(() => setDeleted(null), UNDO_MS);
+    return () => clearTimeout(expire);
+  }, [deleted]);
   // Another document was opened: the main process has already stored its meta. A message about the
   // last document's drafts no longer applies.
   useEffect(
@@ -88,6 +105,8 @@ export default function useDraftMarkers(
       window.electron.ipcRenderer.on('open-file', () => {
         setMeta(readStoredMeta(window.electron.store));
         setRefusal(null);
+        // A delete in the last document cannot be undone into this one.
+        setDeleted(null);
       }),
     []
   );
@@ -190,12 +209,44 @@ export default function useDraftMarkers(
     [apply]
   );
   const remove = useCallback(
-    (index: number) =>
-      apply((current) => deleteMarker(current, index), 'delete', index),
+    (index: number) => {
+      let taken: { marker: DraftMarker; position: number } | null = null;
+      const done = apply(
+        (current) => {
+          const result = deleteMarker(current, index);
+          if (result.ok) taken = markerAt(current, index);
+          return result;
+        },
+        'delete',
+        index
+      );
+      setDeleted(done ? taken : null);
+      return done;
+    },
     [apply]
   );
+  const undoDelete = useCallback(() => {
+    if (deleted === null) return false;
+    const { marker, position } = deleted;
+    setDeleted(null);
+    return apply(
+      (current) => restoreMarker(current, marker, position),
+      'undo-delete',
+      marker.index
+    );
+  }, [apply, deleted]);
 
   const refusal =
     refused && refusalMessage(refused.reason, refused.historyLength);
-  return { markers, reasonAt, canCreateAt, create, rename, remove, refusal };
+  return {
+    markers,
+    reasonAt,
+    canCreateAt,
+    create,
+    rename,
+    remove,
+    canUndoDelete: deleted !== null,
+    undoDelete,
+    refusal,
+  };
 }
