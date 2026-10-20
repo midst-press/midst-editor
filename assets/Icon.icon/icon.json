@@ -1,0 +1,35 @@
+{
+  "supported-platforms": {
+    "squares": ["macOS"]
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Icon-Light-Square.png",
+          "hidden-specializations": [
+            { "value": false },
+            { "appearance": "dark", "value": true },
+            { "appearance": "tinted", "value": true }
+          ]
+        },
+        {
+          "image-name": "Icon-Dark-Square.png",
+          "hidden-specializations": [
+            { "value": true },
+            { "appearance": "dark", "value": false },
+            { "appearance": "tinted", "value": true }
+          ]
+        },
+        {
+          "image-name": "Icon-Tinted-Square.png",
+          "hidden-specializations": [
+            { "value": true },
+            { "appearance": "dark", "value": true },
+            { "appearance": "tinted", "value": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

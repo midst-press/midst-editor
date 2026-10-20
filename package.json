@@ -417,7 +417,11 @@
       "hardenedRuntime": true,
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "icon": "assets/icon.icns",
+      "extendInfo": {
+        "CFBundleIconName": "Icon"
+      }
     },
     "pkg": {
       "isRelocatable": false
@@ -458,7 +462,11 @@
       "output": "release/build"
     },
     "extraResources": [
-      "./assets/**"
+      "./assets/**",
+      {
+        "from": "assets/Assets.car",
+        "to": "Assets.car"
+      }
     ],
     "publish": {
       "provider": "github",
