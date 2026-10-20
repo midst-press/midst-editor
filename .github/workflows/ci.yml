@@ -30,7 +30,17 @@ jobs:
       # consistent, and the main process writes no words of its own. The renderer's are checked by eslint, in
       # the pre-commit step (lingui/no-unlocalized-strings).
       - name: message catalog
-        run: npm run catalog:check
+        # On a pull request the check also fails a new English entry not marked draft, against the base's catalog
+        # (#287). The checkout is depth 1, so the base is fetched first; a failed fetch fails the step (Violet),
+        # never quietly skipping the check. On a push there is no base, and the check prints that it did not run.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            export CATALOG_BASE="origin/$BASE_REF"
+          fi
+          npm run catalog:check
       # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/. It runs in Gitea CI. Here
       # it waits until the tag is on GitHub's midst-press/midst-format, which comes with the next push-up (Stuart's):
       # without the tag the clone has nothing to rebuild and the step would fail.

@@ -12,7 +12,10 @@
 //   - a message that does not parse as ICU MessageFormat;
 //   - a translation of a key English does not have, or whose placeholders differ from the English;
 //   - a translation, not marked draft, whose recorded English (its `# en:` comment) is not the English now;
-//   - a translated document with no English document of the same name.
+//   - a translated document with no English document of the same name;
+//   - an English entry new since the base branch and not marked draft (`#, fuzzy`), which would skip the review list
+//     (#287). The base is $CATALOG_BASE (CI sets it on a pull request), else origin/main where that exists. With
+//     neither, the check says it did not run, and the rest of the checks go on.
 //
 // Reports, never failures: the drafts (entries marked `#, fuzzy`, documents with `status: draft` in
 // their front matter), which are the journal's editor's review list; and, per language, keys with no
@@ -24,7 +27,7 @@
 //
 // --report-only prints the problems but exits 0 (the catalog's first PR, before anything depends on it).
 // Prints ids and counts, never message text. Exit: 0 clean (or --report-only); 1 problems; 2 usage or an
-// unreadable input.
+// unreadable input, a base that cannot be read among them.
 
 import {
   existsSync,
@@ -33,6 +36,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -152,6 +156,36 @@ function readCatalog(file) {
   return undefined;
 }
 
+// The English ids at the base, for the new-entry rule; null when there is no base. A base that is named or present but
+// cannot be read stops the check (exit 2): "could not compare" is never reported as "nothing new".
+function baseEnglishIds(root, source) {
+  const git = (...args) =>
+    spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+  let base = process.env.CATALOG_BASE || '';
+  if (!base) {
+    if (git('rev-parse', '--verify', '--quiet', 'origin/main').status !== 0) {
+      console.log(
+        'New-entry check NOT RUN: no base (set CATALOG_BASE, or fetch origin/main).'
+      );
+      return null;
+    }
+    base = 'origin/main';
+  }
+  const shown = git('show', `${base}:locales/${source}/messages.po`);
+  if (shown.status !== 0) {
+    console.error(
+      `check-catalog: cannot read locales/${source}/messages.po at ${base}: ${shown.stderr.trim()}`
+    );
+    process.exit(2);
+  }
+  console.log(`New-entry check: against ${base}`);
+  return new Set(
+    PO.parse(shown.stdout)
+      .items.filter((i) => !i.obsolete)
+      .map((i) => i.msgid)
+  );
+}
+
 function report(problems, drafts, untranslated, opts) {
   console.log(`Drafts awaiting review: ${drafts.length}`);
   for (const d of drafts) console.log(`  ${d}`);
@@ -225,6 +259,7 @@ function main() {
 
   // English: complete, the source.
   const enFile = at(source, 'messages.po');
+  const baseIds = baseEnglishIds(opts.root, source);
   const english = new Map();
   const englishPlaceholders = new Map();
   const englishIds = new Set();
@@ -244,6 +279,10 @@ function main() {
     }
     english.set(item.msgid, text);
     if (item.flags.fuzzy) drafts.push(`${enFile}: ${item.msgid}`);
+    else if (baseIds && !baseIds.has(item.msgid))
+      problems.push(
+        `${enFile}: ${item.msgid} is new and not marked draft (#, fuzzy), so it would skip the review list.`
+      );
     const names = checkIcu(enFile, item.msgid, text);
     if (names) englishPlaceholders.set(item.msgid, names);
   }
