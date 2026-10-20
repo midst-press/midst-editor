@@ -23,6 +23,7 @@ interface FakeWindow {
   isDestroyed: jest.Mock;
   setDocumentEdited: jest.Mock;
   setRepresentedFilename: jest.Mock;
+  setTitle: jest.Mock;
   webContents: { send: jest.Mock; setWindowOpenHandler: jest.Mock };
 }
 
@@ -85,6 +86,8 @@ jest.mock('electron', () => {
     setDocumentEdited = jest.fn();
 
     setRepresentedFilename = jest.fn();
+
+    setTitle = jest.fn();
 
     webContents = { send: jest.fn(), setWindowOpenHandler: jest.fn() };
 
@@ -374,6 +377,29 @@ describe('main process', () => {
     expect(prefs.additionalArguments).toEqual([
       `--midst-locale=${i18n.locale}`,
     ]);
+  });
+
+  describe('the native window title (#194)', () => {
+    const titleEvent = () => ({ preventDefault: jest.fn() });
+
+    it.each([
+      ['an empty title', '', true],
+      ["Electron's own fallback to the file name", 'index.html', false],
+    ])('is Midst for %s', async (_case, title, explicitSet) => {
+      const { state, fireWindow } = await boot();
+      const event = titleEvent();
+      await fireWindow('page-title-updated', event, title, explicitSet);
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
+      expect(state.windows[0].setTitle).toHaveBeenCalledWith('Midst');
+    });
+
+    it("is the page's title when the page sets one", async () => {
+      const { state, fireWindow } = await boot();
+      const event = titleEvent();
+      await fireWindow('page-title-updated', event, 'zq.midst', true);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(state.windows[0].setTitle).not.toHaveBeenCalled();
+    });
   });
 
   describe('closing the window', () => {

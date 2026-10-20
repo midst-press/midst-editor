@@ -73,9 +73,9 @@ async function settled(
     .toEqual(expected);
 }
 
-// On the opening screen the drawn title and document.title are empty, and Electron falls back to the
-// page's file name for the native title.
-const OPENING_SCREEN: Titles = { drawn: '', doc: '', native: 'index.html' };
+// On the opening screen the drawn title and document.title are empty, and the native title is Midst rather than
+// Electron's fallback to the page's file name, index.html (#194).
+const OPENING_SCREEN: Titles = { drawn: '', doc: '', native: 'Midst' };
 
 test('the window title at launch, New, Open, Save As and back to the opening screen', async () => {
   const work = mkdtempSync(join(tmpdir(), 'midst-e2e-title-'));
