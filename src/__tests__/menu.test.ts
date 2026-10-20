@@ -25,6 +25,7 @@ import MenuBuilder, {
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
+import * as saveFailure from '../main/saveFailurePolicy';
 import { activateLocale, catalogs, i18n, languageName } from '../shared/i18n';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
@@ -158,6 +159,8 @@ const unsetAnswer = () => {
 
 beforeEach(() => {
   mockStore.clear();
+  // Each test starts with no failed save behind it, as a newly opened window does.
+  saveFailure.startAgain();
   jest.clearAllMocks();
   [showMessageBox, showSaveDialog, showOpenDialog].forEach((dialogMock) => {
     dialogMock.mockReset();
@@ -410,7 +413,10 @@ describe('save', () => {
       expect(readBack(elsewhere)).toContain('"text":"<p>xv</p>"');
       expect(mockStore.get('filename')).toBe(elsewhere);
       expect(mockStore.get('edited')).toBe('false');
+      // Off macOS the title said "not saved" between the failure and the save that worked (#94).
       expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+        ['set-not-saved', false],
         ['set-filename', 'xv.midst'],
       ]);
     });
@@ -428,6 +434,94 @@ describe('save', () => {
       expect(mockStore.get('baseFilename')).toBeUndefined();
       // The editor stays open: a cancelled save sends the poet back to the start, a failed one does not.
       expect(win.webContents.send).not.toHaveBeenCalled();
+    });
+
+    // #94: the panel would otherwise open at every pause in typing.
+    it('after a first save that failed, the editor\u2019s own saves do not open the save panel again', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // The editor stays open and the poem unsaved: nothing sends the poet back to the start.
+      expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('filename')).toBe('');
+      expect(logInfo).toHaveBeenCalledWith(
+        'autosave: not asking again where to save a document whose first save failed'
+      );
+      // Save, chosen by the poet, still asks where.
+      await save(asWindow(win), false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+    });
+
+    it('once the poem has been saved somewhere, a new document\u2019s first autosave asks where again', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      const elsewhere = path.join(dir, 'xv.midst');
+      showSaveDialog.mockReturnValue(elsewhere);
+      await save(asWindow(win), false);
+      expect(mockStore.get('filename')).toBe(elsewhere);
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(undefined);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(3);
+    });
+
+    it('a new document starts again: its first autosave asks where', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      // New, and Proceed past the unsaved-changes warning.
+      showMessageBox.mockReturnValue(0);
+      await newFile(asWindow(win), false);
+      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', false);
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(undefined);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+    });
+
+    it('off macOS, tells the window once that the poem is not saved, and again when a save works', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      const notSaved = () =>
+        win.webContents.send.mock.calls.filter((c) => c[0] === 'set-not-saved');
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false);
+      expect(notSaved()).toEqual([['set-not-saved', true]]);
+      fs.mkdirSync(path.dirname(target));
+      await save(asWindow(win), false, false);
+      expect(notSaved()).toEqual([
+        ['set-not-saved', true],
+        ['set-not-saved', false],
+      ]);
+    });
+
+    it('on macOS leaves the title alone: the edited dot says it', async () => {
+      seedDocument({ filename: unwritable() });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true, false);
+      expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
+      expect(win.webContents.send).not.toHaveBeenCalledWith(
+        'set-not-saved',
+        expect.anything()
+      );
     });
 
     it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
@@ -932,6 +1026,32 @@ describe('openFile', () => {
       expect(win.webContents.send).not.toHaveBeenCalled();
     }
   );
+
+  // #94: the last document's failed saves do not carry over to the one opened.
+  it('starts the opened poem with no failed save behind it', async () => {
+    seedDocument({ filename: unwritable() });
+    showMessageBox
+      .mockReturnValueOnce(OK) // could not save
+      .mockReturnValueOnce(0) // Proceed past the unsaved-changes warning
+      .mockReturnValueOnce(OK); // could not save, the opened poem
+    const win = makeWindow();
+    await save(asWindow(win), false, false);
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile('<p>zq</p>'));
+    await openFile(asWindow(win), false, [target]);
+    await ioDone();
+    expect(mockStore.get('filename')).toBe(target);
+    mockStore.set('filename', path.join(dir, 'gone', 'zq.midst'));
+    mockStore.set('edited', 'true');
+    await save(asWindow(win), false, false);
+    expect(showMessageBox).toHaveBeenCalledTimes(3);
+    expect(
+      win.webContents.send.mock.calls.filter((c) => c[0] === 'set-not-saved')
+    ).toEqual([
+      ['set-not-saved', true],
+      ['set-not-saved', true],
+    ]);
+  });
 
   it('loads a current-version file given up front, without a file dialog', async () => {
     seedDocument({ edited: 'false' });

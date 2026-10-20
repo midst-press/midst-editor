@@ -1123,3 +1123,8 @@ msgstr "The text is already at its largest size."
 #: src/renderer/components/Replay/index.tsx
 msgid "textSize.smallest"
 msgstr "The text is already at its smallest size."
+
+#. js-lingui-explicit-id
+#: src/renderer/WindowTitle.tsx
+msgid "window.notSaved"
+msgstr "{name} (not saved)"
