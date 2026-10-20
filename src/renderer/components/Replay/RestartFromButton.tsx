@@ -6,6 +6,7 @@ import { getSchema } from '@tiptap/core';
 import { DOMParser as ProseMirrorParser } from '@tiptap/pm/model';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
+import { LocaleContext } from 'renderer/locale';
 import { ChangeObj, reconstruct } from '@midst-press/midst-format/history';
 import {
   RestartFromError,
@@ -69,9 +70,12 @@ export default function RestartFromButton({
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const [failed, setFailed] = useState(false);
 
+  const locale = useContext(LocaleContext);
+  // The locale is a dependency because the reason is a word: View > Language changes it in place.
   const { reason, error } = useMemo(
     () => availability(poemHistory, step),
-    [poemHistory, step]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [poemHistory, step, locale]
   );
   // A frame that cannot be checked is an anomaly, unlike an empty history: log it, once per cause.
   useEffect(() => {

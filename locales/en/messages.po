@@ -903,6 +903,12 @@ msgstr "Fill the screen with Midst, or stop"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "menu.view.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "menu.view.reload"
 msgstr "&Reload"
 

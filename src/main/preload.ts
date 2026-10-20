@@ -13,6 +13,7 @@ export type Channels =
   | 'open-file'
   | 'set-filename'
   | 'set-font-size'
+  | 'set-locale'
   | 'toggle-edit-mode'
   | 'save-file'
   | 'toggle-spellcheck'

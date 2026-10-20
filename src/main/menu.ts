@@ -29,7 +29,12 @@ import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
 import { loadDataIntoWorkspace } from './util';
-import { i18n } from '../shared/i18n';
+import {
+  activateLocale,
+  i18n,
+  languageName,
+  languageOrder,
+} from '../shared/i18n';
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
@@ -99,6 +104,19 @@ export const setAppearance = (appearance: Appearance) => {
 // At launch, before the window loads, so it never draws in the other scheme first.
 export const applyStoredAppearance = () => {
   nativeTheme.themeSource = appearanceOrDefault(store.get('appearance'));
+};
+
+// The poet's language (editor #265). Kept in the store under 'language'; until the poet chooses there is
+// none, and the app is in English (chosenLocale). The menus are rebuilt in the new language at once, and
+// every window is told, so the menus and the window always agree.
+export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
+  store.set('language', locale);
+  const used = activateLocale(locale);
+  // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
+  new MenuBuilder(mainWindow).applyMenu();
+  BrowserWindow.getAllWindows().forEach((w) =>
+    w.webContents.send('set-locale', used)
+  );
 };
 
 // Looked up when the menu is built, in the language chosen then.
@@ -612,7 +630,12 @@ export default class MenuBuilder {
     if (isDevelopment()) {
       this.setupDevelopmentEnvironment();
     }
+    return this.applyMenu();
+  }
 
+  // Builds the menus in the active language and installs them. A language change calls this alone: the
+  // development context menu is the window's, set up once by buildMenu.
+  applyMenu(): Menu {
     const template =
       process.platform === 'darwin'
         ? this.buildDarwinTemplate()
@@ -710,6 +733,23 @@ export default class MenuBuilder {
         checked: appearance === current,
         click: () => setAppearance(appearance),
       })),
+    };
+  }
+
+  // Each language by its own name, in languageOrder (English, the system's language, then the rest).
+  private languageItem(): MenuItemConstructorOptions {
+    return {
+      id: 'menu.view.language',
+      label: this.label(i18n._('menu.view.language')),
+      submenu: languageOrder(app.getPreferredSystemLanguages()).map(
+        (locale) => ({
+          id: `menu.view.language.${locale}`,
+          label: this.label(languageName(locale)),
+          type: 'radio' as const,
+          checked: locale === i18n.locale,
+          click: () => setLanguage(locale, this.mainWindow),
+        })
+      ),
     };
   }
 
@@ -966,11 +1006,13 @@ export default class MenuBuilder {
             this.devToolsItem('Alt+Command+I'),
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             this.appearanceItem(),
+            this.languageItem(),
           ]
         : [
             fullScreen,
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             this.appearanceItem(),
+            this.languageItem(),
           ],
     };
     const subMenuWindow: DarwinMenuItemConstructorOptions = {
@@ -1060,11 +1102,13 @@ export default class MenuBuilder {
               this.devToolsItem('Alt+Ctrl+I'),
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
               this.appearanceItem(),
+              this.languageItem(),
             ]
           : [
               fullScreen,
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
               this.appearanceItem(),
+              this.languageItem(),
             ],
       },
       {

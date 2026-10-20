@@ -363,14 +363,24 @@ describe('main process', () => {
     );
   });
 
-  it('chooses the language from the system before the window loads', async () => {
-    const { state } = await boot();
+  it('starts in English, without asking the system, until the poet chooses (editor #265)', async () => {
+    await boot();
     const electron = (await import('electron')) as unknown as {
       app: { getPreferredSystemLanguages: jest.Mock };
     };
-    const asked = electron.app.getPreferredSystemLanguages;
-    expect(asked).toHaveBeenCalledTimes(1);
-    expect(asked.mock.invocationCallOrder[0]).toBeLessThan(
+    const { i18n } = await import('../shared/i18n');
+    expect(i18n.locale).toBe('en');
+    expect(electron.app.getPreferredSystemLanguages).not.toHaveBeenCalled();
+  });
+
+  it('starts in the language the poet chose, read from the store before the window loads', async () => {
+    const { state, store, flush } = await boot({ ready: false });
+    const read = jest.spyOn(store, 'get');
+    state.resolveReady();
+    await flush();
+    const asked = read.mock.calls.findIndex(([key]) => key === 'language');
+    expect(asked).toBeGreaterThanOrEqual(0);
+    expect(read.mock.invocationCallOrder[asked]).toBeLessThan(
       (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
     );
   });

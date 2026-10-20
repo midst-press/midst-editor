@@ -12,6 +12,7 @@ import Replay from './components/Replay';
 import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
+import { LocaleContext, useMenuLocale } from './locale';
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);
@@ -30,6 +31,7 @@ export default function App() {
   // ZERO hooks, while a healthy launch called three -- react-hooks/rules-of-hooks. Optional chaining
   // covers the degraded case so the hook order is identical either way.
   const theme = useSchemeTheme();
+  const locale = useMenuLocale();
   const restoreText = window.electron?.store.get('poem') || '';
   // After a reload the router would start at the opening screen again. If the editor asked to come
   // back (it does before reloading for the spellcheck toggle), start there instead, once.
@@ -94,18 +96,20 @@ export default function App() {
     <>
       <CssBaseline />
       <ThemeProvider theme={theme}>
-        <TextContext.Provider value={textContextValue}>
-          <HistoryContext.Provider value={historyContextValue}>
-            <Router initialEntries={[startAt]}>
-              <WindowTitle filename={filename} />
-              <Routes>
-                <Route path="/editor" element={<Editor />} />
-                <Route path="/replay" element={<Replay />} />
-                <Route path="/" element={<LandingDialog />} />
-              </Routes>
-            </Router>
-          </HistoryContext.Provider>
-        </TextContext.Provider>
+        <LocaleContext.Provider value={locale}>
+          <TextContext.Provider value={textContextValue}>
+            <HistoryContext.Provider value={historyContextValue}>
+              <Router initialEntries={[startAt]}>
+                <WindowTitle filename={filename} />
+                <Routes>
+                  <Route path="/editor" element={<Editor />} />
+                  <Route path="/replay" element={<Replay />} />
+                  <Route path="/" element={<LandingDialog />} />
+                </Routes>
+              </Router>
+            </HistoryContext.Provider>
+          </TextContext.Provider>
+        </LocaleContext.Provider>
       </ThemeProvider>
     </>
   );

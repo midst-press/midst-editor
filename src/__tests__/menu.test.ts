@@ -2,7 +2,15 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+} from 'electron';
 import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
@@ -16,7 +24,7 @@ import MenuBuilder, {
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
-import { catalogs, i18n } from '../shared/i18n';
+import { activateLocale, catalogs, i18n, languageName } from '../shared/i18n';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -28,6 +36,7 @@ jest.mock('electron', () => ({
     emit: jest.fn(),
     addRecentDocument: jest.fn(),
     getPath: (name: string) => `/test-home/${name}`,
+    getPreferredSystemLanguages: jest.fn(() => ['en-NZ']),
   },
   dialog: {
     showMessageBoxSync: jest.fn(),
@@ -1404,16 +1413,28 @@ describe('the menu', () => {
         });
       walk(build(platform));
       expect(items.length).toBeGreaterThan(20);
-      items.forEach((item) => {
-        expect(
-          item.id !== undefined &&
-            Object.prototype.hasOwnProperty.call(english, item.id)
-        ).toBe(true);
-        const text = i18n._(item.id!);
-        expect(item.label).toBe(
-          platform === 'darwin' ? text.replace(/&/g, '') : text
-        );
-      });
+      // The Language menu names each language in that language, not in the catalog's (editor #265).
+      const languages = items.filter((item) =>
+        item.id?.startsWith('menu.view.language.')
+      );
+      expect(languages.map((item) => [item.id, item.label])).toEqual(
+        Object.keys(catalogs).map((tag) => [
+          `menu.view.language.${tag}`,
+          languageName(tag),
+        ])
+      );
+      items
+        .filter((item) => !languages.includes(item))
+        .forEach((item) => {
+          expect(
+            item.id !== undefined &&
+              Object.prototype.hasOwnProperty.call(english, item.id)
+          ).toBe(true);
+          const text = i18n._(item.id!);
+          expect(item.label).toBe(
+            platform === 'darwin' ? text.replace(/&/g, '') : text
+          );
+        });
     }
   );
 
@@ -2090,6 +2111,68 @@ describe('the menu', () => {
       find(appearance('linux'), label).click!();
       expect(mockStore.get('appearance')).toBe(value);
       expect(nativeTheme.themeSource).toBe(value);
+    });
+  });
+
+  describe('View > Language (editor #265)', () => {
+    type Radio = Item & { type?: string; checked?: boolean };
+    const languages = (platform: string, win = makeWindow()) => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      setPlatform(platform);
+      new MenuBuilder(asWindow(win)).buildMenu();
+      const template = buildFromTemplate.mock.calls[0][0] as Item[];
+      return sub(template, platform === 'darwin' ? 'View' : '&View', 'Language')
+        .submenu as Radio[];
+    };
+
+    afterEach(() => {
+      activateLocale('en');
+    });
+
+    it.each(['darwin', 'linux'])(
+      'lists each catalog by its own name as one choice, after Appearance, on %s',
+      (platform) => {
+        const items = languages(platform);
+        expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
+          ['English', 'radio', true],
+        ]);
+        const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
+          (i) => i.id === 'menu.view'
+        )!.submenu as Item[];
+        const ids = view.map((i) => i.id);
+        expect(ids.indexOf('menu.view.language')).toBe(
+          ids.indexOf('menu.view.appearance') + 1
+        );
+      }
+    );
+
+    it('is also in the development View menu', () => {
+      process.env.NODE_ENV = 'development';
+      setPlatform('darwin');
+      new MenuBuilder(asWindow(makeWindow())).buildMenu();
+      const template = buildFromTemplate.mock.calls[0][0] as Item[];
+      expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+    });
+
+    it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
+      const win = makeWindow();
+      const other = makeWindow();
+      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+        jest.fn(() => [win, other]);
+      const items = languages('darwin', win);
+      buildFromTemplate.mockClear();
+      (Menu.setApplicationMenu as jest.Mock).mockClear();
+      win.webContents.on.mockClear();
+      // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
+      process.env.NODE_ENV = 'development';
+      find(items, 'English').click!();
+      expect(mockStore.get('language')).toBe('en');
+      expect(buildFromTemplate).toHaveBeenCalledTimes(1);
+      expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
+      expect(win.webContents.on).not.toHaveBeenCalled();
+      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
     });
   });
 });

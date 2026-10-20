@@ -47,7 +47,7 @@ import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
-import { activateLocale, i18n, pickLocale } from '../shared/i18n';
+import { activateLocale, chosenLocale, i18n } from '../shared/i18n';
 import { LOCALE_ARGUMENT } from '../shared/localeArgument';
 
 class AppUpdater {
@@ -371,9 +371,10 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
-    // The menus, dialogs and window speak the system's first language the catalog has, else English
-    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
-    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
+    // The menus, dialogs and window speak the language the poet chose from View > Language, else
+    // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
+    // rebuilds the menus and tells the window (setLanguage).
+    activateLocale(chosenLocale(store.get('language')));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {
