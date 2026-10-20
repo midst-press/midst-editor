@@ -18,10 +18,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: python
         with: { python-version: '3.14' }
       # --ignore-scripts: postinstall runs electron-builder install-app-deps, which downloads
       # Electron binaries. The gates do not need them; the packaging job does and does not skip it.
       - run: npm ci --ignore-scripts
+      # pre-commit's hook environments, kept between runs as the Gitea runner keeps them: an empty cache rebuilds them
+      # on every job. Keyed on the config that defines them and the Python they were built with.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
       - run: pip install 'pre-commit==4.6.2'
       - run: pre-commit run --all-files --show-diff-on-failure
       - name: vendored midst-format matches its VENDOR.md hashes
