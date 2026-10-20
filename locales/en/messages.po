@@ -283,6 +283,12 @@ msgid "drafts.delete"
 msgstr "Delete draft"
 
 #. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.deleted"
+msgstr "Draft deleted."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Replay/index.tsx
@@ -371,6 +377,12 @@ msgstr "Show their names"
 #, fuzzy
 msgid "drafts.title"
 msgstr "Drafts"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.undo"
+msgstr "Undo"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
