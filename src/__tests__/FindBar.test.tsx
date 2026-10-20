@@ -117,7 +117,7 @@ beforeAll(() => {
       item: () => null,
       length: 0,
       [Symbol.iterator]: [][Symbol.iterator],
-    } as unknown as DOMRectList);
+    }) as unknown as DOMRectList;
   Range.prototype.getBoundingClientRect = () => rect as DOMRect;
   Range.prototype.getClientRects = none;
   Element.prototype.getClientRects = none;
