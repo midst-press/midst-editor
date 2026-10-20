@@ -2,13 +2,19 @@ import { act, render, screen } from '@testing-library/react';
 import { useContext } from 'react';
 import type { ElectronHandler } from 'main/preload';
 import { i18n } from '../shared/i18n';
-import { LocaleContext, useMenuLocale } from '../renderer/locale';
+import {
+  LocaleContext,
+  startingLocale,
+  useMenuLocale,
+} from '../renderer/locale';
 
 // Only English is compiled, so a second language is stood in for here: 'zq', with one word.
 jest.mock('../shared/i18n', () => {
   const actual = jest.requireActual('../shared/i18n');
   return {
     ...actual,
+    chosenLocale: (stored: unknown) =>
+      stored === 'zq' ? 'zq' : actual.chosenLocale(stored),
     activateLocale: (locale: string) => {
       const used = locale === 'zq' ? 'zq' : 'en';
       actual.i18n.loadAndActivate({
@@ -22,10 +28,13 @@ jest.mock('../shared/i18n', () => {
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 let listeners: Record<string, Listener[]>;
+let stored: Record<string, unknown>;
 
 beforeEach(() => {
   listeners = {};
+  stored = {};
   (window as unknown as { electron: unknown }).electron = {
+    store: { get: (key: string) => stored[key] },
     ipcRenderer: {
       on: (channel: string, listener: Listener) => {
         (listeners[channel] ??= []).push(listener);
@@ -85,5 +94,19 @@ describe('useMenuLocale (editor #265)', () => {
     expect(listeners['set-locale']).toHaveLength(1);
     unmount();
     expect(listeners['set-locale']).toHaveLength(0);
+  });
+});
+
+describe('startingLocale (editor #265)', () => {
+  it("starts in the poet's choice from the store, so a reload keeps the language chosen", () => {
+    stored.language = 'zq';
+    expect(startingLocale()).toBe('zq');
+    expect(i18n.locale).toBe('zq');
+  });
+
+  it('starts in English when nothing is stored, or the stored language has no catalog', () => {
+    expect(startingLocale()).toBe('en');
+    stored.language = 'xx';
+    expect(startingLocale()).toBe('en');
   });
 });

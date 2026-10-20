@@ -1,11 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import registerUncaughtErrorLogging from './uncaughtErrors';
-import { activateLocale } from '../shared/i18n';
+import { startingLocale } from './locale';
 
 registerUncaughtErrorLogging(window, window.electron.log);
-// The words in the language the main process chose for the menus (midst-infra docs/design/message-catalog.md).
-activateLocale(window.electron.locale);
+// The words in the poet's language, read from the store as the main process reads it for the menus (editor #265).
+startingLocale();
 
 const container = document.getElementById('root')!;
 const root = createRoot(container);

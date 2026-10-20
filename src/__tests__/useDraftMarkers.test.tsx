@@ -1,4 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
+import { activateLocale, i18n } from '../shared/i18n';
 import useDraftMarkers, {
   FAILED_LOG,
   FRAMES_BEFORE_MARKERS,
@@ -389,6 +390,26 @@ describe('useDraftMarkers: a refused change', () => {
       'reason',
     ]);
     expect(JSON.stringify([message, meta])).not.toContain('zq-private-name');
+  });
+
+  it('puts a refusal showing when the language changes into the new words (editor #265)', () => {
+    install(undefined);
+    const { result, rerender } = renderHook(() =>
+      useDraftMarkers(LONG, jest.fn())
+    );
+    act(() => {
+      result.current.remove(5);
+    });
+    try {
+      i18n.loadAndActivate({
+        locale: 'zq',
+        messages: { 'drafts.refused.gone': 'ZQ-GONE' },
+      });
+      rerender();
+      expect(result.current.refusal).toBe('ZQ-GONE');
+    } finally {
+      activateLocale('en');
+    }
   });
 
   it('clears the message when the next change is accepted', () => {

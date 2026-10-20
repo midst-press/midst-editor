@@ -98,6 +98,19 @@ describe('languageName', () => {
     expect(languageName('de')).toBe('Deutsch');
   });
 
+  it('is the tag when the runtime names nothing for it', () => {
+    const spy = jest
+      .spyOn(Intl, 'DisplayNames')
+      .mockImplementation(
+        () => ({ of: () => undefined } as unknown as Intl.DisplayNames)
+      );
+    try {
+      expect(languageName('zq')).toBe('zq');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('is the tag when it cannot name it', () => {
     expect(languageName('not a tag')).toBe('not a tag');
   });

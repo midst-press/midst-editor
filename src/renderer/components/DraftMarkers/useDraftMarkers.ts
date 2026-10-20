@@ -75,8 +75,12 @@ export default function useDraftMarkers(
     readStoredMeta(window.electron.store)
   );
 
-  // Why the last change was refused, in words for the poet; null after an accepted change.
-  const [refusal, setRefusal] = useState<string | null>(null);
+  // Why the last change was refused; null after an accepted change. Kept as the reason and put into words when
+  // returned, so it follows View > Language (editor #265).
+  const [refused, setRefusal] = useState<{
+    reason: ChangeRefusal;
+    historyLength: number;
+  } | null>(null);
   // Another document was opened: the main process has already stored its meta. A message about the
   // last document's drafts no longer applies.
   useEffect(
@@ -98,7 +102,7 @@ export default function useDraftMarkers(
         index,
         historyLength,
       });
-      setRefusal(refusalMessage(reason, historyLength));
+      setRefusal({ reason, historyLength });
       return false;
     },
     [historyLength]
@@ -137,7 +141,7 @@ export default function useDraftMarkers(
             errorName: reread instanceof Error ? reread.name : typeof reread,
           });
         }
-        setRefusal(refusalMessage('change-threw', historyLength));
+        setRefusal({ reason: 'change-threw', historyLength });
         return false;
       }
     },
@@ -191,5 +195,7 @@ export default function useDraftMarkers(
     [apply]
   );
 
+  const refusal =
+    refused && refusalMessage(refused.reason, refused.historyLength);
   return { markers, reasonAt, canCreateAt, create, rename, remove, refusal };
 }
