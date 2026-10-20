@@ -23,6 +23,7 @@ const CASES = {
   template: '<div title={`Zqx ${n}`} />',
   ternary: "<div aria-valuetext={on ? 'Zqx' : 'Qzx'} />",
   fallback: "<div aria-description={s ?? 'Zqx'} />",
+  orFallback: "<div title={s || 'Zqx'} />",
   inMap: '<>{[1].map(() => <span title="Zqx" />)}</>',
   empty: '<div title="" />',
   // eslint-disable-next-line no-template-curly-in-string -- source text for eslint, not a template
@@ -135,9 +136,10 @@ it.each(['plain', 'braced', 'template', 'inMap'])(
   }
 );
 
-it('flags both branches of a conditional, and a fallback', () => {
+it('flags both branches of a conditional, and a ?? or || fallback', () => {
   expect(words('ternary')).toHaveLength(2);
   expect(words('fallback')).toHaveLength(1);
+  expect(words('orFallback')).toHaveLength(1);
 });
 
 it.each(['empty', 'noLetters', 'digits', 'catalog', 'catalogFallback'])(
