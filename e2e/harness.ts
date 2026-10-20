@@ -3,7 +3,11 @@
 // how this app has to be driven.
 
 import { expect } from '@playwright/test';
-import { _electron as electron, type ElectronApplication } from 'playwright';
+import {
+  _electron as electron,
+  type ElectronApplication,
+  type Page,
+} from 'playwright';
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
 import { join, resolve as resolvePath } from 'path';
 import { collectCoverage, coverageEnv } from './coverage';
@@ -138,3 +142,36 @@ export async function openDocument(
     ).join(' | ')}`
   ).toBe(true);
 }
+
+// A screenshot of the window once it is on screen. The window is created hidden and shown on ready-to-show, and
+// under Xvfb on Linux a capture taken before then fails with "Unable to capture screenshot" (GitHub e2e-linux).
+// So wait until the main process says the window is visible, then capture, retrying only that one error a few
+// times while the compositor catches up.
+export const shot = async (
+  app: ElectronApplication,
+  win: Page,
+  path: string
+) => {
+  await expect
+    .poll(() =>
+      app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().some((w) => w.isVisible())
+      )
+    )
+    .toBe(true);
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await win.screenshot({ path });
+      return;
+    } catch (error) {
+      if (
+        attempt >= 5 ||
+        !String(error).includes('Unable to capture screenshot')
+      )
+        throw error;
+      // eslint-disable-next-line no-await-in-loop
+      await win.waitForTimeout(500);
+    }
+  }
+};

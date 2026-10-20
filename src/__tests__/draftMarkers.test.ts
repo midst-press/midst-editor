@@ -2,9 +2,11 @@
 import {
   createMarker,
   deleteMarker,
+  markerAt,
   MarkerResult,
   Meta,
   renameMarker,
+  restoreMarker,
   shownMarkers,
 } from '../renderer/tracking/draftMarkers';
 
@@ -449,5 +451,59 @@ describe('shownMarkers', () => {
     expect(shownMarkers(meta, 5)).toEqual([{ index: 3, label: 'Draft 1' }]);
     meta = metaOf(renameMarker(meta, 3, 'zq'));
     expect(shownMarkers(meta, 5)).toEqual([{ index: 3, label: 'zq' }]);
+  });
+});
+
+describe('restoreMarker: undoing a delete (#277)', () => {
+  const kept = { index: 5, name: 'zq', defaultName: 'Draft 2', timestamp: 7 };
+  const before: Meta = {
+    other: 'xv',
+    highestDraftNumber: 3,
+    draftMarkers: [
+      { index: 1, defaultName: 'Draft 1' },
+      kept,
+      { index: 9, defaultName: 'Draft 3' },
+    ],
+  };
+
+  it('puts the marker back exactly as it was, at its place in the list, with its number', () => {
+    const found = markerAt(before, 5);
+    expect(found).toEqual({ marker: kept, position: 1 });
+    const after = metaOf(deleteMarker(before, 5));
+    const restored = metaOf(restoreMarker(after, kept, 1));
+    expect(restored).toEqual(before);
+  });
+
+  it('never lets a number be given out twice: the next draft after an undo is still Draft 4', () => {
+    const after = metaOf(deleteMarker(before, 5));
+    const restored = metaOf(restoreMarker(after, kept, 1));
+    expect(metaOf(createMarker(restored, 20, 30)).draftMarkers).toContainEqual({
+      index: 20,
+      defaultName: 'Draft 4',
+    });
+  });
+
+  it('refuses when another marker now holds the position', () => {
+    const after = metaOf(createMarker(metaOf(deleteMarker(before, 5)), 5, 30));
+    expect(refusal(restoreMarker(after, kept, 1))).toBe(
+      'position-has-a-marker'
+    );
+  });
+
+  it('puts it at the end when the list is now shorter than its old place', () => {
+    const restored = metaOf(restoreMarker({ draftMarkers: [] }, kept, 4));
+    expect(restored.draftMarkers).toEqual([kept]);
+  });
+
+  it('refuses a list it cannot read, and changes nothing', () => {
+    const unreadable = frozen({ draftMarkers: 'zq' });
+    expect(refusal(restoreMarker(unreadable, kept, 0))).toBe(
+      'markers-unreadable'
+    );
+    expect(markerAt(unreadable, 5)).toBeNull();
+  });
+
+  it('finds no marker where there is none', () => {
+    expect(markerAt(before, 6)).toBeNull();
   });
 });

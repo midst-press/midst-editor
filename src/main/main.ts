@@ -39,6 +39,7 @@ import MenuBuilder, {
   openFile,
   openPath,
   logIfRejected,
+  setLanguage,
 } from './menu';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
@@ -46,8 +47,12 @@ import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
-import { activateLocale, i18n, pickLocale } from '../shared/i18n';
-import { LOCALE_ARGUMENT } from '../shared/localeArgument';
+import {
+  activateLocale,
+  chosenLocale,
+  i18n,
+  languageOrder,
+} from '../shared/i18n';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -126,8 +131,6 @@ const createWindow = async () => {
         : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
-      // The renderer shows its words in the language the menus use, chosen at whenReady.
-      additionalArguments: [`${LOCALE_ARGUMENT}${i18n.locale}`],
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
@@ -255,6 +258,16 @@ ipcMain.on('button-open-file', () => {
   logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
+// The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
+// Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
+ipcMain.on('language-order', (event) => {
+  event.returnValue = languageOrder(app.getPreferredSystemLanguages());
+});
+ipcMain.on('set-language', (_event, args: unknown) => {
+  const [tag] = Array.isArray(args) ? args : [];
+  if (typeof tag === 'string' && mainWindow) setLanguage(tag, mainWindow);
+});
+
 // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
 ipcMain.on('open-help', () => {
   logIfRejected('help', () => shell.openExternal(helpUrl(app.getVersion())));
@@ -365,9 +378,10 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
-    // The menus, dialogs and window speak the system's first language the catalog has, else English
-    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
-    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
+    // The menus, dialogs and window speak the language the poet chose from View > Language, else
+    // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
+    // rebuilds the menus and tells the window (setLanguage).
+    activateLocale(chosenLocale(store.get('language')));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {

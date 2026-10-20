@@ -1,32 +1,24 @@
 import { createContext } from 'react';
 import { ChangeObj } from '@midst-press/midst-format/history';
 
-const initialTextState = {
+// The defaults carry each context's type. App.tsx provides the real setters; a consumer rendered without its
+// Provider would otherwise drop the poem's text or history without a word, so the defaults throw (#253).
+// eslint-disable-next-line no-unused-vars -- the base rule reports a parameter named in a function type
+const initialTextState: { text: string; setText: (text: string) => void } = {
   text: '',
-  // Default no-op setter; real setter is supplied by the Provider in App.tsx.
-  setText: (text: string) => {
-    if (text) {
-      /* no-op */
-    }
+  setText: () => {
+    throw new Error('TextContext used outside its Provider');
   },
 };
 
-const initialHistoryState = {
-  poemHistory: [] as ChangeObj[],
-  // Default no-op setter; real setter is supplied by the Provider in App.tsx.
-  setPoemHistory: (poemHistory: ChangeObj[]) => {
-    if (poemHistory) {
-      /* no-op */
-    }
-  },
-};
-const initialFilenameState = {
-  text: '',
-  // Default no-op setter; real setter is supplied by a Provider.
-  setText: (filename: string) => {
-    if (filename) {
-      /* no-op */
-    }
+const initialHistoryState: {
+  poemHistory: ChangeObj[];
+  // eslint-disable-next-line no-unused-vars -- the base rule reports a parameter named in a function type
+  setPoemHistory: (poemHistory: ChangeObj[]) => void;
+} = {
+  poemHistory: [],
+  setPoemHistory: () => {
+    throw new Error('HistoryContext used outside its Provider');
   },
 };
 
@@ -36,4 +28,3 @@ export const RETURN_TO = 'midst-return-to';
 
 export const TextContext = createContext(initialTextState);
 export const HistoryContext = createContext(initialHistoryState);
-export const FilenameContext = createContext(initialFilenameState);
