@@ -69,6 +69,24 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
       })
       .toEqual([`Midst could not save "${basename(poemPath)}".`]);
 
+    // The window keeps saying so (#94): off macOS in its title, on a Mac by the dot in the close button.
+    const name = basename(poemPath);
+    const shown = process.platform === 'darwin' ? name : `${name} (not saved)`;
+    await expect
+      .poll(
+        async () => ({
+          doc: await win.evaluate(() => document.title),
+          native: await app.evaluate(({ BrowserWindow }) =>
+            BrowserWindow.getAllWindows()[0].getTitle()
+          ),
+        }),
+        {
+          message: 'the title does not say the poem is not saved',
+          timeout: 10_000,
+        }
+      )
+      .toEqual({ doc: shown, native: shown });
+
     expect(
       await waitUntil(
         () => readLog(logDir).some((r) => r.msg === NOT_WRITTEN),

@@ -376,3 +376,66 @@ describe('MenuBar set-font-size message from the main process', () => {
     expect(editorClass()).toContain('size-3');
   });
 });
+
+// #284, GitHub #66: a button that cannot be used says why, in its tooltip and its description, and looks unavailable.
+describe('MenuBar: a button that cannot be used says why', () => {
+  const button = (name: string) => screen.getByRole('button', { name });
+
+  it.each([
+    [
+      '4',
+      'Increase text size',
+      'The text is already at its largest size.',
+      'Decrease text size',
+    ],
+    [
+      '0',
+      'Decrease text size',
+      'The text is already at its smallest size.',
+      'Increase text size',
+    ],
+  ])(
+    'at size %s, %s says so; the other button does not',
+    (stored, off, reason, on) => {
+      install({ 'font-size': stored });
+      mount();
+      expect(button(off)).toHaveAccessibleDescription(reason);
+      expect(button(off)).toHaveStyle({ opacity: '0.38' });
+      expect(button(on)).toHaveAccessibleDescription('');
+      expect(button(on)).not.toHaveStyle({ opacity: '0.38' });
+    }
+  );
+
+  it('in a code block, Bold and Italic say they cannot be used here', () => {
+    mount({ content: '<pre><code>synthetic code</code></pre>' });
+    selectAll();
+    expect(button('Bold')).toHaveAccessibleDescription(
+      "Bold can't be used in this part of the poem."
+    );
+    expect(button('Italic')).toHaveAccessibleDescription(
+      "Italic can't be used in this part of the poem."
+    );
+    expect(button('Bold')).toHaveStyle({ opacity: '0.38' });
+  });
+
+  it('where every button can be used, none has a reason or looks unavailable', () => {
+    mount();
+    ['Increase text size', 'Decrease text size', 'Bold', 'Italic'].forEach(
+      (name) => {
+        expect(button(name)).toHaveAccessibleDescription('');
+        expect(button(name)).not.toHaveStyle({ opacity: '0.38' });
+      }
+    );
+  });
+
+  it('shows the reason in a tooltip over a disabled button', async () => {
+    install({ 'font-size': '4' });
+    mount();
+    fireEvent.mouseOver(
+      button('Increase text size').parentElement as HTMLElement
+    );
+    expect(
+      await screen.findByRole('tooltip', {}, { timeout: 3000 })
+    ).toHaveTextContent('The text is already at its largest size.');
+  });
+});

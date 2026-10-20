@@ -25,7 +25,6 @@ import {
 } from 'electron';
 import debug from 'electron-debug';
 import log from 'electron-log';
-import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import {
   applyLogLevel,
@@ -40,6 +39,7 @@ import MenuBuilder, {
   openFile,
   openPath,
   logIfRejected,
+  setLanguage,
 } from './menu';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
@@ -47,21 +47,12 @@ import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
 import { describeError } from '../shared/errorSummary';
-import { activateLocale, i18n, pickLocale } from '../shared/i18n';
-import { LOCALE_ARGUMENT } from '../shared/localeArgument';
-
-class AppUpdater {
-  constructor() {
-    // Level is whatever the user has configured; see src/main/logging.ts.
-    applyLogLevel();
-    autoUpdater.logger = log;
-    // A failed check is expected (offline, no feed, an app not installed through its package) and must
-    // not reach the unhandled-rejection handler. Async so a synchronous throw is caught the same way.
-    (async () => autoUpdater.checkForUpdatesAndNotify())().catch((error) =>
-      log.warn('update check failed', describeError(error))
-    );
-  }
-}
+import {
+  activateLocale,
+  chosenLocale,
+  i18n,
+  languageOrder,
+} from '../shared/i18n';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -140,8 +131,6 @@ const createWindow = async () => {
         : getAssetPath('icon.ico'),
     webPreferences: {
       sandbox: false,
-      // The renderer shows its words in the language the menus use, chosen at whenReady.
-      additionalArguments: [`${LOCALE_ARGUMENT}${i18n.locale}`],
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
         : path.join(__dirname, '../../.erb/dll/preload.js'),
@@ -151,6 +140,14 @@ const createWindow = async () => {
   });
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
+
+  // A page with no title of its own (the opening screen's is empty, #194) leaves Electron to name the window after
+  // the page's file, index.html, which the Window menu, Mission Control and the Dock show. It is called Midst there.
+  mainWindow.on('page-title-updated', (event, title, explicitSet) => {
+    if (explicitSet && title !== '') return;
+    event.preventDefault();
+    mainWindow?.setTitle(i18n._('menu.app'));
+  });
 
   mainWindow.on('ready-to-show', () => {
     if (!mainWindow) {
@@ -236,9 +233,9 @@ const createWindow = async () => {
     return { action: 'deny' };
   });
 
-  // Remove this if your app does not use auto updates
-  // eslint-disable-next-line
-  new AppUpdater();
+  // The log level is whatever the user has configured; see src/main/logging.ts. (There is no update
+  // check: removed until self-update can ask first, #178, #269.)
+  applyLogLevel();
 };
 
 // The renderer's requests. Registered once, here: createWindow runs again on activate, and while
@@ -259,6 +256,16 @@ ipcMain.on('button-open-file', () => {
   if (mainWindow === null) return;
   const win = mainWindow;
   logIfRejected('open', () => openFile(win, isDarwin()));
+});
+
+// The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
+// Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
+ipcMain.on('language-order', (event) => {
+  event.returnValue = languageOrder(app.getPreferredSystemLanguages());
+});
+ipcMain.on('set-language', (_event, args: unknown) => {
+  const [tag] = Array.isArray(args) ? args : [];
+  if (typeof tag === 'string' && mainWindow) setLanguage(tag, mainWindow);
 });
 
 // "Need Help?" on the opening screen. Main decides where it goes, from the app's own version.
@@ -371,9 +378,14 @@ app.on('open-file', async (event, filename) => {
 app
   .whenReady()
   .then(() => {
-    // The menus, dialogs and window speak the system's first language the catalog has, else English
-    // (midst-infra docs/design/message-catalog.md, section 6). Chosen once, before the first window.
-    activateLocale(pickLocale(app.getPreferredSystemLanguages()));
+    // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
+    // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
+    applyLogLevel();
+    log.info('started', { version: app.getVersion() });
+    // The menus, dialogs and window speak the language the poet chose from View > Language, else
+    // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
+    // rebuilds the menus and tells the window (setLanguage).
+    activateLocale(chosenLocale(store.get('language')));
     createWindow();
     app.on('activate', (_event, hasVisibleWindows) => {
       if (!hasVisibleWindows) {

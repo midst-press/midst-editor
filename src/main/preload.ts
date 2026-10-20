@@ -5,7 +5,6 @@ import {
   TitlebarColor,
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
-import { localeFromArgv } from '../shared/localeArgument';
 import { TITLEBAR_BACKGROUND } from './appearance';
 
 export type Channels =
@@ -13,6 +12,8 @@ export type Channels =
   | 'open-file'
   | 'set-filename'
   | 'set-font-size'
+  | 'set-locale'
+  | 'set-language'
   | 'toggle-edit-mode'
   | 'save-file'
   | 'toggle-spellcheck'
@@ -24,6 +25,7 @@ export type Channels =
   | 'enable-save'
   | 'disable-save'
   | 'cancel-save'
+  | 'set-not-saved'
   | 'flush-editor'
   | 'editor-flushed'
   | 'app-open';
@@ -138,8 +140,10 @@ const electronHandler = {
   versions: {
     isMac: process.platform === 'darwin',
   },
-  // The language the main process chose, which the renderer activates before it shows anything.
-  locale: localeFromArgv(process.argv),
+  // The languages in the order the main process shows them: English, the system's own, the rest (editor #265).
+  languageOrder(): string[] {
+    return ipcRenderer.sendSync('language-order');
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

@@ -1,3 +1,26 @@
+# 0.7.0
+
+- **Choose the language Midst speaks.** The languages Midst has are at the top of the opening screen, each by
+  its own name, with the American flag beside English, and in **View** > **Language**; for now that is English.
+  Midst starts in English until you choose, whatever your computer's language, and remembers your choice. The
+  menus and the window change at once, and the poem does not.
+- **Poems from the old Midst now convert exactly.** Every one of the 54 archive poems converts to the lines the
+  old Midst showed (midst-format v0.5.0).
+- **A deleted draft can be put back.** For 5 seconds after you delete a draft, the drafts list shows **Undo**,
+  which brings it back with its name, its number and its place in the list.
+- **Midst no longer checks for a new version when it opens.** The check could not work in the installed
+  app, and it would have installed a new version without asking. When Midst can update itself, it will ask
+  you first.
+- **A button you cannot use says why, in the replay and in the editor.** With no history to replay, the play
+  button says so when you point at it, and so do the text size buttons at the largest and smallest sizes. In the
+  editor, Bold and Italic say so where they can't be used, such as in a code block. These buttons also look
+  unavailable now.
+- **When Midst cannot save, it says so once and keeps showing it.** If the first save of a new poem fails,
+  Midst no longer opens the save panel again every time you pause in typing; choose **File** > **Save** when you
+  are ready to try again. On Windows and Linux the window's title says "(not saved)" until a save works, as the
+  dot in the close button does on a Mac.
+- Under the hood: the unused updater library is removed.
+
 # 0.6.0
 
 - **Midst no longer stops at a blocking error box when it cannot check for updates**, for example when you

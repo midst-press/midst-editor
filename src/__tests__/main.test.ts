@@ -11,6 +11,11 @@ import { helpUrl } from '../shared/helpUrl';
 // (jest.resetModules) and a fresh electron stand-in. The stand-in RECORDS what main.ts registers;
 // the tests then call the recorded handlers the way electron would.
 
+// 30 s per test, not Jest's 5 s, for this file only (#281). Each test does milliseconds of work and none waits on
+// wall time, but on a starved CI host the file took 174 s against 4 s idle, and two tests ran out of 5 s waiting
+// for the CPU. A test that truly hangs still fails, in 30 s.
+jest.setTimeout(30_000);
+
 type Handler = jest.Mock;
 
 interface FakeWindow {
@@ -23,6 +28,7 @@ interface FakeWindow {
   isDestroyed: jest.Mock;
   setDocumentEdited: jest.Mock;
   setRepresentedFilename: jest.Mock;
+  setTitle: jest.Mock;
   webContents: { send: jest.Mock; setWindowOpenHandler: jest.Mock };
 }
 
@@ -85,6 +91,8 @@ jest.mock('electron', () => {
     setDocumentEdited = jest.fn();
 
     setRepresentedFilename = jest.fn();
+
+    setTitle = jest.fn();
 
     webContents = { send: jest.fn(), setWindowOpenHandler: jest.fn() };
 
@@ -153,14 +161,6 @@ jest.mock('electron-devtools-assembler', () => ({
   default: (...args: unknown[]) => mockInstallExtension(...args),
   REACT_DEVELOPER_TOOLS: 'react-devtools',
 }));
-// What the update check does; a test can make it reject or throw.
-const mockCheckForUpdates = jest.fn((): unknown => Promise.resolve(null));
-jest.mock('electron-updater', () => ({
-  autoUpdater: {
-    checkForUpdatesAndNotify: jest.fn(() => mockCheckForUpdates()),
-    logger: null,
-  },
-}));
 
 jest.mock('electron-log', () => ({
   __esModule: true,
@@ -213,6 +213,7 @@ jest.mock('../main/menu', () => ({
   __esModule: true,
   default: jest.fn(() => ({ buildMenu: jest.fn() })),
   applyStoredAppearance: jest.fn(),
+  setLanguage: jest.fn(),
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
@@ -247,7 +248,6 @@ const boot = async (opts: { ready?: boolean } = {}) => {
   const titlebar = await import(
     '@jshafto/custom-electron-titlebar-update/main'
   );
-  const { autoUpdater } = await import('electron-updater');
   await import('../main/main');
   const state = electron.mockState;
   const flush = () =>
@@ -284,7 +284,6 @@ const boot = async (opts: { ready?: boolean } = {}) => {
     log,
     logging,
     titlebar,
-    autoUpdater,
     flush,
     win,
     fireIpc,
@@ -363,27 +362,80 @@ describe('main process', () => {
     );
   });
 
-  it('chooses the language from the system before the window loads', async () => {
-    const { state } = await boot();
+  it('starts in English, without asking the system, until the poet chooses (editor #265)', async () => {
+    await boot();
     const electron = (await import('electron')) as unknown as {
       app: { getPreferredSystemLanguages: jest.Mock };
     };
-    const asked = electron.app.getPreferredSystemLanguages;
-    expect(asked).toHaveBeenCalledTimes(1);
-    expect(asked.mock.invocationCallOrder[0]).toBeLessThan(
+    const { i18n } = await import('../shared/i18n');
+    expect(i18n.locale).toBe('en');
+    expect(electron.app.getPreferredSystemLanguages).not.toHaveBeenCalled();
+  });
+
+  it('starts in the language the poet chose, read from the store before the window loads', async () => {
+    const { state, store, flush } = await boot({ ready: false });
+    const read = jest.spyOn(store, 'get');
+    state.resolveReady();
+    await flush();
+    const asked = read.mock.calls.findIndex(([key]) => key === 'language');
+    expect(asked).toBeGreaterThanOrEqual(0);
+    expect(read.mock.invocationCallOrder[asked]).toBeLessThan(
       (state.windows[0].loadURL as jest.Mock).mock.invocationCallOrder[0]
     );
   });
 
-  it('tells the renderer the language it chose, on its command line', async () => {
+  describe('the languages on the opening screen (editor #265)', () => {
+    it("answers their order: English, then the system's own, then the rest", async () => {
+      const { fireIpc } = await boot();
+      const event = { returnValue: undefined as unknown };
+      await fireIpc('language-order', event);
+      expect(event.returnValue).toEqual(['en']);
+    });
+
+    it('hands a chosen language to setLanguage with the window', async () => {
+      const { fireIpc, menu, win } = await boot();
+      await fireIpc('set-language', {}, ['zq']);
+      expect(menu.setLanguage).toHaveBeenCalledWith('zq', win());
+    });
+
+    it('ignores a message that names no language', async () => {
+      const { fireIpc, menu } = await boot();
+      await fireIpc('set-language', {}, [3]);
+      await fireIpc('set-language', {}, 'en');
+      await fireIpc('set-language', {}, undefined);
+      expect(menu.setLanguage).not.toHaveBeenCalled();
+    });
+  });
+
+  it('passes the renderer no language on its command line: it reads the store (editor #265)', async () => {
     const { state } = await boot();
-    const { i18n } = await import('../shared/i18n');
     const prefs = state.windows[0].options.webPreferences as {
-      additionalArguments: string[];
+      additionalArguments?: string[];
     };
-    expect(prefs.additionalArguments).toEqual([
-      `--midst-locale=${i18n.locale}`,
-    ]);
+    expect(prefs.additionalArguments).toBeUndefined();
+  });
+
+  describe('the native window title (#194)', () => {
+    const titleEvent = () => ({ preventDefault: jest.fn() });
+
+    it.each([
+      ['an empty title', '', true],
+      ["Electron's own fallback to the file name", 'index.html', false],
+    ])('is Midst for %s', async (_case, title, explicitSet) => {
+      const { state, fireWindow } = await boot();
+      const event = titleEvent();
+      await fireWindow('page-title-updated', event, title, explicitSet);
+      expect(event.preventDefault).toHaveBeenCalledTimes(1);
+      expect(state.windows[0].setTitle).toHaveBeenCalledWith('Midst');
+    });
+
+    it("is the page's title when the page sets one", async () => {
+      const { state, fireWindow } = await boot();
+      const event = titleEvent();
+      await fireWindow('page-title-updated', event, 'zq.midst', true);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(state.windows[0].setTitle).not.toHaveBeenCalled();
+    });
   });
 
   describe('closing the window', () => {
@@ -1098,8 +1150,8 @@ describe('main process', () => {
       expect(String(win().options.icon).endsWith(file)).toBe(true);
     });
 
-    it('builds the menu and the titlebar for the window and checks for updates', async () => {
-      const { menu, titlebar, autoUpdater, win } = await boot();
+    it('builds the menu and the titlebar for the window', async () => {
+      const { menu, titlebar, win } = await boot();
       expect(menu.default).toHaveBeenCalledWith(win());
       const builder = jest.mocked(menu.default).mock.results[0].value as {
         buildMenu: jest.Mock;
@@ -1107,48 +1159,26 @@ describe('main process', () => {
       expect(builder.buildMenu).toHaveBeenCalledTimes(1);
       expect(titlebar.setupTitlebar).toHaveBeenCalledTimes(1);
       expect(titlebar.attachTitlebarToWindow).toHaveBeenCalledWith(win());
-      expect(autoUpdater.checkForUpdatesAndNotify).toHaveBeenCalledTimes(1);
     });
 
-    // 0.5.0: the check's rejection reached the unhandled-rejection handler, whose modal dialog froze
-    // the main process. A failed check is expected (offline, no feed, not installed) and is a warning.
-    it.each([
-      [
-        'rejects',
-        () => {
-          const e = new Error('ENOENT zq-path');
-          e.stack = 'Error: ENOENT zq-path';
-          return Promise.reject(e);
-        },
-      ],
-      [
-        'throws',
-        () => {
-          throw new TypeError('zq-sync');
-        },
-      ],
-    ])(
-      'an update check that %s is logged as a warning, name only, and is not left unhandled',
-      async (_how, outcome) => {
-        mockCheckForUpdates.mockImplementationOnce(outcome);
-        const unhandled = jest.fn();
-        process.on('unhandledRejection', unhandled);
-        try {
-          const { log, flush } = await boot();
-          await flush();
-          expect(log.warn).toHaveBeenCalledWith('update check failed', {
-            name: expect.stringMatching(/^(Error|TypeError)$/),
-            frames: expect.any(Array),
-          });
-          expect(JSON.stringify(jest.mocked(log.warn).mock.calls)).not.toMatch(
-            /zq-/
-          );
-          expect(unhandled).not.toHaveBeenCalled();
-        } finally {
-          process.off('unhandledRejection', unhandled);
-        }
-      }
-    );
+    // The stored level is applied when the window is made. It used to happen only inside the update
+    // check's constructor (removed, #178), so this is its own test now.
+    it('logs its start-up once, with the version', async () => {
+      const { log } = await boot();
+      const started = jest
+        .mocked(log.info)
+        .mock.calls.filter(([msg]) => msg === 'started');
+      expect(started).toEqual([['started', { version: '9.9.9' }]]);
+    });
+
+    it('applies the stored log level at startup', async () => {
+      const { store, log, state, flush } = await boot({ ready: false });
+      store.set('logLevel', 'debug');
+      state.resolveReady();
+      await flush();
+      expect(log.transports.file.level).toBe('debug');
+      expect(log.transports.console.level).toBe('debug');
+    });
 
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
@@ -1330,6 +1360,8 @@ describe('main process', () => {
       'log-message at level %s is forwarded to the renderer scope as %s, with the message unchanged',
       async (level, method) => {
         const { log, fireIpc } = await boot();
+        // Start-up logs through the main-process logger ('started'); only what the forwarding does counts here.
+        jest.mocked(log[method]).mockClear();
         await fireIpc('log-message', {}, level, 'zq');
         expect(rendererScope(log)[method]).toHaveBeenCalledWith('zq');
         await fireIpc('log-message', {}, level, 'xv', { n: 1 });

@@ -89,21 +89,15 @@ describe('exposure', () => {
     expect(mockExposeInMainWorld).toHaveBeenCalledTimes(1);
     expect(mockExposeInMainWorld.mock.calls[0][0]).toBe('electron');
     expect(Object.keys(api).sort()).toEqual(
-      ['ipcRenderer', 'locale', 'log', 'store', 'titlebar', 'versions'].sort()
+      [
+        'ipcRenderer',
+        'languageOrder',
+        'log',
+        'store',
+        'titlebar',
+        'versions',
+      ].sort()
     );
-  });
-
-  it('hands the renderer the locale the main process put on its command line', () => {
-    const { argv } = process;
-    try {
-      process.argv = [...argv, '--midst-locale=zq'];
-      expect(loadPreload().locale).toBe('zq');
-      jest.clearAllMocks();
-      process.argv = argv.filter((a) => !a.startsWith('--midst-locale='));
-      expect(loadPreload().locale).toBe('en');
-    } finally {
-      process.argv = argv;
-    }
   });
 
   it('reports isMac true on darwin and false elsewhere', () => {
@@ -191,6 +185,14 @@ describe('ipcRenderer.once', () => {
     unsubscribe();
     expect(mockIpc.removeListener).toHaveBeenCalledTimes(1);
     expect(mockIpc.removeListener).toHaveBeenCalledWith('app-open', listener);
+  });
+});
+
+describe('languageOrder (editor #265)', () => {
+  it("asks the main process for the languages' order, synchronously", () => {
+    mockIpc.sendSync.mockReturnValue(['en', 'zq']);
+    expect(loadPreload().languageOrder()).toEqual(['en', 'zq']);
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('language-order');
   });
 });
 

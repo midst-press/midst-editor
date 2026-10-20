@@ -12,6 +12,7 @@ import FindBar, {
   typeFirst,
 } from '../renderer/search/FindBar';
 import findInText from '../renderer/search/findInText';
+import { activateLocale, i18n } from '../shared/i18n';
 import SearchHighlight, {
   CURRENT_CLASS,
   searchHighlightKey,
@@ -380,6 +381,22 @@ describe('FindBar: when it cannot search', () => {
     type('');
     expect(screen.queryByRole('alert')).toBeNull();
     expect(bridge.errors).toEqual([]);
+  });
+
+  it('FB-R-2 a problem showing when the language changes is put into the new words (editor #265)', () => {
+    const { rerender } = render(<FindBar editor={null} />);
+    bridge.openBar();
+    type('qv');
+    try {
+      i18n.loadAndActivate({
+        locale: 'zq',
+        messages: { 'find.notReady': 'ZQ-NOT-READY' },
+      });
+      rerender(<FindBar editor={null} />);
+      expect(screen.getByRole('alert')).toHaveTextContent('ZQ-NOT-READY');
+    } finally {
+      activateLocale('en');
+    }
   });
 
   it('FB-X-1 a search that throws is logged without the poem, and the poet is told', () => {

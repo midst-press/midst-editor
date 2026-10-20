@@ -29,7 +29,13 @@ import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
 import { loadDataIntoWorkspace } from './util';
-import { i18n } from '../shared/i18n';
+import * as saveFailure from './saveFailurePolicy';
+import {
+  activateLocale,
+  i18n,
+  languageName,
+  languageOrder,
+} from '../shared/i18n';
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
@@ -101,6 +107,19 @@ export const applyStoredAppearance = () => {
   nativeTheme.themeSource = appearanceOrDefault(store.get('appearance'));
 };
 
+// The poet's language (editor #265). Kept in the store under 'language'; until the poet chooses there is
+// none, and the app is in English (chosenLocale). The menus are rebuilt in the new language at once, and
+// every window is told, so the menus and the window always agree.
+export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
+  const used = activateLocale(locale);
+  store.set('language', used);
+  // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
+  new MenuBuilder(mainWindow).applyMenu();
+  BrowserWindow.getAllWindows().forEach((w) =>
+    w.webContents.send('set-locale', used)
+  );
+};
+
 // Looked up when the menu is built, in the language chosen then.
 const APPEARANCE_LABELS: Record<Appearance, () => string> = {
   system: () => i18n._('menu.view.appearance.system'),
@@ -158,15 +177,28 @@ const saveFilters = () => [
 // callback, and the callback would then mark those keystrokes as saved.
 //
 // When the write fails nothing is recorded: the document keeps its previous filename and stays
-// unsaved. Whether the poet is told depends on who started the save:
-//   - `byPoet`: they chose Save or Save As, or have just picked the file in a dialog. Always told.
-//   - otherwise it is one of the editor's own saves (on opening a document, a second after typing,
-//     on leaving for the replay). Not told when nothing was unsaved: opening a read-only poem to
-//     read it is not a failure worth a message. And told only ONCE per file while it keeps failing:
-//     an autosave follows every pause in typing, and a message after each one would make a poem in
-//     a read-only place impossible to work on. The macOS edited dot stays on throughout.
+// unsaved. Whether the poet is told, and how the window shows it, is saveFailurePolicy.ts (#94).
+// `byPoet` is true when they chose Save or Save As, or have just picked the file in a dialog.
 // `saveElsewhere` is what "Save As…" in that message does.
-let toldCouldNotSave: string | undefined;
+
+// Off macOS the window's title says when the poem is not saved; the renderer sets it (#94). Sent only when
+// that changes. On macOS the edited dot says it instead.
+const sayWhetherSaved = (
+  mainWindow: BrowserWindow,
+  darwin: boolean,
+  wasShown: boolean
+) => {
+  const shown = saveFailure.showsNotSaved();
+  if (!darwin && shown !== wasShown)
+    mainWindow.webContents.send('set-not-saved', shown);
+};
+
+// The window now holds another document: nothing about the last one's failed saves applies to it.
+const forgetSaveFailures = (mainWindow: BrowserWindow, darwin: boolean) => {
+  const wasShown = saveFailure.showsNotSaved();
+  saveFailure.startAgain();
+  sayWhetherSaved(mainWindow, darwin, wasShown);
+};
 
 // The write succeeded: the document is now this file, and saved.
 const recordSaved = (
@@ -174,7 +206,7 @@ const recordSaved = (
   darwin: boolean,
   filename: string
 ) => {
-  toldCouldNotSave = undefined;
+  forgetSaveFailures(mainWindow, darwin);
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   rememberFolder(filename);
@@ -195,19 +227,26 @@ const reportCouldNotSave = async (
     filename,
     reason,
     byPoet,
+    firstSave,
     saveElsewhere,
   }: {
     filename: string;
     reason: string;
     byPoet: boolean;
+    firstSave: boolean;
     saveElsewhere: () => Promise<void>;
   }
 ) => {
-  const nothingUnsaved = store.get('edited') === 'false';
-  if (!byPoet && nothingUnsaved) return;
-  if (darwin && !nothingUnsaved) mainWindow.setDocumentEdited(true);
-  if (!byPoet && toldCouldNotSave === filename) return;
-  toldCouldNotSave = filename;
+  const wasShown = saveFailure.showsNotSaved();
+  const tell = saveFailure.failed({
+    filename,
+    byPoet,
+    firstSave,
+    nothingUnsaved: store.get('edited') === 'false',
+  });
+  if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
+  sayWhetherSaved(mainWindow, darwin, wasShown);
+  if (!tell) return;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
     title: i18n._('dialog.couldNotSave.title'),
@@ -230,11 +269,13 @@ const writeAndRecord = async (
     action,
     filename,
     byPoet,
+    firstSave,
     saveElsewhere,
   }: {
     action: 'save' | 'saveAs';
     filename: string;
     byPoet: boolean;
+    firstSave: boolean;
     saveElsewhere: () => Promise<void>;
   }
 ) => {
@@ -253,6 +294,7 @@ const writeAndRecord = async (
       filename,
       reason: i18n._('dialog.couldNotSave.notPrepared'),
       byPoet,
+      firstSave,
       saveElsewhere,
     });
     return;
@@ -280,6 +322,7 @@ const writeAndRecord = async (
       filename,
       reason,
       byPoet,
+      firstSave,
       saveElsewhere,
     });
     return;
@@ -307,6 +350,7 @@ export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
       action: 'saveAs',
       filename,
       byPoet: true,
+      firstSave: !store.get('filename'),
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   }
@@ -388,6 +432,14 @@ export const save = async (
     return;
   }
   const stored = store.get('filename') as string | undefined;
+  if (!stored && !saveFailure.mayAskWhereToSave(byPoet)) {
+    // Its first save failed, and the panel would otherwise open at every pause in typing (#94). The poem
+    // stays unsaved: Save and Save As still ask where it goes, and closing the window warns that it is unsaved.
+    log.info(
+      'autosave: not asking again where to save a document whose first save failed'
+    );
+    return;
+  }
   const filename =
     stored ||
     dialog.showSaveDialogSync(mainWindow, {
@@ -401,6 +453,7 @@ export const save = async (
       action: 'save',
       filename,
       byPoet: byPoet || !stored,
+      firstSave: !stored,
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   } else {
@@ -422,6 +475,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
+  forgetSaveFailures(mainWindow, darwin);
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
@@ -612,7 +666,12 @@ export default class MenuBuilder {
     if (isDevelopment()) {
       this.setupDevelopmentEnvironment();
     }
+    return this.applyMenu();
+  }
 
+  // Builds the menus in the active language and installs them. A language change calls this alone: the
+  // development context menu is the window's, set up once by buildMenu.
+  applyMenu(): Menu {
     const template =
       process.platform === 'darwin'
         ? this.buildDarwinTemplate()
@@ -710,6 +769,23 @@ export default class MenuBuilder {
         checked: appearance === current,
         click: () => setAppearance(appearance),
       })),
+    };
+  }
+
+  // Each language by its own name, in languageOrder (English, the system's language, then the rest).
+  private languageItem(): MenuItemConstructorOptions {
+    return {
+      id: 'menu.view.language',
+      label: this.label(i18n._('menu.view.language')),
+      submenu: languageOrder(app.getPreferredSystemLanguages()).map(
+        (locale) => ({
+          id: `menu.view.language.${locale}`,
+          label: this.label(languageName(locale)),
+          type: 'radio' as const,
+          checked: locale === i18n.locale,
+          click: () => setLanguage(locale, this.mainWindow),
+        })
+      ),
     };
   }
 
@@ -921,6 +997,7 @@ export default class MenuBuilder {
               store.set('meta', '');
               store.set('filename', '');
               store.set('edited', JSON.stringify(false));
+              saveFailure.startAgain();
               app.emit('activate', false);
             } else {
               logIfRejected('new', () => newFile(this.mainWindow, true));
@@ -966,11 +1043,13 @@ export default class MenuBuilder {
             this.devToolsItem('Alt+Command+I'),
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             this.appearanceItem(),
+            this.languageItem(),
           ]
         : [
             fullScreen,
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
             this.appearanceItem(),
+            this.languageItem(),
           ],
     };
     const subMenuWindow: DarwinMenuItemConstructorOptions = {
@@ -1060,11 +1139,13 @@ export default class MenuBuilder {
               this.devToolsItem('Alt+Ctrl+I'),
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
               this.appearanceItem(),
+              this.languageItem(),
             ]
           : [
               fullScreen,
               ...this.textSizeItems('Ctrl+=', 'Ctrl+-'),
               this.appearanceItem(),
+              this.languageItem(),
             ],
       },
       {

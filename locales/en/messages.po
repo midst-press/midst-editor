@@ -283,6 +283,12 @@ msgid "drafts.delete"
 msgstr "Delete draft"
 
 #. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.deleted"
+msgstr "Draft deleted."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Replay/index.tsx
@@ -371,6 +377,12 @@ msgstr "Show their names"
 #, fuzzy
 msgid "drafts.title"
 msgstr "Drafts"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "drafts.undo"
+msgstr "Undo"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
@@ -481,10 +493,22 @@ msgstr "Bold"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.bold.unavailable"
+msgstr "Bold can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.italic"
 msgstr "Italic"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.italic.unavailable"
+msgstr "Italic can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -535,6 +559,12 @@ msgid "landing.getStarted"
 msgstr "Get Started:"
 
 #. js-lingui-explicit-id
+#: src/renderer/language/LanguageChoices.tsx
+#, fuzzy
+msgid "landing.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/LandingDialog/index.tsx
 #, fuzzy
 msgid "landing.needHelp"
@@ -559,6 +589,7 @@ msgid "landing.welcome"
 msgstr "Welcome to Midst!"
 
 #. js-lingui-explicit-id
+#: src/main/main.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.app"
@@ -903,6 +934,12 @@ msgstr "Fill the screen with Midst, or stop"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "menu.view.language"
+msgstr "Language"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "menu.view.reload"
 msgstr "&Reload"
 
@@ -992,6 +1029,26 @@ msgid "replay.follow.on"
 msgstr "Following the writing as it replays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.pause"
+msgstr "Pause"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.play"
+msgstr "Play"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "replay.play.unavailable"
+msgstr "There is nothing to replay yet: this poem has no history."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #, fuzzy
@@ -1069,3 +1126,23 @@ msgstr "Decrease text size"
 #, fuzzy
 msgid "textSize.increase"
 msgstr "Increase text size"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "textSize.largest"
+msgstr "The text is already at its largest size."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "textSize.smallest"
+msgstr "The text is already at its smallest size."
+
+#. js-lingui-explicit-id
+#: src/renderer/WindowTitle.tsx
+#, fuzzy
+msgid "window.notSaved"
+msgstr "{name} (not saved)"

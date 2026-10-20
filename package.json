@@ -2,7 +2,7 @@
   "name": "midst",
   "description": "A text editor for poets.",
   "license": "AGPL-3.0-or-later",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "Stuart Swerdloff",
     "url": "https://midst.press"
@@ -314,7 +314,6 @@
     "date-fns": "^2.30.0",
     "electron-log": "^5.4.4",
     "electron-store": "^8.2.0",
-    "electron-updater": "^6.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.25.1"

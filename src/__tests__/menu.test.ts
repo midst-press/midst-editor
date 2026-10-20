@@ -2,7 +2,15 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { app, dialog, ipcMain, Menu, nativeTheme, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+} from 'electron';
 import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
@@ -12,11 +20,13 @@ import MenuBuilder, {
   openFile,
   save,
   saveAs,
+  setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
-import { catalogs, i18n } from '../shared/i18n';
+import * as saveFailure from '../main/saveFailurePolicy';
+import { activateLocale, catalogs, i18n, languageName } from '../shared/i18n';
 
 // Synthetic documents only: invented words, never a poem. Files named .midst live in a temporary
 // directory and are removed after each test.
@@ -28,6 +38,7 @@ jest.mock('electron', () => ({
     emit: jest.fn(),
     addRecentDocument: jest.fn(),
     getPath: (name: string) => `/test-home/${name}`,
+    getPreferredSystemLanguages: jest.fn(() => ['en-NZ']),
   },
   dialog: {
     showMessageBoxSync: jest.fn(),
@@ -148,6 +159,8 @@ const unsetAnswer = () => {
 
 beforeEach(() => {
   mockStore.clear();
+  // Each test starts with no failed save behind it, as a newly opened window does.
+  saveFailure.startAgain();
   jest.clearAllMocks();
   [showMessageBox, showSaveDialog, showOpenDialog].forEach((dialogMock) => {
     dialogMock.mockReset();
@@ -400,7 +413,10 @@ describe('save', () => {
       expect(readBack(elsewhere)).toContain('"text":"<p>xv</p>"');
       expect(mockStore.get('filename')).toBe(elsewhere);
       expect(mockStore.get('edited')).toBe('false');
+      // Off macOS the title said "not saved" between the failure and the save that worked (#94).
       expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+        ['set-not-saved', false],
         ['set-filename', 'xv.midst'],
       ]);
     });
@@ -418,6 +434,94 @@ describe('save', () => {
       expect(mockStore.get('baseFilename')).toBeUndefined();
       // The editor stays open: a cancelled save sends the poet back to the start, a failed one does not.
       expect(win.webContents.send).not.toHaveBeenCalled();
+    });
+
+    // #94: the panel would otherwise open at every pause in typing.
+    it('after a first save that failed, the editor\u2019s own saves do not open the save panel again', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(1);
+      expect(showMessageBox).toHaveBeenCalledTimes(1);
+      // The editor stays open and the poem unsaved: nothing sends the poet back to the start.
+      expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('filename')).toBe('');
+      expect(logInfo).toHaveBeenCalledWith(
+        'autosave: not asking again where to save a document whose first save failed'
+      );
+      // Save, chosen by the poet, still asks where.
+      await save(asWindow(win), false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+    });
+
+    it('once the poem has been saved somewhere, a new document\u2019s first autosave asks where again', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      const elsewhere = path.join(dir, 'xv.midst');
+      showSaveDialog.mockReturnValue(elsewhere);
+      await save(asWindow(win), false);
+      expect(mockStore.get('filename')).toBe(elsewhere);
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(undefined);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(3);
+    });
+
+    it('a new document starts again: its first autosave asks where', async () => {
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(unwritable());
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), false, false);
+      // New, and Proceed past the unsaved-changes warning.
+      showMessageBox.mockReturnValue(0);
+      await newFile(asWindow(win), false);
+      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', false);
+      seedDocument({ filename: '' });
+      showSaveDialog.mockReturnValue(undefined);
+      await save(asWindow(win), false, false);
+      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+    });
+
+    it('off macOS, tells the window once that the poem is not saved, and again when a save works', async () => {
+      const target = unwritable();
+      seedDocument({ filename: target });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      const notSaved = () =>
+        win.webContents.send.mock.calls.filter((c) => c[0] === 'set-not-saved');
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false, false);
+      await save(asWindow(win), false);
+      expect(notSaved()).toEqual([['set-not-saved', true]]);
+      fs.mkdirSync(path.dirname(target));
+      await save(asWindow(win), false, false);
+      expect(notSaved()).toEqual([
+        ['set-not-saved', true],
+        ['set-not-saved', false],
+      ]);
+    });
+
+    it('on macOS leaves the title alone: the edited dot says it', async () => {
+      seedDocument({ filename: unwritable() });
+      showMessageBox.mockReturnValue(OK);
+      const win = makeWindow();
+      await save(asWindow(win), true, false);
+      expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
+      expect(win.webContents.send).not.toHaveBeenCalledWith(
+        'set-not-saved',
+        expect.anything()
+      );
     });
 
     it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
@@ -923,6 +1027,32 @@ describe('openFile', () => {
     }
   );
 
+  // #94: the last document's failed saves do not carry over to the one opened.
+  it('starts the opened poem with no failed save behind it', async () => {
+    seedDocument({ filename: unwritable() });
+    showMessageBox
+      .mockReturnValueOnce(OK) // could not save
+      .mockReturnValueOnce(0) // Proceed past the unsaved-changes warning
+      .mockReturnValueOnce(OK); // could not save, the opened poem
+    const win = makeWindow();
+    await save(asWindow(win), false, false);
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile('<p>zq</p>'));
+    await openFile(asWindow(win), false, [target]);
+    await ioDone();
+    expect(mockStore.get('filename')).toBe(target);
+    mockStore.set('filename', path.join(dir, 'gone', 'zq.midst'));
+    mockStore.set('edited', 'true');
+    await save(asWindow(win), false, false);
+    expect(showMessageBox).toHaveBeenCalledTimes(3);
+    expect(
+      win.webContents.send.mock.calls.filter((c) => c[0] === 'set-not-saved')
+    ).toEqual([
+      ['set-not-saved', true],
+      ['set-not-saved', true],
+    ]);
+  });
+
   it('loads a current-version file given up front, without a file dialog', async () => {
     seedDocument({ edited: 'false' });
     const target = path.join(dir, 'zq.midst');
@@ -1404,16 +1534,28 @@ describe('the menu', () => {
         });
       walk(build(platform));
       expect(items.length).toBeGreaterThan(20);
-      items.forEach((item) => {
-        expect(
-          item.id !== undefined &&
-            Object.prototype.hasOwnProperty.call(english, item.id)
-        ).toBe(true);
-        const text = i18n._(item.id!);
-        expect(item.label).toBe(
-          platform === 'darwin' ? text.replace(/&/g, '') : text
-        );
-      });
+      // The Language menu names each language in that language, not in the catalog's (editor #265).
+      const languages = items.filter((item) =>
+        item.id?.startsWith('menu.view.language.')
+      );
+      expect(languages.map((item) => [item.id, item.label])).toEqual(
+        Object.keys(catalogs).map((tag) => [
+          `menu.view.language.${tag}`,
+          languageName(tag),
+        ])
+      );
+      items
+        .filter((item) => !languages.includes(item))
+        .forEach((item) => {
+          expect(
+            item.id !== undefined &&
+              Object.prototype.hasOwnProperty.call(english, item.id)
+          ).toBe(true);
+          const text = i18n._(item.id!);
+          expect(item.label).toBe(
+            platform === 'darwin' ? text.replace(/&/g, '') : text
+          );
+        });
     }
   );
 
@@ -2090,6 +2232,77 @@ describe('the menu', () => {
       find(appearance('linux'), label).click!();
       expect(mockStore.get('appearance')).toBe(value);
       expect(nativeTheme.themeSource).toBe(value);
+    });
+  });
+
+  describe('View > Language (editor #265)', () => {
+    type Radio = Item & { type?: string; checked?: boolean };
+    const languages = (platform: string, win = makeWindow()) => {
+      process.env.NODE_ENV = 'production';
+      delete process.env.DEBUG_PROD;
+      setPlatform(platform);
+      new MenuBuilder(asWindow(win)).buildMenu();
+      const template = buildFromTemplate.mock.calls[0][0] as Item[];
+      return sub(template, platform === 'darwin' ? 'View' : '&View', 'Language')
+        .submenu as Radio[];
+    };
+
+    afterEach(() => {
+      activateLocale('en');
+    });
+
+    it.each(['darwin', 'linux'])(
+      'lists each catalog by its own name as one choice, after Appearance, on %s',
+      (platform) => {
+        const items = languages(platform);
+        expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
+          ['English', 'radio', true],
+        ]);
+        const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
+          (i) => i.id === 'menu.view'
+        )!.submenu as Item[];
+        const ids = view.map((i) => i.id);
+        expect(ids.indexOf('menu.view.language')).toBe(
+          ids.indexOf('menu.view.appearance') + 1
+        );
+      }
+    );
+
+    it('is also in the development View menu', () => {
+      process.env.NODE_ENV = 'development';
+      setPlatform('darwin');
+      new MenuBuilder(asWindow(makeWindow())).buildMenu();
+      const template = buildFromTemplate.mock.calls[0][0] as Item[];
+      expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+    });
+
+    it('stores English, never the tag, for a language with no catalog', () => {
+      const win = makeWindow();
+      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+        jest.fn(() => [win]);
+      setLanguage('xx', asWindow(win));
+      expect(mockStore.get('language')).toBe('en');
+      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+    });
+
+    it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
+      const win = makeWindow();
+      const other = makeWindow();
+      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+        jest.fn(() => [win, other]);
+      const items = languages('darwin', win);
+      buildFromTemplate.mockClear();
+      (Menu.setApplicationMenu as jest.Mock).mockClear();
+      win.webContents.on.mockClear();
+      // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
+      process.env.NODE_ENV = 'development';
+      find(items, 'English').click!();
+      expect(mockStore.get('language')).toBe('en');
+      expect(buildFromTemplate).toHaveBeenCalledTimes(1);
+      expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
+      expect(win.webContents.on).not.toHaveBeenCalled();
+      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
     });
   });
 });

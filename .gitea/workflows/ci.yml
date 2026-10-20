@@ -16,12 +16,18 @@
 # not setup-node's: this runner gives every job a fresh, empty tool cache, so setup-node downloaded
 # Node on every job.
 #
-# Not here yet: the end-to-end suite. It needs the Electron binary, which `npm ci --ignore-scripts`
-# deliberately does not download (the allowScripts decision is open), and the macOS runners have no
-# window-server session for an Electron window to open in.
+# The end-to-end suite runs in job e2e-linux, on the Linux runner (an Ubuntu arm64 container on the Mac Studio,
+# label ubuntu-arm-latest, #260): the macOS runners have no window-server session for an Electron window. pree2e
+# downloads the Linux Electron, which `npm ci --ignore-scripts` does not.
+#
+# Heavy jobs on a PR's turn (midst-infra #102), as in midst-web: gates runs on every event; e2e-linux runs on a
+# push to main, and on a PR only while it carries `ci-turn` (the merge sweep's: this PR is next to merge) or
+# `full-ci` (an author's: run it now). The runner has capacity 1. `labeled` is in the PR types so that adding
+# either label starts a run; see midst-web's ci.yml for why removing one also starts one.
 name: ci
 on:
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 concurrency:
@@ -64,7 +70,17 @@ jobs:
       # consistent, and the main process writes no words of its own. The renderer's are checked by eslint, in
       # the pre-commit step (lingui/no-unlocalized-strings).
       - name: message catalog
-        run: npm run catalog:check
+        # On a pull request the check also fails a new English entry not marked draft, against the base's catalog
+        # (#287). The checkout is depth 1, so the base is fetched first; a failed fetch fails the step (Violet),
+        # never quietly skipping the check. On a push there is no base, and the check prints that it did not run.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ -n "$BASE_REF" ]; then
+            git fetch --no-tags --depth=1 origin "+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF"
+            export CATALOG_BASE="origin/$BASE_REF"
+          fi
+          npm run catalog:check
       # Rebuilds the tag VENDOR.md names and byte-compares it with vendor/midst-format/, so the hashes are not
       # the only check: they can be edited in the same commit as the files. midst-format is public on Gitea, so
       # the clone needs no key (the "private" premise was wrong; checked anonymously 19 Oct).
@@ -75,3 +91,36 @@ jobs:
       # The jest setup file refuses to run until both bundles exist; see .github/workflows/ci.yml.
       - run: npm run build
       - run: npm test -- --coverage
+
+  # The end-to-end suite on Linux: Electron launched for real, headed under Xvfb. It is the only place the app runs
+  # on Linux before a release (Stuart, 14 Oct). It checks that the app works there, the title bar's layout included
+  # (e2e/titlebar.spec.ts); how a real desktop draws a frameless window is outside what Xvfb can show.
+  # GitHub's e2e-linux installs Xvfb and relaxes AppArmor with sudo. Here the job runs as an unprivileged user in
+  # the container, so it uses what the container provides and says plainly if Xvfb is missing.
+  e2e-linux:
+    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci')
+    runs-on: ubuntu-arm-latest
+    timeout-minutes: 30
+    # The workflow's default shell is the macOS runners' Homebrew bash, which this container does not have.
+    defaults:
+      run:
+        shell: bash -eo pipefail {0}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # GitHub's job relaxes AppArmor for Chromium's sandbox. This container needs nothing of the kind: the suite
+      # passes here although it refuses unprivileged user namespaces (#272).
+      - name: the container has Xvfb
+        run: |
+          command -v xvfb-run >/dev/null || { echo 'xvfb-run is not installed in the runner container'; exit 1; }
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself. Without
+      # --with-deps, which needs root: its libraries come with the container.
+      - run: npx playwright install chromium
+      # pree2e puts the Linux Electron in place (tools/install-electron.cjs).
+      - name: end-to-end tests, headed under Xvfb
+        run: xvfb-run -a --server-args="-screen 0 1440x1000x24" npm run e2e
