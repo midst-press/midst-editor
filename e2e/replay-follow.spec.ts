@@ -25,18 +25,26 @@ import { launch, openDocument, readStore } from './harness';
 // scroll was `domAtPos(pos).node.scrollIntoView?.({ block: 'center' })`: instant, and for a caret inside
 // text the node is a Text node with no scrollIntoView, so nothing moved at all (midst-editor #20).
 //
-// Measured from INSIDE the page every 20ms: where the text changed since the last sample (first differing
-// character, as a DOM Range), whether that point is inside the visible area of the element that scrolls,
-// and that element's scrollTop.
+// Measured from INSIDE the page once per animation frame: where the text changed since the last sample
+// (first differing character, as a DOM Range), whether that point is inside the visible area of the element
+// that scrolls, and that element's scrollTop.
 //   followed  a stretch of writing in one place that lasts over SETTLE_MS must end with it on screen
-//   gentle    no 20ms tick may move the scroll by more than a third of the viewport
+//   gentle    no frame may move the scroll by more than a third of the viewport
+//
+// Per FRAME, not per 20ms of wall clock (#279): a frame is what the reader sees. A 20ms setInterval sampler
+// keeps a different clock from the frames, and on a loaded host the two drift apart: ticks that fall where
+// no frame has run split one glide into pieces, and a short piece reads as an instant jump (six glides were
+// seen as 16 pieces under a throttled renderer). In the page's own frames a glide is never fewer than 8
+// (follow's glideTo: at least 250ms, at most MAX_FRAME_MS of it per frame) however slow the machine, and a
+// jump is still one frame.
 //
 // Annelyse's own Autoscroll Test Poem is used when MIDST_AUTOSCROLL_POEM names it (poem files never live in
 // this repository); otherwise that case is skipped.
 
-// One sample per 20ms tick: the CURRENT target (where the text last changed), whether it is on screen NOW,
-// the scroll position, the time, and whether the text changed on this tick. The target is re-measured on
-// every tick, including quiet ones, so a last edit followed by stillness is still judged (alden-ec2221c7).
+// One sample per animation frame: the CURRENT target (where the text last changed), whether it is on screen
+// NOW, the scroll position, the frame's time, and whether the text changed since the last frame. The target
+// is re-measured on every frame, including quiet ones, so a last edit followed by stillness is still judged
+// (alden-ec2221c7).
 // clamped: the document got shorter and the browser pulled scrollTop to its new maximum. That is layout,
 // not Replay scrolling, so the gentle and waits checks ignore it.
 type Sample = [number, number, boolean, number, number, boolean, boolean]; // paragraph, char, visible, scrollTop, ms, changed, clamped
@@ -47,7 +55,7 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
   await win.evaluate(() => {
     const g = globalThis as unknown as {
       fs?: Sample[];
-      ft?: ReturnType<typeof setInterval>;
+      ft?: number;
       fv?: number;
     };
     const scroller = (el: HTMLElement | null) => {
@@ -68,7 +76,7 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
     let lastHeight = 0;
     let lastTop = 0;
     const t0 = performance.now();
-    g.ft = setInterval(() => {
+    const sample = (frameTime: number) => {
       const pm = document.querySelector(
         '.ReplayContainer .ProseMirror'
       ) as HTMLElement | null;
@@ -128,29 +136,34 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
         tc,
         r.top >= box.top && r.bottom <= box.bottom,
         s.scrollTop,
-        performance.now() - t0,
+        frameTime - t0,
         changed,
         clamped,
       ]);
-    }, 20);
+    };
+    const frame = (frameTime: number) => {
+      sample(frameTime);
+      g.ft = requestAnimationFrame(frame);
+    };
+    g.ft = requestAnimationFrame(frame);
   });
   await done();
   return win.evaluate(() => {
     const g = globalThis as unknown as {
       fs?: Sample[];
-      ft?: ReturnType<typeof setInterval>;
+      ft?: number;
       fv?: number;
     };
-    if (g.ft) clearInterval(g.ft);
+    if (g.ft) cancelAnimationFrame(g.ft);
     return { samples: g.fs ?? [], viewport: g.fv ?? 0 };
   });
 }
 
 // followed   A stretch is writing in one place (same paragraph, character moving by less than 40), lasting
-//            until the next change elsewhere, quiet ticks included. One that lasts over SETTLE_MS must end
+//            until the next change elsewhere, quiet frames included. One that lasts over SETTLE_MS must end
 //            with its target on screen.
-// gentle     No tick moves the scroll by more than a third of the viewport, AND every scroll movement of
-//            more than 50px spans at least 3 moving ticks (an instant jump of any size is one tick).
+// gentle     No frame moves the scroll by more than a third of the viewport, AND every scroll movement of
+//            more than 50px spans at least 3 moving frames (an instant jump of any size is one frame).
 // waits      The text never changes strictly inside a scroll movement (midst-editor #22).
 export function verdict({ samples, viewport }: Rec) {
   const stretches: Sample[][] = [];
@@ -176,7 +189,7 @@ export function verdict({ samples, viewport }: Rec) {
             st[st.length - 1][4]
           )}ms of ${Math.round(samples[samples.length - 1][4])}ms; changes ${
             st.filter((x) => x[5]).length
-          }; visible ticks ${st.filter((x) => x[2]).length}/${
+          }; visible frames ${st.filter((x) => x[2]).length}/${
             st.length
           }; scrollTop ${Math.round(st[0][3])}->${Math.round(
             st[st.length - 1][3]
@@ -203,7 +216,7 @@ export function verdict({ samples, viewport }: Rec) {
         maxStepFraction = Math.max(maxStepFraction, step / viewport);
       if (step > viewport / 3) abrupt += 1;
     }
-  // Movements: maximal runs of moving ticks.
+  // Movements: maximal runs of moving frames.
   let i = 1;
   while (i < tops.length) {
     if (!moving[i]) {
@@ -217,13 +230,13 @@ export function verdict({ samples, viewport }: Rec) {
       if (viewport > 0)
         maxMoveViewports = Math.max(maxMoveViewports, distance / viewport);
       maxGlideMs = Math.max(maxGlideMs, samples[j][4] - samples[i - 1][4]);
-      // STRICTLY inside: the glide's last frame and the next step can share one 20ms sample, which is
+      // STRICTLY inside: the glide's last frame and the next step can share one frame's sample, which is
       // ordering the sampler cannot resolve, not the playback moving on mid-glide.
       for (let m = i + 1; m < j; m += 1)
         if (samples[m][5]) {
           wroteWhileGliding += 1;
           glideDetail.push(
-            `text changed at tick ${m - i + 1} of ${
+            `text changed at frame ${m - i + 1} of ${
               j - i + 1
             } (scroll ${Math.round(tops[i - 1])}->${Math.round(tops[j])})`
           );
@@ -273,6 +286,13 @@ async function openReplay(
   await expect(win.locator('.ReplayContainer')).toBeVisible({
     timeout: 25_000,
   });
+  // A starved renderer on demand (#279): REPLAY_FOLLOW_CPU_THROTTLE=20 slows this window's renderer 20x, and
+  // nothing else on the host. The verdicts must not change.
+  const rate = Number(process.env.REPLAY_FOLLOW_CPU_THROTTLE ?? 1);
+  if (rate > 1)
+    await (
+      await win.context().newCDPSession(win)
+    ).send('Emulation.setCPUThrottlingRate', { rate });
   return { app, win, userData };
 }
 
@@ -291,11 +311,11 @@ function assertFollows(name: string, v: ReturnType<typeof verdict>) {
   expect(v.unfollowed, 'stretches of writing that ended off screen').toBe(0);
   expect(
     v.abrupt,
-    '20ms ticks where the scroll moved more than a third of the viewport'
+    'frames where the scroll moved more than a third of the viewport'
   ).toBe(0);
   expect(
     v.instant,
-    'scroll movements of over 50px completed in fewer than 3 ticks'
+    'scroll movements of over 50px completed in fewer than 3 frames'
   ).toBe(0);
   expect(
     v.wroteWhileGliding,
@@ -345,7 +365,7 @@ test('the follow verdict rejects each failure it claims to catch', () => {
     viewport,
   });
   expect(late.unfollowed).toBe(1);
-  // A 200px jump in one tick: within the third-of-viewport limit, still not a glide.
+  // A 200px jump in one frame: within the third-of-viewport limit, still not a glide.
   const jump = verdict({
     samples: [...run(30, 0, 1, true, 0), ...run(30, 30, 20, true, 200)],
     viewport,
@@ -359,7 +379,7 @@ test('the follow verdict rejects each failure it claims to catch', () => {
   ]);
   clamp[30][6] = true;
   expect(verdict({ samples: clamp, viewport }).instant).toBe(0);
-  // A glide of 300px over 10 ticks passes; the same glide with the text changing mid-way does not wait.
+  // A glide of 300px over 10 frames passes; the same glide with the text changing mid-way does not wait.
   const glide = Array.from({ length: 40 }, (_, j) => Math.min(300, j * 30));
   expect(
     verdict({ samples: run(40, 0, 20, true, glide), viewport }).instant
@@ -368,7 +388,7 @@ test('the follow verdict rejects each failure it claims to catch', () => {
     verdict({ samples: run(40, 0, 20, true, glide, [0, 5]), viewport })
       .wroteWhileGliding
   ).toBe(1);
-  // A step on the glide's last tick is ordering within one sample, not a failure to wait.
+  // A step on the glide's last frame is ordering within one sample, not a failure to wait.
   expect(
     verdict({ samples: run(40, 0, 20, true, glide, [0, 10]), viewport })
       .wroteWhileGliding
