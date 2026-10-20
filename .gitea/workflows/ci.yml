@@ -86,7 +86,7 @@ jobs:
   # on Linux before a release (Stuart, 14 Oct). It checks that the app works there, the title bar's layout included
   # (e2e/titlebar.spec.ts); how a real desktop draws a frameless window is outside what Xvfb can show.
   # GitHub's e2e-linux installs Xvfb and relaxes AppArmor with sudo. Here the job runs as an unprivileged user in
-  # the container, so it uses what the container provides and says plainly what is missing.
+  # the container, so it uses what the container provides and says plainly if Xvfb is missing.
   e2e-linux:
     if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci')
     runs-on: ubuntu-arm-latest
@@ -101,12 +101,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - name: the container has what the suite needs
+      # GitHub's job relaxes AppArmor for Chromium's sandbox. This container needs nothing of the kind: the suite
+      # passes here although it refuses unprivileged user namespaces (#272).
+      - name: the container has Xvfb
         run: |
           command -v xvfb-run >/dev/null || { echo 'xvfb-run is not installed in the runner container'; exit 1; }
-          # Electron's sandbox needs unprivileged user namespaces; Ubuntu's AppArmor can block them.
-          # MEASURING (#272): reported, not enforced, until a run shows whether Electron starts without them.
-          unshare --user --map-root-user true || echo '::warning::unprivileged user namespaces are blocked in the runner container'
       - run: npm ci --ignore-scripts
       - run: npm run build
       # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself. Without
