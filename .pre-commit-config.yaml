@@ -7,6 +7,10 @@ default_install_hook_types: [pre-commit, commit-msg, pre-push]
 # The checks run on commit, and in CI by `pre-commit run`. Only the hooks below that name another stage run there:
 # the closing-keyword check on the commit message, the force-push refusal on push.
 default_stages: [pre-commit, manual]
+# content/ is Annelyse's (midst-web #281) and arrives from GitHub as she wrote it, so no hook reads or rewrites it:
+# a fixer or formatter here would fail CI on her text, or strip a Markdown line break. The content-owner hook names
+# no files (always_run), so it still runs.
+exclude: '^content/'
 # The vendored build is byte-exact (vendor/midst-format/VENDOR.md): no whitespace fixer, line-ending fixer or
 # formatter may touch it, so each of those hooks excludes it. The vendored-format hook below guards it.
 repos:
@@ -125,6 +129,20 @@ repos:
         entry: node --test tools/test-install-hooks.cjs
         pass_filenames: false
         files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
+
+      # ---- content/ is Annelyse's (midst-web #281). A copy of midst-web's guard, tested there and here. ----
+      - id: content-owner
+        name: content/ is Annelyse's; only the return path changes it (midst-web#281)
+        language: system
+        entry: node tools/check-content-owner.mjs --staged
+        pass_filenames: false
+        always_run: true
+      - id: content-owner-self-test
+        name: the content/ guard refuses what it should and passes the return path
+        language: system
+        entry: node --test tools/test-check-content-owner.mjs
+        pass_filenames: false
+        files: '^tools/(test-)?check-content-owner\.mjs$'
 
       # ---- a pushed branch is never rewritten. The servers refuse it (Gitea and GitHub); this says so before
       # anything is sent, and what to do instead. A copy from midst-infra, tested there. ----

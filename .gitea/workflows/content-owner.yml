@@ -1,0 +1,53 @@
+# content/ is Annelyse's (#281): a pull request may change it only if it is the return path's, from github-main
+# (midst-infra tools/return_path.sh). The pre-commit hook catches the same mistake at commit time; this catches a
+# commit made without the hook, or a branch pushed from somewhere else.
+#
+# pull_request_target, so the workflow and the checker come from the base branch: a pull request cannot pass by
+# editing this file or tools/check-content-owner.mjs. The pull request's head is fetched as git objects and only
+# read (git rev-parse, merge-base, rev-list); nothing from it is checked out or run. No secrets are used.
+#
+# Its own workflow, not a step of ci.yml, so it runs on every pull request event without the build and the tests.
+# `edited` is there so retargeting a pull request to another base runs it again. Only a push allowlist on
+# github-main (midst-infra #221) stops someone naming their branch that; the guard is for the honest mistake.
+name: content-owner
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, edited]
+concurrency:
+  # Per pull request: under pull_request_target, github.ref is the base branch, which every pull request shares.
+  group: content-owner-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: /opt/homebrew/bin/bash -eo pipefail {0}
+jobs:
+  check:
+    runs-on: stuart-m3ultra-canary
+    steps:
+      - name: Homebrew first on PATH
+        run: |
+          echo /opt/homebrew/sbin >> "$GITHUB_PATH"
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.ref }} # the base branch's checker, never the pull request's
+          fetch-depth: 0 # the merge base and main's history since it
+      - name: the guard's own tests (a pass below means nothing if they fail)
+        run: node --test tools/test-check-content-owner.mjs
+      - name: content/ is unchanged by this pull request, or this is the return path
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        # Against the base branch as it is now: a branch that merged main in carries her newer text, and passes.
+        run: |
+          if [ -z "$HEAD_REF" ] || [ -z "$HEAD_SHA" ] || [ -z "$BASE_REF" ]; then
+            echo "the event did not name the pull request's base, head ref and head commit, so nothing was checked" >&2
+            exit 1
+          fi
+          # Objects only: nothing from the pull request is checked out or run.
+          git fetch --no-tags --quiet origin "+refs/pull/$PR_NUMBER/head:refs/remotes/pull/$PR_NUMBER/head"
+          node tools/check-content-owner.mjs --range "origin/$BASE_REF" "$HEAD_SHA" "$HEAD_REF"
