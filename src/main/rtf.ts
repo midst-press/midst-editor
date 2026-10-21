@@ -1,4 +1,5 @@
-import { generateJSON } from '@tiptap/html';
+// The main process is Node, where TipTap 3's default entry refuses to run; its server build parses with happy-dom.
+import { generateJSON } from '@tiptap/html/server';
 import { JSONContent } from '@tiptap/core';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { i18n } from '../shared/i18n';

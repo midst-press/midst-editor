@@ -427,8 +427,10 @@ describe('Editor: recording an edit', () => {
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
     act(() => {
-      // An update event whose text is the same as the recorded one.
-      proseMirror().editor.commands.setContent('<p>zq</p>', true);
+      // The same text again: TipTap 3 sends no update for it, so nothing is recorded.
+      proseMirror().editor.commands.setContent('<p>zq</p>', {
+        emitUpdate: true,
+      });
     });
     expect(setPoemHistorySpy).not.toHaveBeenCalled();
     expect(bridge.sets('edited')).toHaveLength(0);

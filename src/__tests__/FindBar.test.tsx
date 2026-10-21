@@ -298,7 +298,7 @@ describe('FindBar: the poem and its history', () => {
     bridge.openBar();
     type('qv');
     act(() => {
-      editor.commands.setContent('<p>zz</p>', true);
+      editor.commands.setContent('<p>zz</p>', { emitUpdate: true });
     });
     expect(status()).toHaveTextContent(noMatches());
     expect(highlights(editor)).toHaveLength(0);
