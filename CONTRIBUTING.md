@@ -91,6 +91,11 @@ correctly", run `node tools/install-electron.cjs` and include what it prints in 
   this. Change it only with `tools/set_version.sh <MAJOR.MINOR.PATCH>`, which sets every place and checks
   them. Releases follow `docs/releasing.md`.
 - **A user-visible change gets a line in `CHANGELOG.md`**, as described next.
+- **A new or changed feature, menu item or keyboard shortcut updates the user guide.** The full guide is kept by
+  the maintainers, in midst-administrative-operations `editor/user-guide.md`, and the website's guide is written
+  from it. Update it in a paired pull request there, and name that pull request on a line of this one's
+  description beginning `User guide:` (or say there why the guide needs no change). A pull request that changes
+  a menu or shortcut file without that line fails the `user-guide` check (`.gitea/workflows/user-guide.yml`).
 - **Titles, descriptions and commit messages say `Refs #12`, not `Fixes #12` or `Closes #12`.** A closing
   keyword closes the issue the moment the commit reaches `main`, before anyone has checked the fix in a
   release. The `commit-msg` hook that `pre-commit install` sets up refuses one, and so does a check on the

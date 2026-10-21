@@ -245,9 +245,8 @@ const boot = async (opts: { ready?: boolean } = {}) => {
   const store = (await import('../main/store')).default;
   const log = (await import('electron-log')).default;
   const logging = await import('../main/logging');
-  const titlebar = await import(
-    '@jshafto/custom-electron-titlebar-update/main'
-  );
+  const titlebar =
+    await import('@jshafto/custom-electron-titlebar-update/main');
   await import('../main/main');
   const state = electron.mockState;
   const flush = () =>
@@ -1036,9 +1035,8 @@ describe('main process', () => {
       });
 
       it('Cancel writes nothing, loads nothing and leaves the original alone', async () => {
-        const { file, original, store, win, reads, fireWindow } = await openOld(
-          0
-        );
+        const { file, original, store, win, reads, fireWindow } =
+          await openOld(0);
         expect(fs.readdirSync(dir)).toEqual(['zq.midst']);
         expect(fs.readFileSync(file, 'utf8')).toBe(original);
         expect(store.get('filename')).toBeUndefined();
@@ -1050,9 +1048,8 @@ describe('main process', () => {
       });
 
       it('Convert File writes a new file beside the original and opens that', async () => {
-        const { electron, file, original, store, win, reads } = await openOld(
-          1
-        );
+        const { electron, file, original, store, win, reads } =
+          await openOld(1);
         const converted = path.join(dir, 'zq-converted.midst');
         expect(fs.readdirSync(dir).sort()).toEqual([
           'zq-converted.midst',
@@ -1183,7 +1180,7 @@ describe('main process', () => {
     it('sends links to the system browser and denies new app windows', async () => {
       const { electron, win } = await boot();
       const [open] = win().webContents.setWindowOpenHandler.mock.calls[0] as [
-        Handler
+        Handler,
       ];
       expect(open({ url: 'https://example.invalid/zq' })).toEqual({
         action: 'deny',

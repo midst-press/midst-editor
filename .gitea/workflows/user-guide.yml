@@ -1,0 +1,58 @@
+# A pull request that changes a menu item or a keyboard shortcut names its user-guide update (#305).
+#
+# The full user guide is private, in midst-administrative-operations `editor/user-guide.md`, and Annelyse writes
+# the website's guide from it (GitHub #62). Nothing else prompts an editor change to update it, so it drifts. A pull
+# request touching one of the files below says, on a line of its description beginning "User guide:", either the
+# paired admin-ops pull request or why the guide needs no change.
+#
+# Its own workflow, so that editing the description runs this again without the build and the tests.
+name: user-guide
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+concurrency:
+  group: user-guide-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: /opt/homebrew/bin/bash -eo pipefail {0}
+jobs:
+  check:
+    runs-on: stuart-m3ultra-canary
+    steps:
+      - name: Homebrew first on PATH
+        run: |
+          echo /opt/homebrew/sbin >> "$GITHUB_PATH"
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the range below needs the commits, not only the tip
+      - name: a menu or shortcut change names its user-guide update
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Where the menu items and keyboard shortcuts are defined. A new file that handles keys joins this list.
+          watched=(src/main/menu.ts src/main/shortcutTable.ts src/renderer/HandleTab.ts src/renderer/search/FindNotHere.tsx
+            src/renderer/search/FindBar.tsx src/renderer/components/Replay/index.tsx src/renderer/components/DraftMarkers/DraftDrawer.tsx)
+          for f in "${watched[@]}"; do
+            # A watched file that has moved would make this check pass forever: refuse instead.
+            [ -f "$f" ] || { echo "$f no longer exists; update the list in .gitea/workflows/user-guide.yml" >&2; exit 1; }
+          done
+          changed="$(git diff --name-only "origin/$BASE_REF...$HEAD_SHA" -- "${watched[@]}")"
+          if [ -z "$changed" ]; then
+            echo "No menu or shortcut file changed."
+            exit 0
+          fi
+          if printf '%s\n' "$PR_BODY" | grep -Eiq '^[[:space:]]*user guide:[[:space:]]*[^[:space:]]'; then
+            echo "Changed: $changed"
+            echo "The description names the user-guide update."
+            exit 0
+          fi
+          echo "This pull request changes $changed." >&2
+          echo "Add a line to its description beginning \"User guide:\", naming the paired midst-administrative-operations" >&2
+          echo "pull request that updates editor/user-guide.md, or saying why the guide needs no change (CONTRIBUTING.md)." >&2
+          exit 1

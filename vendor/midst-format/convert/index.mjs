@@ -5,8 +5,9 @@ var __export = (target, all) => {
 };
 
 // src/convert.ts
-import { generateJSON, generateHTML } from "@tiptap/html";
 import { getSchema } from "@tiptap/core";
+import { DOMParser as ProseMirrorParser, DOMSerializer } from "@tiptap/pm/model";
+import { Window } from "happy-dom";
 
 // node_modules/parse5/dist/common/unicode.js
 var UNDEFINED_CODE_POINTS = /* @__PURE__ */ new Set([
@@ -8068,9 +8069,34 @@ var asBrowserParsed = (html) => {
     throw new Error("parse5 returned a document with no <body>");
   return asParagraphLines(body.childNodes);
 };
-var frameJSON = (html) => generateJSON(dropTrailingBreaks(html), poemExtensions, {
-  preserveWhitespace: true
-});
+var poemWindow;
+var htmlWindow = () => {
+  poemWindow != null ? poemWindow : poemWindow = new Window({
+    settings: {
+      disableJavaScriptEvaluation: true,
+      disableJavaScriptFileLoading: true,
+      disableCSSFileLoading: true,
+      disableIframePageLoading: true,
+      disableComputedStyleRendering: true
+    }
+  });
+  return poemWindow;
+};
+var frameJSON = (html) => {
+  const body = htmlWindow().document.createElement("div");
+  body.innerHTML = dropTrailingBreaks(html);
+  return ProseMirrorParser.fromSchema(schema).parse(body, { preserveWhitespace: true }).toJSON();
+};
+var frameHTML = (doc) => {
+  const { document } = htmlWindow();
+  const wrap = document.createElement("div");
+  DOMSerializer.fromSchema(schema).serializeFragment(
+    doc.content,
+    { document },
+    wrap
+  );
+  return wrap.innerHTML;
+};
 var freshMark = (source, text, other = "", base = "\uE000") => {
   let mark = base;
   while (source.includes(mark) || text.includes(mark) || other !== "" && other.includes(mark)) mark += base;
@@ -8137,15 +8163,19 @@ var NOT_HIDDEN = "(?![^>]*display\\s*:\\s*none)";
 var SHOWN_ZERO_WIDTH_ELEMENT = `<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>`;
 var ZERO_WIDTH_LINE_FILL = `[ \\n\\r\\f]|<(?:${ZERO_WIDTH_TAGS})\\b[^>]*>(?:[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY})+</(?:${ZERO_WIDTH_TAGS})>|<(?:${ZERO_WIDTH_TAGS})\\b${NOT_HIDDEN}[^>]*>|</(?:${ZERO_WIDTH_TAGS})>`;
 var SHOWN_ZERO_WIDTH_LINE = new RegExp(
-  `(<p\\b[^>]*>)(?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*(</p>)`,
+  `(<p\\b[^>]*>)((?:${ZERO_WIDTH_LINE_FILL})*?${SHOWN_ZERO_WIDTH_ELEMENT}(?:${ZERO_WIDTH_LINE_FILL})*)(</p>)`,
   "gi"
 );
+var ZERO_WIDTH_OR_TAG = new RegExp(`<[^>]*>|[${ZERO_WIDTH_CHARS}]|${ZERO_WIDTH_ENTITY}`, "gi");
 var EMPTY_HIDDEN_ELEMENT = new RegExp(
   `<(span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b(?=[^>]*display\\s*:\\s*none)[^>]*>(?:</?(?!\\1\\b)(?:span|em|strong|i|b|u|s|strike|a|font|sup|sub)\\b[^>]*>)*</\\1>`,
   "gi"
 );
 var dropZeroWidthOnlyElements = (html) => {
-  let current = html.replace(SHOWN_ZERO_WIDTH_LINE, "$1<br>$2");
+  let current = html.replace(
+    SHOWN_ZERO_WIDTH_LINE,
+    (_m, open, fill, close) => `${open}${fill.replace(ZERO_WIDTH_OR_TAG, "")}<br>${close}`
+  );
   let next = current.replace(ZERO_WIDTH_ONLY_ELEMENT, "").replace(EMPTY_HIDDEN_ELEMENT, "");
   while (next !== current) {
     current = next;
@@ -8203,8 +8233,8 @@ var convertMidstFile = (oldMidst) => {
   const newFrames = frames.map((el) => {
     const source = dropZeroWidthOnlyElements(asBrowserParsed(el.content));
     const jsonContentAtFrame = frameJSON(dropInvisibleParagraphs(source));
-    const htmlContentAtFrame = generateHTML(jsonContentAtFrame, poemExtensions);
     const doc = schema.nodeFromJSON(jsonContentAtFrame);
+    const htmlContentAtFrame = frameHTML(doc);
     const position = endOfBlock(doc, keptBlock(source, el.lineNumber));
     return {
       content: htmlContentAtFrame,

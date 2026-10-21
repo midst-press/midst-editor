@@ -125,8 +125,7 @@ describe('replaceFile (#95)', () => {
       throw e;
     });
     let thrown:
-      | (Error & { cleanupError?: Record<string, unknown> })
-      | undefined;
+      (Error & { cleanupError?: Record<string, unknown> }) | undefined;
     try {
       replaceFile(target, 'zq xv');
     } catch (err) {

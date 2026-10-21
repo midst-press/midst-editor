@@ -1,4 +1,5 @@
-import { generateJSON } from '@tiptap/html';
+// The main process is Node, where TipTap 3's default entry refuses to run; its server build parses with happy-dom.
+import { generateJSON } from '@tiptap/html/server';
 import { JSONContent } from '@tiptap/core';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { i18n } from '../shared/i18n';
@@ -11,8 +12,7 @@ import { i18n } from '../shared/i18n';
 // cannot quietly produce a file that is missing part of the poem.
 
 export type RtfResult =
-  | { ok: true; rtf: string }
-  | { ok: false; reason: string };
+  { ok: true; rtf: string } | { ok: false; reason: string };
 
 // The editor shows poems in the system font, which RTF cannot name. Helvetica, or Arial where there is
 // no Helvetica, is the nearest that every reader has.

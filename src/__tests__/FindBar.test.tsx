@@ -117,7 +117,7 @@ beforeAll(() => {
       item: () => null,
       length: 0,
       [Symbol.iterator]: [][Symbol.iterator],
-    } as unknown as DOMRectList);
+    }) as unknown as DOMRectList;
   Range.prototype.getBoundingClientRect = () => rect as DOMRect;
   Range.prototype.getClientRects = none;
   Element.prototype.getClientRects = none;
@@ -298,7 +298,7 @@ describe('FindBar: the poem and its history', () => {
     bridge.openBar();
     type('qv');
     act(() => {
-      editor.commands.setContent('<p>zz</p>', true);
+      editor.commands.setContent('<p>zz</p>', { emitUpdate: true });
     });
     expect(status()).toHaveTextContent(noMatches());
     expect(highlights(editor)).toHaveLength(0);

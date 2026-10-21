@@ -128,10 +128,10 @@ describe('the shortcut table', () => {
 // tests of its content (the shortcut table, the names in bold, the window's buttons) went with that content, and the
 // table's generator above keeps its own tests.
 describe('the user guide', () => {
-  it('is the Under Construction placeholder, with no shortcut table', () => {
-    const guide = fs.readFileSync(guidePath, 'utf8');
-    expect(guide).toContain('Under Construction');
-    expect(guide).not.toContain(TABLE_START);
-    expect(guide).not.toContain(TABLE_END);
+  it('is the Under Construction placeholder and nothing more', () => {
+    // Stuart, 21 Oct: Annelyse wants all user-facing text other than buttons and labels written by people.
+    expect(fs.readFileSync(guidePath, 'utf8')).toBe(
+      '# Writing in Midst\n\nUnder Construction.\n'
+    );
   });
 });

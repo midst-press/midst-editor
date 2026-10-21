@@ -101,6 +101,8 @@ module.exports = {
               '*.classList.*',
               // an editing command's name
               '*.execCommand',
+              // a mark's name
+              '*.isActive',
               'PluginKey',
               'Error',
               'RestartFromError',

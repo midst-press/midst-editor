@@ -46,8 +46,7 @@ const SearchHighlight = Extension.create({
           init: () => DecorationSet.empty,
           apply: (tr, old) => {
             const highlights = tr.getMeta(searchHighlightKey) as
-              | Highlights
-              | undefined;
+              Highlights | undefined;
             if (highlights) return decorate(tr, highlights);
             return old.map(tr.mapping, tr.doc);
           },
