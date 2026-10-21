@@ -3,7 +3,7 @@
 - **The user guide is under construction.** **Help** > **Documentation** and the **User Guide** button in About
   Midst still open it, and for now it says so.
 - **The editor is on TipTap 3**, with midst-format 0.6.0. When Midst opens a poem from an older version of Midst,
-  its non-breaking spaces convert as the HTML standard writes them, and bold and italic set by a style are kept.
+  its non-breaking spaces convert as the HTML standard writes them.
 - **On macOS 26, Midst's icon follows the tinted and clear icon styles.**
 - **Development tools updated** (prettier 3, react-refresh 0.19, minor and patch updates). Nothing a writer sees
   changes.
