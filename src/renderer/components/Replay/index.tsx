@@ -124,7 +124,10 @@ export default function Replay() {
     if (!editor) return;
     const before = editor.state.doc;
     const newContent = reconstructHTML('', poemHistory, step);
-    editor.commands.setContent(newContent, false, { preserveWhitespace: true });
+    editor.commands.setContent(newContent, {
+      emitUpdate: false,
+      parseOptions: { preserveWhitespace: true },
+    });
     // Follow the writing: see ./follow.ts for why this does not use the recorded pos.
     const after = editor.state.doc;
     const changed = after.content.findDiffStart(before.content);

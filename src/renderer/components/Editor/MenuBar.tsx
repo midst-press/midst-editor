@@ -1,4 +1,4 @@
-import { useCurrentEditor } from '@tiptap/react';
+import { useCurrentEditor, useEditorState } from '@tiptap/react';
 // Types only, erased from the build. toggleBold and toggleItalic are added to ChainedCommands by the bold and
 // italic extensions' `declare module '@tiptap/core'`, which StarterKit's types load. The extensions themselves
 // come in through vendor/midst-format, which this file does not import, so without this line a compile of this
@@ -19,6 +19,18 @@ import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
 
 function MenuBar() {
   const { editor } = useCurrentEditor();
+  // TipTap 3 does not re-render a component on each transaction (TipTap 2 did), so the buttons subscribe to the
+  // state they show: each mark's active state, and whether it can be applied here.
+  const marks = useEditorState({
+    editor,
+    selector: ({ editor: e }) =>
+      e && {
+        bold: e.isActive('bold'),
+        italic: e.isActive('italic'),
+        canBold: e.can().chain().focus().toggleBold().run(),
+        canItalic: e.can().chain().focus().toggleItalic().run(),
+      },
+  });
 
   // The `!editor` guard lives below, after every hook. tiptap's EditorProvider returns null until
   // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
@@ -30,7 +42,7 @@ function MenuBar() {
     if (editor) setEditorSizeClass(editor, fontSize.size);
   }, [editor, fontSize.size]);
 
-  if (!editor) {
+  if (!editor || !marks) {
     return null;
   }
   // Why each button cannot be used now, or null when it can (#284, GitHub #66). tiptap says only that a mark cannot
@@ -41,10 +53,8 @@ function MenuBar() {
   const smallestReason = fontSize.canDecrease
     ? null
     : i18n._('textSize.smallest');
-  const boldReason = editor.can().chain().focus().toggleBold().run()
-    ? null
-    : i18n._('format.bold.unavailable');
-  const italicReason = editor.can().chain().focus().toggleItalic().run()
+  const boldReason = marks.canBold ? null : i18n._('format.bold.unavailable');
+  const italicReason = marks.canItalic
     ? null
     : i18n._('format.italic.unavailable');
 
@@ -117,9 +127,7 @@ function MenuBar() {
             type="button"
             onClick={() => editor.chain().focus().toggleBold().run()}
             disabled={boldReason !== null}
-            className={
-              editor.isActive('bold') ? 'is-active icon-button' : 'icon-button'
-            }
+            className={marks.bold ? 'is-active icon-button' : 'icon-button'}
             style={boldReason ? UNAVAILABLE_STYLE : undefined}
           >
             <FormatBoldIcon fontSize="small" />
@@ -144,11 +152,7 @@ function MenuBar() {
             type="button"
             onClick={() => editor.chain().focus().toggleItalic().run()}
             disabled={italicReason !== null}
-            className={
-              editor.isActive('italic')
-                ? 'is-active icon-button'
-                : 'icon-button'
-            }
+            className={marks.italic ? 'is-active icon-button' : 'icon-button'}
             style={italicReason ? UNAVAILABLE_STYLE : undefined}
           >
             <FormatItalicIcon fontSize="small" />

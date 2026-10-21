@@ -1,6 +1,7 @@
 /** @jest-environment node */
 import { getSchema } from '@tiptap/core';
-import { generateJSON } from '@tiptap/html';
+// A node environment: TipTap 3's server build, which parses with happy-dom.
+import { generateJSON } from '@tiptap/html/server';
 import StarterKit from '@tiptap/starter-kit';
 import { Node as ProseMirrorNode } from '@tiptap/pm/model';
 import poemExtensions from '@midst-press/midst-format/extensions';

@@ -163,7 +163,10 @@ export default function Editor() {
 
         setPoemHistory(savedHistory as ChangeObj[]);
         if (myEditor) {
-          myEditor.commands.setContent(savedPoem as string);
+          // TipTap 3 emits an update by default; opening a file is not an edit.
+          myEditor.commands.setContent(savedPoem as string, {
+            emitUpdate: false,
+          });
         }
         saveFileAndUpdateStore(
           savedPoem as string,

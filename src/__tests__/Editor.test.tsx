@@ -428,7 +428,9 @@ describe('Editor: recording an edit', () => {
     bridge.clear();
     act(() => {
       // An update event whose text is the same as the recorded one.
-      proseMirror().editor.commands.setContent('<p>zq</p>', true);
+      proseMirror().editor.commands.setContent('<p>zq</p>', {
+        emitUpdate: true,
+      });
     });
     expect(setPoemHistorySpy).not.toHaveBeenCalled();
     expect(bridge.sets('edited')).toHaveLength(0);
