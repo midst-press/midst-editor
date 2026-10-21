@@ -7,20 +7,18 @@ default_install_hook_types: [pre-commit, commit-msg, pre-push]
 # The checks run on commit, and in CI by `pre-commit run`. Only the hooks below that name another stage run there:
 # the closing-keyword check on the commit message, the force-push refusal on push.
 default_stages: [pre-commit, manual]
-# content/ is Annelyse's (midst-web #281) and arrives from GitHub as she wrote it, so no hook reads or rewrites it:
-# a fixer or formatter here would fail CI on her text, or strip a Markdown line break. The content-owner hook names
-# no files (always_run), so it still runs.
-exclude: '^content/'
 # The vendored build is byte-exact (vendor/midst-format/VENDOR.md): no whitespace fixer, line-ending fixer or
 # formatter may touch it, so each of those hooks excludes it. The vendored-format hook below guards it.
+# content/ (Annelyse's, midst-web #281) is excluded from the same hooks: it arrives from GitHub as she wrote it, and a
+# fixer would fail CI on her text or strip a Markdown line break. The hooks that only check still cover it.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: end-of-file-fixer
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: check-merge-conflict
       - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json
@@ -33,7 +31,7 @@ repos:
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=2048]
@@ -84,7 +82,7 @@ repos:
         language: system
         entry: npx --no-install prettier --write
         files: '\.(ts|tsx|js|jsx|json|css|scss|md|ya?ml)$'
-        exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/'
+        exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/|^content/'
       - id: catalog-compile
         name: compile the message catalog (typecheck reads locales/<lang>/messages.ts, which is generated)
         language: system
