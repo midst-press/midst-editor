@@ -42,6 +42,10 @@ The catalog is being introduced now, in the order the design gives. Until it has
 you're changing, put new user-facing text where the existing text lives and list it in the pull request, so it
 moves with the rest.
 
+**Annelyse's own texts go in `content/`** (midst-web #281). She edits them on GitHub, and they come back through the
+return path's pull request from `github-main`. Leave the folder alone: a commit that changes it is refused by the
+pre-commit hook and in CI (`tools/check-content-owner.mjs`). See `content/README.md`.
+
 ## Licence
 
 AGPL-3.0-or-later (`LICENSE`). By contributing you agree your contribution is licensed the same way. The
