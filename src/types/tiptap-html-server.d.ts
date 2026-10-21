@@ -1,15 +1,12 @@
-/* eslint-disable no-unused-vars -- a copy of a published declaration file */
+/* eslint-disable no-unused-vars, import/prefer-default-export -- a copy of a published declaration */
 // @tiptap/html/server exists only in the package's `exports`, which this project's "node" module resolution does not
-// read. These are its declarations (dist/server/index.d.cts, TipTap 3.32.0). A tsconfig `paths` entry would also
+// read. This is the one function the editor uses, as dist/server/index.d.cts declares it (TipTap 3.32.0). skipLibCheck
+// skips this file and nothing compares it with the package's; rtf.test.ts and findInText.test.ts check the behaviour. A tsconfig `paths` entry would also
 // redirect webpack, through tsconfig-paths-webpack-plugin, to the .d.cts.
 declare module '@tiptap/html/server' {
-  import type { Extensions, JSONContent } from '@tiptap/core';
+  import type { Extensions } from '@tiptap/core';
   import type { ParseOptions } from '@tiptap/pm/model';
 
-  export function generateHTML(
-    doc: JSONContent,
-    extensions: Extensions
-  ): string;
   export function generateJSON(
     html: string,
     extensions: Extensions,
