@@ -35,8 +35,9 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Where the menu items and keyboard shortcuts are defined.
-          watched=(src/main/menu.ts src/main/shortcutTable.ts src/renderer/HandleTab.ts src/renderer/search/FindNotHere.tsx)
+          # Where the menu items and keyboard shortcuts are defined. A new file that handles keys joins this list.
+          watched=(src/main/menu.ts src/main/shortcutTable.ts src/renderer/HandleTab.ts src/renderer/search/FindNotHere.tsx
+            src/renderer/search/FindBar.tsx src/renderer/components/Replay/index.tsx src/renderer/components/DraftMarkers/DraftDrawer.tsx)
           for f in "${watched[@]}"; do
             # A watched file that has moved would make this check pass forever: refuse instead.
             [ -f "$f" ] || { echo "$f no longer exists; update the list in .gitea/workflows/user-guide.yml" >&2; exit 1; }
