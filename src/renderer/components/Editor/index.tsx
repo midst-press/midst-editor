@@ -118,9 +118,7 @@ export default function Editor() {
   const onUpdate = ({ editor }: { editor: EditorType }) => {
     const newHtml = editor.getHTML();
     const { pos } = editor.state.selection.$anchor;
-    if (htmlString === newHtml) {
-      return;
-    }
+    // No early return for unchanged text: TipTap 3 emits no update when the document is unchanged.
     const newChange = compareStrings(htmlString, newHtml, pos);
     const newHistory = [...poemHistory, newChange];
     setPoemHistory(newHistory);
