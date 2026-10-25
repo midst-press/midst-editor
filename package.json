@@ -320,7 +320,7 @@
     "happy-dom": "20.14.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.25.1"
+    "react-router-dom": "^6.30.6"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
