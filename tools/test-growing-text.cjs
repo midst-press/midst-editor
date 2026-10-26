@@ -32,10 +32,11 @@ function expect(actual, message) {
   };
 }
 
-async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = false, corruptSave = false, disposeProcessHandle = false, closeRejects = false, killRejects = false } = {}) {
+async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = false, corruptSave = false, disposeProcessHandle = false, closeRejects = false, killRejects = false, ignoreNthKey, crossBudgetOnNthKey } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'growing-text-model-'));
   const result = path.join(dir, 'model-only.json');
   const keys = [];
+  const firedDelays = [];
   let text = '';
   let documentPath;
   let clock = 0;
@@ -59,6 +60,10 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
     keyboard: {
       async press(key) {
         keys.push(key);
+        if (keys.length === ignoreNthKey) {
+          clock = budget - 5000;
+          return;
+        }
         if (key === 'Backspace') {
           if (brokenBackspace) return;
           text = text.slice(0, -1);
@@ -67,9 +72,11 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
           text += key;
         }
         history.push({ modelOnly: true });
+        if (keys.length === crossBudgetOnNthKey) clock = budget + 1;
       },
     },
     async waitForFunction(_predicate, wanted) {
+      if (keys.length === ignoreNthKey) return new Promise(() => {});
       assert.equal(text, wanted, 'model DOM acknowledgment disagreed');
     },
   };
@@ -117,7 +124,13 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
       },
       versions: { electron: 'model-only' },
     },
-    setTimeout,
+    setTimeout(callback, delay) {
+      return setTimeout(() => {
+        firedDelays.push(delay);
+        clock += delay;
+        callback();
+      }, 0);
+    },
     clearTimeout,
     require(name) {
       if (name === '@playwright/test') return { test: testApi, expect };
@@ -133,7 +146,7 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
   let error;
   try { await callback(); } catch (caught) { error = caught; }
   const raw = fs.readFileSync(result, 'utf8');
-  return { report: raw ? JSON.parse(raw) : null, keys, error, result, callback, processReads };
+  return { report: raw ? JSON.parse(raw) : null, keys, error, result, callback, processReads, firedDelays };
 }
 
 test('driver performs a/delete, ab/delete, abc/delete and verifies saved history', async () => {
@@ -165,6 +178,27 @@ test('virtual time budget reports a partial bound instead of an application limi
   assert.ok(run.report.maximumCompletedPrefix > 0 && run.report.maximumCompletedPrefix < 1000);
   assert.ok(run.report.savedHistoryLength >= run.report.confirmedKeyEvents);
   assert.ok(run.report.savedHistoryLength <= run.report.attemptedKeyEvents);
+});
+
+test('a missing acknowledgment in the final virtual five seconds is failure, not budget success', async () => {
+  const run = await modeledRun({ maxPrefix: 1000, budget: 10100, ignoreNthKey: 8 });
+  assert.equal(run.report.outcome, 'failure', 'an unacknowledged edit must not be accepted as a budget stop');
+  assert.match(String(run.error), /operation did not complete within 10 seconds/);
+  assert.equal(run.report.failure.phase, 'type');
+  assert.equal(run.report.attemptedKeyEvents, 8);
+  assert.equal(run.report.confirmedKeyEvents, 7);
+  assert.equal(run.report.maximumCompletedPrefix, 2);
+  assert.deepEqual(run.firedDelays, [10000]);
+});
+
+test('a healthy key dispatched before the budget receives its acknowledgment after the boundary', async () => {
+  const run = await modeledRun({ maxPrefix: 1000, budget: 10100, crossBudgetOnNthKey: 8 });
+  assert.ifError(run.error);
+  assert.equal(run.report.outcome, 'time_budget');
+  assert.equal(run.report.attemptedKeyEvents, 8);
+  assert.equal(run.report.confirmedKeyEvents, 8, 'budget must not split dispatch from its acknowledgment');
+  assert.equal(run.report.savedHistoryLength, 8);
+  assert.deepEqual(run.firedDelays, []);
 });
 
 test('a broken backspace produces the driver-specific DOM failure', async () => {

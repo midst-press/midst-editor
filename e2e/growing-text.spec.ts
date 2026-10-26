@@ -18,7 +18,8 @@ import { clickMenuItem, launch, openDocument, waitUntil } from './harness';
 
 // Annelyse's pattern in GitHub midst-editor#34: a/delete, ab/delete, abc/delete, wrapping after z.
 // Opt-in: MIDST_GROWING_TEXT_RESULT=/new/path/result.json npm run e2e -- e2e/growing-text.spec.ts
-// A budget stop measures a lower bound, not a text/history limit. Files and the profile are retained.
+// The input budget is checked between complete key/acknowledgment operations. An operation already started
+// gets its full 10-second failure deadline, even across the input budget. Files and the profile are retained.
 test.skip(
   !process.env.MIDST_GROWING_TEXT_RESULT,
   'set MIDST_GROWING_TEXT_RESULT to run the growing type/backspace measurement'
@@ -64,6 +65,9 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
     finishedAt: null as string | null,
     appVersion: null as string | null,
     budgetMs,
+    operationTimeoutMs: 10_000,
+    budgetPolicy:
+      'stop starting keys at the input budget; finish each started key and DOM acknowledgment',
     maxPrefix,
     work,
     outcome: 'setup_failure',
@@ -84,9 +88,7 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
 
   // Includes Playwright/CDP round trips and DOM verification; this is not compositor/paint timing.
   async function observed<T>(operation: () => Promise<T>): Promise<T> {
-    const remaining = inputDeadline - performance.now();
-    if (remaining <= 0) throw new BudgetExpired();
-    const atBudget = remaining <= 10_000;
+    if (performance.now() >= inputDeadline) throw new BudgetExpired();
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([
@@ -95,13 +97,11 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
           timer = setTimeout(
             () =>
               reject(
-                atBudget
-                  ? new BudgetExpired()
-                  : new Error(
-                      `${phase}: operation did not complete within 10 seconds`
-                    )
+                new Error(
+                  `${phase}: operation did not complete within 10 seconds`
+                )
               ),
-            Math.min(remaining, 10_000)
+            10_000
           );
         }),
       ]);
@@ -157,38 +157,35 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
         let current = '';
         phase = 'type';
         for (const letter of expected) {
-          await observed(() => {
+          const currentText = current + letter;
+          await observed(async () => {
             report.attemptedKeyEvents += 1;
-            return win.keyboard.press(letter);
-          });
-          current += letter;
-          const currentText = current;
-          await observed(() =>
-            win.waitForFunction(
+            await win.keyboard.press(letter);
+            await win.waitForFunction(
               (text) =>
                 document.querySelector('.ProseMirror')?.textContent === text,
               currentText,
               { timeout: 0, polling: 5 }
-            )
-          );
+            );
+          });
+          current = currentText;
           report.confirmedKeyEvents += 1;
         }
         report.maximumVerifiedPrefix = prefix;
         const typedAt = performance.now();
         phase = 'backspace';
         for (let length = prefix - 1; length >= 0; length -= 1) {
-          await observed(() => {
+          const currentText = expected.slice(0, length);
+          await observed(async () => {
             report.attemptedKeyEvents += 1;
-            return win.keyboard.press('Backspace');
-          });
-          await observed(() =>
-            win.waitForFunction(
+            await win.keyboard.press('Backspace');
+            await win.waitForFunction(
               (text) =>
                 document.querySelector('.ProseMirror')?.textContent === text,
-              expected.slice(0, length),
+              currentText,
               { timeout: 0, polling: 5 }
-            )
-          );
+            );
+          });
           report.confirmedKeyEvents += 1;
         }
         report.maximumCompletedPrefix = prefix;
@@ -216,6 +213,10 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
       report.maximumCompletedPrefix,
       'no complete cycle was exercised'
     ).toBeGreaterThan(0);
+    expect(
+      report.attemptedKeyEvents,
+      'a normal input stop must not split dispatch from its acknowledgment'
+    ).toBe(report.confirmedKeyEvents);
     const finalText = (await observed(() => editor.textContent())) ?? '';
     report.finalTextLength = finalText.length;
     await observed(() => clickMenuItem(app!, 'menu.file.save'));
@@ -224,8 +225,7 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
         const document = parseMidst(readFileSync(documentPath, 'utf8'));
         return (
           document.text === `<p>${finalText}</p>` &&
-          document.history.length >= report.confirmedKeyEvents &&
-          document.history.length <= report.attemptedKeyEvents
+          document.history.length === report.confirmedKeyEvents
         );
       } catch {
         return false;
