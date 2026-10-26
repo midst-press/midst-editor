@@ -145,8 +145,10 @@ export default function Editor() {
     // The find bar takes the focus on purpose; taking it back would leave the poet unable to type there.
     const to = event.relatedTarget;
     if (to instanceof Element && to.closest(`.${FIND_BAR_CLASS}`)) return;
+    // Without moving the page (GitHub #92): focus() scrolls the caret into view by default, so a click in the
+    // header or footer of a long poem the poet had scrolled away from jumped back to the caret.
     if (window.electron.versions.isMac) {
-      editor.commands.focus();
+      editor.commands.focus(null, { scrollIntoView: false });
     }
   };
 
