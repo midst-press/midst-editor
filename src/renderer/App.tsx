@@ -57,7 +57,7 @@ export default function App() {
   const [filename, setFilename] = useState<string>(
     () => window.electron?.store.get('baseFilename') || ''
   );
-  // Off macOS, after a save failed, the title says the poem is not saved until a save works (#94).
+  // After a save failed, the title says the poem is not saved until a save works, on every platform (#94; GitHub #75).
   const [notSaved, setNotSaved] = useState(false);
   useEffect(() => {
     if (!window.electron) {
