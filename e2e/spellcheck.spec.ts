@@ -3,7 +3,14 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { launch, openDocument, readStore, waitUntil } from './harness';
+import {
+  checkSpellingMark,
+  clickCheckSpelling,
+  launch,
+  openDocument,
+  readStore,
+  waitUntil,
+} from './harness';
 
 // Does switching spellcheck on leave the poet in their poem?
 //
@@ -11,11 +18,8 @@ import { launch, openDocument, readStore, waitUntil } from './harness';
 // app at its opening screen, with the poem still open underneath and the poet no longer in it (#86).
 // Invented letters only.
 
-const toggleSpellcheck = (app: Awaited<ReturnType<typeof launch>>['app']) =>
-  app.evaluate(({ BrowserWindow }) =>
-    // What the View menu's spellcheck item sends.
-    BrowserWindow.getAllWindows()[0].webContents.send('toggle-spellcheck')
-  );
+// The real Edit > Check Spelling item: it owns the setting and its checkmark (editor #320).
+const toggleSpellcheck = clickCheckSpelling;
 
 test('toggling spellcheck comes back to the poem, with the setting applied', async () => {
   const work = mkdtempSync(join(tmpdir(), 'midst-spellcheck-stay-'));
@@ -186,6 +190,49 @@ test('switching spellcheck on marks the misspelled words before anything is type
       stored.history,
       stored.edited,
     ]);
+  } finally {
+    await app.close();
+  }
+});
+
+// The mark and the setting agree wherever the poet is (GitHub #80, editor #320). Only the writing screen
+// listens for the toggle, so in Timeline mode the menu has to change the setting itself; the writing screen
+// applies it when the poet returns.
+test('Check Spelling from Timeline mode changes the setting and its checkmark, applied on returning to Edit', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-spellcheck-timeline-'));
+  const doc = makeMidst('TIMELINE', 0);
+  const poemPath = join(work, 'timeline.midst');
+  writeFileSync(poemPath, doc.file);
+
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    // CONTROL: off, and the mark says so.
+    expect(await checkSpellingMark(app)).toBe(false);
+
+    await win.getByRole('button', { name: 'Timeline' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+    await clickCheckSpelling(app);
+    expect(
+      await waitUntil(() => readStore(userData).spellcheck === 'true', 10_000),
+      'Check Spelling in Timeline mode did not change the setting'
+    ).toBe(true);
+    expect(
+      await checkSpellingMark(app),
+      'the mark disagrees with the setting'
+    ).toBe(true);
+
+    await win.getByRole('button', { name: 'Edit' }).click();
+    await expect(win.locator('.ProseMirror')).toHaveAttribute(
+      'spellcheck',
+      'true',
+      { timeout: 25_000 }
+    );
   } finally {
     await app.close();
   }

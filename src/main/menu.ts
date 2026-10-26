@@ -82,7 +82,11 @@ const toggleEditMode = (mainWindow: BrowserWindow) => {
 const findInPoem = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('find-in-poem');
 };
-const toggleSpellcheck = (mainWindow: BrowserWindow) => {
+// Check Spelling is a checkbox (GitHub #80, editor #320), and the menu owns the setting: Electron has already
+// flipped the item's mark when this runs, so the store follows the mark, and the window is told to apply it.
+// Whatever the window is showing, the mark and the setting agree; the writing screen reads the setting when it opens.
+const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
+  store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
@@ -789,8 +793,23 @@ export default class MenuBuilder {
     };
   }
 
-  // The spellcheck item has a different name on each platform.
   private modeItems(modifier: string) {
+    const checkSpelling: MenuItemConstructorOptions = {
+      id: this.darwin
+        ? 'menu.edit.spellcheck.mac'
+        : 'menu.edit.spellcheck.other',
+      label: this.label(
+        i18n._(
+          this.darwin
+            ? 'menu.edit.spellcheck.mac'
+            : 'menu.edit.spellcheck.other'
+        )
+      ),
+      type: 'checkbox',
+      checked: store.get('spellcheck') === 'true',
+      accelerator: `${modifier}+;`,
+      click: (item) => setSpellcheck(this.mainWindow, item.checked),
+    };
     return [
       {
         id: 'menu.edit.find',
@@ -804,19 +823,7 @@ export default class MenuBuilder {
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
-      this.darwin
-        ? {
-            id: 'menu.edit.spellcheck.mac',
-            label: this.label(i18n._('menu.edit.spellcheck.mac')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          }
-        : {
-            id: 'menu.edit.spellcheck.other',
-            label: this.label(i18n._('menu.edit.spellcheck.other')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          },
+      checkSpelling,
     ];
   }
 
