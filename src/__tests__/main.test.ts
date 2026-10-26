@@ -217,6 +217,7 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  offerRecovery: jest.fn(() => Promise.resolve()),
   // The real one: which action failed is what the IPC tests below check is logged.
   logIfRejected: (
     ...args: Parameters<typeof import('../main/menu').logIfRejected>
