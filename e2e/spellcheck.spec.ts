@@ -246,17 +246,20 @@ type Win = Awaited<
 type App = Awaited<ReturnType<typeof launch>>['app'];
 
 // Red pixels inside each paragraph of the poem, in order.
-const redPerLine = async (app: App, win: Win) => {
-  const boxes = await win.evaluate(() =>
-    [...document.querySelectorAll('.ProseMirror p')].map((p) => {
-      const r = p.getBoundingClientRect();
-      return {
-        x: Math.floor(r.x),
-        y: Math.floor(r.y),
-        width: Math.ceil(r.width),
-        height: Math.ceil(r.height) + 4,
-      };
-    })
+// `lines` limits it to the first so many: a line scrolled out of the window cannot be captured.
+const redPerLine = async (app: App, win: Win, lines = Infinity) => {
+  const boxes = await win.evaluate(
+    (n) =>
+      [...document.querySelectorAll('.ProseMirror p')].slice(0, n).map((p) => {
+        const r = p.getBoundingClientRect();
+        return {
+          x: Math.floor(r.x),
+          y: Math.floor(r.y),
+          width: Math.ceil(r.width),
+          height: Math.ceil(r.height) + 4,
+        };
+      }),
+    lines
   );
   return app.evaluate(
     async ({ BrowserWindow }, rects) =>
@@ -285,7 +288,8 @@ const redPerLine = async (app: App, win: Win) => {
 async function openPoem(prefix: string) {
   const work = mkdtempSync(join(tmpdir(), `midst-spellcheck-${prefix}-`));
   const poemPath = join(work, `${prefix}.midst`);
-  writeFileSync(poemPath, makeMidst('q', 0).file);
+  // A misspelled first line, so a test can see that spellcheck is marking before it types (turnSpellcheckOn).
+  writeFileSync(poemPath, makeMidst('zqxvk', 0).file);
   const { app, userData } = await launch(work);
   const win = await app.firstWindow();
   await win.waitForLoadState('domcontentloaded');
@@ -304,6 +308,18 @@ async function turnSpellcheckOn(app: App, win: Win, userData: string) {
     'true',
     { timeout: 25_000 }
   );
+}
+
+// Marking has begun: the poem's first line is marked. On Linux a word typed straight after the switch was not, while
+// the whole-poem check a second later was (run 12021), so a test that types after the switch waits for this first.
+async function markingHasBegun(app: App, win: Win) {
+  await hideText(win);
+  await expect
+    .poll(async () => (await redPerLine(app, win, 1))[0], {
+      message: 'spellcheck never marked the first line',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
 }
 
 // Keys sent at once can reach ProseMirror before it has read a caret move, and Enter then breaks the line where
@@ -360,6 +376,7 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     const { app, win, userData } = await openPoem('space');
     try {
       await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
       await typeAtEnd(win, ['Enter', 'lskfjas ']);
       await hideText(win);
       const lines = await linesShown(win);
@@ -380,6 +397,7 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     const { app, win, userData } = await openPoem('break');
     try {
       await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
       await typeAtEnd(win, ['Enter', 'lskfjas', 'Enter', 'q']);
       await hideText(win);
       await expect
@@ -399,6 +417,7 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     const { app, win, userData } = await openPoem('lines');
     try {
       await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
       await typeAtEnd(win, [
         'Enter',
         'dsflkaj',
@@ -432,6 +451,7 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     const { app, win, userData } = await openPoem('split');
     try {
       await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
       await typeAtEnd(win, ['Enter', 'dsflkajsdf ', 'Enter', 'sfazqwx ']);
       await hideText(win);
       // CONTROL: both lines are marked before the break.
