@@ -468,8 +468,38 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
             e = e.parentElement;
           return e ? e.scrollTop : (document.scrollingElement?.scrollTop ?? -1);
         });
-      // Typing at the end left the view at the bottom: CONTROL that it is not at the top.
+      // The cursor at the top and the page scrolled to the bottom, so the place kept is not where the cursor is:
+      // only putting the scroll position back keeps the view here; focusing the cursor would take it to the top
+      // (River, review of #322).
+      // The view follows the caret a few frames after the key, so each scroll is waited out until it holds: a
+      // bottom set while the caret's scroll is still coming is undone before the toggle, and 0 is what is kept.
+      const settledScrollTop = () =>
+        win.evaluate(
+          () =>
+            new Promise<number>((resolve) => {
+              const dom = document.querySelector('.ProseMirror') as HTMLElement;
+              let last = dom.scrollTop;
+              let still = 0;
+              const tick = () => {
+                still = dom.scrollTop === last ? still + 1 : 0;
+                last = dom.scrollTop;
+                if (still >= 10) resolve(last);
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            })
+        );
+      await win.keyboard.press(
+        process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home'
+      );
+      await expect.poll(settledScrollTop, { timeout: 5_000 }).toBe(0);
+      await win.evaluate(() => {
+        const dom = document.querySelector('.ProseMirror') as HTMLElement;
+        dom.scrollTop = dom.scrollHeight;
+      });
+      await settledScrollTop();
       const before = await scrollTop();
+      // CONTROL: the view is far from the top, where the cursor is.
       expect(before).toBeGreaterThan(200);
       await turnSpellcheckOn(app, win, userData);
       await expect
