@@ -798,12 +798,11 @@ export default class MenuBuilder {
       id: this.darwin
         ? 'menu.edit.spellcheck.mac'
         : 'menu.edit.spellcheck.other',
+      // Each id written out in its own call: the catalog extractor finds only literal ids.
       label: this.label(
-        i18n._(
-          this.darwin
-            ? 'menu.edit.spellcheck.mac'
-            : 'menu.edit.spellcheck.other'
-        )
+        this.darwin
+          ? i18n._('menu.edit.spellcheck.mac')
+          : i18n._('menu.edit.spellcheck.other')
       ),
       type: 'checkbox',
       checked: store.get('spellcheck') === 'true',
