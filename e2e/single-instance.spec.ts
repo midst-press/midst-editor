@@ -30,7 +30,15 @@ test('a second launch hands its poem to the running copy and quits', async () =>
 
     const second = spawn(
       electronBinary as unknown as string,
-      [APP_DIR, `--user-data-dir=${userData}`, file],
+      [
+        // The Linux CI container has Chromium's SUID sandbox helper unconfigured, and a launch outside Playwright
+        // aborts on it ("The SUID sandbox helper binary was found, but is not configured correctly", run 12161).
+        // Playwright's own launch of the first copy does not meet it. Test-only: the app is unchanged.
+        ...(process.platform === 'linux' ? ['--no-sandbox'] : []),
+        APP_DIR,
+        `--user-data-dir=${userData}`,
+        file,
+      ],
       { stdio: ['ignore', 'ignore', 'pipe'] }
     );
     // Its exit code and the end of its stderr: a launch that crashes also "quits", and only these tell the two apart.
