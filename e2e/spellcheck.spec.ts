@@ -306,11 +306,45 @@ async function turnSpellcheckOn(app: App, win: Win, userData: string) {
   );
 }
 
+// Keys sent at once can reach ProseMirror before it has read a caret move, and Enter then breaks the line where
+// the caret was (measured on #238). So a caret move is waited out until ProseMirror's own selection shows it.
+async function caretAt(win: Win, where: 'start' | 'end') {
+  await expect
+    .poll(
+      () =>
+        win.evaluate((at) => {
+          const { state } = (
+            document.querySelector('.ProseMirror') as unknown as {
+              editor: {
+                state: {
+                  selection: { head: number };
+                  doc: { content: { size: number } };
+                };
+              };
+            }
+          ).editor;
+          const want = at === 'start' ? 1 : state.doc.content.size - 1;
+          return state.selection.head === want;
+        }, where),
+      { message: `the caret never reached the ${where}`, timeout: 5_000 }
+    )
+    .toBe(true);
+}
+
+// The poem's lines as the page shows them, for a failure message.
+const linesShown = (win: Win) =>
+  win.evaluate(() =>
+    JSON.stringify(
+      [...document.querySelectorAll('.ProseMirror p')].map((p) => p.textContent)
+    )
+  );
+
 async function typeAtEnd(win: Win, keys: (string | 'Enter')[]) {
   await win.locator('.ProseMirror').click();
   await win.keyboard.press(
     process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
   );
+  await caretAt(win, 'end');
   // Keystrokes in order.
   await keys.reduce(
     (sofar, k) =>
@@ -328,8 +362,12 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
       await turnSpellcheckOn(app, win, userData);
       await typeAtEnd(win, ['Enter', 'lskfjas ']);
       await hideText(win);
+      const lines = await linesShown(win);
       await expect
-        .poll(async () => (await redPerLine(app, win))[1], { timeout: 5_000 })
+        .poll(async () => (await redPerLine(app, win))[1], {
+          message: `the typed word is not marked; the lines were ${lines}`,
+          timeout: 5_000,
+        })
         .toBeGreaterThan(0);
     } finally {
       await app.close();
@@ -493,7 +531,9 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
       await win.keyboard.press(
         process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home'
       );
-      await expect.poll(settledScrollTop, { timeout: 5_000 }).toBe(0);
+      await caretAt(win, 'start');
+      // Near the top, not at 0: on Linux the view settled at 2 (run 11956).
+      await expect.poll(settledScrollTop, { timeout: 5_000 }).toBeLessThan(50);
       await win.evaluate(() => {
         const dom = document.querySelector('.ProseMirror') as HTMLElement;
         dom.scrollTop = dom.scrollHeight;
