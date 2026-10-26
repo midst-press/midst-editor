@@ -15,12 +15,14 @@ import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
+  focusModeMark,
   logIfRejected,
   newFile,
   offerRecovery,
   openFile,
   save,
   saveAs,
+  setFocusModeMark,
   setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
@@ -1469,6 +1471,9 @@ describe('the menu', () => {
     new MenuBuilder(asWindow(win)).buildMenu();
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
+  // Focus mode's tests build more than once (a state, then a rebuild): the template to read
+  // is the LAST one — a rebuild is buildMenu calling buildFromTemplate again.
+  const lastBuild = () => buildFromTemplate.mock.calls.at(-1)![0] as Item[];
 
   // Every word in the menus comes from the catalog: each labelled item's id is a catalog key, and its
   // label is that key's English, without the '&' on macOS (midst-infra docs/design/message-catalog.md).
@@ -2096,193 +2101,294 @@ describe('the menu', () => {
         '4'
       );
     });
-  });
+    // Focus Mode (GitHub #25): a checkbox that hides every interface option except the moon.
+    // It is never stored (a poem must not save its focus mode status); the mark in the built
+    // menu IS the state, and the click sends the mark's value to the renderer, which holds no
+    // copy of its own (vivian & cora, #327).
+    describe('Focus Mode', () => {
+      // eslint-disable-next-line no-unused-vars -- the name says what Electron passes to a checkbox's click
+      type CheckboxClick = (item: { checked: boolean }) => void;
 
-  describe('macOS only', () => {
-    it('Quit quits the app', () => {
-      sub(build('darwin'), 'Midst', 'Quit').click!();
-      expect(app.quit).toHaveBeenCalledTimes(1);
-    });
-
-    it('New on a destroyed window resets the stored document and reactivates the app', () => {
-      // Saved state on purpose. A destroyed window with unsaved work should not arise (closing is
-      // held until the poet chooses), so what New does about it is not pinned here.
-      seedDocument({ edited: 'false', filename: '/x/zq.midst' });
-      const win = makeWindow();
-      win.isDestroyed.mockReturnValue(true);
-      sub(build('darwin', win), 'File', 'New').click!();
-      expect(mockStore.get('poem')).toBe('');
-      expect(mockStore.get('history')).toBe('[]');
-      expect(mockStore.get('meta')).toBe('');
-      expect(mockStore.get('filename')).toBe('');
-      expect(mockStore.get('edited')).toBe('false');
-      expect(app.emit).toHaveBeenCalledWith('activate', false);
-      expect(win.webContents.send).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Windows and Linux only', () => {
-    it('Close closes the window', () => {
-      const win = makeWindow();
-      sub(build('linux', win), '&File', '&Close').click!();
-      expect(win.close).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Help > Show Log File', () => {
-    it.each([
-      ['darwin', 'Help'],
-      ['linux', 'Help'],
-    ])('on %s shows the log file in the file browser', (platform, menu) => {
-      process.env.NODE_ENV = 'production';
-      const template = build(platform);
-      const item = sub(template, menu, 'Show Log File');
-      expect(item.accelerator).toBeUndefined();
-      item.click!();
-      expect(shell.showItemInFolder).toHaveBeenCalledWith(
-        '/zq/Logs/Midst/main.log'
-      );
-    });
-  });
-
-  describe('View > Appearance (GitHub #16)', () => {
-    type Radio = Item & { type?: string; checked?: boolean };
-    const appearance = (platform: string) => {
-      process.env.NODE_ENV = 'production';
-      delete process.env.DEBUG_PROD;
-      const template = build(platform);
-      return sub(
-        template,
-        platform === 'darwin' ? 'View' : '&View',
-        'Appearance'
-      ).submenu as Radio[];
-    };
-
-    beforeEach(() => {
-      nativeTheme.themeSource = 'system';
-    });
-
-    it.each(['darwin', 'linux'])(
-      'offers Follow System, Light and Dark as one choice on %s',
-      (platform) => {
-        const items = appearance(platform);
-        expect(items.map((i) => [i.label, i.type])).toEqual([
-          ['Follow System', 'radio'],
-          ['Light', 'radio'],
-          ['Dark', 'radio'],
-        ]);
-      }
-    );
-
-    it('is also in the development View menu', () => {
-      process.env.NODE_ENV = 'development';
-      const template = build('darwin');
-      expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
-    });
-
-    it.each([
-      [undefined, 'Follow System'],
-      ['light', 'Light'],
-      ['dark', 'Dark'],
-      ['system', 'Follow System'],
-      ['purple', 'Follow System'],
-    ])('with %p stored, checks %s', (stored, label) => {
-      if (stored !== undefined) mockStore.set('appearance', stored);
-      expect(
-        appearance('darwin')
-          .filter((i) => i.checked)
-          .map((i) => i.label)
-      ).toEqual([label]);
-    });
-
-    it.each([
-      ['Dark', 'dark'],
-      ['Light', 'light'],
-      ['Follow System', 'system'],
-    ])('choosing %s stores it and sets the scheme', (label, value) => {
-      mockStore.set(
-        'appearance',
-        label === 'Follow System' ? 'dark' : 'system'
-      );
-      find(appearance('linux'), label).click!();
-      expect(mockStore.get('appearance')).toBe(value);
-      expect(nativeTheme.themeSource).toBe(value);
-    });
-  });
-
-  describe('View > Language (editor #265)', () => {
-    type Radio = Item & { type?: string; checked?: boolean };
-    const languages = (platform: string, win = makeWindow()) => {
-      process.env.NODE_ENV = 'production';
-      delete process.env.DEBUG_PROD;
-      setPlatform(platform);
-      new MenuBuilder(asWindow(win)).buildMenu();
-      const template = buildFromTemplate.mock.calls[0][0] as Item[];
-      return sub(template, platform === 'darwin' ? 'View' : '&View', 'Language')
-        .submenu as Radio[];
-    };
-
-    afterEach(() => {
-      activateLocale('en');
-    });
-
-    it.each(['darwin', 'linux'])(
-      'lists each catalog by its own name as one choice, after Appearance, on %s',
-      (platform) => {
-        const items = languages(platform);
-        expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
-          ['English', 'radio', true],
-        ]);
-        const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
-          (i) => i.id === 'menu.view'
-        )!.submenu as Item[];
-        const ids = view.map((i) => i.id);
-        expect(ids.indexOf('menu.view.language')).toBe(
-          ids.indexOf('menu.view.appearance') + 1
+      it.each([
+        ['darwin', 'Focus Mode'],
+        ['linux', 'Focus &Mode'],
+      ])('is an unstored checkbox on %s', (platform, text) => {
+        // The state is module memory (menu.ts): each test states the point it tests, and
+        // leaves it where it stated it.
+        setFocusModeMark(false);
+        const win = makeWindow();
+        const item = sub(
+          build(platform, win),
+          platform === 'darwin' ? 'Edit' : '&Edit',
+          text
         );
-      }
-    );
+        expect(item.type).toBe('checkbox');
+        expect(item.checked).toBe(false);
+      });
 
-    it('is also in the development View menu', () => {
-      process.env.NODE_ENV = 'development';
-      setPlatform('darwin');
-      new MenuBuilder(asWindow(makeWindow())).buildMenu();
-      const template = buildFromTemplate.mock.calls[0][0] as Item[];
-      expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+      // One copy of the state (cora, #327): the mark in the built menu. Electron flips the mark
+      // before the click runs, so the click's job is to make the screen follow the mark — send
+      // the mark's value. The store is never involved: focus mode is not saved with the poem.
+      it('sends the mark it was clicked into, off then on, and stores nothing', () => {
+        setFocusModeMark(false);
+        const win = makeWindow();
+        const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
+        mockStore.clear();
+        (item.click as unknown as CheckboxClick)({ checked: false });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          false
+        );
+        (item.click as unknown as CheckboxClick)({ checked: true });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // The store is a Map here: nothing about focus mode was ever written to it.
+        expect([...mockStore.keys()].filter((k) => /focus/i.test(k))).toEqual(
+          []
+        );
+        // And the store is never the source: a fresh app, whatever the store holds, builds
+        // the checkbox unmarked — regular Edit mode (GitHub #25). 'spellcheck' is the store
+        // pattern focus mode deliberately does not join (menu.ts): seed it, build, unmarked.
+        mockStore.set('spellcheck', 'true');
+        expect(sub(build('linux'), '&Edit', 'Focus &Mode').checked).toBe(false);
+        // Balanced: the click of this test moved main's memory; a new document starts regular.
+        setFocusModeMark(false);
+      });
+
+      // The mark lives in menu.ts's memory, so it survives the window, the page, and a
+      // rebuild alike (vivian & cora, #327): each test sets the state it asserts FROM and
+      // reads it back in the next build — no live-menu installation, no reach-by-id needed.
+      it("a rebuilt menu is built from main's memory, on and off", () => {
+        // The order a running app has: the state moves, the menu is rebuilt (setLanguage), and
+        // the new template carries the state. A template captured BEFORE the turn, left in the
+        // mock's list, carries the value it was built at — which is honest, so 'lastBuild' is
+        // the only read, and it is taken after each build below.
+        const builtOn = () => {
+          build('linux');
+          return sub(lastBuild(), '&Edit', 'Focus &Mode').checked;
+        };
+        setFocusModeMark(true);
+        expect(builtOn()).toBe(true);
+        setFocusModeMark(false);
+        expect(builtOn()).toBe(false);
+      });
+
+      // vivian's blocking case at 77665af, stated at the menu half: closing the window turns
+      // the mark off (main.ts's 'closed' — disable-save cannot carry it, vivian at 2b3758b).
+      // Memory is the one copy, so an off remembered is a regular-mode open — wherever the
+      // menu was rebuilt, in this run or the next.
+      it('an off remembered is a regular-mode open (vivian, 77665af)', () => {
+        setFocusModeMark(true);
+        expect(focusModeMark()).toBe(true);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(true);
+        // Leaving the editor: the state is turned off, once (main.ts disable-save).
+        setFocusModeMark(false);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(false);
+      });
+
+      // No accelerator, still (GitHub #25): a bare modifier chord is macOS input methods', and
+      // the guide's shortcut table (shortcutTable.ts) stays unchanged until the editor names one.
+      it('has no accelerator', () => {
+        setFocusModeMark(false);
+        const item = sub(build('linux'), '&Edit', 'Focus &Mode');
+        expect(item).not.toHaveProperty('accelerator');
+      });
     });
 
-    it('stores English, never the tag, for a language with no catalog', () => {
-      const win = makeWindow();
-      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
-        jest.fn(() => [win]);
-      setLanguage('xx', asWindow(win));
-      expect(mockStore.get('language')).toBe('en');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+    describe('applyStoredAppearance (GitHub #16)', () => {});
+
+    describe('macOS only', () => {
+      it('Quit quits the app', () => {
+        sub(build('darwin'), 'Midst', 'Quit').click!();
+        expect(app.quit).toHaveBeenCalledTimes(1);
+      });
+
+      it('New on a destroyed window resets the stored document and reactivates the app', () => {
+        // Saved state on purpose. A destroyed window with unsaved work should not arise (closing is
+        // held until the poet chooses), so what New does about it is not pinned here.
+        seedDocument({ edited: 'false', filename: '/x/zq.midst' });
+        const win = makeWindow();
+        win.isDestroyed.mockReturnValue(true);
+        sub(build('darwin', win), 'File', 'New').click!();
+        expect(mockStore.get('poem')).toBe('');
+        expect(mockStore.get('history')).toBe('[]');
+        expect(mockStore.get('meta')).toBe('');
+        expect(mockStore.get('filename')).toBe('');
+        expect(mockStore.get('edited')).toBe('false');
+        expect(app.emit).toHaveBeenCalledWith('activate', false);
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      });
     });
 
-    it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
-      const win = makeWindow();
-      const other = makeWindow();
-      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
-        jest.fn(() => [win, other]);
-      const items = languages('darwin', win);
-      buildFromTemplate.mockClear();
-      (Menu.setApplicationMenu as jest.Mock).mockClear();
-      win.webContents.on.mockClear();
-      // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
-      process.env.NODE_ENV = 'development';
-      find(items, 'English').click!();
-      expect(mockStore.get('language')).toBe('en');
-      expect(buildFromTemplate).toHaveBeenCalledTimes(1);
-      expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
-      expect(win.webContents.on).not.toHaveBeenCalled();
-      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
-      expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+    describe('Windows and Linux only', () => {
+      it('Close closes the window', () => {
+        const win = makeWindow();
+        sub(build('linux', win), '&File', '&Close').click!();
+        expect(win.close).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('Help > Show Log File', () => {
+      it.each([
+        ['darwin', 'Help'],
+        ['linux', 'Help'],
+      ])('on %s shows the log file in the file browser', (platform, menu) => {
+        process.env.NODE_ENV = 'production';
+        const template = build(platform);
+        const item = sub(template, menu, 'Show Log File');
+        expect(item.accelerator).toBeUndefined();
+        item.click!();
+        expect(shell.showItemInFolder).toHaveBeenCalledWith(
+          '/zq/Logs/Midst/main.log'
+        );
+      });
+    });
+
+    describe('View > Appearance (GitHub #16)', () => {
+      type Radio = Item & { type?: string; checked?: boolean };
+      const appearance = (platform: string) => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.DEBUG_PROD;
+        const template = build(platform);
+        return sub(
+          template,
+          platform === 'darwin' ? 'View' : '&View',
+          'Appearance'
+        ).submenu as Radio[];
+      };
+
+      beforeEach(() => {
+        nativeTheme.themeSource = 'system';
+      });
+
+      it.each(['darwin', 'linux'])(
+        'offers Follow System, Light and Dark as one choice on %s',
+        (platform) => {
+          const items = appearance(platform);
+          expect(items.map((i) => [i.label, i.type])).toEqual([
+            ['Follow System', 'radio'],
+            ['Light', 'radio'],
+            ['Dark', 'radio'],
+          ]);
+        }
+      );
+
+      it('is also in the development View menu', () => {
+        process.env.NODE_ENV = 'development';
+        const template = build('darwin');
+        expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
+      });
+
+      it.each([
+        [undefined, 'Follow System'],
+        ['light', 'Light'],
+        ['dark', 'Dark'],
+        ['system', 'Follow System'],
+        ['purple', 'Follow System'],
+      ])('with %p stored, checks %s', (stored, label) => {
+        if (stored !== undefined) mockStore.set('appearance', stored);
+        expect(
+          appearance('darwin')
+            .filter((i) => i.checked)
+            .map((i) => i.label)
+        ).toEqual([label]);
+      });
+
+      it.each([
+        ['Dark', 'dark'],
+        ['Light', 'light'],
+        ['Follow System', 'system'],
+      ])('choosing %s stores it and sets the scheme', (label, value) => {
+        mockStore.set(
+          'appearance',
+          label === 'Follow System' ? 'dark' : 'system'
+        );
+        find(appearance('linux'), label).click!();
+        expect(mockStore.get('appearance')).toBe(value);
+        expect(nativeTheme.themeSource).toBe(value);
+      });
+    });
+
+    describe('View > Language (editor #265)', () => {
+      type Radio = Item & { type?: string; checked?: boolean };
+      const languages = (platform: string, win = makeWindow()) => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.DEBUG_PROD;
+        setPlatform(platform);
+        new MenuBuilder(asWindow(win)).buildMenu();
+        const template = buildFromTemplate.mock.calls[0][0] as Item[];
+        return sub(
+          template,
+          platform === 'darwin' ? 'View' : '&View',
+          'Language'
+        ).submenu as Radio[];
+      };
+
+      afterEach(() => {
+        activateLocale('en');
+      });
+
+      it.each(['darwin', 'linux'])(
+        'lists each catalog by its own name as one choice, after Appearance, on %s',
+        (platform) => {
+          const items = languages(platform);
+          expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
+            ['English', 'radio', true],
+          ]);
+          const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
+            (i) => i.id === 'menu.view'
+          )!.submenu as Item[];
+          const ids = view.map((i) => i.id);
+          expect(ids.indexOf('menu.view.language')).toBe(
+            ids.indexOf('menu.view.appearance') + 1
+          );
+        }
+      );
+
+      it('is also in the development View menu', () => {
+        process.env.NODE_ENV = 'development';
+        setPlatform('darwin');
+        new MenuBuilder(asWindow(makeWindow())).buildMenu();
+        const template = buildFromTemplate.mock.calls[0][0] as Item[];
+        expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+      });
+
+      it('stores English, never the tag, for a language with no catalog', () => {
+        const win = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win]);
+        setLanguage('xx', asWindow(win));
+        expect(mockStore.get('language')).toBe('en');
+        expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      });
+
+      it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
+        const win = makeWindow();
+        const other = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win, other]);
+        const items = languages('darwin', win);
+        buildFromTemplate.mockClear();
+        (Menu.setApplicationMenu as jest.Mock).mockClear();
+        win.webContents.on.mockClear();
+        // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
+        process.env.NODE_ENV = 'development';
+        find(items, 'English').click!();
+        expect(mockStore.get('language')).toBe('en');
+        expect(buildFromTemplate).toHaveBeenCalledTimes(1);
+        expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
+        expect(win.webContents.on).not.toHaveBeenCalled();
+        expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+        expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      });
     });
   });
-});
-
-describe('applyStoredAppearance (GitHub #16)', () => {
   it.each([
     [undefined, 'system'],
     ['dark', 'dark'],

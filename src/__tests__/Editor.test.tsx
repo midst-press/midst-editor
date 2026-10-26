@@ -51,8 +51,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
       },
     },
     ipcRenderer: {
-      sendMessage: (channel: string, args: unknown) =>
-        record('send', channel, args),
+      // Rest spread, as Electron's own ipcRenderer.sendMessage is (channel, ...args):
+      // callers pass what they mean as arguments, and every send is recorded in order.
+      sendMessage: (channel: string, ...args: unknown[]) =>
+        record('send', channel, ...args),
       on: (channel: string, listener: Listener) => {
         listeners[channel] = [...(listeners[channel] ?? []), listener];
         return () => {
@@ -939,5 +941,65 @@ describe('Editor: the cursor when coming back', () => {
     mount({ initialText: '<p>qz</p>' });
     settleFocus();
     expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
+  });
+});
+
+describe('focus mode in the editor (GitHub #25)', () => {
+  // The Spacer's buttons resolve to whatever the built catalog holds (some ids fall back to
+  // their own names in jsdom); the Spacer is addressed by class, so the wording does not matter.
+  const spacer = () => document.querySelector('.Spacer');
+  const moon = () => screen.getByRole('button', { name: /Focus Mode/ });
+
+  it('the moon lives in the editor page', () => {
+    mount();
+    expect(moon()).toBeInTheDocument();
+  });
+
+  it('the moon asks main, the editor asks on mount, and the store is never touched (GitHub #25)', () => {
+    mount();
+    // An editor mounting after the mode changed (Replay and back) asks where the screen
+    // stands — once, before any click (main.ts answers it from the menu's mark).
+    expect(bridge.sends('focus-mode-changed')).toHaveLength(1);
+    bridge.clear();
+    fireEvent.click(moon());
+    expect(bridge.sends('focus-mode-requested')).toHaveLength(1);
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
+  });
+
+  it('entering follows main’s answer with a hidden screen', () => {
+    mount();
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  // vivian's blocking case, at the screen: main answers with the menu's mark (main.ts), so a
+  // channel's value alone moves the screen — no second click needed to leave what the moon
+  // entered.
+  it('one answer leaves focus mode: false shows the buttons again', () => {
+    mount();
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+    bridge.emit('set-focus-mode', false); // the menu's ONE choice, answered at the screen
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+  });
+
+  it('an unknown answer leaves the screen alone', () => {
+    mount();
+    fireEvent.click(moon());
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', undefined);
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  it('focus mode is never written to the store, whatever path it takes', () => {
+    mount();
+    bridge.clear();
+    fireEvent.click(moon()); // on, through the moon
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', false); // off, through the menu
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
   });
 });
