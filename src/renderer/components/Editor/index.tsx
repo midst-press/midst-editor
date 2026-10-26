@@ -22,6 +22,7 @@ import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
+import useFocusMode from './useFocusMode';
 import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
 
@@ -84,6 +85,10 @@ export default function Editor() {
     []
   );
   const autosave = useAutosave(latest, saveFileAndUpdateStore);
+
+  // Focus Mode (GitHub #25): hides every interface option except the moon. Component state only —
+  // never the store — so a saved-and-closed poem reopens in regular Edit mode, as Annelyse asked.
+  const focusMode = useFocusMode();
 
   // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
   // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
@@ -186,7 +191,9 @@ export default function Editor() {
     const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        // The menu has already changed the setting and its mark (editor #320); this applies it.
+        // The menu has already changed the setting and its mark (editor #320); this applies it, keeping the
+        // poet's place through the reload (editor #238, case 5).
+        if (myEditor) rememberCursor(myEditor, { acrossReload: true });
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
         saveFileAndUpdateStore();
@@ -198,7 +205,7 @@ export default function Editor() {
     );
 
     return removeToggleSpellcheck;
-  }, [saveFileAndUpdateStore]);
+  }, [saveFileAndUpdateStore, myEditor]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
@@ -260,7 +267,12 @@ export default function Editor() {
       }}
     >
       <EditorProvider
-        slotBefore={<MenuBar />}
+        slotBefore={
+          <MenuBar
+            focused={focusMode.focused}
+            onToggleFocus={focusMode.toggle}
+          />
+        }
         extensions={extensions}
         content={htmlString}
         onUpdate={onUpdate}
@@ -276,7 +288,8 @@ export default function Editor() {
       />
       <FindBar editor={myEditor} />
 
-      <div className="Spacer">
+      {/* The draft-mark and replay buttons are interface options too and go in focus mode (GitHub #25). */}
+      <div className={focusMode.focused ? 'Spacer Spacer-hidden' : 'Spacer'}>
         <Tooltip
           title={draftReason ?? i18n._('drafts.mark')}
           TransitionComponent={Zoom}

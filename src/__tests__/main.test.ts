@@ -217,6 +217,7 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  offerRecovery: jest.fn(() => Promise.resolve()),
   // The real one: which action failed is what the IPC tests below check is logged.
   logIfRejected: (
     ...args: Parameters<typeof import('../main/menu').logIfRejected>
@@ -235,6 +236,25 @@ jest.mock('../main/menu', () => ({
         .requireActual<typeof import('../main/menu')>('../main/menu')
         .openPath(...args)
   ),
+  // Focus mode's three helpers are the real ones (GitHub #25): the state lives in menu.ts's
+  // memory, and the moon-and-editor test below follows it across enable-save and disable-save.
+  // The stand-in applicationMenu is the live menu they move their mark in.
+  focusModeMark: () =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .focusModeMark(),
+  setFocusModeMark: (
+    ...args: Parameters<typeof import('../main/menu').setFocusModeMark>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .setFocusModeMark(...args),
+  requestFocusMode: (
+    ...args: Parameters<typeof import('../main/menu').requestFocusMode>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .requestFocusMode(...args),
 }));
 
 // Everything a test needs from the freshly imported module registry.
@@ -561,6 +581,21 @@ describe('main process', () => {
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
     });
 
+    // #315: the real recovery module, on this file's fake store; a recovery id names an untitled poem's copy.
+    it("forgets an untitled poem's recovery copy on Quit Anyway, and keeps it on Cancel", async () => {
+      const id = '11111111-1111-4111-8111-111111111111';
+      const kept = await boot();
+      kept.store.set('edited', 'true');
+      kept.store.set('recoveryId', id);
+      kept.state.dialogResponse = 1;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe(id);
+
+      kept.state.dialogResponse = 0;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe('');
+    });
+
     // #236: Quit runs here at once, while the keystrokes typed just before it reach `edited` only by message.
     describe('with the editor showing, it asks the editor first', () => {
       const flushId = (w: { webContents: { send: jest.Mock } }) =>
@@ -805,6 +840,158 @@ describe('main process', () => {
       expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
     });
 
+    // vivian's cases at 77665af and 2b3758b, at the half that was missing: the mark lives in
+    // main's memory, so it must leave with the WINDOW — disable-save cannot carry it (it comes
+    // from React's effect cleanup, which never runs when the page is destroyed), and closing in
+    // focus mode then opening a poem in the same run must answer regular Edit mode (GitHub #25).
+    describe('focus mode and the window (GitHub #25)', () => {
+      it('the moon turns it on, Replay-and-back keeps it, closing clears it', async () => {
+        const { fireApp, fireIpc, fireWindow, flush, store, state, win } =
+          await boot();
+        // menu.ts's memory is module state shared across this file's tests: state it here,
+        // through the real passthrough above; main.ts is the only caller in the app.
+        const { focusModeMark, setFocusModeMark } =
+          await import('../main/menu');
+        setFocusModeMark(false);
+        await fireIpc('enable-save');
+        // The moon asks once, main turns the mark and answers: the screen hides.
+        await fireIpc('focus-mode-requested', {});
+        expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // Toggle Timeline: /editor and /replay are sibling routes (App.tsx), the editor
+        // unmounts and its cleanup sends disable-save — and the mode WAITS, not cleared:
+        // whether a trip to the Timeline keeps focus mode is Annelyse's call, and no message
+        // this page can send decides it. disable-save sends nothing at all.
+        const sendsBefore = win().webContents.send.mock.calls.length;
+        await fireIpc('disable-save');
+        expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual(
+          []
+        );
+        // Back: the editor remounts (useFocusMode.ts sends 'focus-mode-changed' on mount)
+        // and asks — and is answered on: the mode survived the trip, the mark is its one
+        // copy, and no message on the way here cleared it.
+        await fireIpc('focus-mode-changed', {});
+        expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // Closing: the window's own event, the one place every way of closing passes through
+        // (main.ts 'closed'), turns the mark off. React's cleanup never runs when the page is
+        // destroyed, so the renderer's disable-save never arrives — the window's event carries
+        // it alone. The house's close, as the close tests above do it: a real close event
+        // (preventDefaults is counted), 'edited' says saved, the flusher answers, the window
+        // is destroyed — and 'closed' follows, where the mark leaves with the window.
+        store.set('edited', 'false');
+        const event = { preventDefault: jest.fn() };
+        await fireWindow('close', event);
+        expect(event.preventDefault).toHaveBeenCalled();
+        // The close is held for the editor's answer (#236). editorShowing is true only while
+        // the editor is showing; enable-save says it is, and the house's flusher answers —
+        // the close resolves the next tick, so two flushes, as the close test's awaits are.
+        await fireIpc('enable-save');
+        const { flushEditor } = await import('../main/editorFlush');
+        await flushEditor(win() as never);
+        await flush();
+        expect(win().destroy).toHaveBeenCalledTimes(1);
+        // Electron's destroy fires 'closed'; the mock does not, so the test fires what the
+        // mock leaves unsent — the order Electron itself keeps.
+        await fireWindow('closed');
+        expect(focusModeMark()).toBe(false);
+        // The same run's next poem: on macOS a click on the Dock icon — 'activate' with no
+        // window visible — opens the next window (main.ts). It mounts, asks, and is answered
+        // off: regular Edit mode (vivian's case at 2b3758b).
+        await fireApp('activate', false);
+        await flush();
+        expect(state.windows).toHaveLength(2);
+        const w2 = win();
+        expect(w2).not.toBe(state.windows[0]);
+        await fireIpc('focus-mode-changed', {});
+        expect(w2.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          false
+        );
+      });
+
+      // The house's argument discipline, stated for both focus channels (vivian's bogus-warning
+      // case at 77665af): preload's sendMessage delivers the array as ONE argument after the
+      // event, so a click's [] passes clean — and nothing is logged. A spurious argument is
+      // recorded and ignored: what arrived never changes what the handler does.
+      it.each(['focus-mode-changed', 'focus-mode-requested'])(
+        'on %s: a clean [] logs nothing, a spurious argument is recorded and ignored',
+        async (channel) => {
+          const { fireIpc, flush, log, win } = await boot();
+          // The house's fires pass the event, then the array, as Electron delivers them
+          // ('set-language' above is the model).
+          await fireIpc(channel, {});
+          await fireIpc(channel, {}, []);
+          expect(
+            (log.warn as unknown as jest.Mock).mock.calls.filter(([m]) =>
+              String(m).includes('unexpected arguments')
+            )
+          ).toEqual([]);
+          await fireIpc(channel, {}, ['zq']);
+          // The handler is sync, and fireIpc does not flush on its own (fireWindow does):
+          // one tick, and the warning is in the log.
+          await flush();
+          expect(
+            (log.warn as unknown as jest.Mock).mock.calls.filter(([m]) =>
+              String(m).includes('unexpected arguments')
+            )
+          ).toHaveLength(1);
+          // The house round-trip still answers: both messages are answered with the mark,
+          // the report directly, the request after the turn (77665af).
+          expect(win().webContents.send).toHaveBeenLastCalledWith(
+            'set-focus-mode',
+            expect.any(Boolean)
+          );
+        }
+      );
+
+      // The window's ready-to-show guard, tested where it lives: nothing in the house fires
+      // it after 'closed' (close waits for destroy, Electron orders the two), but the guard
+      // is the cost of ordering ever changing — and the throw names the window for the log.
+      it('ready-to-show after closed says so by name, not by silence', async () => {
+        const { store, fireIpc, fireWindow, win } = await boot();
+        store.set('edited', 'false');
+        await fireWindow('close', { preventDefault: jest.fn() });
+        await fireIpc('enable-save');
+        const { flushEditor } = await import('../main/editorFlush');
+        await flushEditor(win() as never);
+        await new Promise<void>((resolve) => {
+          setImmediate(resolve);
+        });
+        expect(win().destroy).toHaveBeenCalledTimes(1);
+        await fireWindow('closed');
+        // fireWindow collects each handler's own result: the guard's throw is the promise's.
+        await expect(fireWindow('ready-to-show')).rejects.toThrow(
+          /"mainWindow" is not defined/
+        );
+      });
+
+      // The app's production branch (and the window's own START_MINIMIZED guard) reached at
+      // this level: with NODE_ENV 'production' the app still becomes ready, no electron-debug,
+      // no devtools, and a fresh window still asks and is answered (GitHub #25's mount-ask on
+      // a production window).
+      it('in production the app starts and a window asks and is answered', async () => {
+        const realEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        delete process.env.START_MINIMIZED;
+        try {
+          const { fireIpc, win } = await boot();
+          await fireIpc('focus-mode-changed', {});
+          expect(win().webContents.send).toHaveBeenLastCalledWith(
+            'set-focus-mode',
+            false
+          );
+        } finally {
+          if (realEnv === undefined) delete process.env.NODE_ENV;
+          else process.env.NODE_ENV = realEnv;
+        }
+      });
+    });
+
     it('the menu asks the editor for the poem only while the editor is showing (#157)', async () => {
       const { fireIpc } = await boot();
       const { flushEditor } = await import('../main/editorFlush');
@@ -830,7 +1017,7 @@ describe('main process', () => {
       electron.app.applicationMenu = { getMenuItemById: lookups };
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      // The handlers did look for both items (they ran, they did not just return early).
+      // The handlers did look for both save items (they ran, they did not just return early).
       expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
         'menu.file.save',
         'menu.file.save',

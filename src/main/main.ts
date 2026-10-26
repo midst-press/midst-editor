@@ -33,14 +33,19 @@ import {
 } from './logging';
 import MenuBuilder, {
   applyStoredAppearance,
+  focusModeMark,
+  requestFocusMode,
+  setFocusModeMark,
   isDevelopment,
   save,
   newFile,
   openFile,
   openPath,
   logIfRejected,
+  offerRecovery,
   setLanguage,
 } from './menu';
+import { forgetRecovery } from './recovery';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
@@ -159,6 +164,9 @@ const createWindow = async () => {
       mainWindow.show();
     }
 
+    // A poem a crashed run left untitled is offered back first (#315), before any file the OS asked to open.
+    const win = mainWindow;
+    logIfRejected('recovery', () => offerRecovery(win, isDarwin()));
     if (earlyPath !== '') {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
@@ -169,6 +177,12 @@ const createWindow = async () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
     windowShown = false;
+    // Focus mode leaves with the window (GitHub #25, vivian at 2b3758b): the mark lives in
+    // main's memory, which outlives the window, so this is the one place every way of closing
+    // passes through — React's effect cleanup never runs when the page is destroyed, so no
+    // renderer message can be relied on here. A poem opened after a close, in this run or by
+    // macOS clicking the Dock, asks on mount and is answered off: regular Edit mode.
+    setFocusModeMark(false);
   });
   // Closing asks the editor for the poem first, as Save does (#157), and only then reads `edited` (#236). Quit,
   // Close and Save are menu items, run in this process, while a keystroke reaches the editor first and `edited`
@@ -207,7 +221,9 @@ const createWindow = async () => {
           cancelId: 1,
         });
         if (choice === 0) {
-          // "Quit Anyway": the document is removed from the store and the window closed.
+          // "Quit Anyway": the document is removed from the store and the window closed, and an untitled poem's
+          // recovery copy goes with it: the poet chose to leave it (#315).
+          forgetRecovery();
           clearDocument();
           win.destroy();
         }
@@ -258,6 +274,31 @@ ipcMain.on('button-open-file', () => {
   logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
+// Focus Mode (GitHub #25): main owns the state (menu.ts) — the menu's mark is the state, the
+// moon asks and main turns it and answers, a mounting editor asks where the screen stands and is
+// answered from the mark (vivian, #327). The house round-trip (preload.ts): sendMessage takes
+// (channel, args[]) and every handler receives that array as one argument — like 'set-language'
+// above — and passes the event, which is never counted as content.
+ipcMain.on('focus-mode-changed', (_event, args: unknown) => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  // An argument this message does not send is recorded, never obeyed.
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-changed: unexpected arguments, ignored', { args });
+  }
+  logIfRejected('focus mode report', () =>
+    win.webContents.send('set-focus-mode', focusModeMark())
+  );
+});
+ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
+  }
+  logIfRejected('focus mode', () => requestFocusMode(win));
+});
+
 // The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
 // Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
 ipcMain.on('language-order', (event) => {
@@ -296,6 +337,11 @@ ipcMain.on('enable-save', () => {
   setEditorShowing(true);
   setSaveEnabled(true);
 });
+// No reset here (vivian at 2b3758b): this arrives from the editor's effect cleanup, which
+// never runs when the window is destroyed, and it also arrives on the way to Replay —
+// /editor and /replay are sibling routes, so Replay unmounts the editor too. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so nothing here decides it; the
+// mark leaves at the window's 'closed', the one place every closing passes through.
 ipcMain.on('disable-save', () => {
   setEditorShowing(false);
   setSaveEnabled(false);
