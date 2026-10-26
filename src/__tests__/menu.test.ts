@@ -81,6 +81,7 @@ jest.mock('../main/store', () => ({
   default: {
     get: (k: string) => mockStore.get(k),
     set: (k: string, v: unknown) => mockStore.set(k, v),
+    delete: (k: string) => mockStore.delete(k),
   },
 }));
 
@@ -2452,6 +2453,52 @@ describe('offerRecovery', () => {
     expect(recovery.declineToTrash).toHaveBeenCalledWith(one, 'Untitled');
     expect(recovery.adopt).toHaveBeenCalledWith(two);
     expect(mockStore.get('poem')).toBe('<p>xv</p>');
+  });
+
+  describe("the crashed run's untitled poem in the store", () => {
+    const crashed = (filename: string) => {
+      mockStore.set('filename', filename);
+      mockStore.set('poem', '<p>zq</p>');
+      mockStore.set('history', '[]');
+      mockStore.set('edited', 'true');
+    };
+
+    it('is cleared when the poet declines every copy, so nothing asks about it again', async () => {
+      crashed('');
+      orphans.mockReturnValue([
+        plant('a', '<p>zq</p>'),
+        plant('b', '<p>xv</p>'),
+      ]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(recovery.declineToTrash).toHaveBeenCalledTimes(2);
+      expect(mockStore.get('poem')).toBeUndefined();
+      expect(mockStore.get('history')).toBeUndefined();
+      expect(mockStore.get('edited')).toBe('false');
+    });
+
+    it('is kept when a copy could not be read, since it may be the only good one', async () => {
+      crashed('');
+      const bad = {
+        id: 'c',
+        file: path.join(dir, 'missing.midst'),
+        lastWritten: new Date(),
+      };
+      orphans.mockReturnValue([plant('a', '<p>zq</p>'), bad]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+
+    it('is left alone when it has a file of its own', async () => {
+      crashed('/a/zq.midst');
+      orphans.mockReturnValue([plant('a', '<p>xv</p>')]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
   });
 
   it('a copy that cannot be opened is kept, logged by id, and the next one is offered', async () => {

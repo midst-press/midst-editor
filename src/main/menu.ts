@@ -1189,11 +1189,18 @@ export default class MenuBuilder {
 // At launch, each untitled poem a crashed run left is offered back, newest first (#315; Annelyse, GitHub #81). Yes
 // opens it as this window's untitled poem, and the rest wait for the next launch. No moves it to the Trash. A copy
 // that cannot be read is kept and logged, never discarded.
+//
+// The crashed run also left its untitled poem in the store, marked edited. When the poet has declined every copy
+// and none was kept, that is cleared as closing the window would have cleared it: otherwise the next New, Open or
+// close asks about unsaved changes to a poem the poet just said No to.
 export const offerRecovery = async (
   mainWindow: BrowserWindow,
   darwin: boolean
 ) => {
   startFresh();
+  let declined = 0;
+  let kept = 0;
+  let adopted = false;
   const offer = async ([orphan, ...rest]: Orphan[]): Promise<void> => {
     if (!orphan) return;
     let data: string;
@@ -1204,6 +1211,7 @@ export const offerRecovery = async (
         id: orphan.id,
         ...describeError(err),
       });
+      kept += 1;
       await offer(rest);
       return;
     }
@@ -1227,15 +1235,24 @@ export const offerRecovery = async (
           id: orphan.id,
           ...describeError(err),
         });
+        kept += 1;
         await offer(rest);
         return;
       }
       adopt(orphan);
+      adopted = true;
       log.info('recovery: an untitled poem was recovered', { id: orphan.id });
       return;
     }
     await declineToTrash(orphan, untitled());
+    declined += 1;
     await offer(rest);
   };
   await offer(orphans());
+  if (declined > 0 && kept === 0 && !adopted && !store.get('filename')) {
+    ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
+      store.delete(key)
+    );
+    store.set('edited', 'false');
+  }
 };
