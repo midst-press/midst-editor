@@ -237,3 +237,334 @@ test('Check Spelling from Timeline mode changes the setting and its checkmark, a
     await app.close();
   }
 });
+
+// Annelyse's cases on GitHub #71 (editor #238, reopened 26 Oct). Each is measured the same way as above: red
+// underline pixels with the text made transparent, here inside each line's own box. Invented letters only.
+type Win = Awaited<
+  ReturnType<Awaited<ReturnType<typeof launch>>['app']['firstWindow']>
+>;
+type App = Awaited<ReturnType<typeof launch>>['app'];
+
+// Red pixels inside each paragraph of the poem, in order.
+// `lines` limits it to the first so many: a line scrolled out of the window cannot be captured.
+const redPerLine = async (app: App, win: Win, lines = Infinity) => {
+  const boxes = await win.evaluate(
+    (n) =>
+      [...document.querySelectorAll('.ProseMirror p')].slice(0, n).map((p) => {
+        const r = p.getBoundingClientRect();
+        return {
+          x: Math.floor(r.x),
+          y: Math.floor(r.y),
+          width: Math.ceil(r.width),
+          height: Math.ceil(r.height) + 4,
+        };
+      }),
+    lines
+  );
+  return app.evaluate(
+    async ({ BrowserWindow }, rects) =>
+      // One capture per line, in order.
+      rects.reduce<Promise<number[]>>(async (sofar, rect) => {
+        const counts = await sofar;
+        const bgra = (
+          await BrowserWindow.getAllWindows()[0].webContents.capturePage(rect)
+        ).toBitmap();
+        let n = 0;
+        for (let i = 0; i < bgra.length; i += 4) {
+          if (
+            bgra[i + 2] > 180 &&
+            bgra[i + 2] - bgra[i + 1] > 60 &&
+            bgra[i + 2] - bgra[i] > 60
+          )
+            n += 1;
+        }
+        return [...counts, n];
+      }, Promise.resolve([])),
+    boxes
+  );
+};
+
+// A poem open in the editor, with the caret at its end.
+async function openPoem(prefix: string) {
+  const work = mkdtempSync(join(tmpdir(), `midst-spellcheck-${prefix}-`));
+  const poemPath = join(work, `${prefix}.midst`);
+  // A misspelled first line, so a test can see that spellcheck is marking before it types (turnSpellcheckOn).
+  writeFileSync(poemPath, makeMidst('zqxvk', 0).file);
+  const { app, userData } = await launch(work);
+  const win = await app.firstWindow();
+  await win.waitForLoadState('domcontentloaded');
+  await openDocument(app, userData, poemPath, 'the poem');
+  await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+  return { app, win, userData };
+}
+
+async function turnSpellcheckOn(app: App, win: Win, userData: string) {
+  await clickCheckSpelling(app);
+  expect(
+    await waitUntil(() => readStore(userData).spellcheck === 'true', 10_000)
+  ).toBe(true);
+  await expect(win.locator('.ProseMirror')).toHaveAttribute(
+    'spellcheck',
+    'true',
+    { timeout: 25_000 }
+  );
+}
+
+// Marking has begun: the poem's first line is marked. On Linux a word typed straight after the switch was not, while
+// the whole-poem check a second later was (run 12021), so a test that types after the switch waits for this first.
+async function markingHasBegun(app: App, win: Win) {
+  await hideText(win);
+  await expect
+    .poll(async () => (await redPerLine(app, win, 1))[0], {
+      message: 'spellcheck never marked the first line',
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(0);
+}
+
+// Keys sent at once can reach ProseMirror before it has read a caret move, and Enter then breaks the line where
+// the caret was (measured on #238). So a caret move is waited out until ProseMirror's own selection shows it.
+async function caretAt(win: Win, where: 'start' | 'end') {
+  await expect
+    .poll(
+      () =>
+        win.evaluate((at) => {
+          const { state } = (
+            document.querySelector('.ProseMirror') as unknown as {
+              editor: {
+                state: {
+                  selection: { head: number };
+                  doc: { content: { size: number } };
+                };
+              };
+            }
+          ).editor;
+          const want = at === 'start' ? 1 : state.doc.content.size - 1;
+          return state.selection.head === want;
+        }, where),
+      { message: `the caret never reached the ${where}`, timeout: 5_000 }
+    )
+    .toBe(true);
+}
+
+// The poem's lines as the page shows them, for a failure message.
+const linesShown = (win: Win) =>
+  win.evaluate(() =>
+    JSON.stringify(
+      [...document.querySelectorAll('.ProseMirror p')].map((p) => p.textContent)
+    )
+  );
+
+async function typeAtEnd(win: Win, keys: (string | 'Enter')[]) {
+  await win.locator('.ProseMirror').click();
+  await win.keyboard.press(
+    process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
+  );
+  await caretAt(win, 'end');
+  // Keystrokes in order.
+  await keys.reduce(
+    (sofar, k) =>
+      sofar.then(() =>
+        k === 'Enter' ? win.keyboard.press('Enter') : win.keyboard.type(k)
+      ),
+    Promise.resolve()
+  );
+}
+
+test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
+  test('a misspelled word ended by a space is marked (CONTROL for the line-break case)', async () => {
+    const { app, win, userData } = await openPoem('space');
+    try {
+      await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
+      await typeAtEnd(win, ['Enter', 'lskfjas ']);
+      await hideText(win);
+      const lines = await linesShown(win);
+      await expect
+        .poll(async () => (await redPerLine(app, win))[1], {
+          message: `the typed word is not marked; the lines were ${lines}`,
+          timeout: 5_000,
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('case 2: a misspelled word ended by a line break is marked', async () => {
+    const { app, win, userData } = await openPoem('break');
+    try {
+      await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
+      await typeAtEnd(win, ['Enter', 'lskfjas', 'Enter', 'q']);
+      await hideText(win);
+      await expect
+        .poll(async () => (await redPerLine(app, win))[1], {
+          message: 'the word before the line break is not marked',
+          timeout: 5_000,
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('case 3: misspelled words each on their own line are all marked', async () => {
+    const { app, win, userData } = await openPoem('lines');
+    try {
+      await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
+      await typeAtEnd(win, [
+        'Enter',
+        'dsflkaj',
+        'Enter',
+        'qwzpxvb',
+        'Enter',
+        'vbnmtrw',
+        'Enter',
+        'q',
+      ]);
+      await hideText(win);
+      await expect
+        .poll(
+          async () =>
+            (await redPerLine(app, win)).slice(1, 4).every((n) => n > 0),
+          {
+            message: 'not every misspelled line is marked',
+            timeout: 5_000,
+          }
+        )
+        .toBe(true);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('case 4: breaking the line after a marked word keeps the next line marked', async () => {
+    // Not fixed yet (editor #238), and not every time: the next line kept its mark in 3 of 10 runs, so as an
+    // expected failure it would turn CI red at random. Skipped until the cause is known; then test.fail().
+    test.fixme();
+    const { app, win, userData } = await openPoem('split');
+    try {
+      await turnSpellcheckOn(app, win, userData);
+      await markingHasBegun(app, win);
+      await typeAtEnd(win, ['Enter', 'dsflkajsdf ', 'Enter', 'sfazqwx ']);
+      await hideText(win);
+      // CONTROL: both lines are marked before the break.
+      await expect
+        .poll(
+          async () =>
+            (await redPerLine(app, win)).slice(1, 3).every((n) => n > 0),
+          { timeout: 5_000 }
+        )
+        .toBe(true);
+      // Break after the first misspelled line: the caret to the end of line 2, then Enter.
+      await win.locator('.ProseMirror p').nth(1).click();
+      await win.keyboard.press('End');
+      await win.keyboard.press('Enter');
+      await expect
+        .poll(async () => (await redPerLine(app, win))[3], {
+          message: 'the moved line lost its mark',
+          timeout: 5_000,
+        })
+        .toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('case 1: switching spellcheck on marks a many-line poem without typing', async () => {
+    const { app, win, userData } = await openPoem('many');
+    try {
+      const lines = Array.from(
+        { length: 12 },
+        (_, i) => `zq${'xvbnmt'.slice(0, (i % 5) + 2)}wq `
+      );
+      await typeAtEnd(
+        win,
+        lines.flatMap((l) => ['Enter', l])
+      );
+      await turnSpellcheckOn(app, win, userData);
+      await hideText(win);
+      await expect
+        .poll(
+          async () =>
+            (await redPerLine(app, win)).slice(1).filter((n) => n > 0).length,
+          {
+            message: 'lines left unmarked until typing',
+            timeout: 5_000,
+          }
+        )
+        .toBe(lines.length);
+    } finally {
+      await app.close();
+    }
+  });
+
+  test('case 5: switching spellcheck keeps the place in a long poem', async () => {
+    const { app, win, userData } = await openPoem('scroll');
+    try {
+      await typeAtEnd(
+        win,
+        Array.from({ length: 80 }, (_, i) => ['Enter', `line ${i}`]).flat()
+      );
+      const scrollTop = () =>
+        win.evaluate(() => {
+          let e = document.querySelector('.ProseMirror') as HTMLElement | null;
+          while (
+            e &&
+            !(
+              e.scrollHeight > e.clientHeight + 1 &&
+              getComputedStyle(e).overflowY !== 'visible'
+            )
+          )
+            e = e.parentElement;
+          return e ? e.scrollTop : (document.scrollingElement?.scrollTop ?? -1);
+        });
+      // The cursor at the top and the page scrolled to the bottom, so the place kept is not where the cursor is:
+      // only putting the scroll position back keeps the view here; focusing the cursor would take it to the top
+      // (River, review of #322).
+      // The view follows the caret a few frames after the key, so each scroll is waited out until it holds: a
+      // bottom set while the caret's scroll is still coming is undone before the toggle, and 0 is what is kept.
+      const settledScrollTop = () =>
+        win.evaluate(
+          () =>
+            new Promise<number>((resolve) => {
+              const dom = document.querySelector('.ProseMirror') as HTMLElement;
+              let last = dom.scrollTop;
+              let still = 0;
+              const tick = () => {
+                still = dom.scrollTop === last ? still + 1 : 0;
+                last = dom.scrollTop;
+                if (still >= 10) resolve(last);
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            })
+        );
+      await win.keyboard.press(
+        process.platform === 'darwin' ? 'Meta+ArrowUp' : 'Control+Home'
+      );
+      await caretAt(win, 'start');
+      // Near the top, not at 0: on Linux the view settled at 2 (run 11956).
+      await expect.poll(settledScrollTop, { timeout: 5_000 }).toBeLessThan(50);
+      await win.evaluate(() => {
+        const dom = document.querySelector('.ProseMirror') as HTMLElement;
+        dom.scrollTop = dom.scrollHeight;
+      });
+      await settledScrollTop();
+      const before = await scrollTop();
+      // CONTROL: the view is far from the top, where the cursor is.
+      expect(before).toBeGreaterThan(200);
+      await turnSpellcheckOn(app, win, userData);
+      await expect
+        .poll(scrollTop, {
+          message: 'the poem jumped after the toggle',
+          timeout: 5_000,
+        })
+        .toBeGreaterThan(before - 50);
+    } finally {
+      await app.close();
+    }
+  });
+});

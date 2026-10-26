@@ -12,12 +12,10 @@ var poemExtensions = [
     horizontalRule: false,
     listItem: false,
     hardBreak: false,
-    strike: false,
-    // TipTap 3's StarterKit adds these four (#102). A poem has no links, no underline and no lists, and TrailingNode
+    // TipTap 3's StarterKit adds these four (#102). Underline is kept (#140). A poem has no links and no lists, and TrailingNode
     // would append a paragraph to a document that ends otherwise, a change the writer never made. Off, so the schema
     // and the documents are TipTap 2's.
     link: false,
-    underline: false,
     listKeymap: false,
     trailingNode: false
   }),

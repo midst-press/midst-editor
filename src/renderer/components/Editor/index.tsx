@@ -4,15 +4,18 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import poemExtensions from '@midst-press/midst-format/extensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
-import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
+import editorExtensions from '../../editorExtensions';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
@@ -27,7 +30,7 @@ import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
 import { changesMade } from '../../../shared/firstFrame';
 
-const extensions = [...poemExtensions, HandleTab, SearchHighlight];
+const extensions = [...editorExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);
@@ -192,7 +195,9 @@ export default function Editor() {
     const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        // The menu has already changed the setting and its mark (editor #320); this applies it.
+        // The menu has already changed the setting and its mark (editor #320); this applies it, keeping the
+        // poet's place through the reload (editor #238, case 5).
+        if (myEditor) rememberCursor(myEditor, { acrossReload: true });
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
         saveFileAndUpdateStore();
@@ -204,7 +209,7 @@ export default function Editor() {
     );
 
     return removeToggleSpellcheck;
-  }, [saveFileAndUpdateStore]);
+  }, [saveFileAndUpdateStore, myEditor]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
@@ -256,6 +261,19 @@ export default function Editor() {
     return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
+  }, [myEditor, spellcheckOn]);
+  // A line break is not an edit Chromium sees (editor #238): the lines around it are checked once the poet pauses.
+  useEffect(() => {
+    const editor = myEditor;
+    if (!editor || !spellcheckOn) return undefined;
+    const lines = checkLinesAfterBreaks(editor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+    editor.on('update', lines.changed);
+    return () => {
+      editor.off('update', lines.changed);
+      lines.cancel();
+    };
   }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
