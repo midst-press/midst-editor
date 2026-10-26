@@ -7,6 +7,7 @@ import { join } from 'path';
 import electronBinary from 'electron';
 import { makeMidst } from './fixtures';
 import { APP_DIR, launch, readStore, waitUntil } from './harness';
+import { readLog } from './log';
 
 // One Midst at a time (#315; Stuart, 26 Oct). A second launch on the same profile, given a poem, quits by itself
 // and the running copy opens the poem: double-clicking a poem in Finder or Explorer while Midst is open still opens
@@ -17,6 +18,9 @@ test('a second launch hands its poem to the running copy and quits', async () =>
   const file = join(work, 'poem.midst');
   writeFileSync(file, doc.file);
 
+  // The running copy logs which channel carried the poem (#336): on a failure, that says why.
+  const logDir = join(work, 'logs');
+  process.env.MIDST_LOG_DIR = logDir;
   const { app, userData } = await launch(work);
   try {
     const win = await app.firstWindow();
@@ -43,12 +47,23 @@ test('a second launch hands its poem to the running copy and quits', async () =>
     if (!quitBy) second.kill();
     expect(quitBy, 'the second launch quits by itself').toBe(true);
 
+    const handed = () =>
+      readLog(logDir).filter((r) => r.msg === 'second launch');
+    expect(
+      await waitUntil(() => handed().length > 0, 15_000),
+      'the running copy heard the second launch'
+    ).toBe(true);
+    // The poem comes with the lock request, not from argv (Electron may change argv on Linux and Windows).
+    expect(handed().map((r) => r.meta)).toEqual([
+      expect.objectContaining({ poem: 'sent' }),
+    ]);
     expect(
       await waitUntil(() => readStore(userData).filename === file, 15_000),
-      'the running copy opens the poem'
+      `the running copy opens the poem; it logged ${JSON.stringify(handed())}`
     ).toBe(true);
     expect(app.windows()).toHaveLength(1);
   } finally {
     await app.close();
+    delete process.env.MIDST_LOG_DIR;
   }
 });

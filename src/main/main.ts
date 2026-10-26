@@ -51,7 +51,7 @@ import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
-import poemIn from './secondInstance';
+import poemIn, { poemFromData } from './secondInstance';
 import { describeError } from '../shared/errorSummary';
 import {
   activateLocale,
@@ -413,17 +413,23 @@ app.on('window-all-closed', () => {
 // the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
 // Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
 // --user-data-dir, are unaffected.
-const firstCopy = app.requestSingleInstanceLock();
+const firstCopy = app.requestSingleInstanceLock({ poem: poemIn(process.argv) });
 if (!firstCopy) {
   log.info('another Midst is running; this launch hands over and quits');
   app.quit();
 }
-app.on('second-instance', (_event, argv) => {
+app.on('second-instance', (_event, argv, _cwd, data) => {
   if (mainWindow !== null) {
     if (mainWindow.isMinimized()) mainWindow.restore();
     mainWindow.focus();
   }
-  const poem = poemIn(argv);
+  const sent = poemFromData(data);
+  const poem = sent || poemIn(argv);
+  // Which channel carried it, never the path: a poem's file name can be its title.
+  let channel = 'none';
+  if (sent) channel = 'sent';
+  else if (poem) channel = 'argv';
+  log.info('second launch', { poem: channel, args: argv.length });
   if (poem === '') return;
   // As open-file below: held for ready-to-show only while no window has been shown.
   if (!windowShown) earlyPath = poem;

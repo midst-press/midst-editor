@@ -1,4 +1,4 @@
-import poemIn from '../main/secondInstance';
+import poemIn, { poemFromData } from '../main/secondInstance';
 
 // The poem in a second launch's command line (#315).
 describe('poemIn', () => {
@@ -19,5 +19,24 @@ describe('poemIn', () => {
     expect(poemIn(['/zq/midst'])).toBe('');
     expect(poemIn(['/zq/midst', '--file=/a/zq.midst', '/a/zq.txt'])).toBe('');
     expect(poemIn([])).toBe('');
+  });
+});
+
+// The poem a second launch sends as its lock request's data (#336).
+describe('poemFromData', () => {
+  it('takes a .midst path from { poem }', () => {
+    expect(poemFromData({ poem: '/a/zq.midst' })).toBe('/a/zq.midst');
+  });
+
+  it('is empty for anything else', () => {
+    [
+      undefined,
+      null,
+      {},
+      { poem: '' },
+      { poem: '/a/zq.txt' },
+      { poem: 3 },
+      'zq.midst',
+    ].forEach((data) => expect(poemFromData(data)).toBe(''));
   });
 });

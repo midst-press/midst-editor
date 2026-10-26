@@ -6,4 +6,12 @@ const poemIn = (argv: readonly string[]): string =>
     .reverse()
     .find((arg) => !arg.startsWith('-') && /\.midst$/i.test(arg)) ?? '';
 
+// The poem a second launch sends with its lock request (requestSingleInstanceLock's additionalData), or ''. Electron
+// documents that argv can reach the running copy reordered or with switches added on Windows and Linux; the second
+// launch's own argv, read there and sent as data, does not depend on that.
+export const poemFromData = (data: unknown): string => {
+  const poem = (data as { poem?: unknown } | null)?.poem;
+  return typeof poem === 'string' && /\.midst$/i.test(poem) ? poem : '';
+};
+
 export default poemIn;

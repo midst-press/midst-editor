@@ -1644,6 +1644,25 @@ describe('single instance', () => {
     ]);
   });
 
+  it('the running copy takes the poem the second launch sent, whatever its argv holds (#336)', async () => {
+    const { menu, win, fireApp } = await boot();
+    await fireApp('second-instance', {}, ['/zq/Midst', '--zq-switch'], '/zq', {
+      poem: '/b/qv.midst',
+    });
+    expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
+      '/b/qv.midst',
+    ]);
+  });
+
+  it('a second copy sends the poem from its own command line with its lock request', async () => {
+    mockAnotherCopyRunning = true;
+    const { electron } = await boot();
+    expect(
+      (electron.app as unknown as { requestSingleInstanceLock: jest.Mock })
+        .requestSingleInstanceLock
+    ).toHaveBeenCalledWith({ poem: expect.any(String) });
+  });
+
   it('a second launch with no poem only brings the running copy to the front', async () => {
     const { menu, win, fireApp } = await boot();
     await fireApp('second-instance', {}, ['/zq/Midst']);
