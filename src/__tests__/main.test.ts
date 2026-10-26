@@ -839,7 +839,7 @@ describe('main process', () => {
         setFocusModeMark(false);
         await fireIpc('enable-save');
         // The moon asks once, main turns the mark and answers: the screen hides.
-        await fireIpc('focus-mode-requested');
+        await fireIpc('focus-mode-requested', {});
         expect(win().webContents.send).toHaveBeenLastCalledWith(
           'set-focus-mode',
           true
@@ -853,10 +853,10 @@ describe('main process', () => {
         expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual(
           []
         );
-        // Back: the editor remounts, asks, and the screen is hidden again — the mode survived
-        // the trip with the mark as its one copy.
-        await fireIpc('enable-save');
-        await fireIpc('focus-mode-changed');
+        // Back: the editor remounts (useFocusMode.ts sends 'focus-mode-changed' on mount)
+        // and asks — and is answered on: the mode survived the trip, the mark is its one
+        // copy, and no message on the way here cleared it.
+        await fireIpc('focus-mode-changed', {});
         expect(win().webContents.send).toHaveBeenLastCalledWith(
           'set-focus-mode',
           true
@@ -891,11 +891,88 @@ describe('main process', () => {
         expect(state.windows).toHaveLength(2);
         const w2 = win();
         expect(w2).not.toBe(state.windows[0]);
-        await fireIpc('focus-mode-changed');
+        await fireIpc('focus-mode-changed', {});
         expect(w2.webContents.send).toHaveBeenLastCalledWith(
           'set-focus-mode',
           false
         );
+      });
+
+      // The house's argument discipline, stated for both focus channels (vivian's bogus-warning
+      // case at 77665af): preload's sendMessage delivers the array as ONE argument after the
+      // event, so a click's [] passes clean — and nothing is logged. A spurious argument is
+      // recorded and ignored: what arrived never changes what the handler does.
+      it.each(['focus-mode-changed', 'focus-mode-requested'])(
+        'on %s: a clean [] logs nothing, a spurious argument is recorded and ignored',
+        async (channel) => {
+          const { fireIpc, flush, log, win } = await boot();
+          // The house's fires pass the event, then the array, as Electron delivers them
+          // ('set-language' above is the model).
+          await fireIpc(channel, {});
+          await fireIpc(channel, {}, []);
+          expect(
+            (log.warn as unknown as jest.Mock).mock.calls.filter(([m]) =>
+              String(m).includes('unexpected arguments')
+            )
+          ).toEqual([]);
+          await fireIpc(channel, {}, ['zq']);
+          // The handler is sync, and fireIpc does not flush on its own (fireWindow does):
+          // one tick, and the warning is in the log.
+          await flush();
+          expect(
+            (log.warn as unknown as jest.Mock).mock.calls.filter(([m]) =>
+              String(m).includes('unexpected arguments')
+            )
+          ).toHaveLength(1);
+          // The house round-trip still answers: both messages are answered with the mark,
+          // the report directly, the request after the turn (77665af).
+          expect(win().webContents.send).toHaveBeenLastCalledWith(
+            'set-focus-mode',
+            expect.any(Boolean)
+          );
+        }
+      );
+
+      // The window's ready-to-show guard, tested where it lives: nothing in the house fires
+      // it after 'closed' (close waits for destroy, Electron orders the two), but the guard
+      // is the cost of ordering ever changing — and the throw names the window for the log.
+      it('ready-to-show after closed says so by name, not by silence', async () => {
+        const { store, fireIpc, fireWindow, win } = await boot();
+        store.set('edited', 'false');
+        await fireWindow('close', { preventDefault: jest.fn() });
+        await fireIpc('enable-save');
+        const { flushEditor } = await import('../main/editorFlush');
+        await flushEditor(win() as never);
+        await new Promise<void>((resolve) => {
+          setImmediate(resolve);
+        });
+        expect(win().destroy).toHaveBeenCalledTimes(1);
+        await fireWindow('closed');
+        // fireWindow collects each handler's own result: the guard's throw is the promise's.
+        await expect(fireWindow('ready-to-show')).rejects.toThrow(
+          /"mainWindow" is not defined/
+        );
+      });
+
+      // The app's production branch (and the window's own START_MINIMIZED guard) reached at
+      // this level: with NODE_ENV 'production' the app still becomes ready, no electron-debug,
+      // no devtools, and a fresh window still asks and is answered (GitHub #25's mount-ask on
+      // a production window).
+      it('in production the app starts and a window asks and is answered', async () => {
+        const realEnv = process.env.NODE_ENV;
+        process.env.NODE_ENV = 'production';
+        delete process.env.START_MINIMIZED;
+        try {
+          const { fireIpc, win } = await boot();
+          await fireIpc('focus-mode-changed', {});
+          expect(win().webContents.send).toHaveBeenLastCalledWith(
+            'set-focus-mode',
+            false
+          );
+        } finally {
+          if (realEnv === undefined) delete process.env.NODE_ENV;
+          else process.env.NODE_ENV = realEnv;
+        }
       });
     });
 
