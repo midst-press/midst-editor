@@ -1,16 +1,6 @@
-@media screen and (min-width: 768px) {
-  .HistoryDisplay {
-    padding: 0px 60px;
-  }
-}
-
-@media screen and (max-width: 769px) {
-  .HistoryDisplay {
-    padding: 0px 32px;
-  }
-}
-
+/* The same column as the editor's (Editor.css, #312). */
 .HistoryDisplay {
+  padding: 0 max(15%, 32px);
   width: 100%;
   font-family:
     system-ui,
