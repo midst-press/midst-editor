@@ -24,6 +24,9 @@ interface FakeWindow {
   loadURL: jest.Mock;
   show: jest.Mock;
   minimize: jest.Mock;
+  isMinimized: jest.Mock;
+  restore: jest.Mock;
+  focus: jest.Mock;
   destroy: jest.Mock;
   isDestroyed: jest.Mock;
   setDocumentEdited: jest.Mock;
@@ -54,6 +57,8 @@ interface FakeElectron {
   shell: { openExternal: jest.Mock };
 }
 
+// Whether another Midst already holds the single-instance lock when main.ts is imported.
+let mockAnotherCopyRunning = false;
 jest.mock('electron', () => {
   const state = {
     ipc: new Map<string, Handler[]>(),
@@ -83,6 +88,12 @@ jest.mock('electron', () => {
     show = jest.fn();
 
     minimize = jest.fn();
+
+    isMinimized = jest.fn(() => false);
+
+    restore = jest.fn();
+
+    focus = jest.fn();
 
     destroy = jest.fn();
 
@@ -120,6 +131,7 @@ jest.mock('electron', () => {
       on: (event: string, fn: Handler) =>
         record(state.appHandlers as Map<string, Handler[]>, event, fn),
       whenReady: () => state.ready,
+      requestSingleInstanceLock: jest.fn(() => !mockAnotherCopyRunning),
       applicationMenu: {
         getMenuItemById: jest.fn(
           (id: string) =>
@@ -1591,5 +1603,52 @@ describe('main process', () => {
         'TypeError. It has been recorded in the log, ~/Library/Logs/Midst/main.log, which Help > Show Log File shows.'
       );
     });
+  });
+});
+
+// One Midst at a time (#315; Stuart, 26 Oct): a second launch hands its poem to the running copy and quits.
+describe('single instance', () => {
+  afterEach(() => {
+    mockAnotherCopyRunning = false;
+  });
+
+  it('the first copy takes the lock and opens its window', async () => {
+    const { electron, state } = await boot();
+    expect(
+      (electron.app as unknown as { requestSingleInstanceLock: jest.Mock })
+        .requestSingleInstanceLock
+    ).toHaveBeenCalledTimes(1);
+    expect(electron.app.quit).not.toHaveBeenCalled();
+    expect(state.windows).toHaveLength(1);
+  });
+
+  it('a second copy quits and creates no window', async () => {
+    mockAnotherCopyRunning = true;
+    const { electron, state } = await boot();
+    expect(electron.app.quit).toHaveBeenCalledTimes(1);
+    expect(state.windows).toHaveLength(0);
+  });
+
+  it('the running copy comes to the front and opens the poem the second launch was given', async () => {
+    const { menu, win, fireApp } = await boot();
+    win().isMinimized.mockReturnValue(true);
+    await fireApp('second-instance', {}, [
+      '/zq/Midst',
+      '--zq-switch',
+      '/a/zq.midst',
+    ]);
+    expect(win().restore).toHaveBeenCalled();
+    expect(win().focus).toHaveBeenCalled();
+    expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
+      '/a/zq.midst',
+    ]);
+  });
+
+  it('a second launch with no poem only brings the running copy to the front', async () => {
+    const { menu, win, fireApp } = await boot();
+    await fireApp('second-instance', {}, ['/zq/Midst']);
+    expect(win().focus).toHaveBeenCalled();
+    expect(win().restore).not.toHaveBeenCalled();
+    expect(menu.openFile).not.toHaveBeenCalled();
   });
 });
