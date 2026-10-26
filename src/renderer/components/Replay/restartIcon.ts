@@ -1,4 +1,5 @@
-import UTurnLeft from '@mui/icons-material/UTurnLeft';
+import AutoFixHigh from '@mui/icons-material/AutoFixHigh';
 
 // The ONE place the restart icon is chosen. To change it, change the import above; nothing else imports it.
-export default UTurnLeft;
+// A magic wand (GitHub #90).
+export default AutoFixHigh;

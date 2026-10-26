@@ -14,6 +14,7 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/main/continueWriting.ts
 #: src/main/main.ts
 #: src/main/menu.ts
 #: src/main/menu.ts
@@ -1053,7 +1054,25 @@ msgstr "There is nothing to play yet: this poem has no history."
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #, fuzzy
 msgid "restart.button"
-msgstr "Restart from here"
+msgstr "Continue writing from here"
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.detail"
+msgstr "None of your work will be lost."
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.message"
+msgstr "Do you want to continue writing from this point on your Timeline?"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx

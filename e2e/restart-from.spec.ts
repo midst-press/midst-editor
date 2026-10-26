@@ -4,7 +4,13 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { ChangeObj, reconstruct } from '@midst-press/midst-format/history';
 import { makePlayableMidst } from './fixtures';
-import { launch, openDocument, readStore, waitUntil } from './harness';
+import {
+  dialogsSeen,
+  launch,
+  openDocument,
+  readStore,
+  waitUntil,
+} from './harness';
 
 // Restart from here (GitHub #18), checked in the FILE, because the file is what the poet keeps (Cora on
 // midst-editor #156). The unit tests mock the store and navigation; here the real Editor mounts after the
@@ -48,7 +54,16 @@ async function restartAndCheck(
     timeout: 25_000,
   });
   await goToFrame(win, MID);
-  await win.getByRole('button', { name: 'Restart from here' }).click();
+  // It asks first (GitHub #90). The harness answers every box with button 0, which here is Cancel: answer
+  // Continue for this one, still recording it, and check it was asked once.
+  await app.evaluate(({ dialog }) => {
+    const record = dialog.showMessageBoxSync;
+    dialog.showMessageBoxSync = ((...args: unknown[]) => {
+      Reflect.apply(record, dialog, args);
+      return 1;
+    }) as typeof dialog.showMessageBoxSync;
+  });
+  await win.getByRole('button', { name: 'Continue writing from here' }).click();
 
   // 1. The editor shows the chosen frame's text.
   const editor = win.locator('.ProseMirror');
@@ -56,6 +71,9 @@ async function restartAndCheck(
     timeout: 25_000,
   });
   await expect(win.getByRole('alert')).toHaveCount(0);
+  expect(await dialogsSeen(app)).toEqual([
+    'Do you want to continue writing from this point on your Timeline?',
+  ]);
   expect(await editor.innerHTML()).toBe(chosen);
 
   // 2. The file has exactly one more change, every earlier frame unchanged, and it replays to the chosen text.
