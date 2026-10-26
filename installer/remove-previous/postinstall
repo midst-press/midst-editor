@@ -1,0 +1,40 @@
+#!/bin/bash
+# Runs as root only when the poet ticks "Delete the older version of Midst" (issue 16), after the
+# new Midst has been installed. It PERMANENTLY deletes the older apps that the preinstall script
+# renamed in this same install, and nothing else: every path must come from that record, sit
+# directly in Applications and be named "Midst (previous version[ N]).app".
+#
+# It deletes nothing unless the new Midst is in place. Anything unexpected exits 1, which the
+# installer reports as a failure; the new Midst stays installed and the older app stays where it is.
+#
+# $3 is the target volume. MIDST_PREVIOUS_RECORD overrides the record path for the tests.
+set -u
+
+say() { echo "Midst remove-previous: $*"; }
+fail() { echo "Midst remove-previous: FAILED: $*" >&2; exit 1; }
+
+apps="${3%/}/Applications"
+record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
+
+[ -f "$record" ] || fail "no record of the apps kept ($record), so nothing is deleted"
+
+new_id=$(plutil -extract CFBundleIdentifier raw -o - "$apps/Midst.app/Contents/Info.plist" 2> /dev/null) || new_id=""
+[ ! -L "$apps/Midst.app" ] && [ "$new_id" = press.Midst.MidstApp ] \
+  || fail "the new Midst is not in $apps/Midst.app, so the older version is kept"
+
+while IFS= read -r path || [ -n "$path" ]; do
+  [ -n "$path" ] || continue
+  name=$(basename -- "$path")
+  [ "$(dirname -- "$path")" = "$apps" ] || fail "refusing to delete $path: it is not directly in $apps"
+  [[ "$name" =~ ^Midst\ \(previous\ version(\ [0-9]+)?\)\.app$ ]] || fail "refusing to delete $path: not a kept older Midst"
+  if [ -L "$path" ]; then
+    rm -f -- "$path" || fail "could not delete $path"
+  elif [ -d "$path" ]; then
+    rm -rf -- "$path" || fail "could not delete $path"
+  else
+    fail "$path is no longer there, or is not an app"
+  fi
+  { [ -e "$path" ] || [ -L "$path" ]; } && fail "$path is still there after deleting it"
+  say "deleted $name"
+done < "$record"
+exit 0
