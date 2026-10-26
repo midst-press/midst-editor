@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
-import { launch, openDocument } from './harness';
+import { clickMenuItem, launch, openDocument } from './harness';
 
 // Find scrolls the poem to the match it selects (#335; Annelyse, GitHub #93). Invented text only.
 
@@ -76,7 +76,8 @@ line ${i}`
     const before = await where(win);
     // eslint-disable-next-line no-console -- the measurement is the report
     console.log(`find-scroll before: ${JSON.stringify(before)}`);
-    await win.keyboard.press(`${MOD}+f`);
+    // Edit > Find, as the poet chooses it. A key press in Playwright does not reach Electron's menu.
+    await clickMenuItem(app, 'menu.edit.find');
     const field = win.getByRole('textbox', { name: 'Find in the poem' });
     await expect(field).toBeVisible();
     await field.fill('qvkeyword');
