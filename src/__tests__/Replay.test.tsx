@@ -831,15 +831,41 @@ describe('Replay: drafts list', () => {
     );
   });
 
-  it('Escape in the name field stops naming and keeps the list; a second Escape closes it', () => {
+  // The list is not a modal (#313), so the focus can be on the timeline or a switch while it is open. Escape closes
+  // the list from each of them, as the user guide says; in the name field it also keeps the old name.
+  it('Escape in the name field keeps the old name, closes the list, and puts the focus back on Drafts', () => {
     bridge = installBridge(seeded);
     mount(makeHistory(LONG), { nameDraftAt: 40 });
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Draft name' }), {
-      key: 'Escape',
-    });
-    expect(screen.queryByRole('textbox', { name: 'Draft name' })).toBeNull();
-    expect(document.querySelector('.DraftDrawer')).not.toBeNull();
-    fireEvent.keyDown(document.body, { key: 'Escape' });
+    const field = screen.getByRole('textbox', { name: 'Draft name' });
+    fireEvent.change(field, { target: { value: 'zz' } });
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(
+      bridge.meta().draftMarkers.map((m: { name: string }) => m.name)
+    ).toEqual(['zq', 'xv', 'outside']);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Drafts' })
+    );
+  });
+
+  it('Escape closes the list from the timeline, which keeps the focus after a scrub', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    const rail = slider();
+    rail.focus();
+    fireEvent.keyDown(rail, { key: 'Escape' });
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(document.activeElement).toBe(rail);
+  });
+
+  it('Escape closes the list from one of its switches', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    const toggle = screen.getByRole('checkbox', { name: 'Show their names' });
+    toggle.focus();
+    fireEvent.keyDown(toggle, { key: 'Escape' });
     expect(document.querySelector('.DraftDrawer')).toBeNull();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });

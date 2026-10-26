@@ -46,6 +46,8 @@ export default function Replay() {
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
+  const draftsButton = useRef<HTMLButtonElement | null>(null);
+  const refocusDrafts = useRef(false);
   const glide = useRef<Glide | null>(null);
   const autoscroll = useAutoscroll();
   // Read by the follow effect without re-running it: turning the setting over changes no frame.
@@ -84,6 +86,13 @@ export default function Replay() {
     ?.nameDraftAt;
   const [naming, setNaming] = useState<number | null>(nameOnArrival ?? null);
   const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
+  // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
+  useEffect(() => {
+    if (!drawerOpen && refocusDrafts.current) {
+      refocusDrafts.current = false;
+      draftsButton.current?.focus();
+    }
+  }, [drawerOpen]);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const heightClass = window.electron.versions.isMac
@@ -192,16 +201,19 @@ export default function Replay() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // While the drafts list is open, the keys belong to it and not to playback: Space and Enter
-      // would start the poem playing beside the list, and Escape closes the list. In the name field Escape
-      // is the field's own (it stops naming), so a second Escape closes the list. The list is not a modal
-      // (#313), so this asks whether it is open, not where the focus is.
+      // would start the poem playing beside the list. Escape closes the list from wherever the focus is,
+      // the timeline and the list's switches included; in the name field it also keeps the old name. The
+      // list is not a modal (#313), so this asks whether it is open, not where the focus is. Closed from
+      // inside, the focus goes back to the Drafts button, as the modal's did, rather than to the page: after
+      // the list has gone, so the name field is not blurred first and does not save what was typed.
       if (document.querySelector('.DraftDrawer')) {
-        if (
-          e.key === 'Escape' &&
-          !(e.target as HTMLElement | null)?.closest?.('input, textarea')
-        ) {
+        if (e.key === 'Escape') {
+          const fromList = (e.target as HTMLElement | null)?.closest?.(
+            '.DraftDrawer'
+          );
           setNaming(null);
           setDrawerOpen(false);
+          refocusDrafts.current = Boolean(fromList);
         }
         return;
       }
@@ -455,6 +467,7 @@ export default function Replay() {
               classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
             >
               <button
+                ref={draftsButton}
                 aria-label={i18n._('drafts.title')}
                 aria-expanded={drawerOpen}
                 type="button"
