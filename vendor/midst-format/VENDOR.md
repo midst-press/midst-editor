@@ -1,7 +1,7 @@
 # Vendored: midst-format
 
-- Tag: `v0.6.0`
-- Commit: `d886357907f65e21bae6c45b3f975a1d7ffa4695`
+- Tag: `v0.7.0`
+- Commit: `dafd9c3c8b98bcc40007227fd98735d83b4a615b`
 - Repository: `The_Kindled/midst-format` on Gitea, `midst-press/midst-format` on GitHub
 
 SHA-256 of every vendored file except this one, sorted by path. `tools/check-vendored-format.mjs` parses this block.
@@ -16,9 +16,9 @@ ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  build-label/pa
 9da571f6cb317e57b58ab710d464ca5c16f861995b643fb0aaf798d3811beec6  convert/index.d.ts
 ec46e70d46e57df0b7ed0be446ba0afd7db586efdc512480008c97960ce1ac26  convert/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  convert/package.json
-c99e8cbe2e4501b336a2f998c4154dbac3d238086dd6e21d12c0e4ff168c2f36  extensions/index.cjs
+4e61f7a4c5a0961678e69d7ff676e59c345374844bb2589a9b809faadea55ed3  extensions/index.cjs
 4c740427e02791f2319eeba039af1f80ef6097ac891495c3d8b5dca5617dbafe  extensions/index.d.ts
-4dd2424b2d773e7db0fcc2d3bc94dd789be69843bbe4f65b79f272da12e83b55  extensions/index.mjs
+448f23ba09250393a135c4c18e742490c2679121fa0f7c6645d1d3ca0113f2de  extensions/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  extensions/package.json
 f829b83d5b3d5cb2846be3b721af8d124eccaf7b7fb931e602d8d24e2ad30133  follow/index.cjs
 d42ea794cab5e9d327bc36b147a078cd5f978b38a6b7241c0ca42c544cfa9f03  follow/index.d.ts
@@ -28,7 +28,7 @@ ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  follow/package
 14fd1e9c7334e83157fc1fe0cbb1dacf99b76a8ab8619ce4af78558dca952e33  history/index.d.ts
 f8d34584761b047a462220a4b156b3db1866454ef3fc2d880042deba43316ba1  history/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  history/package.json
-753f1ec45fbb2f39b0800a0606fe84a06475fca3646ac5870481c56a91d99a8c  package.json
+51623178bb764e1df2dabf7ce26849aaf25805a2f217d2ed9602f08e6ffe9040  package.json
 ```
 
 Do not edit these files. To take a new version, rebuild the tag and replace this directory in its own PR: `node tools/check-vendored-format.mjs --rebuild <midst-format checkout>` rebuilds the tag named above and compares it with this directory.
