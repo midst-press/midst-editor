@@ -566,6 +566,39 @@ describe('Editor: autosave', () => {
     expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
+  it('saves ten seconds after the first change while typing goes on without a pause, then starts again (#315)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('a');
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('b');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(399);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    expect(bridge.values.poem).toBe(`<p>zqa${'b'.repeat(16)}</p>`);
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('c');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(2);
+  });
+
   it('abandons a pending autosave, with a warning, when another document is opened first', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');

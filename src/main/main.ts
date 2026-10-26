@@ -42,8 +42,10 @@ import MenuBuilder, {
   openFile,
   openPath,
   logIfRejected,
+  offerRecovery,
   setLanguage,
 } from './menu';
+import { forgetRecovery } from './recovery';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
@@ -162,6 +164,9 @@ const createWindow = async () => {
       mainWindow.show();
     }
 
+    // A poem a crashed run left untitled is offered back first (#315), before any file the OS asked to open.
+    const win = mainWindow;
+    logIfRejected('recovery', () => offerRecovery(win, isDarwin()));
     if (earlyPath !== '') {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
@@ -216,7 +221,9 @@ const createWindow = async () => {
           cancelId: 1,
         });
         if (choice === 0) {
-          // "Quit Anyway": the document is removed from the store and the window closed.
+          // "Quit Anyway": the document is removed from the store and the window closed, and an untitled poem's
+          // recovery copy goes with it: the poet chose to leave it (#315).
+          forgetRecovery();
           clearDocument();
           win.destroy();
         }

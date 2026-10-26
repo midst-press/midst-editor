@@ -217,6 +217,7 @@ jest.mock('../main/menu', () => ({
   save: jest.fn(),
   newFile: jest.fn(),
   openFile: jest.fn(),
+  offerRecovery: jest.fn(() => Promise.resolve()),
   // The real one: which action failed is what the IPC tests below check is logged.
   logIfRejected: (
     ...args: Parameters<typeof import('../main/menu').logIfRejected>
@@ -578,6 +579,21 @@ describe('main process', () => {
       ).toEqual([undefined, undefined, undefined, undefined]);
       expect(store.get('edited')).toBe('false');
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
+    });
+
+    // #315: the real recovery module, on this file's fake store; a recovery id names an untitled poem's copy.
+    it("forgets an untitled poem's recovery copy on Quit Anyway, and keeps it on Cancel", async () => {
+      const id = '11111111-1111-4111-8111-111111111111';
+      const kept = await boot();
+      kept.store.set('edited', 'true');
+      kept.store.set('recoveryId', id);
+      kept.state.dialogResponse = 1;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe(id);
+
+      kept.state.dialogResponse = 0;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe('');
     });
 
     // #236: Quit runs here at once, while the keystrokes typed just before it reach `edited` only by message.

@@ -18,6 +18,7 @@ import MenuBuilder, {
   focusModeMark,
   logIfRejected,
   newFile,
+  offerRecovery,
   openFile,
   save,
   saveAs,
@@ -25,6 +26,7 @@ import MenuBuilder, {
   setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
+import * as recovery from '../main/recovery';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
 import * as saveFailure from '../main/saveFailurePolicy';
@@ -54,6 +56,15 @@ jest.mock('electron', () => ({
   ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
+// The recovery copies themselves are recovery.test.ts's; here, only when the menu asks for them (#315).
+jest.mock('../main/recovery', () => ({
+  writeRecovery: jest.fn(),
+  forgetRecovery: jest.fn(),
+  orphans: jest.fn(() => []),
+  adopt: jest.fn(),
+  declineToTrash: jest.fn(() => Promise.resolve()),
+  startFresh: jest.fn(),
+}));
 jest.mock('../main/logFile', () => ({
   logFilePath: () => '/zq/Logs/Midst/main.log',
 }));
@@ -72,6 +83,7 @@ jest.mock('../main/store', () => ({
   default: {
     get: (k: string) => mockStore.get(k),
     set: (k: string, v: unknown) => mockStore.set(k, v),
+    delete: (k: string) => mockStore.delete(k),
   },
 }));
 
@@ -426,76 +438,15 @@ describe('save', () => {
       ]);
     });
 
-    it('a first save to a file that cannot be written says so and keeps the document without a file', async () => {
-      // A new document, saved by the editor as it opens: nothing unsaved yet, but the poet has just
-      // chosen where it goes.
-      seedDocument({ filename: '', edited: 'false' });
+    it('a first save the poet chose, to a file that cannot be written, says so and keeps the recovery copy', async () => {
+      seedDocument({ filename: '' });
       showSaveDialog.mockReturnValue(unwritable());
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
-      await save(asWindow(win), false, false);
+      await save(asWindow(win), false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('filename')).toBe('');
-      expect(mockStore.get('baseFilename')).toBeUndefined();
-      // The editor stays open: a cancelled save sends the poet back to the start, a failed one does not.
-      expect(win.webContents.send).not.toHaveBeenCalled();
-    });
-
-    // #94: the panel would otherwise open at every pause in typing.
-    it('after a first save that failed, the editor\u2019s own saves do not open the save panel again', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(1);
-      expect(showMessageBox).toHaveBeenCalledTimes(1);
-      await save(asWindow(win), false, false);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(1);
-      expect(showMessageBox).toHaveBeenCalledTimes(1);
-      // The editor stays open and the poem unsaved: nothing sends the poet back to the start.
-      expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
-      expect(mockStore.get('edited')).toBe('true');
-      expect(mockStore.get('filename')).toBe('');
-      expect(logInfo).toHaveBeenCalledWith(
-        'autosave: not asking again where to save a document whose first save failed'
-      );
-      // Save, chosen by the poet, still asks where.
-      await save(asWindow(win), false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(2);
-    });
-
-    it('once the poem has been saved somewhere, a new document\u2019s first autosave asks where again', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      const elsewhere = path.join(dir, 'xv.midst');
-      showSaveDialog.mockReturnValue(elsewhere);
-      await save(asWindow(win), false);
-      expect(mockStore.get('filename')).toBe(elsewhere);
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(undefined);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(3);
-    });
-
-    it('a new document starts again: its first autosave asks where', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      // New, and Proceed past the unsaved-changes warning.
-      showMessageBox.mockReturnValue(0);
-      await newFile(asWindow(win), false);
-      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', false);
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(undefined);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+      expect(recovery.forgetRecovery).not.toHaveBeenCalled();
     });
 
     it('off macOS, tells the window once that the poem is not saved, and again when a save works', async () => {
@@ -2494,5 +2445,229 @@ describe('logIfRejected (#160)', () => {
       })
     ).toThrow('xv');
     expect(logError).not.toHaveBeenCalled();
+  });
+});
+
+// An untitled poem (#315; Annelyse, GitHub #81): no name is asked for until the poet saves on purpose.
+describe('an untitled poem', () => {
+  const writeRecovery = recovery.writeRecovery as jest.Mock;
+  const forgetRecovery = recovery.forgetRecovery as jest.Mock;
+
+  it("the editor's own saves open no panel and keep a recovery copy of the whole document", async () => {
+    seedDocument({ filename: '', poem: '<p>zq</p>' });
+    const win = makeWindow();
+    await save(asWindow(win), false, false);
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeRecovery).toHaveBeenCalledTimes(1);
+    const written = writeRecovery.mock.calls[0][0] as string;
+    expect(written.startsWith('midstVersion: 1')).toBe(true);
+    expect(written).toContain('<p>zq</p>');
+    expect(written).toContain('"history"');
+    expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+  });
+
+  it('nothing is written for a poem nothing has been typed into', async () => {
+    seedDocument({ filename: '', edited: 'false' });
+    await save(asWindow(makeWindow()), false, false);
+    expect(writeRecovery).not.toHaveBeenCalled();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+  });
+
+  it('a recovery copy that cannot be written is logged, by error name only, and opens nothing', async () => {
+    seedDocument({ filename: '', poem: '<p>POEM-SENTINEL</p>' });
+    writeRecovery.mockImplementationOnce(() => {
+      throw new Error('zq disk full');
+    });
+    await save(asWindow(makeWindow()), false, false);
+    expect(logError).toHaveBeenCalledWith(
+      "autosave: the untitled poem's recovery copy was not written",
+      expect.objectContaining({ name: 'Error' })
+    );
+    expect(showMessageBox).not.toHaveBeenCalled();
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+  });
+
+  it('a file of an already saved poem is still autosaved into, with no recovery copy', async () => {
+    const file = path.join(dir, 'zq.midst');
+    seedDocument({ filename: file });
+    await save(asWindow(makeWindow()), false, false);
+    expect(fs.existsSync(file)).toBe(true);
+    expect(writeRecovery).not.toHaveBeenCalled();
+  });
+
+  it("the poet's first Save, once written, forgets the recovery copy; Save As does too", async () => {
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    await save(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'xv.midst'));
+    await saveAs(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(2);
+  });
+
+  it('saving a poem that already has a file forgets nothing', async () => {
+    seedDocument({ filename: path.join(dir, 'zq.midst') });
+    await save(asWindow(makeWindow()), false);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+  });
+
+  it('leaving it for a new poem forgets the recovery copy; Cancel keeps it', async () => {
+    seedDocument({ filename: '' });
+    showMessageBox.mockReturnValue(1);
+    await newFile(asWindow(makeWindow()), false);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+    showMessageBox.mockReturnValue(0);
+    await newFile(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaving it to open another poem forgets the recovery copy; Cancel keeps it', async () => {
+    seedDocument({ filename: '' });
+    showMessageBox.mockReturnValue(1);
+    await openFile(asWindow(makeWindow()), false, [
+      path.join(dir, 'none.midst'),
+    ]);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile());
+    showMessageBox.mockReturnValue(0);
+    await openFile(asWindow(makeWindow()), false, [target]);
+    await Promise.all(pendingIo);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('offerRecovery', () => {
+  const orphans = recovery.orphans as jest.Mock;
+  const plant = (id: string, text: string) => {
+    const file = path.join(dir, `${id}.midst`);
+    fs.writeFileSync(file, goodFile(text));
+    return { id, file, lastWritten: new Date(2026, 9, 26, 17, 52) };
+  };
+
+  it("asks in Annelyse's words, with Enter on Yes, and Yes opens the poem untitled and unsaved", async () => {
+    const one = plant('a', '<p>zq</p>');
+    orphans.mockReturnValue([one]);
+    showMessageBox.mockReturnValue(0);
+    const win = makeWindow();
+    await offerRecovery(asWindow(win), true);
+    expect(recovery.startFresh).toHaveBeenCalled();
+    const options = showMessageBox.mock.calls[0][1];
+    expect(options.message).toBe(
+      'Midst unexpectedly quit while you were working on the poem "Untitled." Would you like to recover your work?'
+    );
+    expect(options.buttons).toEqual(['Yes', 'No']);
+    expect(options.defaultId).toBe(0);
+    expect(options.cancelId).toBe(1);
+    expect(mockStore.get('poem')).toBe('<p>zq</p>');
+    expect(mockStore.get('filename')).toBe('');
+    expect(mockStore.get('edited')).toBe('true');
+    expect(win.setDocumentEdited).toHaveBeenCalledWith(true);
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '<p>zq</p>',
+      history,
+      ''
+    );
+    expect(recovery.adopt).toHaveBeenCalledWith(one);
+    expect(recovery.declineToTrash).not.toHaveBeenCalled();
+  });
+
+  it("Yes brings back the poem's settings with it", async () => {
+    const file = path.join(dir, 'm.midst');
+    fs.writeFileSync(
+      file,
+      `midstVersion: 1\n${JSON.stringify({
+        text: '<p>zq</p>',
+        history,
+        meta: { fontSize: 3 },
+      })}`
+    );
+    orphans.mockReturnValue([{ id: 'm', file, lastWritten: new Date() }]);
+    showMessageBox.mockReturnValue(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(mockStore.get('meta')).toBe('{"fontSize":3}');
+  });
+
+  it('No moves that poem to the Trash and offers the next, newest first', async () => {
+    const one = plant('a', '<p>zq</p>');
+    const two = plant('b', '<p>xv</p>');
+    orphans.mockReturnValue([one, two]);
+    showMessageBox.mockReturnValueOnce(1).mockReturnValueOnce(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(recovery.declineToTrash).toHaveBeenCalledWith(one, 'Untitled');
+    expect(recovery.adopt).toHaveBeenCalledWith(two);
+    expect(mockStore.get('poem')).toBe('<p>xv</p>');
+  });
+
+  describe("the crashed run's untitled poem in the store", () => {
+    const crashed = (filename: string) => {
+      mockStore.set('filename', filename);
+      mockStore.set('poem', '<p>zq</p>');
+      mockStore.set('history', '[]');
+      mockStore.set('edited', 'true');
+    };
+
+    it('is cleared when the poet declines every copy, so nothing asks about it again', async () => {
+      crashed('');
+      orphans.mockReturnValue([
+        plant('a', '<p>zq</p>'),
+        plant('b', '<p>xv</p>'),
+      ]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(recovery.declineToTrash).toHaveBeenCalledTimes(2);
+      expect(mockStore.get('poem')).toBeUndefined();
+      expect(mockStore.get('history')).toBeUndefined();
+      expect(mockStore.get('edited')).toBe('false');
+    });
+
+    it('is kept when a copy could not be read, since it may be the only good one', async () => {
+      crashed('');
+      const bad = {
+        id: 'c',
+        file: path.join(dir, 'missing.midst'),
+        lastWritten: new Date(),
+      };
+      orphans.mockReturnValue([plant('a', '<p>zq</p>'), bad]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+
+    it('is left alone when it has a file of its own', async () => {
+      crashed('/a/zq.midst');
+      orphans.mockReturnValue([plant('a', '<p>xv</p>')]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+  });
+
+  it('a copy that cannot be opened is kept, logged by id, and the next one is offered', async () => {
+    const bad = {
+      id: 'c',
+      file: path.join(dir, 'c.midst'),
+      lastWritten: new Date(),
+    };
+    fs.writeFileSync(bad.file, 'midstVersion: 1\n{not json POEM-SENTINEL');
+    const good = plant('d', '<p>zq</p>');
+    orphans.mockReturnValue([bad, good]);
+    showMessageBox.mockReturnValue(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(recovery.declineToTrash).not.toHaveBeenCalled();
+    expect(recovery.adopt).toHaveBeenCalledTimes(1);
+    expect(recovery.adopt).toHaveBeenCalledWith(good);
+    expect(fs.existsSync(bad.file)).toBe(true);
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+  });
+
+  it('with nothing to recover, asks nothing', async () => {
+    orphans.mockReturnValue([]);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(showMessageBox).not.toHaveBeenCalled();
   });
 });
