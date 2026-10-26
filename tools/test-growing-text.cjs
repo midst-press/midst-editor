@@ -32,7 +32,7 @@ function expect(actual, message) {
   };
 }
 
-async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = false, corruptSave = false } = {}) {
+async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = false, corruptSave = false, disposeProcessHandle = false, closeRejects = false, killRejects = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'growing-text-model-'));
   const result = path.join(dir, 'model-only.json');
   const keys = [];
@@ -41,8 +41,16 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
   let clock = 0;
   let callback;
   let skip;
+  let disposed = false;
+  let processReads = 0;
   const history = [];
   const child = Object.assign(new EventEmitter(), { exitCode: null, signalCode: null });
+  child.kill = () => {
+    if (killRejects) throw new Error('model kill EPERM');
+    child.signalCode = 'SIGTERM';
+    child.emit('exit', null, 'SIGTERM');
+    return true;
+  };
   const editor = { textContent: async () => text, click: async () => {} };
   const win = {
     on() {},
@@ -66,13 +74,22 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
     },
   };
   const app = Object.assign(new EventEmitter(), {
-    process: () => child,
+    process() {
+      processReads += 1;
+      if (disposed && disposeProcessHandle)
+        throw new TypeError("Cannot read properties of undefined (reading '_object')");
+      return child;
+    },
     evaluate: async (fn) => fn({ app: { getVersion: () => 'model-only' } }),
     firstWindow: async () => win,
     async close() {
-      child.exitCode = 0;
-      child.emit('exit', 0);
+      disposed = true;
+      if (!killRejects) {
+        child.exitCode = 0;
+        child.emit('exit', 0);
+      }
       app.emit('close');
+      if (closeRejects) throw new Error('model close rejected');
     },
   });
   const harness = {
@@ -115,7 +132,8 @@ async function modeledRun({ maxPrefix = 3, budget = 30000, brokenBackspace = fal
   assert.equal(skip, false);
   let error;
   try { await callback(); } catch (caught) { error = caught; }
-  return { report: JSON.parse(fs.readFileSync(result, 'utf8')), keys, error, result, callback };
+  const raw = fs.readFileSync(result, 'utf8');
+  return { report: raw ? JSON.parse(raw) : null, keys, error, result, callback, processReads };
 }
 
 test('driver performs a/delete, ab/delete, abc/delete and verifies saved history', async () => {
@@ -162,6 +180,34 @@ test('missing saved history fails independently of successful typing', async () 
   assert.match(String(run.error), /saved text\/history do not account/);
   assert.equal(run.report.failure.phase, 'save-and-verify');
   assert.equal(run.report.maximumCompletedPrefix, 3);
+});
+
+test('disposed Electron process accessor is never used after close and the report survives', async () => {
+  const run = await modeledRun({ disposeProcessHandle: true });
+  assert.ifError(run.error);
+  assert.ok(run.report, 'the completed run must not leave an empty result');
+  assert.equal(run.processReads, 1);
+  assert.equal(run.report.mainExited, true);
+  assert.equal(run.report.savedHistoryLength, 12);
+});
+
+test('a close rejection is reported without masking a prior editing failure', async () => {
+  const run = await modeledRun({ disposeProcessHandle: true, closeRejects: true, brokenBackspace: true });
+  assert.match(String(run.error), /model DOM acknowledgment disagreed/);
+  assert.ok(run.report, 'teardown must preserve the primary failure report');
+  assert.equal(run.report.failure.phase, 'backspace');
+  assert.ok(run.report.errors.some((error) => error.includes('model close rejected')));
+  assert.equal(run.processReads, 1);
+});
+
+test('close and owned-process signal failures still produce a nonempty report', async () => {
+  const run = await modeledRun({ disposeProcessHandle: true, closeRejects: true, killRejects: true });
+  assert.ok(run.report, 'signal refusal must not suppress the report');
+  assert.equal(run.report.outcome, 'failure');
+  assert.equal(run.report.failure.phase, 'close');
+  assert.equal(run.report.mainExited, false);
+  assert.ok(run.report.errors.some((error) => error.includes('model kill EPERM')));
+  assert.equal(run.processReads, 1);
 });
 
 test('installer forwards an isolated cache path and preserves the default', async () => {

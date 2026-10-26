@@ -46,6 +46,7 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
   const journalPath = `${resultPath}.cycles.jsonl`;
   let journalFd: number | undefined;
   let app: ElectronApplication | undefined;
+  let ownedProcess: ReturnType<ElectronApplication['process']> | undefined;
   let failure: unknown;
   let closing = false;
   let inputDeadline = Infinity;
@@ -117,9 +118,9 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
     writeFileSync(documentPath, makeMidst('', 0).file, { flag: 'wx' });
     const launched = await launch(work);
     app = launched.app;
-    const child = app.process();
-    report.mainPid = child.pid ?? null;
-    child.once('exit', () => {
+    ownedProcess = app.process();
+    report.mainPid = ownedProcess.pid ?? null;
+    ownedProcess.once('exit', () => {
       report.mainExited = true;
     });
     app.on('close', () => {
@@ -248,30 +249,54 @@ test('growing alphabet prefixes are typed and backspaced through real editor eve
     };
   } finally {
     closing = true;
-    if (app) {
+    try {
+      if (app) {
+        try {
+          await observed(() => app!.close());
+        } catch (error) {
+          errors.push(`app.close failed: ${String(error)}`);
+          failure ??= error;
+        }
+      }
+      // Playwright disposes app.process() during close; this launch-owned handle remains usable.
+      if (ownedProcess) {
+        const exited = () =>
+          ownedProcess!.exitCode !== null || ownedProcess!.signalCode !== null;
+        report.mainExited = await waitUntil(exited, 10_000);
+        if (!report.mainExited) {
+          try {
+            ownedProcess.kill('SIGTERM');
+          } catch (error) {
+            errors.push(`owned process SIGTERM failed: ${String(error)}`);
+            failure ??= error;
+          }
+          report.mainExited = await waitUntil(exited, 10_000);
+        }
+      }
+    } catch (error) {
+      errors.push(`teardown failed: ${String(error)}`);
+      failure ??= error;
+    } finally {
       try {
-        await observed(() => app!.close());
-        report.mainExited =
-          app.process().exitCode !== null || app.process().signalCode !== null;
+        if (journalFd !== undefined) closeSync(journalFd);
       } catch (error) {
-        errors.push(`app.close failed: ${String(error)}`);
+        errors.push(`journal close failed: ${String(error)}`);
         failure ??= error;
-        const child = app.process();
-        if (child.exitCode === null && child.signalCode === null)
-          child.kill('SIGTERM');
+      }
+      if (errors.length && !failure) failure = new Error(errors.join(' | '));
+      if (ownedProcess && !report.mainExited && !failure)
+        failure = new Error('the owned Electron main process has not exited');
+      if (failure && report.outcome !== 'failure') {
+        report.outcome = 'failure';
+        report.failure = { phase: 'close', prefix, message: String(failure) };
+      }
+      report.finishedAt = new Date().toISOString();
+      try {
+        writeFileSync(resultFd, `${JSON.stringify(report, null, 2)}\n`);
+      } finally {
+        closeSync(resultFd);
       }
     }
-    if (errors.length && !failure) failure = new Error(errors.join(' | '));
-    if (app && !report.mainExited && !failure)
-      failure = new Error('the owned Electron main process has not exited');
-    if (failure && report.outcome !== 'failure') {
-      report.outcome = 'failure';
-      report.failure = { phase: 'close', prefix, message: String(failure) };
-    }
-    if (journalFd !== undefined) closeSync(journalFd);
-    report.finishedAt = new Date().toISOString();
-    writeFileSync(resultFd, `${JSON.stringify(report, null, 2)}\n`);
-    closeSync(resultFd);
   }
   if (failure) throw failure;
 });
