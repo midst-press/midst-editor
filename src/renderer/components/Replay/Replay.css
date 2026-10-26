@@ -150,9 +150,26 @@
   font-size: 32px;
 }
 
+/* The drafts list beside the poem and the timeline, never over them (#313, GitHub #85): the poem and the control
+   bar take the width that is left. */
+.ReplayLayout {
+  display: flex;
+  align-items: flex-start;
+}
+
+.ReplayMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .DraftDrawer {
+  flex: 0 0 auto;
   width: 300px;
   padding: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  outline: none;
   font-family:
     system-ui,
     -apple-system,

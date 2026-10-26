@@ -40,7 +40,6 @@ function Harness({
   return (
     <DraftDrawer
       open
-      onClose={jest.fn()}
       markers={markers}
       naming={naming}
       setNaming={setNaming}

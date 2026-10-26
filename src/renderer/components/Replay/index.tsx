@@ -46,6 +46,8 @@ export default function Replay() {
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
   const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
+  const draftsButton = useRef<HTMLButtonElement | null>(null);
+  const refocusDrafts = useRef(false);
   const glide = useRef<Glide | null>(null);
   const autoscroll = useAutoscroll();
   // Read by the follow effect without re-running it: turning the setting over changes no frame.
@@ -84,6 +86,13 @@ export default function Replay() {
     ?.nameDraftAt;
   const [naming, setNaming] = useState<number | null>(nameOnArrival ?? null);
   const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
+  // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
+  useEffect(() => {
+    if (!drawerOpen && refocusDrafts.current) {
+      refocusDrafts.current = false;
+      draftsButton.current?.focus();
+    }
+  }, [drawerOpen]);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const heightClass = window.electron.versions.isMac
@@ -192,9 +201,22 @@ export default function Replay() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       // While the drafts list is open, the keys belong to it and not to playback: Space and Enter
-      // would start the poem playing behind the list, and Escape is the list's own way to close.
-      // Focus sits on the drawer's panel when it opens, so this asks the drawer, not the focused element.
-      if (document.querySelector('.DraftDrawer')) return;
+      // would start the poem playing beside the list. Escape closes the list from wherever the focus is,
+      // the timeline and the list's switches included; in the name field it also keeps the old name. The
+      // list is not a modal (#313), so this asks whether it is open, not where the focus is. Closed from
+      // inside, the focus goes back to the Drafts button, as the modal's did, rather than to the page: after
+      // the list has gone, so the name field is not blurred first and does not save what was typed.
+      if (document.querySelector('.DraftDrawer')) {
+        if (e.key === 'Escape') {
+          const fromList = (e.target as HTMLElement | null)?.closest?.(
+            '.DraftDrawer'
+          );
+          setNaming(null);
+          setDrawerOpen(false);
+          refocusDrafts.current = Boolean(fromList);
+        }
+        return;
+      }
       // Text entry keeps its keys. The slider is an input too, but takes no Space, Enter or Escape, and it keeps
       // the focus after a scrub, so it must not swallow them (#237).
       if (
@@ -219,263 +241,273 @@ export default function Replay() {
     };
   }, [navigate]);
   return (
-    <div style={{ backgroundColor: cssVar('background') }}>
-      <div className="TopButtons">
-        {/* At the largest or smallest size the button says so (#273, GitHub #66), as the play button does. */}
-        <Tooltip
-          title={largestReason ?? i18n._('textSize.increase')}
-          TransitionComponent={Zoom}
-          enterDelay={1000}
-          arrow
-        >
-          <span>
-            <button
-              aria-label={i18n._('textSize.increase')}
-              aria-describedby={
-                largestReason ? 'replay-largest-reason' : undefined
-              }
-              type="button"
-              onClick={fontSize.increase}
-              disabled={largestReason !== null}
-              className="icon-button size-icon"
-              style={largestReason ? UNAVAILABLE_STYLE : undefined}
-            >
-              <TextIncreaseIcon fontSize="small" />
-            </button>
-            {largestReason && (
-              <span id="replay-largest-reason" hidden>
-                {largestReason}
-              </span>
-            )}
-          </span>
-        </Tooltip>
-        <Tooltip
-          title={smallestReason ?? i18n._('textSize.decrease')}
-          TransitionComponent={Zoom}
-          enterDelay={1000}
-          arrow
-        >
-          <span>
-            <button
-              aria-label={i18n._('textSize.decrease')}
-              aria-describedby={
-                smallestReason ? 'replay-smallest-reason' : undefined
-              }
-              type="button"
-              disabled={smallestReason !== null}
-              className="icon-button size-icon"
-              style={smallestReason ? UNAVAILABLE_STYLE : undefined}
-              onClick={fontSize.decrease}
-            >
-              <TextDecreaseIcon fontSize="small" />
-            </button>
-            {smallestReason && (
-              <span id="replay-smallest-reason" hidden>
-                {smallestReason}
-              </span>
-            )}
-          </span>
-        </Tooltip>
-        <Tooltip
-          title={
-            autoscroll.on
-              ? i18n._('replay.follow.on')
-              : i18n._('replay.follow.off')
-          }
-          TransitionComponent={Zoom}
-          enterDelay={1000}
-          arrow
-        >
-          <button
-            aria-label={i18n._('replay.follow')}
-            aria-pressed={autoscroll.on}
-            type="button"
-            className="icon-button size-icon"
-            style={autoscroll.on ? undefined : { opacity: 0.5 }}
-            onClick={toggleAutoscroll}
-          >
-            <VerticalAlignCenterIcon fontSize="small" />
-          </button>
-        </Tooltip>
-      </div>
-      <div className={`ReplayContainer size-${fontSize.size}`}>
-        <EditorContent editor={editor} />
-      </div>
-      <Grow mountOnEnter in>
-        <Box
-          component="div"
-          className="ControlBar"
-          style={{
-            backgroundColor: cssVar('controlBar'),
-          }}
-        >
-          {/* Named like every other button here (#101): a screen reader said only "button". With no history
-              it cannot play and says why (#273, GitHub #66): in its tooltip, which needs the span because a
-              disabled button gets no mouse events, and as its description. */}
+    // The drafts list sits beside the poem and the timeline, never over them (#313, GitHub #85).
+    <div
+      className="ReplayLayout"
+      style={{ backgroundColor: cssVar('background') }}
+    >
+      <div className="ReplayMain">
+        <div className="TopButtons">
+          {/* At the largest or smallest size the button says so (#273, GitHub #66), as the play button does. */}
           <Tooltip
-            title={
-              playReason ??
-              (playing ? i18n._('replay.pause') : i18n._('replay.play'))
-            }
+            title={largestReason ?? i18n._('textSize.increase')}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
-          >
-            <span className="control-icon-gap">
-              <button
-                type="button"
-                ref={playPauseButton}
-                aria-label={
-                  playing ? i18n._('replay.pause') : i18n._('replay.play')
-                }
-                aria-describedby={playReason ? 'replay-play-reason' : undefined}
-                style={{
-                  color: cssVar('onControlBar'),
-                  ...(playReason ? UNAVAILABLE_STYLE : {}),
-                }}
-                onClick={playing ? pause : play}
-                disabled={playReason !== null}
-                className="control-bar-icon"
-              >
-                {playing ? (
-                  <PauseIcon fontSize="small" />
-                ) : (
-                  <PlayArrowIcon fontSize="small" />
-                )}
-              </button>
-              {playReason && (
-                <span id="replay-play-reason" hidden>
-                  {playReason}
-                </span>
-              )}
-            </span>
-          </Tooltip>
-          <Slider
-            min={0}
-            max={maxStep}
-            value={step}
-            step={1}
-            size="small"
-            valueLabelFormat={labelFormatter}
-            valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
-            sx={{
-              color: cssVar('onControlBar'),
-              marginRight: '15px',
-              cursor: poemHistory.length ? undefined : 'not-allowed',
-              // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
-              // where there is room for it.
-              '& .MuiSlider-mark': {
-                height: '14px',
-                width: '2px',
-                backgroundColor: cssVar('textPrimary'),
-                opacity: 0.7,
-              },
-              '& .MuiSlider-markLabel': {
-                top: '-34px',
-                fontSize: '0.75rem',
-                color: cssVar('textPrimary'),
-                maxWidth: '140px',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              },
-            }}
-            onChange={handleStepChange}
-            marks={
-              showMarkers
-                ? drafts.markers.map(({ index, label }) => ({
-                    value: index,
-                    label: showLabels ? label : undefined,
-                  }))
-                : false
-            }
-          />
-          <Tooltip
-            title={draftReason ?? i18n._('drafts.mark')}
-            TransitionComponent={Zoom}
-            enterDelay={1000}
-            arrow
-            placement="top-end"
-            classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
           >
             <span>
               <button
-                aria-label={i18n._('drafts.mark')}
+                aria-label={i18n._('textSize.increase')}
                 aria-describedby={
-                  draftReason ? 'replay-draft-reason' : undefined
+                  largestReason ? 'replay-largest-reason' : undefined
                 }
                 type="button"
-                className="control-bar-icon"
-                style={{
-                  color: cssVar('onControlBar'),
-                  ...(draftReason ? UNAVAILABLE_STYLE : {}),
-                }}
-                disabled={draftReason !== null}
-                onClick={() => {
-                  pause();
-                  if (drafts.create(step)) {
-                    setNaming(step);
-                    setDrawerOpen(true);
-                  }
-                }}
+                onClick={fontSize.increase}
+                disabled={largestReason !== null}
+                className="icon-button size-icon"
+                style={largestReason ? UNAVAILABLE_STYLE : undefined}
               >
-                <BookmarkAddIcon fontSize="small" />
+                <TextIncreaseIcon fontSize="small" />
               </button>
-              {draftReason && (
-                <span id="replay-draft-reason" hidden>
-                  {draftReason}
+              {largestReason && (
+                <span id="replay-largest-reason" hidden>
+                  {largestReason}
                 </span>
               )}
-              <RefusalAlert message={drafts.refusal} />
             </span>
           </Tooltip>
-          <RestartFromButton step={step} pause={pause} />
           <Tooltip
-            title={i18n._('drafts.title')}
+            title={smallestReason ?? i18n._('textSize.decrease')}
             TransitionComponent={Zoom}
             enterDelay={1000}
             arrow
-            placement="top-end"
-            classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+          >
+            <span>
+              <button
+                aria-label={i18n._('textSize.decrease')}
+                aria-describedby={
+                  smallestReason ? 'replay-smallest-reason' : undefined
+                }
+                type="button"
+                disabled={smallestReason !== null}
+                className="icon-button size-icon"
+                style={smallestReason ? UNAVAILABLE_STYLE : undefined}
+                onClick={fontSize.decrease}
+              >
+                <TextDecreaseIcon fontSize="small" />
+              </button>
+              {smallestReason && (
+                <span id="replay-smallest-reason" hidden>
+                  {smallestReason}
+                </span>
+              )}
+            </span>
+          </Tooltip>
+          <Tooltip
+            title={
+              autoscroll.on
+                ? i18n._('replay.follow.on')
+                : i18n._('replay.follow.off')
+            }
+            TransitionComponent={Zoom}
+            enterDelay={1000}
+            arrow
           >
             <button
-              aria-label={i18n._('drafts.title')}
+              aria-label={i18n._('replay.follow')}
+              aria-pressed={autoscroll.on}
               type="button"
-              className="control-bar-icon"
-              style={{ color: cssVar('onControlBar') }}
-              onClick={() => setDrawerOpen(true)}
+              className="icon-button size-icon"
+              style={autoscroll.on ? undefined : { opacity: 0.5 }}
+              onClick={toggleAutoscroll}
             >
-              <BookmarksIcon fontSize="small" />
+              <VerticalAlignCenterIcon fontSize="small" />
             </button>
           </Tooltip>
-          <Tooltip
-            title={i18n._('replay.edit')}
-            TransitionComponent={Zoom}
-            enterDelay={1000}
-            arrow
-            placement="top-end"
-            classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+        </div>
+        <div className={`ReplayContainer size-${fontSize.size}`}>
+          <EditorContent editor={editor} />
+        </div>
+        <Grow mountOnEnter in>
+          <Box
+            component="div"
+            className="ControlBar"
+            style={{
+              backgroundColor: cssVar('controlBar'),
+            }}
           >
-            <Link to="/editor">
+            {/* Named like every other button here (#101): a screen reader said only "button". With no history
+              it cannot play and says why (#273, GitHub #66): in its tooltip, which needs the span because a
+              disabled button gets no mouse events, and as its description. */}
+            <Tooltip
+              title={
+                playReason ??
+                (playing ? i18n._('replay.pause') : i18n._('replay.play'))
+              }
+              TransitionComponent={Zoom}
+              enterDelay={1000}
+              arrow
+            >
+              <span className="control-icon-gap">
+                <button
+                  type="button"
+                  ref={playPauseButton}
+                  aria-label={
+                    playing ? i18n._('replay.pause') : i18n._('replay.play')
+                  }
+                  aria-describedby={
+                    playReason ? 'replay-play-reason' : undefined
+                  }
+                  style={{
+                    color: cssVar('onControlBar'),
+                    ...(playReason ? UNAVAILABLE_STYLE : {}),
+                  }}
+                  onClick={playing ? pause : play}
+                  disabled={playReason !== null}
+                  className="control-bar-icon"
+                >
+                  {playing ? (
+                    <PauseIcon fontSize="small" />
+                  ) : (
+                    <PlayArrowIcon fontSize="small" />
+                  )}
+                </button>
+                {playReason && (
+                  <span id="replay-play-reason" hidden>
+                    {playReason}
+                  </span>
+                )}
+              </span>
+            </Tooltip>
+            <Slider
+              min={0}
+              max={maxStep}
+              value={step}
+              step={1}
+              size="small"
+              valueLabelFormat={labelFormatter}
+              valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
+              sx={{
+                color: cssVar('onControlBar'),
+                marginRight: '15px',
+                cursor: poemHistory.length ? undefined : 'not-allowed',
+                // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
+                // where there is room for it.
+                '& .MuiSlider-mark': {
+                  height: '14px',
+                  width: '2px',
+                  backgroundColor: cssVar('textPrimary'),
+                  opacity: 0.7,
+                },
+                '& .MuiSlider-markLabel': {
+                  top: '-34px',
+                  fontSize: '0.75rem',
+                  color: cssVar('textPrimary'),
+                  maxWidth: '140px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                },
+              }}
+              onChange={handleStepChange}
+              marks={
+                showMarkers
+                  ? drafts.markers.map(({ index, label }) => ({
+                      value: index,
+                      label: showLabels ? label : undefined,
+                    }))
+                  : false
+              }
+            />
+            <Tooltip
+              title={draftReason ?? i18n._('drafts.mark')}
+              TransitionComponent={Zoom}
+              enterDelay={1000}
+              arrow
+              placement="top-end"
+              classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+            >
+              <span>
+                <button
+                  aria-label={i18n._('drafts.mark')}
+                  aria-describedby={
+                    draftReason ? 'replay-draft-reason' : undefined
+                  }
+                  type="button"
+                  className="control-bar-icon"
+                  style={{
+                    color: cssVar('onControlBar'),
+                    ...(draftReason ? UNAVAILABLE_STYLE : {}),
+                  }}
+                  disabled={draftReason !== null}
+                  onClick={() => {
+                    pause();
+                    if (drafts.create(step)) {
+                      setNaming(step);
+                      setDrawerOpen(true);
+                    }
+                  }}
+                >
+                  <BookmarkAddIcon fontSize="small" />
+                </button>
+                {draftReason && (
+                  <span id="replay-draft-reason" hidden>
+                    {draftReason}
+                  </span>
+                )}
+                <RefusalAlert message={drafts.refusal} />
+              </span>
+            </Tooltip>
+            <RestartFromButton step={step} pause={pause} />
+            <Tooltip
+              title={i18n._('drafts.title')}
+              TransitionComponent={Zoom}
+              enterDelay={1000}
+              arrow
+              placement="top-end"
+              classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+            >
               <button
-                aria-label={i18n._('replay.edit')}
+                ref={draftsButton}
+                aria-label={i18n._('drafts.title')}
+                aria-expanded={drawerOpen}
                 type="button"
                 className="control-bar-icon"
-                style={{
-                  color: cssVar('onControlBar'),
+                style={{ color: cssVar('onControlBar') }}
+                // Opens the list, or closes it: with the list beside the page, this button stays in reach.
+                onClick={() => {
+                  if (drawerOpen) setNaming(null);
+                  setDrawerOpen(!drawerOpen);
                 }}
               >
-                <EditIcon fontSize="small" />
+                <BookmarksIcon fontSize="small" />
               </button>
-            </Link>
-          </Tooltip>
-        </Box>
-      </Grow>
+            </Tooltip>
+            <Tooltip
+              title={i18n._('replay.edit')}
+              TransitionComponent={Zoom}
+              enterDelay={1000}
+              arrow
+              placement="top-end"
+              classes={{ arrow: 'custom-arrow', tooltip: 'custom' }}
+            >
+              <Link to="/editor">
+                <button
+                  aria-label={i18n._('replay.edit')}
+                  type="button"
+                  className="control-bar-icon"
+                  style={{
+                    color: cssVar('onControlBar'),
+                  }}
+                >
+                  <EditIcon fontSize="small" />
+                </button>
+              </Link>
+            </Tooltip>
+          </Box>
+        </Grow>
+      </div>
       <DraftDrawer
         open={drawerOpen}
-        onClose={() => {
-          setNaming(null);
-          setDrawerOpen(false);
-        }}
         markers={drafts.markers}
         naming={naming}
         setNaming={setNaming}

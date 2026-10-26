@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -236,6 +236,91 @@ test('a poem with 50 or fewer changes cannot be marked yet', async () => {
     });
     await expect(win.getByRole('button', { name: MARK })).toBeDisabled();
     expect(metaOnDisk(poemPath)).toBeUndefined();
+  } finally {
+    await app.close();
+  }
+});
+
+// #313 (GitHub #85): naming a draft must not hide the poem, and the drafts list must cover neither the poem nor the
+// timeline. Measured in the real window, at the size it opens at and at a narrow one: the list's box is clear of the
+// title bar, the poem and the control bar, nothing is dimmed, and what is under the middle of the poem and the right
+// end of the timeline is the replay's own, not the list.
+type Box = { x: number; y: number; width: number; height: number };
+const right = (b: Box) => b.x + b.width;
+
+async function expectBeside(win: Page) {
+  const layout = await win.evaluate(() => {
+    const box = (sel: string) => {
+      const r = document.querySelector(sel)!.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const poem = box('.HistoryDisplay');
+    const rail = box('.ControlBar .MuiSlider-root');
+    const under = (x: number, y: number) =>
+      Boolean(document.elementFromPoint(x, y)?.closest('.ReplayMain'));
+    return {
+      viewport: window.innerWidth,
+      bar: box('.cet-titlebar'),
+      heading: box('.DraftDrawer h2'),
+      panel: box('.DraftDrawer'),
+      poem,
+      controls: box('.ControlBar'),
+      backdrop: document.querySelector('.MuiBackdrop-root') !== null,
+      poemShows: under(poem.x + poem.width / 2, poem.y + poem.height / 2),
+      railEndShows: under(rail.x + rail.width - 2, rail.y + rail.height / 2),
+    };
+  });
+  const at = `at width ${layout.viewport}`;
+  expect(layout.backdrop, `${at}: something is dimmed`).toBe(false);
+  expect(
+    layout.panel.x,
+    `${at}: the list covers the poem`
+  ).toBeGreaterThanOrEqual(right(layout.poem) - 0.5);
+  expect(
+    layout.panel.x,
+    `${at}: the list covers the timeline`
+  ).toBeGreaterThanOrEqual(right(layout.controls) - 0.5);
+  expect(
+    right(layout.panel),
+    `${at}: the list runs off the window`
+  ).toBeLessThanOrEqual(layout.viewport + 0.5);
+  expect(
+    layout.heading.y,
+    `${at}: the title bar covers the list's heading`
+  ).toBeGreaterThanOrEqual(layout.bar.y + layout.bar.height - 0.5);
+  expect(layout.poemShows, `${at}: the middle of the poem is covered`).toBe(
+    true
+  );
+  expect(layout.railEndShows, `${at}: the end of the timeline is covered`).toBe(
+    true
+  );
+}
+
+test('the drafts list sits beside the poem and the timeline, covering neither', async () => {
+  const doc = makePlayableMidst(LONG);
+  const work = mkdtempSync(join(tmpdir(), 'midst-drafts-beside-'));
+  const poemPath = join(work, 'beside.midst');
+  writeFileSync(poemPath, doc.file);
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the long poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await win.getByRole('button', { name: MARK }).click();
+    await expect(win.getByLabel('Draft name')).toBeVisible({ timeout: 25_000 });
+
+    await expectBeside(win);
+    await win.screenshot({ path: test.info().outputPath('drafts-beside.png') });
+
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].setContentSize(900, 600);
+    });
+    await win.waitForFunction(() => window.innerWidth === 900);
+    await expectBeside(win);
+    await win.screenshot({
+      path: test.info().outputPath('drafts-beside-900.png'),
+    });
   } finally {
     await app.close();
   }

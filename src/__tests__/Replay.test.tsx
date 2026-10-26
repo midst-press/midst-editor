@@ -783,6 +783,92 @@ describe('Replay: drafts list', () => {
     expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
+
+  // #313 (GitHub #85): naming a draft must not hide the poem. The list is a panel in the page's own layout, beside
+  // the poem and the control bar: not a modal, nothing dimmed, and nothing behind it hidden from assistive technology.
+  it('opens as a panel beside the poem and the timeline, not as a modal over them', () => {
+    bridge = installBridge(seeded);
+    mount(makeHistory(LONG), { nameDraftAt: 40 });
+    const panel = document.querySelector('.DraftDrawer') as HTMLElement;
+    expect(panel.parentElement).toHaveClass('ReplayLayout');
+    expect(
+      panel.parentElement!.querySelector('.ReplayMain .HistoryDisplay')
+    ).not.toBeNull();
+    expect(
+      panel.parentElement!.querySelector('.ReplayMain .ControlBar')
+    ).not.toBeNull();
+    expect(
+      document.querySelector('.MuiBackdrop-root, .MuiModal-root')
+    ).toBeNull();
+    expect(
+      document.querySelector('.ReplayMain')!.closest('[aria-hidden="true"]')
+    ).toBeNull();
+  });
+
+  it('closes from the Drafts button too, which says whether the list is open', () => {
+    mount();
+    const button = screen.getByRole('button', { name: 'Drafts' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(button);
+    expect(document.querySelector('.DraftDrawer')).not.toBeNull();
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    fireEvent.click(button);
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('takes the focus when it opens, so Space cannot press the button that opened it; a name field keeps it', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    expect(document.activeElement).toBe(document.querySelector('.DraftDrawer'));
+  });
+
+  it('leaves the focus in the name field when it opens to name a draft', () => {
+    bridge = installBridge(seeded);
+    mount(makeHistory(LONG), { nameDraftAt: 40 });
+    expect(document.activeElement).toBe(
+      screen.getByRole('textbox', { name: 'Draft name' })
+    );
+  });
+
+  // The list is not a modal (#313), so the focus can be on the timeline or a switch while it is open. Escape closes
+  // the list from each of them, as the user guide says; in the name field it also keeps the old name.
+  it('Escape in the name field keeps the old name, closes the list, and puts the focus back on Drafts', () => {
+    bridge = installBridge(seeded);
+    mount(makeHistory(LONG), { nameDraftAt: 40 });
+    const field = screen.getByRole('textbox', { name: 'Draft name' });
+    fireEvent.change(field, { target: { value: 'zz' } });
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(
+      bridge.meta().draftMarkers.map((m: { name: string }) => m.name)
+    ).toEqual(['zq', 'xv', 'outside']);
+    expect(document.activeElement).toBe(
+      screen.getByRole('button', { name: 'Drafts' })
+    );
+  });
+
+  it('Escape closes the list from the timeline, which keeps the focus after a scrub', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    const rail = slider();
+    rail.focus();
+    fireEvent.keyDown(rail, { key: 'Escape' });
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(document.activeElement).toBe(rail);
+  });
+
+  it('Escape closes the list from one of its switches', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    const toggle = screen.getByRole('checkbox', { name: 'Show their names' });
+    toggle.focus();
+    fireEvent.keyDown(toggle, { key: 'Escape' });
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+  });
 });
 
 describe('Replay: going back to the editor', () => {
