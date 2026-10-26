@@ -311,6 +311,7 @@
     "@tiptap/core": "3.32.0",
     "@tiptap/extension-hard-break": "3.32.0",
     "@tiptap/extension-strike": "3.32.0",
+    "@tiptap/extension-underline": "3.32.0",
     "@tiptap/html": "3.32.0",
     "@tiptap/pm": "3.32.0",
     "@tiptap/react": "3.32.0",

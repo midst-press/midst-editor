@@ -31,9 +31,8 @@ afterEach(() => {
 it('has the same schema as midst-format, so what it writes is what the format reads', () => {
   const ours = getSchema(editorExtensions);
   const theirs = getSchema(poemExtensions);
-  expect(Object.keys(ours.marks).sort()).toEqual(
-    Object.keys(theirs.marks).sort()
-  );
+  // In order: the order of the marks decides how they nest in the written HTML.
+  expect(Object.keys(ours.marks)).toEqual(Object.keys(theirs.marks));
   expect(Object.keys(ours.nodes).sort()).toEqual(
     Object.keys(theirs.nodes).sort()
   );
@@ -64,4 +63,16 @@ it('with midst-format alone, Mod-Shift-S strikes', () => {
   const editor = makeEditor(poemExtensions);
   expect(handles(editor, 's')).toBe(true);
   expect(editor.getHTML()).toBe('<p><s>zq</s></p>');
+});
+
+// clement-7074f29f, review of #333: with the marks in another order, the editor wrote <u><s>…</s></u> where
+// midst-format writes <s><u>…</u></s>. Same document in, same HTML out.
+it('writes underlined struck text as midst-format does', () => {
+  const html = '<p><u><s>qq</s></u></p>';
+  const write = (extensions: typeof editorExtensions) => {
+    const editor = new Editor({ extensions, content: html });
+    editors.push(editor);
+    return editor.getHTML();
+  };
+  expect(write(editorExtensions)).toBe(write(poemExtensions));
 });
