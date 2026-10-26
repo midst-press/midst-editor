@@ -99,6 +99,9 @@ const countUpdates = (editor: Editor) => {
   return seen;
 };
 
+// Each element scrollIntoView was called on (#335); jsdom has none of its own.
+const scrolled: Element[] = [];
+
 beforeAll(() => {
   // jsdom has no layout; ProseMirror asks for these when it scrolls a selection into view.
   const rect = {
@@ -121,10 +124,15 @@ beforeAll(() => {
   Range.prototype.getBoundingClientRect = () => rect as DOMRect;
   Range.prototype.getClientRects = none;
   Element.prototype.getClientRects = none;
+  // jsdom has no scrollIntoView either. Record which element each call scrolls (#335).
+  Element.prototype.scrollIntoView = function scrollIntoView() {
+    scrolled.push(this as Element);
+  };
 });
 
 let bridge: ReturnType<typeof installBridge>;
 beforeEach(() => {
+  scrolled.splice(0);
   bridge = installBridge();
 });
 afterEach(() => {
@@ -173,6 +181,17 @@ describe('FindBar: searching', () => {
       [8, 10],
     ]);
     expect(currentHighlights(editor).map((d) => d.from)).toEqual([4]);
+  });
+
+  // #335 (GitHub #93): the poem scrolls to the match. The element scrolled is the current match's highlight.
+  it('FB-Q-5 scrolls the current match into view', () => {
+    const editor = makeEditor(TWO);
+    render(<FindBar editor={editor} />);
+    bridge.openBar();
+    type('QV');
+    const last = scrolled[scrolled.length - 1];
+    expect(last?.classList.contains('search-match-current')).toBe(true);
+    expect(last?.textContent).toBe('qv');
   });
 
   it('FB-Q-2 says "No matches", disables the arrows, marks nothing and moves nothing', () => {
