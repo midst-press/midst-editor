@@ -128,6 +128,13 @@ repos:
         pass_filenames: false
         files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
 
+      - id: test-growing-text
+        name: bounded growing-text driver and isolated Electron cache controls
+        language: system
+        entry: node --test tools/test-growing-text.cjs
+        pass_filenames: false
+        files: '^(e2e/(growing-text\.spec|fixtures)\.ts|tools/(install-electron|test-growing-text)\.cjs)$'
+
       # ---- content/ is Annelyse's (midst-web #281). A copy of midst-web's guard, tested there and here. ----
       - id: content-owner
         name: content/ is Annelyse's; only the return path changes it (midst-web#281)
