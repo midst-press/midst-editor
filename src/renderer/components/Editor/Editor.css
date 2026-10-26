@@ -1,18 +1,10 @@
-@media screen and (min-width: 768px) {
-  .TextEditor {
-    padding-left: 60px;
-    padding-right: 60px;
-  }
-}
-
-@media screen and (max-width: 769px) {
-  .TextEditor {
-    padding-left: 32px;
-    padding-right: 32px;
-  }
-}
-
+/* The writing column (#312; Annelyse, GitHub #84): about 15% of the window as a margin on each side, never less than
+   32px, and no character limit, so a long line wraps only at the right margin. Replay.css keeps the Timeline's column
+   the same, so a poem wraps there where it wraps here. */
 .TextEditor {
+  box-sizing: border-box;
+  padding-left: max(15%, 32px);
+  padding-right: max(15%, 32px);
   width: 100%;
   font-family:
     system-ui,
@@ -84,6 +76,16 @@
   display: flex;
   justify-content: end;
   padding-right: 10px;
+}
+
+.Spacer-hidden {
+  /* Focus mode (GitHub #25): the poem moves up into the space these buttons sat in. */
+  display: none;
+}
+
+.focus-mode-gap {
+  /* The small empty space that separates the moon slightly from the font options (GitHub #25). */
+  width: 12px;
 }
 
 .icon-button {

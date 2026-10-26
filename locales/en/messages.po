@@ -23,11 +23,23 @@ msgid "button.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.no"
+msgstr "No"
+
+#. js-lingui-explicit-id
 #: src/main/about.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "button.ok"
 msgstr "OK"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.yes"
+msgstr "Yes"
 
 #. js-lingui-explicit-id
 #: src/main/about.ts
@@ -225,6 +237,24 @@ msgstr ""
 "Version not recognized. If this file is from an\n"
 "           older version of Midst, it may be possible to convert it.\n"
 "           This will create a new file. Would you like to proceed?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.detail"
+msgstr "Last kept {when}."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.message"
+msgstr "Midst unexpectedly quit while you were working on the poem \"{title}.\" Would you like to recover your work?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.title"
+msgstr "Recover your work?"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -486,6 +516,24 @@ msgstr "Type the words to find first."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.enter.tooltip"
+msgstr "Hide everything but the poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.exit.tooltip"
+msgstr "Bring the controls back"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.toggle"
+msgstr "Focus Mode"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.bold"
@@ -697,6 +745,12 @@ msgstr "Find"
 #, fuzzy
 msgid "menu.edit.find.description"
 msgstr "Find words in the poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.focusMode"
+msgstr "Focus &Mode"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
