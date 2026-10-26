@@ -1911,11 +1911,8 @@ describe('the menu', () => {
       const template = build(platform, win);
       sub(template, editTop, 'Toggle Timeline').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith('toggle-edit-mode');
-      sub(
-        template,
-        editTop,
-        isMac ? 'Show/hide spellcheck' : 'Toggle Spellcheck'
-      ).click!();
+      sub(template, editTop, isMac ? 'Check Spelling' : 'Check Spelling')
+        .click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
         'toggle-spellcheck'
       );

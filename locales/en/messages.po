@@ -280,13 +280,13 @@ msgstr "Unsaved changes"
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.delete"
-msgstr "Delete draft"
+msgstr "Delete Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.deleted"
-msgstr "Draft deleted."
+msgstr "Draft Marker deleted."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
@@ -295,37 +295,37 @@ msgstr "Draft deleted."
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.mark"
-msgstr "Mark this moment as a draft"
+msgstr "Add a Draft Marker here"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.nameField"
-msgstr "Draft name"
+msgstr "Draft Marker name"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.none"
-msgstr "No drafts marked yet."
+msgstr "No Draft Markers yet."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.alreadyMarked"
-msgstr "This moment already has a draft."
+msgstr "This moment already has a Draft Marker."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.failed"
-msgstr "Something went wrong while changing this draft. The drafts list shows what was kept."
+msgstr "Something went wrong while changing this Draft Marker. The Draft Markers list shows what was kept."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.gone"
-msgstr "That draft is no longer there."
+msgstr "That Draft Marker is no longer there."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
@@ -337,31 +337,31 @@ msgstr "There is no moment here to mark."
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.noNumberLeft"
-msgstr "No more drafts can be numbered in this poem."
+msgstr "No more Draft Markers can be numbered in this poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.tooFewChanges"
-msgstr "A draft can be marked once the poem has more than {needed} changes. This one has {count}."
+msgstr "A Draft Marker can be added once the poem has more than {needed} changes. This one has {count}."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.unreadable"
-msgstr "The drafts of this poem could not be read, so nothing was changed."
+msgstr "The Draft Markers of this poem could not be read, so nothing was changed."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.rename"
-msgstr "Rename draft"
+msgstr "Rename Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.showMarkers"
-msgstr "Show markers on the timeline"
+msgstr "Show Draft Markers on the Timeline"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
@@ -376,7 +376,7 @@ msgstr "Show their names"
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.title"
-msgstr "Drafts"
+msgstr "Draft Markers"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
@@ -389,7 +389,7 @@ msgstr "Undo"
 #: src/renderer/components/Editor/index.tsx
 #, fuzzy
 msgid "editor.replay"
-msgstr "Replay"
+msgstr "Timeline"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -446,7 +446,7 @@ msgstr "Find in the poem"
 #: src/renderer/search/FindNotHere.tsx
 #, fuzzy
 msgid "find.inReplay"
-msgstr "Find works while you are writing. Press Edit, or {shortcut}, to go back to the poem."
+msgstr "Find works while you're editing. Press Edit, or {shortcut}, to go back to the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/search/FindBar.tsx
@@ -738,7 +738,7 @@ msgstr "Select the whole poem"
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.edit.spellcheck.mac"
-msgstr "Show/hide spellcheck"
+msgstr "Check Spelling"
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -750,7 +750,7 @@ msgstr "Turn spellcheck on or off"
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.edit.spellcheck.other"
-msgstr "Toggle Spellcheck"
+msgstr "Check Spelling"
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -768,7 +768,7 @@ msgstr "Toggle Timeline"
 #: src/main/shortcutTable.ts
 #, fuzzy
 msgid "menu.edit.toggleTimeline.description"
-msgstr "Switch between writing and Replay"
+msgstr "Switch between Edit and Timeline"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -1026,7 +1026,7 @@ msgstr "Not following the writing: the page stays where you put it. Click to fol
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.follow.on"
-msgstr "Following the writing as it replays. Click to stop scrolling."
+msgstr "Following the writing as it plays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
@@ -1046,7 +1046,7 @@ msgstr "Play"
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.play.unavailable"
-msgstr "There is nothing to replay yet: this poem has no history."
+msgstr "There is nothing to play yet: this poem has no history."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx

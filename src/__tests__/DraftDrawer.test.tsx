@@ -92,7 +92,7 @@ describe('DraftDrawer', () => {
 
   it('says so when there are no drafts', () => {
     show({ markers: [] });
-    expect(screen.getByText('No drafts marked yet.')).toBeInTheDocument();
+    expect(screen.getByText('No Draft Markers yet.')).toBeInTheDocument();
   });
 
   it('goes to the moment of the draft that is chosen', () => {
@@ -105,31 +105,39 @@ describe('DraftDrawer', () => {
   it('opens a name for typing with the current name in it, and saves it on Enter', () => {
     const onRename = jest.fn();
     show({ onRename });
-    fireEvent.click(screen.getAllByLabelText('Rename draft')[2]);
-    const field = screen.getByLabelText('Draft name') as HTMLInputElement;
+    fireEvent.click(screen.getAllByLabelText('Rename Draft Marker')[2]);
+    const field = screen.getByLabelText(
+      'Draft Marker name'
+    ) as HTMLInputElement;
     expect(field.value).toBe('zq');
     fireEvent.change(field, { target: { value: 'qz vx' } });
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(onRename).toHaveBeenCalledWith(7, 'qz vx');
-    expect(screen.queryByLabelText('Draft name')).toBeNull();
+    expect(screen.queryByLabelText('Draft Marker name')).toBeNull();
   });
 
   it('opening another draft for naming shows that draft’s name, not what was typed for the last', () => {
     show();
-    const seen = screen.getAllByLabelText('Rename draft').map((button) => {
-      fireEvent.click(button);
-      const field = screen.getByLabelText('Draft name') as HTMLInputElement;
-      const { value } = field;
-      fireEvent.change(field, { target: { value: 'typed, not saved' } });
-      return value;
-    });
+    const seen = screen
+      .getAllByLabelText('Rename Draft Marker')
+      .map((button) => {
+        fireEvent.click(button);
+        const field = screen.getByLabelText(
+          'Draft Marker name'
+        ) as HTMLInputElement;
+        const { value } = field;
+        fireEvent.change(field, { target: { value: 'typed, not saved' } });
+        return value;
+      });
     expect(seen.sort()).toEqual(['Draft 2', 'xv', 'zq']);
   });
 
   it('saves the name when the field is left', () => {
     const onRename = jest.fn();
     show({ onRename, startNaming: 2 });
-    const field = screen.getByLabelText('Draft name') as HTMLInputElement;
+    const field = screen.getByLabelText(
+      'Draft Marker name'
+    ) as HTMLInputElement;
     expect(field.value).toBe('Draft 2');
     fireEvent.change(field, { target: { value: '' } });
     fireEvent.blur(field);
@@ -139,7 +147,7 @@ describe('DraftDrawer', () => {
   it('leaves the name alone on Escape', () => {
     const onRename = jest.fn();
     show({ onRename, startNaming: 7 });
-    const field = screen.getByLabelText('Draft name');
+    const field = screen.getByLabelText('Draft Marker name');
     fireEvent.change(field, { target: { value: 'qz' } });
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(onRename).not.toHaveBeenCalled();
@@ -150,7 +158,7 @@ describe('DraftDrawer', () => {
     const onDelete = jest.fn();
     const onRename = jest.fn();
     show({ onDelete, onRename, startNaming: 30 });
-    fireEvent.click(screen.getAllByLabelText('Delete draft')[0]);
+    fireEvent.click(screen.getAllByLabelText('Delete Draft Marker')[0]);
     expect(onDelete).toHaveBeenCalledWith(30);
     expect(onRename).not.toHaveBeenCalled();
   });
@@ -158,7 +166,9 @@ describe('DraftDrawer', () => {
   it('switches the timeline markers and their names on and off', () => {
     const onShow = jest.fn();
     show({ onShow });
-    fireEvent.click(screen.getByLabelText('Show markers on the timeline'));
+    fireEvent.click(
+      screen.getByLabelText('Show Draft Markers on the Timeline')
+    );
     fireEvent.click(screen.getByLabelText('Show their names'));
     expect(onShow.mock.calls).toEqual([
       ['markers', false],
@@ -169,9 +179,9 @@ describe('DraftDrawer', () => {
 
 describe('DraftDrawer: refusal', () => {
   it('shows why a change was refused, in an alert', () => {
-    show({ refusal: 'That draft is no longer there.' });
+    show({ refusal: 'That Draft Marker is no longer there.' });
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'That draft is no longer there.'
+      'That Draft Marker is no longer there.'
     );
   });
 
@@ -183,7 +193,9 @@ describe('DraftDrawer: refusal', () => {
   it('offers Undo after a delete, and Undo calls back (#277)', () => {
     const onUndo = jest.fn();
     show({ canUndo: true, onUndo });
-    expect(screen.getByRole('status')).toHaveTextContent('Draft deleted.');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Draft Marker deleted.'
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledTimes(1);
   });

@@ -525,7 +525,7 @@ test('size limits: open, type, save, replay', async () => {
       const inReplay = await step('replay-open', async () => {
         const t0 = Date.now();
         await win!
-          .getByRole('link', { name: 'Replay' })
+          .getByRole('link', { name: 'Timeline' })
           .click({ timeout: REPLAY_TIMEOUT });
         await win!.waitForFunction(
           lastParaEnds,

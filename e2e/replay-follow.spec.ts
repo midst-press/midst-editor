@@ -282,7 +282,7 @@ async function openReplay(
     }, size);
   await openDocument(app, userData, poemPath, 'the poem');
   await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
-  await win.getByRole('link', { name: 'Replay' }).click();
+  await win.getByRole('link', { name: 'Timeline' }).click();
   await expect(win.locator('.ReplayContainer')).toBeVisible({
     timeout: 25_000,
   });

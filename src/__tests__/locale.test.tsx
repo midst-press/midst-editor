@@ -72,7 +72,7 @@ function Window() {
 describe('useMenuLocale (editor #265)', () => {
   it('starts in the language active at launch, and sets the document language', () => {
     render(<Window />);
-    expect(screen.getByText('en: Drafts')).toBeTruthy();
+    expect(screen.getByText('en: Draft Markers')).toBeTruthy();
     expect(document.documentElement.lang).toBe('en');
   });
 
@@ -86,7 +86,7 @@ describe('useMenuLocale (editor #265)', () => {
   it('shows English for a language with no catalog', () => {
     render(<Window />);
     act(() => listeners['set-locale'].forEach((l) => l('xx')));
-    expect(screen.getByText('en: Drafts')).toBeTruthy();
+    expect(screen.getByText('en: Draft Markers')).toBeTruthy();
   });
 
   it('stops listening when the window goes', () => {

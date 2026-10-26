@@ -147,7 +147,7 @@ test('going to the replay by its button straight after typing saves what was typ
 
     await editor.click();
     await win.keyboard.type('zqx');
-    await win.getByRole('link', { name: 'Replay' }).click();
+    await win.getByRole('link', { name: 'Timeline' }).click();
     await expect(win.locator('.ReplayContainer')).toBeVisible({
       timeout: 25_000,
     });
