@@ -86,6 +86,16 @@
   padding-right: 10px;
 }
 
+.Spacer-hidden {
+  /* Focus mode (GitHub #25): the poem moves up into the space these buttons sat in. */
+  display: none;
+}
+
+.focus-mode-gap {
+  /* The small empty space that separates the moon slightly from the font options (GitHub #25). */
+  width: 12px;
+}
+
 .icon-button {
   /* theme.palette.secondary.light */
   background-color: transparent;

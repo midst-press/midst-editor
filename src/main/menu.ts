@@ -89,6 +89,14 @@ const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
 };
+// Focus Mode (GitHub #25) is a checkbox but never stored — a poem must not save its focus mode
+// status, and this store outlives the window, so writing it there would break that on relaunch.
+// The renderer holds the state; the menu sends what the poet chose and the checkbox keeps its own
+// mark for the rest of the session. (The checkbox has no accelerator: a bare modifier chord such as
+// Cmd+. is held by macOS input methods, so the shortcut decision is the editor's, not ours.)
+const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
+  mainWindow.webContents.send('set-focus-mode', on);
+};
 
 const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
 const increaseFontSize = (mainWindow: BrowserWindow) => {
@@ -804,6 +812,14 @@ export default class MenuBuilder {
       accelerator: `${modifier}+;`,
       click: (item) => setSpellcheck(this.mainWindow, item.checked),
     };
+    const focusMode: MenuItemConstructorOptions = {
+      id: 'menu.edit.focusMode',
+      label: this.label(i18n._('menu.edit.focusMode')),
+      type: 'checkbox',
+      // Never store.get: focus mode is not saved with the poem (GitHub #25).
+      checked: false,
+      click: (item) => setFocusMode(this.mainWindow, item.checked),
+    };
     return [
       {
         id: 'menu.edit.find',
@@ -817,6 +833,7 @@ export default class MenuBuilder {
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
+      focusMode,
       checkSpelling,
     ];
   }

@@ -486,6 +486,24 @@ msgstr "Type the words to find first."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.enter.tooltip"
+msgstr "Hide everything but the poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.exit.tooltip"
+msgstr "Bring the controls back"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.toggle"
+msgstr "Focus Mode"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.bold"
@@ -697,6 +715,12 @@ msgstr "Find"
 #, fuzzy
 msgid "menu.edit.find.description"
 msgstr "Find words in the poem"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.edit.focusMode"
+msgstr "Focus &Mode"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts

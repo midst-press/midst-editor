@@ -872,3 +872,45 @@ describe('Editor: the cursor when coming back', () => {
     expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
   });
 });
+
+describe('focus mode in the editor (GitHub #25)', () => {
+  // The Spacer's buttons resolve to whatever the built catalog holds (some ids fall back to
+  // their own names in jsdom); the Spacer is addressed by class, so the wording does not matter.
+  const spacer = () => document.querySelector('.Spacer');
+  const moon = () => screen.getByRole('button', { name: /Focus Mode/ });
+
+  it('the moon lives in the editor page', () => {
+    mount();
+    expect(moon()).toBeInTheDocument();
+  });
+
+  it('entering focus mode through the moon hides the bottom buttons', () => {
+    mount();
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+    fireEvent.click(moon());
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  it('the menu checkbox owns its mark: set-focus-mode(false) after entering shows the buttons again', () => {
+    mount();
+    fireEvent.click(moon());
+    expect(spacer()).toHaveClass('Spacer-hidden');
+    bridge.emit('set-focus-mode', false);
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+  });
+
+  it('an unknown value from the menu leaves the screen alone', () => {
+    mount();
+    fireEvent.click(moon());
+    bridge.emit('set-focus-mode', undefined);
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  it('focus mode is never written to the store, whatever path it takes', () => {
+    mount();
+    bridge.clear();
+    fireEvent.click(moon()); // on, through the moon
+    bridge.emit('set-focus-mode', false); // off, through the menu
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
+  });
+});
