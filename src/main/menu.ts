@@ -185,23 +185,18 @@ const saveFilters = () => [
 // `byPoet` is true when they chose Save or Save As, or have just picked the file in a dialog.
 // `saveElsewhere` is what "Save As…" in that message does.
 
-// Off macOS the window's title says when the poem is not saved; the renderer sets it (#94). Sent only when
-// that changes. On macOS the edited dot says it instead.
-const sayWhetherSaved = (
-  mainWindow: BrowserWindow,
-  darwin: boolean,
-  wasShown: boolean
-) => {
+// The window's title says when the poem is not saved, on every platform, macOS included (Annelyse, GitHub #75); the
+// renderer sets it (#94). Sent only when that changes. On macOS the edited dot says it as well.
+const sayWhetherSaved = (mainWindow: BrowserWindow, wasShown: boolean) => {
   const shown = saveFailure.showsNotSaved();
-  if (!darwin && shown !== wasShown)
-    mainWindow.webContents.send('set-not-saved', shown);
+  if (shown !== wasShown) mainWindow.webContents.send('set-not-saved', shown);
 };
 
 // The window now holds another document: nothing about the last one's failed saves applies to it.
-const forgetSaveFailures = (mainWindow: BrowserWindow, darwin: boolean) => {
+const forgetSaveFailures = (mainWindow: BrowserWindow) => {
   const wasShown = saveFailure.showsNotSaved();
   saveFailure.startAgain();
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
 };
 
 // The write succeeded: the document is now this file, and saved.
@@ -210,7 +205,7 @@ const recordSaved = (
   darwin: boolean,
   filename: string
 ) => {
-  forgetSaveFailures(mainWindow, darwin);
+  forgetSaveFailures(mainWindow);
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   rememberFolder(filename);
@@ -249,7 +244,7 @@ const reportCouldNotSave = async (
     nothingUnsaved: store.get('edited') === 'false',
   });
   if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
   if (!tell) return;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
@@ -479,7 +474,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
-  forgetSaveFailures(mainWindow, darwin);
+  forgetSaveFailures(mainWindow);
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
