@@ -9,7 +9,10 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
-import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import editorExtensions from '../../editorExtensions';
@@ -253,6 +256,19 @@ export default function Editor() {
     return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
+  }, [myEditor, spellcheckOn]);
+  // A line break is not an edit Chromium sees (editor #238): the lines around it are checked once the poet pauses.
+  useEffect(() => {
+    const editor = myEditor;
+    if (!editor || !spellcheckOn) return undefined;
+    const lines = checkLinesAfterBreaks(editor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+    editor.on('update', lines.changed);
+    return () => {
+      editor.off('update', lines.changed);
+      lines.cancel();
+    };
   }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.
