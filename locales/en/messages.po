@@ -23,11 +23,23 @@ msgid "button.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.no"
+msgstr "No"
+
+#. js-lingui-explicit-id
 #: src/main/about.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "button.ok"
 msgstr "OK"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.yes"
+msgstr "Yes"
 
 #. js-lingui-explicit-id
 #: src/main/about.ts
@@ -225,6 +237,24 @@ msgstr ""
 "Version not recognized. If this file is from an\n"
 "           older version of Midst, it may be possible to convert it.\n"
 "           This will create a new file. Would you like to proceed?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.detail"
+msgstr "Last kept {when}."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.message"
+msgstr "Midst unexpectedly quit while you were working on the poem \"{title}.\" Would you like to recover your work?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.title"
+msgstr "Recover your work?"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
