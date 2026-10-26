@@ -9,7 +9,8 @@ import { clickMenuItem, launch, openDocument } from './harness';
 
 const MOD = process.platform === 'darwin' ? 'Meta' : 'Control';
 
-// Every element that scrolls, with its scroll position, and where the selected match is on screen.
+// Every element that scrolls, with its scroll position, and where the current match is against the editor's visible
+// box. The window's selection is in the find field by then, so the match's own highlight is what is measured.
 async function where(win: Page) {
   return win.evaluate(() => {
     const scrollers = [
@@ -22,20 +23,16 @@ async function where(win: Page) {
       .map((el) => ({
         el: (el as HTMLElement).className || el.tagName,
         top: el.scrollTop,
-        can: getComputedStyle(el).overflowY,
       }));
-    const sel = window.getSelection();
-    const rect =
-      sel && sel.rangeCount ? sel.getRangeAt(0).getBoundingClientRect() : null;
-    const mark = document.querySelector(
-      '.search-current, .search-match-current, [data-search-current]'
-    );
-    const markRect = mark ? mark.getBoundingClientRect() : null;
+    const box = document.querySelector('.ProseMirror')!.getBoundingClientRect();
+    const mark = document.querySelector('.search-match-current');
+    const r = mark ? mark.getBoundingClientRect() : null;
     return {
       scrollers,
-      selTop: rect?.top ?? null,
-      markTop: markRect?.top ?? null,
-      innerHeight: window.innerHeight,
+      boxTop: box.top,
+      boxBottom: box.bottom,
+      markTop: r?.top ?? null,
+      markBottom: r?.bottom ?? null,
     };
   });
 }
@@ -85,9 +82,15 @@ line ${i}`
     const after = await where(win);
     // eslint-disable-next-line no-console -- the measurement is the report
     console.log(`find-scroll after: ${JSON.stringify(after)}`);
-    expect(after.selTop, 'the match is on screen').not.toBeNull();
-    expect(after.selTop as number).toBeGreaterThanOrEqual(0);
-    expect(after.selTop as number).toBeLessThan(after.innerHeight);
+    expect(after.markTop, 'a current match is highlighted').not.toBeNull();
+    expect(
+      after.markTop as number,
+      'the match is not above the visible poem'
+    ).toBeGreaterThanOrEqual(after.boxTop);
+    expect(
+      after.markBottom as number,
+      'the match is not below the visible poem'
+    ).toBeLessThanOrEqual(after.boxBottom);
   } finally {
     await app.close();
   }
