@@ -468,19 +468,26 @@ describe('MenuBar focus mode (GitHub #25)', () => {
     // The gap sits between the font options and the moon, and says nothing.
     const gap = bar.querySelector('.focus-mode-gap') as Element;
     expect(gap).not.toBeNull();
+    const label = (n: Element) =>
+      n === gap ? 'gap' : (n.getAttribute('aria-label') ?? 'other');
     const inOrder = Array.from(
-      bar.querySelectorAll('.focus-mode-gap, button[aria-label="Focus Mode"]')
+      bar.querySelectorAll(
+        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Bold"]'
+      )
     )
-      .map((n) => (n === gap ? 'gap' : 'moon'))
+      .map(label)
       .join(',');
-    expect(inOrder).toBe('gap,moon');
+    expect(inOrder).toBe('Bold,gap,Focus Mode');
     expect(gap.textContent).toBe('');
   });
 
   it('in focus mode the moon is the only control, and its tooltip says what it restores', async () => {
     mount({ focused: true });
     const bar = document.querySelector('.TopButtons') as HTMLElement;
+    // The gap goes with the font options it separates them from: focus mode hides every
+    // interface option except the moon (GitHub #25), and an invisible 12px gap is none.
     expect(bar.querySelectorAll('button')).toHaveLength(1);
+    expect(bar.querySelector('.focus-mode-gap')).toBeNull();
     expect(button('Focus Mode')).toBeInTheDocument();
     expect(button('Focus Mode')).toHaveAttribute('aria-pressed', 'true');
     // MUI renders a tooltip's words only when it opens; the contract is that they exist
@@ -491,7 +498,7 @@ describe('MenuBar focus mode (GitHub #25)', () => {
     ).toHaveTextContent('Bring the controls back');
   });
 
-  it('clicking the moon asks for the toggle, once, and never touches the store', () => {
+  it('clicking the moon asks main, once, and never touches the store', () => {
     const onToggleFocus = jest.fn();
     render(
       <EditorProvider

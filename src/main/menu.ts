@@ -89,13 +89,31 @@ const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
 };
-// Focus Mode (GitHub #25) is a checkbox but never stored — a poem must not save its focus mode
-// status, and this store outlives the window, so writing it there would break that on relaunch.
-// The renderer holds the state; the menu sends what the poet chose and the checkbox keeps its own
-// mark for the rest of the session. (The checkbox has no accelerator: a bare modifier chord such as
-// Cmd+. is held by macOS input methods, so the shortcut decision is the editor's, not ours.)
-const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
+// Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
+// one owner is main. The built menu's mark IS the state (vivian & cora, #327 — two copies drift,
+// one copy cannot): Electron moves it on the menu's own click before the click runs, the moon's
+// request turns it through setFocusMode (main.ts), and a rebuilt menu (a language change) starts
+// from what the current menu says it is — setFocusModeMark reaches the live menu by id
+// (getMenuItemById, the same way the save items are enabled). It is never in the store: a poem
+// must not save its focus mode status, and the store outlives the window, so storing it there
+// would break that on relaunch. An editor that mounts later (Replay and back) asks with
+// focus-mode-changed, and main answers from the mark (main.ts), so the screen and the menu agree
+// with no copy held below the window. No accelerator: a bare modifier chord such as Cmd+. is
+// held by macOS input methods, so the shortcut decision is the editor's, not ours.
+export const focusModeMark = (): boolean =>
+  app.applicationMenu?.getMenuItemById('menu.edit.focusMode')?.checked === true;
+export const setFocusModeMark = (on: boolean) => {
+  const item = app.applicationMenu?.getMenuItemById('menu.edit.focusMode');
+  if (item) item.checked = on;
+};
+// The menu's click, and main's own turn for the moon (main.ts): one path, both halves move.
+export const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
+  setFocusModeMark(on);
   mainWindow.webContents.send('set-focus-mode', on);
+};
+// The moon's request, from wherever the click happened.
+export const requestFocusMode = (mainWindow: BrowserWindow) => {
+  setFocusMode(mainWindow, !focusModeMark());
 };
 
 const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
@@ -816,8 +834,9 @@ export default class MenuBuilder {
       id: 'menu.edit.focusMode',
       label: this.label(i18n._('menu.edit.focusMode')),
       type: 'checkbox',
-      // Never store.get: focus mode is not saved with the poem (GitHub #25).
-      checked: false,
+      // The built menu's own mark (focusModeMark): a rebuilt menu (a language change) shows
+      // what the screen shows; at launch, unmarked, which is regular mode (GitHub #25).
+      checked: focusModeMark(),
       click: (item) => setFocusMode(this.mainWindow, item.checked),
     };
     return [

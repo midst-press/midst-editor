@@ -33,6 +33,8 @@ import {
 } from './logging';
 import MenuBuilder, {
   applyStoredAppearance,
+  focusModeMark,
+  requestFocusMode,
   isDevelopment,
   save,
   newFile,
@@ -256,6 +258,29 @@ ipcMain.on('button-open-file', () => {
   if (mainWindow === null) return;
   const win = mainWindow;
   logIfRejected('open', () => openFile(win, isDarwin()));
+});
+
+// Focus Mode (GitHub #25): main owns the state (menu.ts), so the moon's request answers at once
+// — whether or not the value changed — and the menu's mark moves with it. An editor that mounts
+// asks where the screen stands: there is one copy of the state in the app, and after Replay and
+// back it lives in the menu, so the answer comes from the menu's mark (vivian, #327).
+ipcMain.on('focus-mode-changed', () => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  logIfRejected('focus mode report', () =>
+    win.webContents.send('set-focus-mode', focusModeMark())
+  );
+});
+ipcMain.on('focus-mode-requested', (...args: unknown[]) => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  // A spurious argument is reported, never obeyed: what the poet asked is recorded honestly.
+  logIfRejected('focus mode', () => {
+    if (args.length > 0) {
+      log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
+    }
+    requestFocusMode(win);
+  });
 });
 
 // The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >

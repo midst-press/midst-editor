@@ -15,11 +15,13 @@ import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
+  focusModeMark,
   logIfRejected,
   newFile,
   openFile,
   save,
   saveAs,
+  setFocusModeMark,
   setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
@@ -2146,8 +2148,9 @@ describe('the menu', () => {
       );
     });
     // Focus Mode (GitHub #25): a checkbox that hides every interface option except the moon.
-    // It is never stored (a poem must not save its focus mode status), and the click sends the
-    // mark's value to the renderer, which holds the state for the window's life.
+    // It is never stored (a poem must not save its focus mode status); the mark in the built
+    // menu IS the state, and the click sends the mark's value to the renderer, which holds no
+    // copy of its own (vivian & cora, #327).
     describe('Focus Mode', () => {
       // eslint-disable-next-line no-unused-vars -- the name says what Electron passes to a checkbox's click
       type CheckboxClick = (item: { checked: boolean }) => void;
@@ -2166,25 +2169,66 @@ describe('the menu', () => {
         expect(item.checked).toBe(false);
       });
 
-      it('stores nothing and sends the mark to the renderer, on and off', () => {
+      // One copy of the state (cora, #327): the mark in the built menu. Electron flips the mark
+      // before the click runs, so the click's job is to make the screen follow the mark — send
+      // the mark's value. The store is never involved: focus mode is not saved with the poem.
+      it('sends the mark it was clicked into, off then on, and stores nothing', () => {
         const win = makeWindow();
         const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
         mockStore.clear();
-        // eslint-disable-next-line no-unused-vars -- Electron hands the item to the click
-        (item.click as unknown as CheckboxClick)({ checked: true });
-        expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-focus-mode',
-          true
-        );
         (item.click as unknown as CheckboxClick)({ checked: false });
         expect(win.webContents.send).toHaveBeenLastCalledWith(
           'set-focus-mode',
           false
         );
+        (item.click as unknown as CheckboxClick)({ checked: true });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
         // The store is a Map here: nothing about focus mode was ever written to it.
         expect([...mockStore.keys()].filter((k) => /focus/i.test(k))).toEqual(
           []
         );
+      });
+
+      // vivian's & cora's drift cases at the menu half: the live mark IS the state, so a
+      // rebuilt menu (a language change) shows what the screen shows — and the mark is gone
+      // when the app menu is gone, so this test balances what it installs (main.ts reaches the
+      // live items by id the same way, in setSaveEnabled).
+      it('a rebuilt menu starts from the live mark, not from false', () => {
+        const win = makeWindow();
+        const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
+        // No application menu installed yet: the mark reads off — the direction that hides
+        // nothing, and what a fresh app shows.
+        expect(focusModeMark()).toBe(false);
+        // Install a stand-in live menu holding the very item the template just built.
+        // (the module's electron mock, line 50: Menu.setApplicationMenu is a jest.fn, so
+        // buildMenu installs nothing — the tests reach the app menu directly, as main does.)
+        (app as { applicationMenu: unknown }).applicationMenu = {
+          getMenuItemById: (id: string) =>
+            id === 'menu.edit.focusMode' ? item : undefined,
+        };
+        // The menu's own click marks it (Electron flips it before the click runs) and sends.
+        (item.click as unknown as CheckboxClick)({ checked: true });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        expect(focusModeMark()).toBe(true);
+        // A rebuilt menu (setLanguage → applyMenu, in the real app) starts from that mark.
+        expect(sub(build('linux', win), '&Edit', 'Focus &Mode').checked).toBe(
+          true
+        );
+        // The moon's turn reaches the mark the same way (main.ts requestFocusMode does this).
+        setFocusModeMark(false);
+        expect(sub(build('linux', win), '&Edit', 'Focus &Mode').checked).toBe(
+          false
+        );
+        // Balanced: the stand-in menu goes when the test does, so no later test reads a
+        // focus mark this test installed.
+        delete (app as { applicationMenu?: unknown }).applicationMenu;
+        expect(focusModeMark()).toBe(false);
       });
     });
 

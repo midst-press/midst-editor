@@ -18,6 +18,8 @@ export type Channels =
   | 'save-file'
   | 'toggle-spellcheck'
   | 'set-focus-mode'
+  | 'focus-mode-requested'
+  | 'focus-mode-changed'
   | 'find-in-poem'
   | 'new-file'
   | 'new-file-from-menu'
