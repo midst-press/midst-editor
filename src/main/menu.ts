@@ -28,7 +28,16 @@ import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
-import { loadDataIntoWorkspace } from './util';
+import { loadDataIntoWorkspace, loadRecoveredIntoWorkspace } from './util';
+import {
+  adopt,
+  declineToTrash,
+  forgetRecovery,
+  Orphan,
+  orphans,
+  startFresh,
+  writeRecovery,
+} from './recovery';
 import * as saveFailure from './saveFailurePolicy';
 import {
   activateLocale,
@@ -327,6 +336,8 @@ const writeAndRecord = async (
     return;
   }
   recordSaved(mainWindow, darwin, filename);
+  // The poem is in the poet's own file now: its recovery copy goes, and only after that write succeeded (#315).
+  if (firstSave) forgetRecovery();
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -431,12 +442,26 @@ export const save = async (
     return;
   }
   const stored = store.get('filename') as string | undefined;
-  if (!stored && !saveFailure.mayAskWhereToSave(byPoet)) {
-    // Its first save failed, and the panel would otherwise open at every pause in typing (#94). The poem
-    // stays unsaved: Save and Save As still ask where it goes, and closing the window warns that it is unsaved.
-    log.info(
-      'autosave: not asking again where to save a document whose first save failed'
-    );
+  // An untitled poem is not asked a name until the poet saves on purpose (#315; Annelyse, GitHub #81): the editor's own
+  // saves keep its recovery copy instead. Nothing is written for a poem nothing has been typed into.
+  if (!stored && !byPoet) {
+    if (store.get('edited') !== 'true') return;
+    try {
+      writeRecovery(
+        includeVersionInfo(
+          serializeDocument(
+            document.text,
+            document.history,
+            (store.get('meta') as string | undefined) ?? ''
+          )
+        )
+      );
+    } catch (err) {
+      log.error(
+        "autosave: the untitled poem's recovery copy was not written",
+        describeError(err)
+      );
+    }
     return;
   }
   const filename =
@@ -468,6 +493,8 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   if (cancel) {
     return;
   }
+  // The poet chose to leave the unsaved poem: an untitled one's recovery copy goes with it (#315).
+  forgetRecovery();
   store.set('poem', '');
   store.set('history', JSON.stringify([]));
   store.set('meta', '');
@@ -627,6 +654,8 @@ export const openFile = async (
   if (cancel) {
     return;
   }
+  // The poet chose to leave the unsaved poem: an untitled one's recovery copy goes with it (#315).
+  forgetRecovery();
   let filename: string[] | undefined;
   if (earlyFilename) {
     filename = earlyFilename;
@@ -1157,3 +1186,74 @@ export default class MenuBuilder {
     ];
   }
 }
+
+// At launch, each untitled poem a crashed run left is offered back, newest first (#315; Annelyse, GitHub #81). Yes
+// opens it as this window's untitled poem, and the rest wait for the next launch. No moves it to the Trash. A copy
+// that cannot be read is kept and logged, never discarded.
+//
+// The crashed run also left its untitled poem in the store, marked edited. When the poet has declined every copy
+// and none was kept, that is cleared as closing the window would have cleared it: otherwise the next New, Open or
+// close asks about unsaved changes to a poem the poet just said No to.
+export const offerRecovery = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean
+) => {
+  startFresh();
+  let declined = 0;
+  let kept = 0;
+  let adopted = false;
+  const offer = async ([orphan, ...rest]: Orphan[]): Promise<void> => {
+    if (!orphan) return;
+    let data: string;
+    try {
+      data = fs.readFileSync(orphan.file, 'utf8');
+    } catch (err) {
+      log.error('recovery: a recovery copy could not be read; it is kept', {
+        id: orphan.id,
+        ...describeError(err),
+      });
+      kept += 1;
+      await offer(rest);
+      return;
+    }
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      title: i18n._('dialog.recover.title'),
+      message: i18n._('dialog.recover.message', { title: untitled() }),
+      detail: i18n._('dialog.recover.detail', {
+        when: orphan.lastWritten.toLocaleString(),
+      }),
+      buttons: [i18n._('button.yes'), i18n._('button.no')],
+      // Enter is Yes (Annelyse); dismissing is No, which keeps the poem in the Trash.
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) {
+      try {
+        loadRecoveredIntoWorkspace(data, mainWindow, darwin);
+      } catch (err) {
+        log.error('recovery: a recovery copy could not be opened; it is kept', {
+          id: orphan.id,
+          ...describeError(err),
+        });
+        kept += 1;
+        await offer(rest);
+        return;
+      }
+      adopt(orphan);
+      adopted = true;
+      log.info('recovery: an untitled poem was recovered', { id: orphan.id });
+      return;
+    }
+    await declineToTrash(orphan, untitled());
+    declined += 1;
+    await offer(rest);
+  };
+  await offer(orphans());
+  if (declined > 0 && kept === 0 && !adopted && !store.get('filename')) {
+    ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
+      store.delete(key)
+    );
+    store.set('edited', 'false');
+  }
+};

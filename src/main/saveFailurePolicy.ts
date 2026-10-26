@@ -8,15 +8,13 @@
 //     failure worth a message.
 //   - Otherwise they say so ONCE per file while it keeps failing. An autosave follows every pause in typing, and a
 //     message after each one would make a poem in a read-only place impossible to work on.
-//   - A document with no file whose first save failed is not given the save panel again by the editor's own saves:
-//     it would open at every pause in typing. Save and Save As still ask where it goes, and closing the window
-//     warns that the poem is unsaved.
+//   - The editor's own saves never open the save panel: an untitled poem's autosave keeps its recovery copy
+//     instead (recovery.ts, #315). Save and Save As ask where it goes.
 //   - Until a save works, the window says the poem is not saved. On macOS the dot in the close button does that;
 //     elsewhere the title does.
 // A save that works, a new document and an opened one start again from nothing.
 
 let told: string | undefined;
-let firstSaveFailed = false;
 let notSaved = false;
 
 export type Failure = {
@@ -31,20 +29,14 @@ export type Failure = {
 export const failed = ({
   filename,
   byPoet,
-  firstSave,
   nothingUnsaved,
 }: Failure): boolean => {
   if (!byPoet && nothingUnsaved) return false;
   notSaved = !nothingUnsaved;
-  if (firstSave) firstSaveFailed = true;
   if (!byPoet && told === filename) return false;
   told = filename;
   return true;
 };
-
-// Whether a save of a document with no file may open the save panel.
-export const mayAskWhereToSave = (byPoet: boolean): boolean =>
-  byPoet || !firstSaveFailed;
 
 // Whether the window should say the poem is not saved.
 export const showsNotSaved = (): boolean => notSaved;
@@ -52,6 +44,5 @@ export const showsNotSaved = (): boolean => notSaved;
 // A save worked, or the window holds another document.
 export const startAgain = () => {
   told = undefined;
-  firstSaveFailed = false;
   notSaved = false;
 };
