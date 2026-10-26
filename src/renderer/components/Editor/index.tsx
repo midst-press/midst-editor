@@ -186,7 +186,9 @@ export default function Editor() {
     const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        // The menu has already changed the setting and its mark (editor #320); this applies it.
+        // The menu has already changed the setting and its mark (editor #320); this applies it, keeping the
+        // poet's place through the reload (editor #238, case 5).
+        if (myEditor) rememberCursor(myEditor, { acrossReload: true });
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
         saveFileAndUpdateStore();
@@ -198,7 +200,7 @@ export default function Editor() {
     );
 
     return removeToggleSpellcheck;
-  }, [saveFileAndUpdateStore]);
+  }, [saveFileAndUpdateStore, myEditor]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
