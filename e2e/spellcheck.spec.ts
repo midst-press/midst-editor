@@ -388,8 +388,9 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
   });
 
   test('case 4: breaking the line after a marked word keeps the next line marked', async () => {
-    // Not fixed yet (editor #238): this fails today, and turns red once it passes, so the fix updates it.
-    test.fail();
+    // Not fixed yet (editor #238), and not every time: the next line kept its mark in 3 of 10 runs, so as an
+    // expected failure it would turn CI red at random. Skipped until the cause is known; then test.fail().
+    test.fixme();
     const { app, win, userData } = await openPoem('split');
     try {
       await turnSpellcheckOn(app, win, userData);
