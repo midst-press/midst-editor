@@ -142,6 +142,30 @@ describe('useDraftMarkers', () => {
     expect(fiftyOne.result.current.reasonAt(10)).toBeNull();
   });
 
+  // GitHub #29: a new poem's empty first frame is a position on the Timeline, not a change.
+  it('counts the changes it is given, not the frames, toward the 50', () => {
+    install(undefined);
+    const save = jest.fn();
+    const frames = renderHook(() =>
+      useDraftMarkers(FRAMES_BEFORE_MARKERS + 1, save, FRAMES_BEFORE_MARKERS)
+    );
+    expect(frames.result.current.canCreateAt(10)).toBe(false);
+    expect(frames.result.current.reasonAt(10)).toBe(
+      'A Draft Marker can be added once the poem has more than 50 changes. This one has 50.'
+    );
+    const changes = renderHook(() =>
+      useDraftMarkers(
+        FRAMES_BEFORE_MARKERS + 2,
+        save,
+        FRAMES_BEFORE_MARKERS + 1
+      )
+    );
+    expect(changes.result.current.canCreateAt(0)).toBe(true);
+    expect(changes.result.current.canCreateAt(FRAMES_BEFORE_MARKERS + 1)).toBe(
+      true
+    );
+  });
+
   it('says which reason applies: a moment that already has a draft, or no moment there', () => {
     install({ draftMarkers: [{ index: 5, defaultName: 'Draft 1' }] });
     const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));

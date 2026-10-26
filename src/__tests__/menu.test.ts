@@ -870,7 +870,33 @@ describe('exportRtf (GitHub #26)', () => {
   });
 });
 
+// A new poem's first frame: nothing inserted, nothing kept, at the start (GitHub #29).
+const EMPTY_FRAME = expect.objectContaining({
+  inserted: '',
+  front: 0,
+  end: 0,
+  pos: 0,
+});
+
 describe('newFile', () => {
+  // GitHub #29: a new poem's Timeline begins at an empty page, the frame timed when the poem was made.
+  it('begins the new poem with one empty frame, stored and sent alike', async () => {
+    seedDocument({ edited: 'false' });
+    const win = makeWindow();
+    const before = Date.now();
+    await newFile(asWindow(win), false);
+    const stored = JSON.parse(mockStore.get('history') as string);
+    expect(stored).toEqual([
+      { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
+    ]);
+    expect(Date.parse(stored[0].t)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(stored[0].t)).toBeLessThanOrEqual(Date.now());
+    const sent = (win.webContents.send as jest.Mock).mock.calls.find(
+      ([channel]) => channel === 'open-file'
+    );
+    expect(JSON.parse(JSON.stringify(sent[2]))).toEqual(stored);
+  });
+
   it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', async () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
@@ -924,12 +950,16 @@ describe('newFile', () => {
     const win = makeWindow();
     await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
-    expect(mockStore.get('history')).toBe('[]');
     expect(mockStore.get('meta')).toBe('');
     expect(mockStore.get('filename')).toBe('');
     expect(mockStore.get('baseFilename')).toBe('');
     expect(mockStore.get('edited')).toBe('false');
-    expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '',
+      [EMPTY_FRAME],
+      ''
+    );
   });
 
   it('with no unsaved changes, does not ask', async () => {
@@ -938,7 +968,12 @@ describe('newFile', () => {
     await newFile(asWindow(win), false);
     expect(showMessageBox).not.toHaveBeenCalled();
     expect(mockStore.get('poem')).toBe('');
-    expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '',
+      [EMPTY_FRAME],
+      ''
+    );
   });
 
   it("on macOS, represents the document as Untitled; the title is the renderer's on every platform (#125)", async () => {
@@ -2215,7 +2250,10 @@ describe('the menu', () => {
         win.isDestroyed.mockReturnValue(true);
         sub(build('darwin', win), 'File', 'New').click!();
         expect(mockStore.get('poem')).toBe('');
-        expect(mockStore.get('history')).toBe('[]');
+        // A new poem begins at an empty page here too (GitHub #29).
+        expect(JSON.parse(mockStore.get('history') as string)).toEqual([
+          { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
+        ]);
         expect(mockStore.get('meta')).toBe('');
         expect(mockStore.get('filename')).toBe('');
         expect(mockStore.get('edited')).toBe('false');

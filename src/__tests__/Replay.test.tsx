@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
+import { emptyFirstFrame } from '../shared/firstFrame';
 import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
@@ -202,6 +203,33 @@ describe('Replay: initial frame and slider', () => {
       'There is nothing to play yet: this poem has no history.'
     );
     expect(playButton()).toHaveStyle({ opacity: '0.38' });
+  });
+
+  // GitHub #29: a new poem begins with an empty frame, which is not something to play.
+  it('offers no playback for a new poem that is only its empty first frame', () => {
+    mount([emptyFirstFrame(new Date(0))]);
+    expect(playButton()).toBeDisabled();
+    expect(playButton()).toHaveAccessibleDescription(
+      'There is nothing to play yet: this poem has no history.'
+    );
+  });
+
+  it('plays a new poem once it has a change after its empty first frame', () => {
+    mount([emptyFirstFrame(new Date(0)), ...makeHistory(1)]);
+    expect(playButton()).toBeEnabled();
+  });
+
+  it('does not count the empty first frame toward the 50 changes a Draft Marker needs', () => {
+    // 50 changes after the empty frame: 51 frames, but 50 changes, so still refused, and the reason says 50.
+    mount([emptyFirstFrame(new Date(0)), ...makeHistory(50)]);
+    expect(
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
+    ).toHaveAccessibleDescription(
+      'A Draft Marker can be added once the poem has more than 50 changes. This one has 50.'
+    );
   });
 
   it('has no reason and looks available when there is a history to play', () => {
