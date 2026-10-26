@@ -2444,6 +2444,22 @@ describe('offerRecovery', () => {
     expect(recovery.declineToTrash).not.toHaveBeenCalled();
   });
 
+  it("Yes brings back the poem's settings with it", async () => {
+    const file = path.join(dir, 'm.midst');
+    fs.writeFileSync(
+      file,
+      `midstVersion: 1\n${JSON.stringify({
+        text: '<p>zq</p>',
+        history,
+        meta: { fontSize: 3 },
+      })}`
+    );
+    orphans.mockReturnValue([{ id: 'm', file, lastWritten: new Date() }]);
+    showMessageBox.mockReturnValue(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(mockStore.get('meta')).toBe('{"fontSize":3}');
+  });
+
   it('No moves that poem to the Trash and offers the next, newest first', async () => {
     const one = plant('a', '<p>zq</p>');
     const two = plant('b', '<p>xv</p>');

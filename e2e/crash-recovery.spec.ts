@@ -1,4 +1,5 @@
 import { test, expect, _electron as electron } from '@playwright/test';
+import { execFileSync } from 'child_process';
 import {
   existsSync,
   mkdtempSync,
@@ -53,6 +54,25 @@ async function typeAndCrash(work: string) {
   expect(written, 'autosave wrote a recovery copy with the text').toBe(true);
   // CONTROL: no Save panel was asked for, and the poem has no file.
   expect(readStore(userData).filename ?? '').toBe('');
+  // The owner file names this Midst so that another launch knows it is live: the start it recorded is the start ps
+  // reports for it, within recovery.ts's 10 s.
+  const [copy] = recoveryCopies(userData);
+  const owner = JSON.parse(
+    readFileSync(
+      join(userData, 'Recovery', copy.replace(/\.midst$/, '.owner')),
+      'utf8'
+    )
+  );
+  const pid = app.process().pid!;
+  expect(owner.pid).toBe(pid);
+  const psStart = Date.parse(
+    execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+      env: { ...process.env, LC_ALL: 'C' },
+    })
+      .toString()
+      .trim()
+  );
+  expect(Math.abs(psStart - owner.started)).toBeLessThan(10_000);
   app.process().kill('SIGKILL');
   await new Promise<void>((resolve) => {
     if (app.process().exitCode !== null) resolve();
