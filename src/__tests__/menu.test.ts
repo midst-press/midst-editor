@@ -1520,6 +1520,9 @@ describe('the menu', () => {
     new MenuBuilder(asWindow(win)).buildMenu();
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
+  // Focus mode's tests build more than once (a state, then a rebuild): the template to read
+  // is the LAST one — a rebuild is buildMenu calling buildFromTemplate again.
+  const lastBuild = () => buildFromTemplate.mock.calls.at(-1)![0] as Item[];
 
   // Every word in the menus comes from the catalog: each labelled item's id is a catalog key, and its
   // label is that key's English, without the '&' on macOS (midst-infra docs/design/message-catalog.md).
@@ -2159,6 +2162,9 @@ describe('the menu', () => {
         ['darwin', 'Focus Mode'],
         ['linux', 'Focus &Mode'],
       ])('is an unstored checkbox on %s', (platform, text) => {
+        // The state is module memory (menu.ts): each test states the point it tests, and
+        // leaves it where it stated it.
+        setFocusModeMark(false);
         const win = makeWindow();
         const item = sub(
           build(platform, win),
@@ -2173,6 +2179,7 @@ describe('the menu', () => {
       // before the click runs, so the click's job is to make the screen follow the mark — send
       // the mark's value. The store is never involved: focus mode is not saved with the poem.
       it('sends the mark it was clicked into, off then on, and stores nothing', () => {
+        setFocusModeMark(false);
         const win = makeWindow();
         const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
         mockStore.clear();
@@ -2190,45 +2197,54 @@ describe('the menu', () => {
         expect([...mockStore.keys()].filter((k) => /focus/i.test(k))).toEqual(
           []
         );
+        // And the store is never the source: a fresh app, whatever the store holds, builds
+        // the checkbox unmarked — regular Edit mode (GitHub #25). 'spellcheck' is the store
+        // pattern focus mode deliberately does not join (menu.ts): seed it, build, unmarked.
+        mockStore.set('spellcheck', 'true');
+        expect(sub(build('linux'), '&Edit', 'Focus &Mode').checked).toBe(false);
+        // Balanced: the click of this test moved main's memory; a new document starts regular.
+        setFocusModeMark(false);
       });
 
-      // vivian's & cora's drift cases at the menu half: the live mark IS the state, so a
-      // rebuilt menu (a language change) shows what the screen shows — and the mark is gone
-      // when the app menu is gone, so this test balances what it installs (main.ts reaches the
-      // live items by id the same way, in setSaveEnabled).
-      it('a rebuilt menu starts from the live mark, not from false', () => {
-        const win = makeWindow();
-        const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
-        // No application menu installed yet: the mark reads off — the direction that hides
-        // nothing, and what a fresh app shows.
-        expect(focusModeMark()).toBe(false);
-        // Install a stand-in live menu holding the very item the template just built.
-        // (the module's electron mock, line 50: Menu.setApplicationMenu is a jest.fn, so
-        // buildMenu installs nothing — the tests reach the app menu directly, as main does.)
-        (app as { applicationMenu: unknown }).applicationMenu = {
-          getMenuItemById: (id: string) =>
-            id === 'menu.edit.focusMode' ? item : undefined,
+      // The mark lives in menu.ts's memory, so it survives the window, the page, and a
+      // rebuild alike (vivian & cora, #327): each test sets the state it asserts FROM and
+      // reads it back in the next build — no live-menu installation, no reach-by-id needed.
+      it("a rebuilt menu is built from main's memory, on and off", () => {
+        // The order a running app has: the state moves, the menu is rebuilt (setLanguage), and
+        // the new template carries the state. A template captured BEFORE the turn, left in the
+        // mock's list, carries the value it was built at — which is honest, so 'lastBuild' is
+        // the only read, and it is taken after each build below.
+        const builtOn = () => {
+          build('linux');
+          return sub(lastBuild(), '&Edit', 'Focus &Mode').checked;
         };
-        // The menu's own click marks it (Electron flips it before the click runs) and sends.
-        (item.click as unknown as CheckboxClick)({ checked: true });
-        expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-focus-mode',
-          true
-        );
-        expect(focusModeMark()).toBe(true);
-        // A rebuilt menu (setLanguage → applyMenu, in the real app) starts from that mark.
-        expect(sub(build('linux', win), '&Edit', 'Focus &Mode').checked).toBe(
-          true
-        );
-        // The moon's turn reaches the mark the same way (main.ts requestFocusMode does this).
+        setFocusModeMark(true);
+        expect(builtOn()).toBe(true);
         setFocusModeMark(false);
-        expect(sub(build('linux', win), '&Edit', 'Focus &Mode').checked).toBe(
-          false
-        );
-        // Balanced: the stand-in menu goes when the test does, so no later test reads a
-        // focus mark this test installed.
-        delete (app as { applicationMenu?: unknown }).applicationMenu;
-        expect(focusModeMark()).toBe(false);
+        expect(builtOn()).toBe(false);
+      });
+
+      // vivian's blocking case at 77665af, stated at the menu half: focus mode belongs to the
+      // document being edited, so leaving the editor turns it off (disable-save, main.ts; the
+      // editor sends no leave-message of its own). Memory is the one copy, so an off
+      // remembered is a regular-mode open — wherever the menu was rebuilt.
+      it('an off remembered is a regular-mode open (vivian, 77665af)', () => {
+        setFocusModeMark(true);
+        expect(focusModeMark()).toBe(true);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(true);
+        // Leaving the editor: the state is turned off, once (main.ts disable-save).
+        setFocusModeMark(false);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(false);
+      });
+
+      // No accelerator, still (GitHub #25): a bare modifier chord is macOS input methods', and
+      // the guide's shortcut table (shortcutTable.ts) stays unchanged until the editor names one.
+      it('has no accelerator', () => {
+        setFocusModeMark(false);
+        const item = sub(build('linux'), '&Edit', 'Focus &Mode');
+        expect(item).not.toHaveProperty('accelerator');
       });
     });
 

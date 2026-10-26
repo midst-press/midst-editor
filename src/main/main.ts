@@ -35,6 +35,7 @@ import MenuBuilder, {
   applyStoredAppearance,
   focusModeMark,
   requestFocusMode,
+  setFocusModeMark,
   isDevelopment,
   save,
   newFile,
@@ -260,27 +261,29 @@ ipcMain.on('button-open-file', () => {
   logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
-// Focus Mode (GitHub #25): main owns the state (menu.ts), so the moon's request answers at once
-// — whether or not the value changed — and the menu's mark moves with it. An editor that mounts
-// asks where the screen stands: there is one copy of the state in the app, and after Replay and
-// back it lives in the menu, so the answer comes from the menu's mark (vivian, #327).
-ipcMain.on('focus-mode-changed', () => {
+// Focus Mode (GitHub #25): main owns the state (menu.ts) — the menu's mark is the state, the
+// moon asks and main turns it and answers, a mounting editor asks where the screen stands and is
+// answered from the mark (vivian, #327). The house round-trip (preload.ts): sendMessage takes
+// (channel, args[]) and every handler receives that array as one argument — like 'set-language'
+// above — and passes the event, which is never counted as content.
+ipcMain.on('focus-mode-changed', (_event, args: unknown) => {
   if (mainWindow === null) return;
   const win = mainWindow;
+  // An argument this message does not send is recorded, never obeyed.
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-changed: unexpected arguments, ignored', { args });
+  }
   logIfRejected('focus mode report', () =>
     win.webContents.send('set-focus-mode', focusModeMark())
   );
 });
-ipcMain.on('focus-mode-requested', (...args: unknown[]) => {
+ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
   if (mainWindow === null) return;
   const win = mainWindow;
-  // A spurious argument is reported, never obeyed: what the poet asked is recorded honestly.
-  logIfRejected('focus mode', () => {
-    if (args.length > 0) {
-      log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
-    }
-    requestFocusMode(win);
-  });
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
+  }
+  logIfRejected('focus mode', () => requestFocusMode(win));
 });
 
 // The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
@@ -321,9 +324,18 @@ ipcMain.on('enable-save', () => {
   setEditorShowing(true);
   setSaveEnabled(true);
 });
+// Leaving the editor turns focus mode off with it (Annelyse, GitHub #25: regular Edit mode is
+// what a poem opens in). The house knows exactly when the editor stops showing — index.tsx
+// unmounts and sends this, Replay's Back included, while navigating to Replay does not (the
+// editor stays mounted there, so focus mode survives Replay-and-back, vivian's #327 case) —
+// so this is where the mark returns to off. Without it the mark, held in main's memory, would
+// answer a later mount's ask as on: a poem opened after Edit closes would open hidden
+// (vivian's blocking case at 77665af). No send: no editor is listening to hide, and a later
+// mount asks and is answered off, which is the truth.
 ipcMain.on('disable-save', () => {
   setEditorShowing(false);
   setSaveEnabled(false);
+  setFocusModeMark(false);
 });
 
 // IPC listener

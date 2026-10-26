@@ -235,6 +235,25 @@ jest.mock('../main/menu', () => ({
         .requireActual<typeof import('../main/menu')>('../main/menu')
         .openPath(...args)
   ),
+  // Focus mode's three helpers are the real ones (GitHub #25): the state lives in menu.ts's
+  // memory, and the moon-and-editor test below follows it across enable-save and disable-save.
+  // The stand-in applicationMenu is the live menu they move their mark in.
+  focusModeMark: () =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .focusModeMark(),
+  setFocusModeMark: (
+    ...args: Parameters<typeof import('../main/menu').setFocusModeMark>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .setFocusModeMark(...args),
+  requestFocusMode: (
+    ...args: Parameters<typeof import('../main/menu').requestFocusMode>
+  ) =>
+    jest
+      .requireActual<typeof import('../main/menu')>('../main/menu')
+      .requestFocusMode(...args),
 }));
 
 // Everything a test needs from the freshly imported module registry.
@@ -805,6 +824,48 @@ describe('main process', () => {
       expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
     });
 
+    // vivian's blocking case at 77665af, at the half that was missing: the mark lives in main's
+    // memory, so it must leave with the editor — otherwise, with the application menu outliving
+    // the window on macOS, a poem opened after Edit closes would ask and be answered on,
+    // opening hidden (GitHub #25: regular Edit mode is what a poem opens in).
+    describe('focus mode follows the editor (GitHub #25)', () => {
+      it('leaving the editor turns the mark off; Replay, which does not disable save, keeps it', async () => {
+        const { fireIpc, win } = await boot();
+        // menu.ts's memory is module state shared across this file's tests: state it here,
+        // through the module registry boot() just made (the mock's passthrough is the real
+        // implementation; main.ts is the only caller in the app).
+        const { setFocusModeMark } = await import('../main/menu');
+        setFocusModeMark(false);
+        await fireIpc('enable-save');
+        // The moon asks once, main turns the mark and answers: the screen hides.
+        await fireIpc('focus-mode-requested');
+        expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // Replay: the editor does not unmount, so nothing disables save — the mode waits.
+        await fireIpc('focus-mode-changed');
+        expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // Back: the editor unmounts and disables save, and the mark leaves with it. No send
+        // goes to a page that is not there to hide (index.tsx sends it on unmount).
+        const sendsBefore = win().webContents.send.mock.calls.length;
+        await fireIpc('disable-save');
+        expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual(
+          []
+        );
+        // A document opened after Edit closes asks, and is answered off: regular Edit mode.
+        await fireIpc('enable-save');
+        await fireIpc('focus-mode-changed');
+        expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          false
+        );
+      });
+    });
+
     it('the menu asks the editor for the poem only while the editor is showing (#157)', async () => {
       const { fireIpc } = await boot();
       const { flushEditor } = await import('../main/editorFlush');
@@ -830,8 +891,10 @@ describe('main process', () => {
       electron.app.applicationMenu = { getMenuItemById: lookups };
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      // The handlers did look for both items (they ran, they did not just return early).
+      // The handlers did look for the items they move (they ran, they did not just return
+      // early) — disable-save now moves the focus mark too, by the same id (GitHub #25).
       expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
+        'menu.edit.focusMode',
         'menu.file.save',
         'menu.file.save',
         'menu.file.saveAs',
