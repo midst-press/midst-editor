@@ -368,7 +368,7 @@ describe('Editor: on entering and leaving', () => {
     mount();
     bridge.emit('cancel-save');
     expect(screen.getByTestId('where')).toHaveTextContent('/');
-    expect(screen.queryByRole('button', { name: 'Replay' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Timeline' })).toBeNull();
   });
 
   it('goes to the replay, saving first, on toggle-edit-mode', () => {
@@ -658,13 +658,15 @@ describe('Editor: spellcheck toggle', () => {
     return spy;
   };
 
-  it('stores the flipped setting, saves, remembers to return to the editor, and reloads', () => {
+  // The menu owns the setting and its checkmark (editor #320); the window saves and reloads to apply it.
+  it('leaves the setting to the menu, saves, remembers to return to the editor, and reloads', () => {
     const errors = stubReload();
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
+    const before = bridge.values.spellcheck;
     bridge.emit('toggle-spellcheck');
 
-    expect(bridge.values.spellcheck).toBe('true');
+    expect(bridge.values.spellcheck).toBe(before);
     expect(bridge.values.poem).toBe('<p>zq</p>');
     expect(bridge.sends('save-file')).toHaveLength(1);
     expect(bridge.index('send', 'save-file')).toBeGreaterThan(
@@ -688,12 +690,12 @@ describe('Editor: spellcheck toggle', () => {
     errors.mockRestore();
   });
 
-  it('turns an enabled setting off', () => {
+  it('does not flip a setting the menu has already changed', () => {
     const errors = stubReload();
     bridge = installBridge({ spellcheck: 'true' });
     mount();
     bridge.emit('toggle-spellcheck');
-    expect(bridge.values.spellcheck).toBe('false');
+    expect(bridge.values.spellcheck).toBe('true');
     errors.mockRestore();
   });
 
@@ -714,7 +716,7 @@ describe('Editor: Replay button', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
     bridge.clear();
-    fireEvent.click(screen.getByRole('button', { name: 'Replay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
 
     expect(bridge.values.poem).toBe('<p>zqxv</p>');
     expect(JSON.parse(bridge.values.history as string)).toHaveLength(1);
@@ -728,7 +730,7 @@ describe('Editor: Replay button', () => {
   it('does not save a second time from the cancelled autosave after leaving', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
-    fireEvent.click(screen.getByRole('button', { name: 'Replay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
     bridge.clear();
     act(() => {
       jest.advanceTimersByTime(5000);
@@ -741,14 +743,14 @@ describe('Editor: draft marker button', () => {
   it('is disabled while the history is short', () => {
     mount({ initialHistory: [change(1)] });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeDisabled();
   });
 
   it('is enabled once the history is long enough', () => {
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeEnabled();
   });
 
@@ -756,7 +758,7 @@ describe('Editor: draft marker button', () => {
     mount({ initialText: '<p>zq</p>', initialHistory: LONG_HISTORY });
     bridge.clear();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
 
     const meta = JSON.parse(bridge.values.meta as string);
@@ -774,7 +776,7 @@ describe('Editor: draft marker button', () => {
     mount({ initialText: '<p>zq</p>', initialHistory: LONG_HISTORY });
     typeText('xv');
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
     bridge.clear();
     act(() => {
@@ -791,17 +793,17 @@ describe('Editor: draft marker button', () => {
     });
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeDisabled();
   });
 
   it('says why it is disabled while the history is short, and looks unavailable (GitHub #66)', () => {
     mount({ initialHistory: [change(1)] });
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription(
-      'A draft can be marked once the poem has more than 50 changes. This one has 1.'
+      'A Draft Marker can be added once the poem has more than 50 changes. This one has 1.'
     );
     expect(button).toHaveStyle({ opacity: '0.38' });
   });
@@ -814,14 +816,14 @@ describe('Editor: draft marker button', () => {
     });
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
-    ).toHaveAccessibleDescription('This moment already has a draft.');
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
+    ).toHaveAccessibleDescription('This moment already has a Draft Marker.');
   });
 
   it('has no reason and looks available when a draft can be marked', () => {
     mount({ initialHistory: LONG_HISTORY });
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription('');
     expect(button).not.toHaveStyle({ opacity: '0.38' });
@@ -831,7 +833,7 @@ describe('Editor: draft marker button', () => {
     bridge = installBridge({ meta: 'not json' });
     mount({ initialHistory: LONG_HISTORY });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
     expect(screen.getByTestId('where')).toHaveTextContent('/editor');
     expect(bridge.values.meta).toBe('not json');
@@ -850,7 +852,7 @@ describe('Editor: draft marker button', () => {
       },
     ]);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'The drafts of this poem could not be read, so nothing was changed.'
+      'The Draft Markers of this poem could not be read, so nothing was changed.'
     );
   });
 });

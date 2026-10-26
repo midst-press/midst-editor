@@ -17,7 +17,7 @@ const SHORT = 'a short line';
 
 const metaOnDisk = (path: string) =>
   JSON.parse(readFileSync(path, 'utf8').split('\n').slice(1).join('\n')).meta;
-const MARK = 'Mark this moment as a draft';
+const MARK = 'Add a Draft Marker here';
 
 test('a draft is marked from the editor, named, joined by a second, and deleted', async () => {
   const doc = makePlayableMidst(LONG);
@@ -44,7 +44,7 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
 
     // 1. From the editor: marks the latest moment and goes to the replay with the name open.
     await win.getByRole('button', { name: MARK }).click();
-    const nameField = win.getByLabel('Draft name');
+    const nameField = win.getByLabel('Draft Marker name');
     await expect(nameField, 'the name did not open for typing').toBeVisible({
       timeout: 25_000,
     });
@@ -87,7 +87,7 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     // and Enter used to start it behind the list, because focus sits on the drawer, not inside it.
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
-    await win.getByRole('button', { name: 'Drafts' }).click();
+    await win.getByRole('button', { name: 'Draft Markers' }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // One key at a time: the two together would start playback and stop it again. Read once, not
     // with a retrying expect: a retry would wait until the playback it is meant to catch had run to
@@ -115,8 +115,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await win.locator('.MuiSlider-thumb input').press('ArrowLeft');
     await expect(mark).toBeEnabled();
     await mark.click();
-    await expect(win.getByLabel('Draft name')).toHaveValue('Draft 2');
-    await win.getByLabel('Draft name').press('Enter');
+    await expect(win.getByLabel('Draft Marker name')).toHaveValue('Draft 2');
+    await win.getByLabel('Draft Marker name').press('Enter');
     expect(
       await waitUntil(
         () => metaOnDisk(poemPath).draftMarkers.length === 2,
@@ -138,7 +138,10 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     ]);
 
     // 4. Delete the first one: gone from the file at once, and its number is not given out again.
-    await win.getByRole('button', { name: 'Delete draft' }).nth(1).click();
+    await win
+      .getByRole('button', { name: 'Delete Draft Marker' })
+      .nth(1)
+      .click();
     expect(
       await waitUntil(
         () => metaOnDisk(poemPath).draftMarkers.length === 1,
@@ -186,12 +189,12 @@ test('a marker made in the replay straight after typing does not point past the 
 
     await editor.click();
     await win.keyboard.type('zqx');
-    await win.getByRole('link', { name: 'Replay' }).click();
+    await win.getByRole('link', { name: 'Timeline' }).click();
     await expect(win.locator('.ReplayContainer')).toBeVisible({
       timeout: 25_000,
     });
     await win.getByRole('button', { name: MARK }).click();
-    await expect(win.getByLabel('Draft name')).toBeVisible();
+    await expect(win.getByLabel('Draft Marker name')).toBeVisible();
 
     expect(
       await waitUntil(
@@ -230,7 +233,7 @@ test('a poem with 50 or fewer changes cannot be marked yet', async () => {
     await openDocument(app, userData, poemPath, 'the short poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
     await expect(win.getByRole('button', { name: MARK })).toBeDisabled();
-    await win.getByRole('link', { name: 'Replay' }).click();
+    await win.getByRole('link', { name: 'Timeline' }).click();
     await expect(win.locator('.ReplayContainer')).toBeVisible({
       timeout: 25_000,
     });
@@ -308,7 +311,9 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
     await openDocument(app, userData, poemPath, 'the long poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
     await win.getByRole('button', { name: MARK }).click();
-    await expect(win.getByLabel('Draft name')).toBeVisible({ timeout: 25_000 });
+    await expect(win.getByLabel('Draft Marker name')).toBeVisible({
+      timeout: 25_000,
+    });
 
     await expectBeside(win);
     await win.screenshot({ path: test.info().outputPath('drafts-beside.png') });

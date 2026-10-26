@@ -91,7 +91,11 @@ const toggleEditMode = (mainWindow: BrowserWindow) => {
 const findInPoem = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('find-in-poem');
 };
-const toggleSpellcheck = (mainWindow: BrowserWindow) => {
+// Check Spelling is a checkbox (GitHub #80, editor #320), and the menu owns the setting: Electron has already
+// flipped the item's mark when this runs, so the store follows the mark, and the window is told to apply it.
+// Whatever the window is showing, the mark and the setting agree; the writing screen reads the setting when it opens.
+const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
+  store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
 };
 
@@ -190,23 +194,18 @@ const saveFilters = () => [
 // `byPoet` is true when they chose Save or Save As, or have just picked the file in a dialog.
 // `saveElsewhere` is what "Save As…" in that message does.
 
-// Off macOS the window's title says when the poem is not saved; the renderer sets it (#94). Sent only when
-// that changes. On macOS the edited dot says it instead.
-const sayWhetherSaved = (
-  mainWindow: BrowserWindow,
-  darwin: boolean,
-  wasShown: boolean
-) => {
+// The window's title says when the poem is not saved, on every platform, macOS included (Annelyse, GitHub #75); the
+// renderer sets it (#94). Sent only when that changes. On macOS the edited dot says it as well.
+const sayWhetherSaved = (mainWindow: BrowserWindow, wasShown: boolean) => {
   const shown = saveFailure.showsNotSaved();
-  if (!darwin && shown !== wasShown)
-    mainWindow.webContents.send('set-not-saved', shown);
+  if (shown !== wasShown) mainWindow.webContents.send('set-not-saved', shown);
 };
 
 // The window now holds another document: nothing about the last one's failed saves applies to it.
-const forgetSaveFailures = (mainWindow: BrowserWindow, darwin: boolean) => {
+const forgetSaveFailures = (mainWindow: BrowserWindow) => {
   const wasShown = saveFailure.showsNotSaved();
   saveFailure.startAgain();
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
 };
 
 // The write succeeded: the document is now this file, and saved.
@@ -215,7 +214,7 @@ const recordSaved = (
   darwin: boolean,
   filename: string
 ) => {
-  forgetSaveFailures(mainWindow, darwin);
+  forgetSaveFailures(mainWindow);
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   rememberFolder(filename);
@@ -254,7 +253,7 @@ const reportCouldNotSave = async (
     nothingUnsaved: store.get('edited') === 'false',
   });
   if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
   if (!tell) return;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
@@ -502,7 +501,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
-  forgetSaveFailures(mainWindow, darwin);
+  forgetSaveFailures(mainWindow);
   mainWindow.webContents.send('open-file', '', [], '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
@@ -818,8 +817,22 @@ export default class MenuBuilder {
     };
   }
 
-  // The spellcheck item has a different name on each platform.
   private modeItems(modifier: string) {
+    const checkSpelling: MenuItemConstructorOptions = {
+      id: this.darwin
+        ? 'menu.edit.spellcheck.mac'
+        : 'menu.edit.spellcheck.other',
+      // Each id written out in its own call: the catalog extractor finds only literal ids.
+      label: this.label(
+        this.darwin
+          ? i18n._('menu.edit.spellcheck.mac')
+          : i18n._('menu.edit.spellcheck.other')
+      ),
+      type: 'checkbox',
+      checked: store.get('spellcheck') === 'true',
+      accelerator: `${modifier}+;`,
+      click: (item) => setSpellcheck(this.mainWindow, item.checked),
+    };
     return [
       {
         id: 'menu.edit.find',
@@ -833,19 +846,7 @@ export default class MenuBuilder {
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
-      this.darwin
-        ? {
-            id: 'menu.edit.spellcheck.mac',
-            label: this.label(i18n._('menu.edit.spellcheck.mac')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          }
-        : {
-            id: 'menu.edit.spellcheck.other',
-            label: this.label(i18n._('menu.edit.spellcheck.other')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          },
+      checkSpelling,
     ];
   }
 

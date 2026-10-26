@@ -72,7 +72,7 @@ test('back from Replay, the cursor is where it was, and in view', async () => {
       return editor.state.selection.anchor as number;
     });
 
-    await win.getByRole('button', { name: 'Replay' }).click();
+    await win.getByRole('button', { name: 'Timeline' }).click();
     await expect(win.locator('.ReplayContainer')).toBeVisible({
       timeout: 25_000,
     });

@@ -175,3 +175,26 @@ export const shot = async (
     }
   }
 };
+
+// Check Spelling, clicked in the real Edit menu (editor #320). Electron flips a checkbox item's mark before its
+// handler runs, as it does for a click by hand, and the handler stores the setting and tells the window.
+type LaunchedApp = Awaited<ReturnType<typeof launch>>['app'];
+export const clickCheckSpelling = (app: LaunchedApp) =>
+  app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu();
+    const item =
+      menu?.getMenuItemById('menu.edit.spellcheck.mac') ??
+      menu?.getMenuItemById('menu.edit.spellcheck.other');
+    if (!item) throw new Error('Check Spelling is not in the menu');
+    item.click();
+  });
+
+// Whether Check Spelling shows its checkmark.
+export const checkSpellingMark = (app: LaunchedApp) =>
+  app.evaluate(({ Menu }) => {
+    const menu = Menu.getApplicationMenu();
+    return (
+      menu?.getMenuItemById('menu.edit.spellcheck.mac') ??
+      menu?.getMenuItemById('menu.edit.spellcheck.other')
+    )?.checked;
+  });

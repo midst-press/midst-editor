@@ -377,7 +377,10 @@ describe('save', () => {
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
       expect(win.setRepresentedFilename).not.toHaveBeenCalled();
-      expect(win.webContents.send).not.toHaveBeenCalled();
+      // Only that it is not saved, for the title (GitHub #75): nothing claims the save worked.
+      expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+      ]);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       const options = showMessageBox.mock.calls[0][1];
       expect(options.type).toBe('error');
@@ -463,16 +466,13 @@ describe('save', () => {
       ]);
     });
 
-    it('on macOS leaves the title alone: the edited dot says it', async () => {
+    it('on macOS, the title says it too, beside the edited dot (Annelyse, GitHub #75)', async () => {
       seedDocument({ filename: unwritable() });
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
       await save(asWindow(win), true, false);
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
-      expect(win.webContents.send).not.toHaveBeenCalledWith(
-        'set-not-saved',
-        expect.anything()
-      );
+      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', true);
     });
 
     it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
@@ -726,7 +726,10 @@ describe('saveAs', () => {
       expect(mockStore.get('edited')).toBe('true');
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
-      expect(win.webContents.send).not.toHaveBeenCalled();
+      // Only that it is not saved, for the title (GitHub #75): nothing claims the save worked.
+      expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+      ]);
       expect(showMessageBox.mock.calls[0][1].type).toBe('error');
       expect(showSaveDialog).toHaveBeenCalledTimes(1);
     });
@@ -1432,6 +1435,8 @@ describe('the menu', () => {
     label?: string;
     accelerator?: string;
     enabled?: boolean;
+    type?: string;
+    checked?: boolean;
     click?: () => unknown;
     submenu?: Item[];
   };
@@ -1854,19 +1859,38 @@ describe('the menu', () => {
       expect(new Set(accelerators).size).toBe(accelerators.length);
     });
 
-    it('Toggle Timeline and the spellcheck toggle message the renderer', () => {
+    it('Toggle Timeline messages the renderer', () => {
       const win = makeWindow();
-      const template = build(platform, win);
-      sub(template, editTop, 'Toggle Timeline').click!();
+      sub(build(platform, win), editTop, 'Toggle Timeline').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith('toggle-edit-mode');
-      sub(
-        template,
-        editTop,
-        isMac ? 'Show/hide spellcheck' : 'Toggle Spellcheck'
-      ).click!();
+    });
+
+    // eslint-disable-next-line no-unused-vars -- the name says what Electron passes to a checkbox's click
+    type CheckboxClick = (item: { checked: boolean }) => void;
+    // Check Spelling is a checkbox, and the menu owns the setting (GitHub #80, editor #320): the mark starts from
+    // the store, and a click (Electron has already flipped the mark) stores the new state and tells the window.
+    it('Check Spelling is a checkbox whose mark is the stored setting, and a click stores the new one', () => {
+      const win = makeWindow();
+      const off = sub(build(platform, win), editTop, 'Check Spelling');
+      expect(off.type).toBe('checkbox');
+      expect(off.checked).toBe(false);
+      mockStore.set('spellcheck', 'true');
+      // build() reads the first template it was given; this is a second menu, built after the change.
+      buildFromTemplate.mockClear();
+      const on = sub(build(platform, win), editTop, 'Check Spelling');
+      expect(on.checked).toBe(true);
+
+      (on.click as unknown as CheckboxClick)({
+        checked: false,
+      });
+      expect(mockStore.get('spellcheck')).toBe('false');
       expect(win.webContents.send).toHaveBeenLastCalledWith(
         'toggle-spellcheck'
       );
+      (on.click as unknown as CheckboxClick)({
+        checked: true,
+      });
+      expect(mockStore.get('spellcheck')).toBe('true');
     });
 
     it('Find is on Command+F or Ctrl+F and opens the find bar (GitHub #27)', () => {
