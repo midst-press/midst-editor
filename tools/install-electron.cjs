@@ -74,6 +74,8 @@ async function main() {
     artifactName: 'electron',
     platform,
     arch,
+    // Isolated test runners can keep download/cache cleanup inside their own working directory.
+    cacheRoot: process.env.ELECTRON_CACHE,
     checksums: require(path.join(electronDir, 'checksums.json')),
   });
 
