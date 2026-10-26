@@ -365,7 +365,10 @@ describe('save', () => {
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
       expect(win.setRepresentedFilename).not.toHaveBeenCalled();
-      expect(win.webContents.send).not.toHaveBeenCalled();
+      // Only that it is not saved, for the title (GitHub #75): nothing claims the save worked.
+      expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+      ]);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       const options = showMessageBox.mock.calls[0][1];
       expect(options.type).toBe('error');
@@ -512,16 +515,13 @@ describe('save', () => {
       ]);
     });
 
-    it('on macOS leaves the title alone: the edited dot says it', async () => {
+    it('on macOS, the title says it too, beside the edited dot (Annelyse, GitHub #75)', async () => {
       seedDocument({ filename: unwritable() });
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
       await save(asWindow(win), true, false);
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
-      expect(win.webContents.send).not.toHaveBeenCalledWith(
-        'set-not-saved',
-        expect.anything()
-      );
+      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', true);
     });
 
     it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
@@ -775,7 +775,10 @@ describe('saveAs', () => {
       expect(mockStore.get('edited')).toBe('true');
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
-      expect(win.webContents.send).not.toHaveBeenCalled();
+      // Only that it is not saved, for the title (GitHub #75): nothing claims the save worked.
+      expect(win.webContents.send.mock.calls).toEqual([
+        ['set-not-saved', true],
+      ]);
       expect(showMessageBox.mock.calls[0][1].type).toBe('error');
       expect(showSaveDialog).toHaveBeenCalledTimes(1);
     });
