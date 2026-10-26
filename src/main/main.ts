@@ -409,7 +409,7 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
-// One Midst at a time (Stuart, 26 Oct, midst-editor #315). Two copies would share one store, the open poem in it, and
+// One Midst at a time (#336; Annelyse chose it on GitHub #91, 26 Oct). Two copies would share one store, the open poem in it, and
 // the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
 // Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
 // --user-data-dir, are unaffected.
