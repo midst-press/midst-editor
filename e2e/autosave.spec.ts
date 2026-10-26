@@ -5,10 +5,11 @@ import { join } from 'path';
 import { makeMidst, parseMidst } from './fixtures';
 import {
   SETTLE_MS,
-  readStore,
-  waitUntil,
+  clickCheckSpelling,
   launch,
   openDocument,
+  readStore,
+  waitUntil,
 } from './harness';
 
 // Autosave is a 1000ms debounce set in `onUpdate` (Editor/index.tsx): every keystroke clears the
@@ -186,10 +187,8 @@ test('toggling spellcheck straight after typing keeps what was typed', async () 
 
     await editor.click();
     await win.keyboard.type('zqx');
-    // What the View menu's spellcheck item sends.
-    await app.evaluate(({ BrowserWindow }) =>
-      BrowserWindow.getAllWindows()[0].webContents.send('toggle-spellcheck')
-    );
+    // The real Edit > Check Spelling item (editor #320).
+    await clickCheckSpelling(app);
     // CONTROL: the toggle took effect, so the window did reload.
     expect(
       await waitUntil(() => readStore(userData).spellcheck === 'true', 10_000),

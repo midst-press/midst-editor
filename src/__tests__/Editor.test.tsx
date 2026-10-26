@@ -625,13 +625,15 @@ describe('Editor: spellcheck toggle', () => {
     return spy;
   };
 
-  it('stores the flipped setting, saves, remembers to return to the editor, and reloads', () => {
+  // The menu owns the setting and its checkmark (editor #320); the window saves and reloads to apply it.
+  it('leaves the setting to the menu, saves, remembers to return to the editor, and reloads', () => {
     const errors = stubReload();
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
+    const before = bridge.values.spellcheck;
     bridge.emit('toggle-spellcheck');
 
-    expect(bridge.values.spellcheck).toBe('true');
+    expect(bridge.values.spellcheck).toBe(before);
     expect(bridge.values.poem).toBe('<p>zq</p>');
     expect(bridge.sends('save-file')).toHaveLength(1);
     expect(bridge.index('send', 'save-file')).toBeGreaterThan(
@@ -655,12 +657,12 @@ describe('Editor: spellcheck toggle', () => {
     errors.mockRestore();
   });
 
-  it('turns an enabled setting off', () => {
+  it('does not flip a setting the menu has already changed', () => {
     const errors = stubReload();
     bridge = installBridge({ spellcheck: 'true' });
     mount();
     bridge.emit('toggle-spellcheck');
-    expect(bridge.values.spellcheck).toBe('false');
+    expect(bridge.values.spellcheck).toBe('true');
     errors.mockRestore();
   });
 

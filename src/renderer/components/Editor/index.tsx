@@ -186,7 +186,7 @@ export default function Editor() {
     const removeToggleSpellcheck = window.electron.ipcRenderer.on(
       'toggle-spellcheck',
       () => {
-        window.electron.store.set('spellcheck', (!spellcheckOn).toString());
+        // The menu has already changed the setting and its mark (editor #320); this applies it.
         // The reloaded window takes its text from the store, and a pending autosave dies with this
         // page: save first, or the keystrokes of the last second are gone.
         saveFileAndUpdateStore();
@@ -198,7 +198,7 @@ export default function Editor() {
     );
 
     return removeToggleSpellcheck;
-  }, [saveFileAndUpdateStore, spellcheckOn]);
+  }, [saveFileAndUpdateStore]);
 
   useEffect(() => {
     const removeToggleEdit = window.electron.ipcRenderer.on(
