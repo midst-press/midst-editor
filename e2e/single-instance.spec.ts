@@ -31,12 +31,19 @@ test('a second launch hands its poem to the running copy and quits', async () =>
     const second = spawn(
       electronBinary as unknown as string,
       [APP_DIR, `--user-data-dir=${userData}`, file],
-      {
-        stdio: 'ignore',
-      }
+      { stdio: ['ignore', 'ignore', 'pipe'] }
     );
+    // Its exit code and the end of its stderr: a launch that crashes also "quits", and only these tell the two apart.
+    let stderr = '';
+    second.stderr?.on('data', (chunk) => {
+      stderr = (stderr + String(chunk)).slice(-2000);
+    });
+    let exitCode: number | null = null;
     const exited = new Promise<number | null>((resolve) => {
-      second.on('exit', (code) => resolve(code));
+      second.on('exit', (code) => {
+        exitCode = code;
+        resolve(code);
+      });
     });
     const quitBy = await Promise.race([
       exited.then(() => true),
@@ -46,6 +53,10 @@ test('a second launch hands its poem to the running copy and quits', async () =>
     ]);
     if (!quitBy) second.kill();
     expect(quitBy, 'the second launch quits by itself').toBe(true);
+    expect(
+      exitCode,
+      `the second launch quits cleanly, not by crashing; its stderr ended: ${stderr}`
+    ).toBe(0);
 
     const handed = () =>
       readLog(logDir).filter((r) => r.msg === 'second launch');
