@@ -9,6 +9,7 @@ import FormatItalicIcon from '@mui/icons-material/FormatItalicOutlined';
 import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlinedOutlined';
 import StrikethroughIcon from '@mui/icons-material/StrikethroughSOutlined';
 import type { ReactNode } from 'react';
+import MoonOutlinedIcon from '@mui/icons-material/ModeNightOutlined';
 import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
 import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 
@@ -66,7 +67,13 @@ function MarkButton({
   );
 }
 
-function MenuBar() {
+interface MenuBarProps {
+  // Focus Mode (GitHub #25): the poet's screen, with everything but the moon hidden.
+  focused: boolean;
+  onToggleFocus: () => void;
+}
+
+function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
   const { editor } = useCurrentEditor();
   // TipTap 3 does not re-render a component on each transaction (TipTap 2 did), so the buttons subscribe to the
   // state they show: each mark's active state, and whether it can be applied here.
@@ -98,16 +105,42 @@ function MenuBar() {
   if (!editor || !marks) {
     return null;
   }
-  // Why each button cannot be used now, or null when it can (#284, GitHub #66).
+  // Why each size button cannot be used now, or null when it can (#284, GitHub #66).
   const largestReason = fontSize.canIncrease
     ? null
     : i18n._('textSize.largest');
   const smallestReason = fontSize.canDecrease
     ? null
     : i18n._('textSize.smallest');
+  // The moon is the last control on the bar, and in focus mode the only one. The gap to its left
+  // separates it slightly from the font options (Annelyse, GitHub #25). `aria-pressed` says which
+  // mode the poet is in, in the same way the bold and italic buttons say which marks are on.
+  const moon = (
+    <Tooltip
+      title={
+        focused
+          ? i18n._('focusMode.exit.tooltip')
+          : i18n._('focusMode.enter.tooltip')
+      }
+      TransitionComponent={Zoom}
+      enterDelay={500}
+      arrow
+    >
+      <button
+        aria-label={i18n._('focusMode.toggle')}
+        aria-pressed={focused}
+        type="button"
+        onClick={onToggleFocus}
+        className="icon-button focus-mode-icon"
+      >
+        <MoonOutlinedIcon fontSize="small" />
+      </button>
+    </Tooltip>
+  );
 
-  return (
-    <div className="TopButtons">
+  // The font options, wrapped so focus mode can return just the moon and leave these out (GitHub #25).
+  const fontControls = (
+    <>
       <Tooltip
         title={largestReason ?? i18n._('textSize.increase')}
         TransitionComponent={Zoom}
@@ -196,6 +229,20 @@ function MenuBar() {
         toggle={() => editor.chain().focus().toggleStrike().run()}
         icon={<StrikethroughIcon fontSize="small" />}
       />
+    </>
+  );
+
+  return (
+    <div className="TopButtons">
+      {focused ? (
+        moon
+      ) : (
+        <>
+          {fontControls}
+          <span className="focus-mode-gap" aria-hidden="true" />
+          {moon}
+        </>
+      )}
     </div>
   );
 }

@@ -91,13 +91,14 @@ const mount = ({
   extensions = [StarterKit] as any[],
   content = '<p>synthetic line</p>',
   cls = 'TextEditor editor-height-tall size-2',
+  focused = false,
 } = {}) =>
   render(
     <EditorProvider
       extensions={extensions}
       content={content}
       editorProps={{ attributes: { class: cls } }}
-      slotBefore={<MenuBar />}
+      slotBefore={<MenuBar focused={focused} onToggleFocus={jest.fn()} />}
       slotAfter={<Capture />}
     />
   );
@@ -115,19 +116,22 @@ const emitSetFontSize = (size: unknown) =>
   act(() => listeners['set-font-size'].forEach((l) => l(size)));
 
 describe('MenuBar controls', () => {
-  it('offers six buttons with accessible names', () => {
+  it('offers seven buttons with accessible names', () => {
     mount();
     [
       'Increase text size',
       'Decrease text size',
       'Bold',
       'Italic',
+      // Underline and strikethrough, since #140 (GitHub #30).
       'Underline',
       'Strikethrough',
+      // The moon, since focus mode (GitHub #25).
+      'Focus Mode',
     ].forEach((name) =>
       expect(screen.getByRole('button', { name })).toBeEnabled()
     );
-    expect(screen.getAllByRole('button')).toHaveLength(6);
+    expect(screen.getAllByRole('button')).toHaveLength(7);
   });
 
   // #140: the two new buttons apply their marks to the selection, and take them off again.
@@ -457,5 +461,73 @@ describe('MenuBar: a button that cannot be used says why', () => {
     expect(
       await screen.findByRole('tooltip', {}, { timeout: 3000 })
     ).toHaveTextContent('The text is already at its largest size.');
+  });
+});
+
+describe('MenuBar focus mode (GitHub #25)', () => {
+  const button = (name: string) =>
+    screen.getByRole('button', { name: new RegExp(`^${name}$`) });
+
+  it('shows the moon after the font options, separated by a gap', () => {
+    mount();
+    const bar = document.querySelector('.TopButtons') as HTMLElement;
+    const names = Array.from(bar.querySelectorAll('button[aria-label]')).map(
+      (b) => b.getAttribute('aria-label')
+    );
+    expect(names).toEqual([
+      'Increase text size',
+      'Decrease text size',
+      'Bold',
+      'Italic',
+      'Underline',
+      'Strikethrough',
+      'Focus Mode',
+    ]);
+    // The gap sits between the font options and the moon, and says nothing.
+    const gap = bar.querySelector('.focus-mode-gap') as Element;
+    expect(gap).not.toBeNull();
+    const label = (n: Element) =>
+      n === gap ? 'gap' : (n.getAttribute('aria-label') ?? 'other');
+    const inOrder = Array.from(
+      bar.querySelectorAll(
+        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Bold"]'
+      )
+    )
+      .map(label)
+      .join(',');
+    expect(inOrder).toBe('Bold,gap,Focus Mode');
+    expect(gap.textContent).toBe('');
+  });
+
+  it('in focus mode the moon is the only control, and its tooltip says what it restores', async () => {
+    mount({ focused: true });
+    const bar = document.querySelector('.TopButtons') as HTMLElement;
+    // The gap goes with the font options it separates them from: focus mode hides every
+    // interface option except the moon (GitHub #25), and an invisible 12px gap is none.
+    expect(bar.querySelectorAll('button')).toHaveLength(1);
+    expect(bar.querySelector('.focus-mode-gap')).toBeNull();
+    expect(button('Focus Mode')).toBeInTheDocument();
+    expect(button('Focus Mode')).toHaveAttribute('aria-pressed', 'true');
+    // MUI renders a tooltip's words only when it opens; the contract is that they exist
+    // when asked for (the availability reasons in the tests above follow the same shape).
+    fireEvent.mouseOver(button('Focus Mode'));
+    expect(
+      await screen.findByRole('tooltip', {}, { timeout: 3000 })
+    ).toHaveTextContent('Bring the controls back');
+  });
+
+  it('clicking the moon asks main, once, and never touches the store', () => {
+    const onToggleFocus = jest.fn();
+    render(
+      <EditorProvider
+        extensions={[StarterKit] as any[]}
+        content="<p>synthetic line</p>"
+        slotBefore={<MenuBar focused={false} onToggleFocus={onToggleFocus} />}
+      />
+    );
+    fireEvent.click(button('Focus Mode'));
+    expect(onToggleFocus).toHaveBeenCalledTimes(1);
+    // Focus mode is never saved with the poem (GitHub #25): the renderer must not store it.
+    expect(storeWrites()).toEqual([]);
   });
 });
