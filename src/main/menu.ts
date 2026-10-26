@@ -98,6 +98,51 @@ const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
 };
+// Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
+// one owner is main: menu.ts's memory, mirrored onto the live checkbox by id (getMenuItemById,
+// the same way the save items are enabled) and onto the screen by the send (vivian & cora,
+// #327 — two copies drift, one copy cannot). Electron flips the mark on the menu's own click
+// before the click runs; the click keeps memory in step and sends the same value; a rebuilt menu
+// (a language change) is built from memory; closing the window turns it off (main.ts
+// 'closed'). It is never in the store: a poem
+// must not save its focus mode status, and the store outlives the window, so storing it there
+// would break that on relaunch. The mark leaves with the window: main.ts's 'closed' handler
+// turns it off, the one place every way of closing passes through — a renderer message cannot be
+// relied on there, because closing destroys the page without running its cleanup (vivian at
+// 2b3758b). Replay-and-back keeps it: /editor and /replay are sibling routes, the editor
+// remounts and asks focus-mode-changed, and main answers what the mark holds. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so the mode simply waits there —
+// unasked questions answer themselves only when someone asks them (GitHub #25: regular Edit
+// mode is where a poem OPENS). No accelerator: a bare modifier chord such as Cmd+. is held by
+// macOS input methods, so the shortcut decision is the editor's, not ours.
+// The one copy: main's memory, reset by the window's 'closed' (main.ts) and by the app
+// relaunching (a fresh module starts off — regular Edit mode, the spec's reopen).
+let focusModeOn = false;
+// Test seam (the house's own style, like getMenuItemById's reach): the checkbox is built from
+// this value (checked:) and the moon turns it before answering; a language change rebuilds the
+// menu, which reads it again. The memory is read through this so a test can watch what a build
+// actually saw, rather than what was set.
+export const focusModeMark = (): boolean => focusModeOn;
+export const setFocusModeMark = (on: boolean) => {
+  // main's memory only — never store.set: the store outlives the window, and a poem must not
+  // save its focus mode status (GitHub #25). A rebuilt menu is built from this value (checked:);
+  // a live menu reaches its item by id, as setSaveEnabled does, and a menu that is not there is
+  // no failure — the memory is the state, and it is complete without the menu.
+  focusModeOn = on;
+  const item = app.applicationMenu?.getMenuItemById('menu.edit.focusMode');
+  if (item) item.checked = on;
+};
+// The menu's click: Electron has already flipped the mark, and the screen follows it (one path
+// for both halves, so there is nothing left to hold a second copy of the state).
+export const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
+  mainWindow.webContents.send('set-focus-mode', on);
+};
+// The moon's request, from wherever the click happened: main turns the mark and answers.
+export const requestFocusMode = (mainWindow: BrowserWindow) => {
+  const on = !focusModeMark();
+  setFocusModeMark(on);
+  setFocusMode(mainWindow, on);
+};
 
 const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
 const increaseFontSize = (mainWindow: BrowserWindow) => {
@@ -833,6 +878,22 @@ export default class MenuBuilder {
       accelerator: `${modifier}+;`,
       click: (item) => setSpellcheck(this.mainWindow, item.checked),
     };
+    const focusMode: MenuItemConstructorOptions = {
+      id: 'menu.edit.focusMode',
+      label: this.label(i18n._('menu.edit.focusMode')),
+      type: 'checkbox',
+      // The module's memory (focusModeMark reads it): a rebuilt menu — a language change — shows
+      // what the screen shows, and a menu rebuilt after the editor closed shows regular mode,
+      // because leaving the editor turned the mark off (main.ts, vivian 77665af). At launch,
+      // unmarked.
+      checked: focusModeMark(),
+      // Electron flips the mark before the click runs; setFocusModeMark keeps the module's
+      // copy in step, so the editor's later mount-ask is answered from the same value.
+      click: (item) => {
+        setFocusModeMark(item.checked);
+        setFocusMode(this.mainWindow, item.checked);
+      },
+    };
     return [
       {
         id: 'menu.edit.find',
@@ -846,6 +907,7 @@ export default class MenuBuilder {
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
+      focusMode,
       checkSpelling,
     ];
   }
