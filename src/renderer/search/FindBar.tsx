@@ -5,7 +5,7 @@ import { Editor as EditorType } from '@tiptap/core';
 import { TextSelection } from '@tiptap/pm/state';
 import { KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react';
 import findInText, { Match } from './findInText';
-import { withHighlights } from './searchHighlight';
+import { CURRENT_CLASS, withHighlights } from './searchHighlight';
 import './FindBar.css';
 import { i18n } from '../../shared/i18n';
 
@@ -55,6 +55,14 @@ export default function FindBar({ editor }: { editor: EditorType | null }) {
           .setSelection(TextSelection.create(tr.doc, match.from, match.to))
           .scrollIntoView();
       editor.view.dispatch(tr);
+      // The transaction's scrollIntoView did not move the poem while the find field had focus: measured in the e2e
+      // (#335, GitHub #93), the editor's scrollTop stayed 0 with the match 2,000px down. So scroll the current match's
+      // own element into view; the editor is its scrolling ancestor.
+      if (select && match)
+        editor.view.dom
+          .querySelector(`.${CURRENT_CLASS}`)
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- a scroll option, not text for the poet
+          ?.scrollIntoView({ block: 'center' });
     },
     [editor]
   );
