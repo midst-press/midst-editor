@@ -24,6 +24,7 @@ import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
+import { changesMade } from '../../../shared/firstFrame';
 
 const extensions = [...poemExtensions, HandleTab, SearchHighlight];
 
@@ -216,7 +217,11 @@ export default function Editor() {
   // A draft marker made while writing marks the poem as it is now: the latest recorded change. The
   // text and history are stored with it, so the marker never points past what the file holds. The
   // poet is then taken to the replay to name it, as the original editor opened the name at once.
-  const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
+  const drafts = useDraftMarkers(
+    poemHistory.length,
+    saveFileAndUpdateStore,
+    changesMade(poemHistory)
+  );
   const latestMoment = poemHistory.length - 1;
   const draftReason = drafts.reasonAt(latestMoment);
   const markThisMoment = () => {

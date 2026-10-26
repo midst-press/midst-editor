@@ -28,6 +28,7 @@ import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
+import { emptyFirstFrame } from '../shared/firstFrame';
 import { loadDataIntoWorkspace } from './util';
 import * as saveFailure from './saveFailurePolicy';
 import {
@@ -464,14 +465,16 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   if (cancel) {
     return;
   }
+  // The Timeline of a new poem begins at an empty page (GitHub #29).
+  const history = [emptyFirstFrame()];
   store.set('poem', '');
-  store.set('history', JSON.stringify([]));
+  store.set('history', JSON.stringify(history));
   store.set('meta', '');
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
   forgetSaveFailures(mainWindow);
-  mainWindow.webContents.send('open-file', '', [], '');
+  mainWindow.webContents.send('open-file', '', history, '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
   }
@@ -988,7 +991,8 @@ export default class MenuBuilder {
           click: () => {
             if (this.mainWindow.isDestroyed()) {
               store.set('poem', '');
-              store.set('history', JSON.stringify([]));
+              // A new poem, so it too begins at an empty page (GitHub #29).
+              store.set('history', JSON.stringify([emptyFirstFrame()]));
               store.set('meta', '');
               store.set('filename', '');
               store.set('edited', JSON.stringify(false));
