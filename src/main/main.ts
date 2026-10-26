@@ -172,6 +172,12 @@ const createWindow = async () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
     windowShown = false;
+    // Focus mode leaves with the window (GitHub #25, vivian at 2b3758b): the mark lives in
+    // main's memory, which outlives the window, so this is the one place every way of closing
+    // passes through — React's effect cleanup never runs when the page is destroyed, so no
+    // renderer message can be relied on here. A poem opened after a close, in this run or by
+    // macOS clicking the Dock, asks on mount and is answered off: regular Edit mode.
+    setFocusModeMark(false);
   });
   // Closing asks the editor for the poem first, as Save does (#157), and only then reads `edited` (#236). Quit,
   // Close and Save are menu items, run in this process, while a keystroke reaches the editor first and `edited`
@@ -324,18 +330,14 @@ ipcMain.on('enable-save', () => {
   setEditorShowing(true);
   setSaveEnabled(true);
 });
-// Leaving the editor turns focus mode off with it (Annelyse, GitHub #25: regular Edit mode is
-// what a poem opens in). The house knows exactly when the editor stops showing — index.tsx
-// unmounts and sends this, Replay's Back included, while navigating to Replay does not (the
-// editor stays mounted there, so focus mode survives Replay-and-back, vivian's #327 case) —
-// so this is where the mark returns to off. Without it the mark, held in main's memory, would
-// answer a later mount's ask as on: a poem opened after Edit closes would open hidden
-// (vivian's blocking case at 77665af). No send: no editor is listening to hide, and a later
-// mount asks and is answered off, which is the truth.
+// No reset here (vivian at 2b3758b): this arrives from the editor's effect cleanup, which
+// never runs when the window is destroyed, and it also arrives on the way to Replay —
+// /editor and /replay are sibling routes, so Replay unmounts the editor too. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so nothing here decides it; the
+// mark leaves at the window's 'closed', the one place every closing passes through.
 ipcMain.on('disable-save', () => {
   setEditorShowing(false);
   setSaveEnabled(false);
-  setFocusModeMark(false);
 });
 
 // IPC listener

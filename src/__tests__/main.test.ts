@@ -824,17 +824,18 @@ describe('main process', () => {
       expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
     });
 
-    // vivian's blocking case at 77665af, at the half that was missing: the mark lives in main's
-    // memory, so it must leave with the editor — otherwise, with the application menu outliving
-    // the window on macOS, a poem opened after Edit closes would ask and be answered on,
-    // opening hidden (GitHub #25: regular Edit mode is what a poem opens in).
-    describe('focus mode follows the editor (GitHub #25)', () => {
-      it('leaving the editor turns the mark off; Replay, which does not disable save, keeps it', async () => {
-        const { fireIpc, win } = await boot();
+    // vivian's cases at 77665af and 2b3758b, at the half that was missing: the mark lives in
+    // main's memory, so it must leave with the WINDOW — disable-save cannot carry it (it comes
+    // from React's effect cleanup, which never runs when the page is destroyed), and closing in
+    // focus mode then opening a poem in the same run must answer regular Edit mode (GitHub #25).
+    describe('focus mode and the window (GitHub #25)', () => {
+      it('the moon turns it on, Replay-and-back keeps it, closing clears it', async () => {
+        const { fireApp, fireIpc, fireWindow, flush, store, state, win } =
+          await boot();
         // menu.ts's memory is module state shared across this file's tests: state it here,
-        // through the module registry boot() just made (the mock's passthrough is the real
-        // implementation; main.ts is the only caller in the app).
-        const { setFocusModeMark } = await import('../main/menu');
+        // through the real passthrough above; main.ts is the only caller in the app.
+        const { focusModeMark, setFocusModeMark } =
+          await import('../main/menu');
         setFocusModeMark(false);
         await fireIpc('enable-save');
         // The moon asks once, main turns the mark and answers: the screen hides.
@@ -843,23 +844,55 @@ describe('main process', () => {
           'set-focus-mode',
           true
         );
-        // Replay: the editor does not unmount, so nothing disables save — the mode waits.
-        await fireIpc('focus-mode-changed');
-        expect(win().webContents.send).toHaveBeenLastCalledWith(
-          'set-focus-mode',
-          true
-        );
-        // Back: the editor unmounts and disables save, and the mark leaves with it. No send
-        // goes to a page that is not there to hide (index.tsx sends it on unmount).
+        // Toggle Timeline: /editor and /replay are sibling routes (App.tsx), the editor
+        // unmounts and its cleanup sends disable-save — and the mode WAITS, not cleared:
+        // whether a trip to the Timeline keeps focus mode is Annelyse's call, and no message
+        // this page can send decides it. disable-save sends nothing at all.
         const sendsBefore = win().webContents.send.mock.calls.length;
         await fireIpc('disable-save');
         expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual(
           []
         );
-        // A document opened after Edit closes asks, and is answered off: regular Edit mode.
+        // Back: the editor remounts, asks, and the screen is hidden again — the mode survived
+        // the trip with the mark as its one copy.
         await fireIpc('enable-save');
         await fireIpc('focus-mode-changed');
         expect(win().webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // Closing: the window's own event, the one place every way of closing passes through
+        // (main.ts 'closed'), turns the mark off. React's cleanup never runs when the page is
+        // destroyed, so the renderer's disable-save never arrives — the window's event carries
+        // it alone. The house's close, as the close tests above do it: a real close event
+        // (preventDefaults is counted), 'edited' says saved, the flusher answers, the window
+        // is destroyed — and 'closed' follows, where the mark leaves with the window.
+        store.set('edited', 'false');
+        const event = { preventDefault: jest.fn() };
+        await fireWindow('close', event);
+        expect(event.preventDefault).toHaveBeenCalled();
+        // The close is held for the editor's answer (#236). editorShowing is true only while
+        // the editor is showing; enable-save says it is, and the house's flusher answers —
+        // the close resolves the next tick, so two flushes, as the close test's awaits are.
+        await fireIpc('enable-save');
+        const { flushEditor } = await import('../main/editorFlush');
+        await flushEditor(win() as never);
+        await flush();
+        expect(win().destroy).toHaveBeenCalledTimes(1);
+        // Electron's destroy fires 'closed'; the mock does not, so the test fires what the
+        // mock leaves unsent — the order Electron itself keeps.
+        await fireWindow('closed');
+        expect(focusModeMark()).toBe(false);
+        // The same run's next poem: on macOS a click on the Dock icon — 'activate' with no
+        // window visible — opens the next window (main.ts). It mounts, asks, and is answered
+        // off: regular Edit mode (vivian's case at 2b3758b).
+        await fireApp('activate', false);
+        await flush();
+        expect(state.windows).toHaveLength(2);
+        const w2 = win();
+        expect(w2).not.toBe(state.windows[0]);
+        await fireIpc('focus-mode-changed');
+        expect(w2.webContents.send).toHaveBeenLastCalledWith(
           'set-focus-mode',
           false
         );
@@ -891,10 +924,8 @@ describe('main process', () => {
       electron.app.applicationMenu = { getMenuItemById: lookups };
       await expect(fireIpc('enable-save')).resolves.toBeUndefined();
       await expect(fireIpc('disable-save')).resolves.toBeUndefined();
-      // The handlers did look for the items they move (they ran, they did not just return
-      // early) — disable-save now moves the focus mark too, by the same id (GitHub #25).
+      // The handlers did look for both save items (they ran, they did not just return early).
       expect(lookups.mock.calls.map(([id]) => id).sort()).toEqual([
-        'menu.edit.focusMode',
         'menu.file.save',
         'menu.file.save',
         'menu.file.saveAs',

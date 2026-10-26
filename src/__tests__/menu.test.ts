@@ -2224,10 +2224,10 @@ describe('the menu', () => {
         expect(builtOn()).toBe(false);
       });
 
-      // vivian's blocking case at 77665af, stated at the menu half: focus mode belongs to the
-      // document being edited, so leaving the editor turns it off (disable-save, main.ts; the
-      // editor sends no leave-message of its own). Memory is the one copy, so an off
-      // remembered is a regular-mode open — wherever the menu was rebuilt.
+      // vivian's blocking case at 77665af, stated at the menu half: closing the window turns
+      // the mark off (main.ts's 'closed' — disable-save cannot carry it, vivian at 2b3758b).
+      // Memory is the one copy, so an off remembered is a regular-mode open — wherever the
+      // menu was rebuilt, in this run or the next.
       it('an off remembered is a regular-mode open (vivian, 77665af)', () => {
         setFocusModeMark(true);
         expect(focusModeMark()).toBe(true);

@@ -94,18 +94,20 @@ const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
 // the same way the save items are enabled) and onto the screen by the send (vivian & cora,
 // #327 — two copies drift, one copy cannot). Electron flips the mark on the menu's own click
 // before the click runs; the click keeps memory in step and sends the same value; a rebuilt menu
-// (a language change) is built from memory. It is never in the store: a poem
+// (a language change) is built from memory; closing the window turns it off (main.ts
+// 'closed'). It is never in the store: a poem
 // must not save its focus mode status, and the store outlives the window, so storing it there
-// would break that on relaunch. Leaving the editor turns it off (main.ts, beside disable-save):
-// the mark sits in the application menu, which outlives the window on macOS, so a poem opened
-// after Edit closes would otherwise answer focus-mode-changed as on and open hidden (vivian,
-// 77665af). Replay keeps it: the editor stays mounted there (Annelyse: regular mode means
-// reopening a poem, GitHub #25). An editor that mounts asks with focus-mode-changed, and main
-// answers from the mark, so screen and menu agree with no copy held below the window. No
-// accelerator: a bare modifier chord such as Cmd+. is held by macOS input methods, so the
-// shortcut decision is the editor's, not ours.
-// The one copy: main's memory, reset only by leaving the editor (disable-save, main.ts) or by
-// the app relaunching (a fresh module starts off — regular Edit mode, the spec's reopen).
+// would break that on relaunch. The mark leaves with the window: main.ts's 'closed' handler
+// turns it off, the one place every way of closing passes through — a renderer message cannot be
+// relied on there, because closing destroys the page without running its cleanup (vivian at
+// 2b3758b). Replay-and-back keeps it: /editor and /replay are sibling routes, the editor
+// remounts and asks focus-mode-changed, and main answers what the mark holds. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so the mode simply waits there —
+// unasked questions answer themselves only when someone asks them (GitHub #25: regular Edit
+// mode is where a poem OPENS). No accelerator: a bare modifier chord such as Cmd+. is held by
+// macOS input methods, so the shortcut decision is the editor's, not ours.
+// The one copy: main's memory, reset by the window's 'closed' (main.ts) and by the app
+// relaunching (a fresh module starts off — regular Edit mode, the spec's reopen).
 let focusModeOn = false;
 // Test seam (the house's own style, like getMenuItemById's reach): the checkbox is built from
 // this value (checked:) and the moon turns it before answering; a language change rebuilds the
