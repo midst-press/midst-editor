@@ -7,7 +7,7 @@ import { i18n } from '../shared/i18n';
 // A poem's text, as it is now, written as a Rich Text Format file (GitHub #26).
 //
 // The poem is read with the same schema and whitespace rule as the editor, so what is exported is
-// what the poet sees: paragraphs, line breaks, bold and italic. Each of those has an RTF form. Anything
+// what the poet sees: paragraphs, line breaks, bold, italic, underline and strikethrough (#140). Each of those has an RTF form. Anything
 // else in the document is refused with its name rather than left out, so a later change to the schema
 // cannot quietly produce a file that is missing part of the poem.
 
@@ -40,7 +40,12 @@ export const rtfText = (text: string): string => {
   return out;
 };
 
-const MARKS: Record<string, string> = { bold: '\\b', italic: '\\i' };
+const MARKS: Record<string, string> = {
+  bold: '\\b',
+  italic: '\\i',
+  underline: '\\ul',
+  strike: '\\strike',
+};
 
 type Walk = { ok: true; rtf: string } | { ok: false; reason: string };
 

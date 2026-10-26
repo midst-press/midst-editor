@@ -4,7 +4,6 @@ import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
-import poemExtensions from '@midst-press/midst-format/extensions';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
@@ -13,6 +12,7 @@ import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
 import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
+import editorExtensions from '../../editorExtensions';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
@@ -26,7 +26,7 @@ import useFocusMode from './useFocusMode';
 import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
 
-const extensions = [...poemExtensions, HandleTab, SearchHighlight];
+const extensions = [...editorExtensions, HandleTab, SearchHighlight];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);

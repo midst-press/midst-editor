@@ -116,19 +116,35 @@ const emitSetFontSize = (size: unknown) =>
   act(() => listeners['set-font-size'].forEach((l) => l(size)));
 
 describe('MenuBar controls', () => {
-  it('offers five buttons with accessible names', () => {
+  it('offers seven buttons with accessible names', () => {
     mount();
     [
       'Increase text size',
       'Decrease text size',
       'Bold',
       'Italic',
+      // Underline and strikethrough, since #140 (GitHub #30).
+      'Underline',
+      'Strikethrough',
       // The moon, since focus mode (GitHub #25).
       'Focus Mode',
     ].forEach((name) =>
       expect(screen.getByRole('button', { name })).toBeEnabled()
     );
-    expect(screen.getAllByRole('button')).toHaveLength(5);
+    expect(screen.getAllByRole('button')).toHaveLength(7);
+  });
+
+  // #140: the two new buttons apply their marks to the selection, and take them off again.
+  it.each([
+    ['Underline', 'u'],
+    ['Strikethrough', 's'],
+  ])('%s marks the selection and unmarks it', (name, tag) => {
+    mount();
+    selectAll();
+    click(name);
+    expect(editor.getHTML()).toContain(`<${tag}>`);
+    click(name);
+    expect(editor.getHTML()).not.toContain(`<${tag}>`);
   });
 });
 
@@ -463,6 +479,8 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       'Decrease text size',
       'Bold',
       'Italic',
+      'Underline',
+      'Strikethrough',
       'Focus Mode',
     ]);
     // The gap sits between the font options and the moon, and says nothing.

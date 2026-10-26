@@ -35,6 +35,32 @@ describe('poemToRtf (GitHub #26)', () => {
     ).toBe('{\\b zq} {\\i xv} {\\b\\i wk}\\par\n');
   });
 
+  it('carries underline and strikethrough (#140), alone and with bold', () => {
+    const run = (text: string, marks: string[]) => ({
+      type: 'text',
+      text,
+      marks: marks.map((type) => ({ type })),
+    });
+    const result = docToRtf({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            run('zq', ['underline']),
+            run(' ', []),
+            run('xv', ['strike']),
+            run(' ', []),
+            run('wk', ['bold', 'underline']),
+          ],
+        },
+      ],
+    });
+    expect(result.ok && result.rtf).toContain(
+      '{\\ul zq} {\\strike xv} {\\b\\ul wk}\\par'
+    );
+  });
+
   it('keeps leading spaces, runs of spaces and tabs, as the editor shows them', () => {
     expect(body('<p>  zq   xv\twk</p>')).toBe('  zq   xv\\tab wk\\par\n');
   });
@@ -83,20 +109,18 @@ describe('docToRtf refuses what RTF here cannot carry, naming it', () => {
     });
   });
 
-  it('a mark that is not bold or italic', () => {
+  it('a mark the poem schema does not have', () => {
     const result = docToRtf({
       type: 'doc',
       content: [
         {
           type: 'paragraph',
-          content: [
-            { type: 'text', text: 'zq', marks: [{ type: 'underline' }] },
-          ],
+          content: [{ type: 'text', text: 'zq', marks: [{ type: 'code' }] }],
         },
       ],
     });
     expect(result.ok).toBe(false);
-    expect(!result.ok && result.reason).toContain('"underline" formatting');
+    expect(!result.ok && result.reason).toContain('"code" formatting');
   });
 
   it('a node inside a line that is not text or a line break', () => {
