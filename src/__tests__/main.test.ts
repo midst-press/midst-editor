@@ -562,6 +562,21 @@ describe('main process', () => {
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
     });
 
+    // #315: the real recovery module, on this file's fake store; a recovery id names an untitled poem's copy.
+    it("forgets an untitled poem's recovery copy on Quit Anyway, and keeps it on Cancel", async () => {
+      const id = '11111111-1111-4111-8111-111111111111';
+      const kept = await boot();
+      kept.store.set('edited', 'true');
+      kept.store.set('recoveryId', id);
+      kept.state.dialogResponse = 1;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe(id);
+
+      kept.state.dialogResponse = 0;
+      await kept.fireWindow('close', closeEvent());
+      expect(kept.store.get('recoveryId')).toBe('');
+    });
+
     // #236: Quit runs here at once, while the keystrokes typed just before it reach `edited` only by message.
     describe('with the editor showing, it asks the editor first', () => {
       const flushId = (w: { webContents: { send: jest.Mock } }) =>

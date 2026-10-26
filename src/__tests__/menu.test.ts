@@ -2398,6 +2398,12 @@ describe('an untitled poem', () => {
       path.join(dir, 'none.midst'),
     ]);
     expect(forgetRecovery).not.toHaveBeenCalled();
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile());
+    showMessageBox.mockReturnValue(0);
+    await openFile(asWindow(makeWindow()), false, [target]);
+    await Promise.all(pendingIo);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
   });
 });
 
