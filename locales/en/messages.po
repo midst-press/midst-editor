@@ -486,7 +486,6 @@ msgstr "Type the words to find first."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.bold"
 msgstr "Bold"
@@ -499,7 +498,6 @@ msgstr "Bold can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.italic"
 msgstr "Italic"
@@ -509,6 +507,26 @@ msgstr "Italic"
 #, fuzzy
 msgid "format.italic.unavailable"
 msgstr "Italic can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.strike"
+msgstr "Strikethrough"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.strike.unavailable"
+msgstr "Strikethrough can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.underline"
+msgstr "Underline"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+msgid "format.underline.unavailable"
+msgstr "Underline can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts

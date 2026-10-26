@@ -13,6 +13,7 @@ import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
 import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
+import StrikeShortcut from '../../StrikeShortcut';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
@@ -25,7 +26,12 @@ import useAutosave from './useAutosave';
 import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
 
-const extensions = [...poemExtensions, HandleTab, SearchHighlight];
+const extensions = [
+  ...poemExtensions,
+  HandleTab,
+  StrikeShortcut,
+  SearchHighlight,
+];
 
 export default function Editor() {
   const [myEditor, setMyEditor] = useState<EditorType | null>(null);

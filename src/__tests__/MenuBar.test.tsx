@@ -115,12 +115,32 @@ const emitSetFontSize = (size: unknown) =>
   act(() => listeners['set-font-size'].forEach((l) => l(size)));
 
 describe('MenuBar controls', () => {
-  it('offers four buttons with accessible names', () => {
+  it('offers six buttons with accessible names', () => {
     mount();
-    ['Increase text size', 'Decrease text size', 'Bold', 'Italic'].forEach(
-      (name) => expect(screen.getByRole('button', { name })).toBeEnabled()
+    [
+      'Increase text size',
+      'Decrease text size',
+      'Bold',
+      'Italic',
+      'Underline',
+      'Strikethrough',
+    ].forEach((name) =>
+      expect(screen.getByRole('button', { name })).toBeEnabled()
     );
-    expect(screen.getAllByRole('button')).toHaveLength(4);
+    expect(screen.getAllByRole('button')).toHaveLength(6);
+  });
+
+  // #140: the two new buttons apply their marks to the selection, and take them off again.
+  it.each([
+    ['Underline', 'u'],
+    ['Strikethrough', 's'],
+  ])('%s marks the selection and unmarks it', (name, tag) => {
+    mount();
+    selectAll();
+    click(name);
+    expect(editor.getHTML()).toContain(`<${tag}>`);
+    click(name);
+    expect(editor.getHTML()).not.toContain(`<${tag}>`);
   });
 });
 
