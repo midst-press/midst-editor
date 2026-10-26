@@ -510,21 +510,25 @@ msgstr "Italic can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.strike"
 msgstr "Strikethrough"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.strike.unavailable"
 msgstr "Strikethrough can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.underline"
 msgstr "Underline"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
 msgid "format.underline.unavailable"
 msgstr "Underline can't be used in this part of the poem."
 
