@@ -77,7 +77,7 @@ async function settled(
 // Electron's fallback to the page's file name, index.html (#194).
 const OPENING_SCREEN: Titles = { drawn: '', doc: '', native: 'Midst' };
 
-test('the window title at launch, New, Open, Save As and back to the opening screen', async () => {
+test('the window title at launch, New, Save, Open, Save As and New again', async () => {
   const work = mkdtempSync(join(tmpdir(), 'midst-e2e-title-'));
   const B = makeMidst('POEM-TITLE-B-SENTINEL', 3);
   const pathB = join(work, 'title-b.midst');
@@ -96,15 +96,20 @@ test('the window title at launch, New, Open, Save As and back to the opening scr
     // Launch, onto the opening screen.
     await settled(app, win, OPENING_SCREEN, 'launch');
 
-    // New, then Cancel in the save dialog the editor asks for: back to the opening screen.
-    await nextSaveAnswer(app, undefined);
+    // New: the editor opens on an Untitled poem, and nothing asks where to save it (#315). A save dialog here would
+    // fail the test, since none is queued.
     await newFile(app);
-    await expect(landing).toBeVisible({ timeout: 15_000 });
-    await settled(app, win, OPENING_SCREEN, 'New, cancelled');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 15_000 });
+    await settled(
+      app,
+      win,
+      { drawn: 'Untitled', doc: 'Untitled', native: 'Untitled' },
+      'New'
+    );
 
-    // New, saved under a name.
+    // Save, under a name.
     await nextSaveAnswer(app, pathNew);
-    await newFile(app);
+    await clickMenuItem(app, 'menu.file.save');
     expect(
       await waitUntil(() => readStore(userData).filename === pathNew, 15_000),
       'New was not saved'
@@ -149,11 +154,14 @@ test('the window title at launch, New, Open, Save As and back to the opening scr
       'Save As'
     );
 
-    // New while a poem is open, cancelled: back to the opening screen.
-    await nextSaveAnswer(app, undefined);
+    // New while a poem is open: Untitled, with nothing left of the last poem's name.
     await newFile(app);
-    await expect(landing).toBeVisible({ timeout: 15_000 });
-    await settled(app, win, OPENING_SCREEN, 'New from a poem, cancelled');
+    await settled(
+      app,
+      win,
+      { drawn: 'Untitled', doc: 'Untitled', native: 'Untitled' },
+      'New from a poem'
+    );
   } finally {
     await app.close();
   }
