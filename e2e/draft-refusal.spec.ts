@@ -13,10 +13,10 @@ import { readLog } from './log';
 // More than 50 changes, so the button is not greyed out for being too short.
 const SENTENCE =
   'the quick brown fox jumps over the lazy dog and then sleeps for a while';
-const MARK = 'Mark this moment as a draft';
+const MARK = 'Add a Draft Marker here';
 const REFUSED = 'draft marker change refused';
 const UNREADABLE =
-  'The drafts of this poem could not be read, so nothing was changed.';
+  'The Draft Markers of this poem could not be read, so nothing was changed.';
 
 test('a poem whose draft list is damaged: Mark is refused, said and logged, and the file is untouched', async () => {
   const doc = makePlayableMidst(SENTENCE);

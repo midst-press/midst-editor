@@ -43,7 +43,7 @@ async function restartAndCheck(
   const chosen = reconstruct('', before.history, MID);
   expect(chosen).not.toBe(before.text);
 
-  await win.getByRole('link', { name: 'Replay' }).click();
+  await win.getByRole('link', { name: 'Timeline' }).click();
   await expect(win.locator('.ReplayContainer')).toBeVisible({
     timeout: 25_000,
   });

@@ -134,7 +134,7 @@ describe('useDraftMarkers', () => {
       useDraftMarkers(FRAMES_BEFORE_MARKERS, save)
     );
     expect(fifty.result.current.reasonAt(10)).toBe(
-      'A draft can be marked once the poem has more than 50 changes. This one has 50.'
+      'A Draft Marker can be added once the poem has more than 50 changes. This one has 50.'
     );
     const fiftyOne = renderHook(() =>
       useDraftMarkers(FRAMES_BEFORE_MARKERS + 1, save)
@@ -145,7 +145,9 @@ describe('useDraftMarkers', () => {
   it('says which reason applies: a moment that already has a draft, or no moment there', () => {
     install({ draftMarkers: [{ index: 5, defaultName: 'Draft 1' }] });
     const { result } = renderHook(() => useDraftMarkers(LONG, jest.fn()));
-    expect(result.current.reasonAt(5)).toBe('This moment already has a draft.');
+    expect(result.current.reasonAt(5)).toBe(
+      'This moment already has a Draft Marker.'
+    );
     expect(result.current.reasonAt(LONG)).toBe(
       'There is no moment here to mark.'
     );
@@ -226,7 +228,7 @@ describe('useDraftMarkers', () => {
 
 // Each row is one way a change is refused. `text` is the exact words the poet is given.
 const NO_FILE_TEXT =
-  'The drafts of this poem could not be read, so nothing was changed.';
+  'The Draft Markers of this poem could not be read, so nothing was changed.';
 const REFUSALS: {
   name: string;
   meta: unknown;
@@ -247,7 +249,7 @@ const REFUSALS: {
     action: 'create',
     index: 10,
     reason: 'too-few-changes',
-    text: 'A draft can be marked once the poem has more than 50 changes. This one has 50.',
+    text: 'A Draft Marker can be added once the poem has more than 50 changes. This one has 50.',
   },
   {
     name: 'create before the first moment',
@@ -274,7 +276,7 @@ const REFUSALS: {
     action: 'create',
     index: 5,
     reason: 'position-has-a-marker',
-    text: 'This moment already has a draft.',
+    text: 'This moment already has a Draft Marker.',
   },
   {
     name: 'create when the draft counter cannot go higher',
@@ -283,7 +285,7 @@ const REFUSALS: {
     action: 'create',
     index: 5,
     reason: 'no-draft-number-left',
-    text: 'No more drafts can be numbered in this poem.',
+    text: 'No more Draft Markers can be numbered in this poem.',
   },
   {
     name: 'create when the stored meta is unreadable',
@@ -331,7 +333,7 @@ const REFUSALS: {
     action: 'rename',
     index: 5,
     reason: 'no-marker-there',
-    text: 'That draft is no longer there.',
+    text: 'That Draft Marker is no longer there.',
   },
   {
     name: 'delete a draft that is not there',
@@ -340,7 +342,7 @@ const REFUSALS: {
     action: 'delete',
     index: 5,
     reason: 'no-marker-there',
-    text: 'That draft is no longer there.',
+    text: 'That Draft Marker is no longer there.',
   },
 ];
 
@@ -419,7 +421,9 @@ describe('useDraftMarkers: a refused change', () => {
     act(() => {
       result.current.remove(5);
     });
-    expect(result.current.refusal).toBe('That draft is no longer there.');
+    expect(result.current.refusal).toBe(
+      'That Draft Marker is no longer there.'
+    );
     act(() => {
       result.current.create(5);
     });
@@ -439,7 +443,7 @@ describe('useDraftMarkers: a refused change', () => {
 });
 
 const MAYBE_KEPT =
-  'Something went wrong while changing this draft. The drafts list shows what was kept.';
+  'Something went wrong while changing this Draft Marker. The Draft Markers list shows what was kept.';
 
 describe('useDraftMarkers: a change that throws', () => {
   it.each([
@@ -519,7 +523,7 @@ describe('useDraftMarkers: a change that throws', () => {
       );
       // The next try at that moment is refused for the right reason: it IS marked.
       expect(result.current.reasonAt(5)).toBe(
-        'This moment already has a draft.'
+        'This moment already has a Draft Marker.'
       );
     }
   );

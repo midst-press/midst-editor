@@ -160,7 +160,7 @@ const advance = (ms: number) =>
   });
 const markDraft = () =>
   fireEvent.click(
-    screen.getByRole('button', { name: 'Mark this moment as a draft' })
+    screen.getByRole('button', { name: 'Add a Draft Marker here' })
   );
 
 beforeEach(() => {
@@ -199,7 +199,7 @@ describe('Replay: initial frame and slider', () => {
   it('says why there is no playback for an empty history, and looks unavailable', () => {
     mount([]);
     expect(playButton()).toHaveAccessibleDescription(
-      'There is nothing to replay yet: this poem has no history.'
+      'There is nothing to play yet: this poem has no history.'
     );
     expect(playButton()).toHaveStyle({ opacity: '0.38' });
   });
@@ -218,7 +218,7 @@ describe('Replay: initial frame and slider', () => {
     expect(
       await screen.findByRole('tooltip', {}, { timeout: 3000 })
     ).toHaveTextContent(
-      'There is nothing to replay yet: this poem has no history.'
+      'There is nothing to play yet: this poem has no history.'
     );
   });
 
@@ -593,9 +593,9 @@ describe('Replay: marking a draft', () => {
     advance(60);
     markDraft();
     expect(playButton()).toBeInTheDocument();
-    expect(screen.getByRole('textbox', { name: 'Draft name' })).toHaveValue(
-      'Draft 1'
-    );
+    expect(
+      screen.getByRole('textbox', { name: 'Draft Marker name' })
+    ).toHaveValue('Draft 1');
   });
 
   it('refuses a second marker on the same frame', () => {
@@ -605,7 +605,7 @@ describe('Replay: marking a draft', () => {
     // The drafts list has opened over the page, which hides it from the accessibility tree.
     expect(
       screen.getByRole('button', {
-        name: 'Mark this moment as a draft',
+        name: 'Add a Draft Marker here',
         hidden: true,
       })
     ).toBeDisabled();
@@ -615,7 +615,7 @@ describe('Replay: marking a draft', () => {
   it('refuses markers in a short history', () => {
     mount(makeHistory(SHORT));
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeDisabled();
     expect(bridge.calls).toEqual([]);
   });
@@ -623,10 +623,10 @@ describe('Replay: marking a draft', () => {
   it('says why in a short history, and looks unavailable despite its fixed colour (GitHub #66)', () => {
     mount(makeHistory(SHORT));
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription(
-      `A draft can be marked once the poem has more than 50 changes. This one has ${SHORT}.`
+      `A Draft Marker can be added once the poem has more than 50 changes. This one has ${SHORT}.`
     );
     expect(button).toHaveStyle({ opacity: '0.38' });
   });
@@ -634,7 +634,7 @@ describe('Replay: marking a draft', () => {
   it('has no reason and looks available where a draft can be marked', () => {
     mount();
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription('');
     expect(button).not.toHaveStyle({ opacity: '0.38' });
@@ -645,7 +645,9 @@ describe('Replay: marking a draft', () => {
     mount();
     markDraft();
     expect(bridge.calls).toEqual([]);
-    expect(screen.queryByRole('textbox', { name: 'Draft name' })).toBeNull();
+    expect(
+      screen.queryByRole('textbox', { name: 'Draft Marker name' })
+    ).toBeNull();
     expect(bridge.logError).toHaveBeenCalledWith(REFUSED_LOG, {
       reason: 'meta-unreadable',
       action: 'create',
@@ -653,7 +655,7 @@ describe('Replay: marking a draft', () => {
       historyLength: expect.any(Number),
     });
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'The drafts of this poem could not be read, so nothing was changed.'
+      'The Draft Markers of this poem could not be read, so nothing was changed.'
     );
   });
 });
@@ -673,7 +675,7 @@ describe('Replay: drafts list', () => {
   it('opens from the Drafts button and lists the markers inside the history, newest first', () => {
     bridge = installBridge(seeded);
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     const names = Array.from(
       document.querySelectorAll('.DraftDrawer .draft-name')
     ).map((b) => b.textContent);
@@ -682,14 +684,14 @@ describe('Replay: drafts list', () => {
 
   it('says so when there are no drafts', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
-    expect(screen.getByText('No drafts marked yet.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
+    expect(screen.getByText('No Draft Markers yet.')).toBeInTheDocument();
   });
 
   it('jumps to the frame of a chosen draft', () => {
     bridge = installBridge(seeded);
     const { container } = mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     fireEvent.click(screen.getByRole('button', { name: 'zq' }));
     expect(shown(container)).toBe('a'.repeat(6));
     expect(slider()).toHaveValue('5');
@@ -701,7 +703,7 @@ describe('Replay: drafts list', () => {
     const { container } = mount();
     seek(10);
     fireEvent.click(playButton());
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     fireEvent.click(screen.getByRole('button', { name: 'xv' }));
     expect(playButton()).toBeInTheDocument();
     advance(60 * 10);
@@ -711,9 +713,11 @@ describe('Replay: drafts list', () => {
   it('renames a draft, storing the name and saving', () => {
     bridge = installBridge(seeded);
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Rename draft' })[1]);
-    const field = screen.getByRole('textbox', { name: 'Draft name' });
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Rename Draft Marker' })[1]
+    );
+    const field = screen.getByRole('textbox', { name: 'Draft Marker name' });
     fireEvent.change(field, { target: { value: 'renamed' } });
     fireEvent.keyDown(field, { key: 'Enter' });
     expect(
@@ -727,8 +731,10 @@ describe('Replay: drafts list', () => {
   it('deletes a draft, storing the change and saving', () => {
     bridge = installBridge(seeded);
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
-    fireEvent.click(screen.getAllByRole('button', { name: 'Delete draft' })[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
+    fireEvent.click(
+      screen.getAllByRole('button', { name: 'Delete Draft Marker' })[0]
+    );
     expect(
       bridge.meta().draftMarkers.map((m: { index: number }) => m.index)
     ).toEqual([5, 999]);
@@ -739,9 +745,9 @@ describe('Replay: drafts list', () => {
   it('opens already naming the draft the editor sent the poet to name', () => {
     bridge = installBridge(seeded);
     mount(makeHistory(LONG), { nameDraftAt: 40 });
-    expect(screen.getByRole('textbox', { name: 'Draft name' })).toHaveValue(
-      'xv'
-    );
+    expect(
+      screen.getByRole('textbox', { name: 'Draft Marker name' })
+    ).toHaveValue('xv');
   });
 
   it('does not open the list when no draft is to be named', () => {
@@ -755,30 +761,32 @@ describe('Replay: drafts list', () => {
     const { container } = mount();
     expect(container.querySelectorAll('.MuiSlider-mark')).toHaveLength(2);
     expect(container.querySelectorAll('.MuiSlider-markLabel')).toHaveLength(2);
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     fireEvent.click(screen.getByRole('checkbox', { name: 'Show their names' }));
     expect(container.querySelectorAll('.MuiSlider-markLabel')).toHaveLength(0);
     expect(container.querySelectorAll('.MuiSlider-mark')).toHaveLength(2);
     fireEvent.click(
-      screen.getByRole('checkbox', { name: 'Show markers on the timeline' })
+      screen.getByRole('checkbox', {
+        name: 'Show Draft Markers on the Timeline',
+      })
     );
     expect(container.querySelectorAll('.MuiSlider-mark')).toHaveLength(0);
   });
 
   it('closes with Escape, staying on the replay screen', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     const panel = document.querySelector('.DraftDrawer') as HTMLElement;
     fireEvent.keyDown(panel, { key: 'Escape' });
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
     expect(
-      screen.getByRole('button', { name: 'Drafts', hidden: false })
+      screen.getByRole('button', { name: 'Draft Markers', hidden: false })
     ).toBeInTheDocument();
   });
 
   it('leaves playback keys alone while the list is open', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     fireEvent.keyDown(document.body, { key: ' ' });
     expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
@@ -807,7 +815,7 @@ describe('Replay: drafts list', () => {
 
   it('closes from the Drafts button too, which says whether the list is open', () => {
     mount();
-    const button = screen.getByRole('button', { name: 'Drafts' });
+    const button = screen.getByRole('button', { name: 'Draft Markers' });
     expect(button).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(button);
     expect(document.querySelector('.DraftDrawer')).not.toBeNull();
@@ -819,7 +827,7 @@ describe('Replay: drafts list', () => {
 
   it('takes the focus when it opens, so Space cannot press the button that opened it; a name field keeps it', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     expect(document.activeElement).toBe(document.querySelector('.DraftDrawer'));
   });
 
@@ -827,7 +835,7 @@ describe('Replay: drafts list', () => {
     bridge = installBridge(seeded);
     mount(makeHistory(LONG), { nameDraftAt: 40 });
     expect(document.activeElement).toBe(
-      screen.getByRole('textbox', { name: 'Draft name' })
+      screen.getByRole('textbox', { name: 'Draft Marker name' })
     );
   });
 
@@ -836,7 +844,7 @@ describe('Replay: drafts list', () => {
   it('Escape in the name field keeps the old name, closes the list, and puts the focus back on Drafts', () => {
     bridge = installBridge(seeded);
     mount(makeHistory(LONG), { nameDraftAt: 40 });
-    const field = screen.getByRole('textbox', { name: 'Draft name' });
+    const field = screen.getByRole('textbox', { name: 'Draft Marker name' });
     fireEvent.change(field, { target: { value: 'zz' } });
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(document.querySelector('.DraftDrawer')).toBeNull();
@@ -845,13 +853,13 @@ describe('Replay: drafts list', () => {
       bridge.meta().draftMarkers.map((m: { name: string }) => m.name)
     ).toEqual(['zq', 'xv', 'outside']);
     expect(document.activeElement).toBe(
-      screen.getByRole('button', { name: 'Drafts' })
+      screen.getByRole('button', { name: 'Draft Markers' })
     );
   });
 
   it('Escape closes the list from the timeline, which keeps the focus after a scrub', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     const rail = slider();
     rail.focus();
     fireEvent.keyDown(rail, { key: 'Escape' });
@@ -862,7 +870,7 @@ describe('Replay: drafts list', () => {
 
   it('Escape closes the list from one of its switches', () => {
     mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Drafts' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Draft Markers' }));
     const toggle = screen.getByRole('checkbox', { name: 'Show their names' });
     toggle.focus();
     fireEvent.keyDown(toggle, { key: 'Escape' });

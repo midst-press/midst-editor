@@ -141,7 +141,7 @@ test('the stored choice is in force when the app next opens', async () => {
       await win.waitForTimeout(500);
       await shot(app, win, testInfo.outputPath(`editor-${expected}.png`));
 
-      await win.getByRole('link', { name: 'Replay' }).click();
+      await win.getByRole('link', { name: 'Timeline' }).click();
       await expect(win.locator('.ReplayContainer')).toBeVisible({
         timeout: 25_000,
       });
