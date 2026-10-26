@@ -69,9 +69,9 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
       })
       .toEqual([`Midst could not save "${basename(poemPath)}".`]);
 
-    // The window keeps saying so (#94): off macOS in its title, on a Mac by the dot in the close button.
-    const name = basename(poemPath);
-    const shown = process.platform === 'darwin' ? name : `${name} (not saved)`;
+    // The window keeps saying so (#94), in its title on every platform, macOS included (Annelyse, GitHub #75). A
+    // Mac also keeps the dot in the close button.
+    const shown = `${basename(poemPath)} (not saved)`;
     await expect
       .poll(
         async () => ({
