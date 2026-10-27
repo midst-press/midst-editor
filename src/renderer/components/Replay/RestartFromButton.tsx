@@ -91,6 +91,8 @@ export default function RestartFromButton({
   }, [error, step, poemHistory.length]);
 
   const restart = () => {
+    // It asks first (GitHub #90). Cancel leaves everything as it was, playback included.
+    if (!window.electron.confirmContinueWriting()) return;
     pause();
     setFailed(false);
     const meta = { step, frames: poemHistory.length };

@@ -59,6 +59,7 @@ import {
   i18n,
   languageOrder,
 } from '../shared/i18n';
+import confirmContinueWriting from './continueWriting';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -298,6 +299,11 @@ ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
     log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
   }
   logIfRejected('focus mode', () => requestFocusMode(win));
+});
+
+// "Continue writing from here" asks first, in a native box (GitHub #90). No window, no restart.
+ipcMain.on('confirm-continue-writing', (event) => {
+  event.returnValue = mainWindow ? confirmContinueWriting(mainWindow) : false;
 });
 
 // The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >

@@ -147,6 +147,10 @@ const electronHandler = {
   languageOrder(): string[] {
     return ipcRenderer.sendSync('language-order');
   },
+  // Whether the poet chose Continue in the box "Continue writing from here" asks (GitHub #90).
+  confirmContinueWriting(): boolean {
+    return ipcRenderer.sendSync('confirm-continue-writing') === true;
+  },
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);
