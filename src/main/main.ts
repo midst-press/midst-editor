@@ -301,12 +301,13 @@ ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
   logIfRejected('focus mode', () => requestFocusMode(win));
 });
 
-// The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
-// Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
 // "Continue writing from here" asks first, in a native box (GitHub #90). No window, no restart.
 ipcMain.on('confirm-continue-writing', (event) => {
   event.returnValue = mainWindow ? confirmContinueWriting(mainWindow) : false;
 });
+
+// The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
+// Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
 ipcMain.on('language-order', (event) => {
   event.returnValue = languageOrder(app.getPreferredSystemLanguages());
 });
