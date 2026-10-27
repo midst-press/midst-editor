@@ -51,6 +51,7 @@ import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
+import poemIn, { poemFromData } from './secondInstance';
 import { describeError } from '../shared/errorSummary';
 import {
   activateLocale,
@@ -408,6 +409,33 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// One Midst at a time (#336; Annelyse chose it on GitHub #91, 26 Oct). Two copies would share one store, the open poem in it, and
+// the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
+// Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
+// --user-data-dir, are unaffected.
+const firstCopy = app.requestSingleInstanceLock({ poem: poemIn(process.argv) });
+if (!firstCopy) {
+  log.info('another Midst is running; this launch hands over and quits');
+  app.quit();
+}
+app.on('second-instance', (_event, argv, _cwd, data) => {
+  if (mainWindow !== null) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  const sent = poemFromData(data);
+  const poem = sent || poemIn(argv);
+  // Which channel carried it, never the path: a poem's file name can be its title.
+  let channel = 'none';
+  if (sent) channel = 'sent';
+  else if (poem) channel = 'argv';
+  log.info('second launch', { poem: channel, args: argv.length });
+  if (poem === '') return;
+  // As open-file below: held for ready-to-show only while no window has been shown.
+  if (!windowShown) earlyPath = poem;
+  ipcMain.emit('app-open', [poem]);
+});
+
 // Responding to external requests to open a file
 app.on('open-file', async (event, filename) => {
   // this event fires on mac before the main window exists
@@ -421,22 +449,24 @@ app.on('open-file', async (event, filename) => {
   ipcMain.emit('app-open', [filename]);
 });
 
-app
-  .whenReady()
-  .then(() => {
-    // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
-    // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
-    applyLogLevel();
-    log.info('started', { version: app.getVersion() });
-    // The menus, dialogs and window speak the language the poet chose from View > Language, else
-    // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
-    // rebuilds the menus and tells the window (setLanguage).
-    activateLocale(chosenLocale(store.get('language')));
-    createWindow();
-    app.on('activate', (_event, hasVisibleWindows) => {
-      if (!hasVisibleWindows) {
-        createWindow();
-      }
-    });
-  })
-  .catch((err) => log.error('app failed to become ready', err));
+// A launch that lost the lock creates nothing: it is quitting.
+if (firstCopy)
+  app
+    .whenReady()
+    .then(() => {
+      // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
+      // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
+      applyLogLevel();
+      log.info('started', { version: app.getVersion() });
+      // The menus, dialogs and window speak the language the poet chose from View > Language, else
+      // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
+      // rebuilds the menus and tells the window (setLanguage).
+      activateLocale(chosenLocale(store.get('language')));
+      createWindow();
+      app.on('activate', (_event, hasVisibleWindows) => {
+        if (!hasVisibleWindows) {
+          createWindow();
+        }
+      });
+    })
+    .catch((err) => log.error('app failed to become ready', err));

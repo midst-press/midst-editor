@@ -18,8 +18,8 @@ import { describeError } from '../shared/errorSummary';
 //   leaves the previous complete copy or the new one, never half of one. On macOS fsync does not force the drive's
 //   own cache (that is F_FULLFSYNC), so a power cut can still lose the last write or two.
 // - Beside it, <id>.owner names the process writing it: its id, when the computer started, and when the process
-//   started. A second copy of Midst can run (there is no single-instance lock), and a file whose writer is still
-//   running is never offered: it belongs to a live window. Process ids are handed out again, soonest after the
+//   started. Only one Midst runs per userData folder (main.ts, the single-instance lock, #336), but a file whose
+//   writer is still running is never offered all the same: it belongs to a live window. Process ids are handed out again, soonest after the
 //   computer restarts, which is the crash this exists for (vivian-1a61bc9a and cora-2f1e43dc, review of #326). So a
 //   live id counts only when the computer has not restarted since and that process started when the writer did.
 //   Whatever cannot be decided offers the copy: a question about a poem another window holds is the safer mistake.

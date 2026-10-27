@@ -9,7 +9,10 @@ import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
-import { checkWholePoemSoon } from '../../spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../../spellcheck/checkWholePoem';
 import { cssVar } from '../../cssVars';
 import HandleTab from '../../HandleTab';
 import editorExtensions from '../../editorExtensions';
@@ -25,6 +28,7 @@ import useAutosave from './useAutosave';
 import useFocusMode from './useFocusMode';
 import { rememberCursor, restoreCursor } from './cursorReturn';
 import { i18n } from '../../../shared/i18n';
+import { changesMade } from '../../../shared/firstFrame';
 
 const extensions = [...editorExtensions, HandleTab, SearchHighlight];
 
@@ -225,7 +229,11 @@ export default function Editor() {
   // A draft marker made while writing marks the poem as it is now: the latest recorded change. The
   // text and history are stored with it, so the marker never points past what the file holds. The
   // poet is then taken to the replay to name it, as the original editor opened the name at once.
-  const drafts = useDraftMarkers(poemHistory.length, saveFileAndUpdateStore);
+  const drafts = useDraftMarkers(
+    poemHistory.length,
+    saveFileAndUpdateStore,
+    changesMade(poemHistory)
+  );
   const latestMoment = poemHistory.length - 1;
   const draftReason = drafts.reasonAt(latestMoment);
   const markThisMoment = () => {
@@ -255,6 +263,19 @@ export default function Editor() {
     return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
+  }, [myEditor, spellcheckOn]);
+  // A line break is not an edit Chromium sees (editor #238): the lines around it are checked once the poet pauses.
+  useEffect(() => {
+    const editor = myEditor;
+    if (!editor || !spellcheckOn) return undefined;
+    const lines = checkLinesAfterBreaks(editor.view, (message) =>
+      window.electron.log.warn(message)
+    );
+    editor.on('update', lines.changed);
+    return () => {
+      editor.off('update', lines.changed);
+      lines.cancel();
+    };
   }, [myEditor, spellcheckOn]);
 
   // The size the editor opens at. MenuBar changes the class on the editor itself after that.

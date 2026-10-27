@@ -84,7 +84,8 @@ the package being released.** Nothing enforces this but the person running the r
 
 Use a Mac, or an account on one, that has no Midst installed.
 
-- [ ] **The script passes.** Anyone can run it; it needs no administrator password.
+- [ ] **The script passes.** It installs for all users, so it needs passwordless `sudo`: run it as
+      the admin user of a throwaway VM.
 
   ```bash
   gh run download <package run number> -R midst-press/midst-editor -p 'midst-macos-*' -D candidate
@@ -92,15 +93,17 @@ Use a Mac, or an account on one, that has no Midst installed.
   ```
 
   It checks the package (signed, accepted by Gatekeeper, not relocatable, the right version),
-  installs it "for me only", confirms an older copy elsewhere on the Mac was left alone, launches the
+  installs it for all users, confirms an older copy elsewhere on the Mac was left alone, that a
+  stand-in "Midst Beta" is kept as "Midst (previous version)", and that ticking "Delete the older
+  version of Midst" deletes only that stand-in, then launches the
   app, opens a made-up poem, quits, and removes everything it installed. It prints one line per step
   and ends `PASSED` (exit 0). `FAILED` (exit 1) means do not release. `CANNOT RUN` (exit 2) means it
   proved nothing, most often because a Midst is already installed there; it will not touch one.
   Midst's window appears for a few seconds while it runs.
 
 - [ ] **An "all users" install puts Midst in the main Applications folder.** This needs an
-      administrator password, and it is the path that failed for a poet. Double-click the package,
-      choose **Install for all users of this computer**, and finish. Then look for:
+      administrator password, and it is the path that failed for a poet. Double-click the package
+      and finish. Then look for:
 
   - `Midst` in `/Applications` (Finder: Go → Applications), not only in your home folder;
   - **Get Info** on it shows the version being released;
@@ -113,13 +116,25 @@ Use a Mac, or an account on one, that has no Midst installed.
   - no warning that the package cannot be verified or is from an unidentified developer;
   - the installer's window reads **Install Midst**. It shows no version anywhere; the version being
     released is confirmed with **Get Info** on the installed app, as in the step above;
-  - the destination window offers the choices you expect, and choosing **Install for me only**
-    instead (run the package a second time) puts Midst in `~/Applications`.
+  - there is no **Install for me only**: Midst installs for all users, into `/Applications` (issue 16).
 
   The script cannot see these windows: the command line skips them.
 
-Afterwards, delete the copies you installed by hand (`/Applications/Midst.app` and
-`~/Applications/Midst.app`), so the next candidate's test starts clean.
+- [ ] **The older-Midst warning and choice read correctly (issue 16).** The script checks what happens
+      to the files; this checks what the poet reads. Put a stand-in older Midst in Applications and
+      run the package:
+
+  ```bash
+  sudo ditto /System/Applications/Chess.app "/Applications/Midst Beta.app"
+  ```
+
+  - before anything installs, a warning says an older version of Midst is in Applications, and that
+    it will be kept as **Midst (previous version)**;
+  - **Customize** at the Installation Type step shows **Delete the older version of Midst**,
+    unticked, and its description says it permanently deletes it and cannot be undone.
+
+Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and any
+`/Applications/Midst (previous version).app`), so the next candidate's test starts clean.
 
 ## What the release workflow refuses
 

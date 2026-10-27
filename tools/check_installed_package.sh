@@ -6,8 +6,9 @@
 #
 # The package is the artifact of a GitHub `package` run. The expected version defaults to the one
 # in release/app/package.json of this checkout. No administrator rights are needed: it installs
-# "for me only", into ~/Applications. The two things it cannot do (an all-users install, and a
-# click through the installer's windows) are manual steps in docs/releasing.md.
+# for all users, into /Applications, the only place the package installs (issue 16), so it needs
+# passwordless sudo: run it in a throwaway VM or account. What it cannot do (a click through the
+# installer's windows) is a manual step in docs/releasing.md.
 #
 # What it checks, one line per step:
 #   1  the package: signed, accepted by Gatekeeper, NOT relocatable, and holding the expected
@@ -16,12 +17,16 @@
 #      a fixed one really does not. Done with an empty app under an invalid.example identifier.
 #      Without it, step 3's "the old copy was left alone" could pass only because the installer
 #      never saw the old copy.
-#   3  install for me only, with an older Midst placed elsewhere first: the new one is in
-#      ~/Applications at the expected version, and the older copy was not updated in its place.
+#   3  install for all users, with an older Midst placed elsewhere first and a stand-in "Midst
+#      Beta" in /Applications: the new one is in /Applications at the expected version, the copy
+#      elsewhere was not updated in its place, and the stand-in was kept as "Midst (previous
+#      version)". Then a second install with "Delete the older version of Midst" ticked, and a new
+#      stand-in: the stand-in is deleted, and the earlier "previous version" is not.
 #   4  the installed app launches, opens a synthetic poem, and quits when asked.
 #   5  everything this test put on the Mac is removed again.
 #
-# It REFUSES TO START if a Midst is already in /Applications or ~/Applications, or one is running,
+# It REFUSES TO START if a Midst (any of the names above) is already in /Applications or
+# ~/Applications, or one is running,
 # so it can never touch a real install. It launches the app with its own --user-data-dir, so the
 # account's own Midst settings and poems are not read or written, and it removes only what was
 # not there before it started. One thing it does add to: if ~/Library/Logs/Midst already exists
@@ -50,8 +55,13 @@ want=${2:-$(plutil -extract version raw -o - "$here/../release/app/package.json"
 [[ "$want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || cannot "expected version \"$want\" is not MAJOR.MINOR.PATCH"
 
 user_apps="$HOME/Applications"
-installed="$user_apps/$APP_NAME"
-for existing in "/Applications/$APP_NAME" "$installed"; do
+installed="/Applications/$APP_NAME"
+beta="/Applications/Midst Beta.app"
+kept="/Applications/Midst (previous version).app"
+kept2="/Applications/Midst (previous version 2).app"
+REMOVE_ID=$BUNDLE_ID.remove-previous
+sudo -n true 2> /dev/null || cannot "it installs for all users, so it needs passwordless sudo (an admin account in a throwaway VM)"
+for existing in "$installed" "$user_apps/$APP_NAME" "$beta" "$kept" "$kept2"; do
   [ ! -e "$existing" ] || cannot "a Midst is already installed at $existing; this test will not touch it. Run it on a Mac (or account) without Midst."
 done
 [ -z "$(pgrep -x Midst)" ] || cannot "a Midst is running; quit it first"
@@ -69,7 +79,8 @@ residue=(
 before=()
 for path in "${residue[@]}"; do [ -e "$path" ] && before+=("$path"); done
 had_user_apps=no; [ -d "$user_apps" ] && had_user_apps=yes
-had_receipt=no; pkgutil --volume "$HOME" --pkg-info "$BUNDLE_ID" > /dev/null 2>&1 && had_receipt=yes
+had_receipt=no; pkgutil --pkg-info "$BUNDLE_ID" > /dev/null 2>&1 && had_receipt=yes
+had_remove_receipt=no; pkgutil --pkg-info "$REMOVE_ID" > /dev/null 2>&1 && had_remove_receipt=yes
 
 # Both are created, and checked, before the clean-up trap exists: with either one empty the
 # clean-up's paths would start at the root of the disk.
@@ -94,9 +105,11 @@ cleanup() {
   local left=0 path
   if [ -n "$app_pid" ] && kill -0 "$app_pid" 2> /dev/null; then kill -KILL "$app_pid" 2> /dev/null; fi
   if [ "$installed_by_test" = yes ]; then
-    "$LSREGISTER" -u "$installed" > /dev/null 2>&1
-    rm -rf "$HOME/Applications/Midst.app"
-    [ "$had_receipt" = yes ] || pkgutil --volume "$HOME" --forget "$BUNDLE_ID" > /dev/null 2>&1
+    for path in "$installed" "$beta" "$kept" "$kept2"; do "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
+    sudo -n rm -rf "/Applications/Midst.app" "/Applications/Midst Beta.app" \
+      "/Applications/Midst (previous version).app" "/Applications/Midst (previous version 2).app"
+    [ "$had_receipt" = yes ] || sudo -n pkgutil --forget "$BUNDLE_ID" > /dev/null 2>&1
+    [ "$had_remove_receipt" = yes ] || sudo -n pkgutil --forget "$REMOVE_ID" > /dev/null 2>&1
   fi
   "$LSREGISTER" -u "$user_apps/MidstInstallControl.app" > /dev/null 2>&1
   rm -rf "$HOME/Applications/MidstInstallControl.app"
@@ -113,7 +126,7 @@ cleanup() {
     case "$path" in "$HOME"/Library/*) rm -rf "$path" ;; esac
   done
   [ "$had_user_apps" = yes ] || rmdir "$user_apps" 2> /dev/null
-  for path in "$installed" "$user_apps/MidstInstallControl.app" "$elsewhere"; do
+  for path in "$installed" "$beta" "$kept" "$kept2" "$user_apps/MidstInstallControl.app" "$elsewhere"; do
     [ -e "$path" ] && { echo "FAIL  5 clean-up: $path is still there"; left=1; }
   done
   [ "$left" = 0 ] && echo "ok    5 clean-up: everything the test installed is removed"
@@ -216,18 +229,31 @@ else
   give_up "CONTROL FAILED. Relocatable gave \"$relocated\" (expected \"0.0.2 absent\") and fixed gave \"$fixed\" (expected \"0.0.1 0.0.2\"), as <copy elsewhere> <~/Applications>. On this Mac the installer did not behave as the relocation test assumes, so step 3 would prove nothing."
 fi
 
-# --- 3. install for me only, with an older Midst elsewhere ------------------------------------
+# --- 3. install for all users, with an older Midst elsewhere and a stand-in in /Applications --
 decoy="$elsewhere/older"
 stub "$decoy" "$APP_NAME" "$BUNDLE_ID" 0.0.1
 "$LSREGISTER" -f "$decoy/$APP_NAME" > /dev/null 2>&1
+# stand_in: an empty "Midst Beta" in /Applications, as Stuart found on a Mac (GitHub #47).
+stand_in() {
+  stub "$work/beta-$1" "Midst Beta.app" invalid.example.midst-beta "$1" \
+    && sudo -n ditto "$work/beta-$1/Midst Beta.app" "$beta"
+}
 installed_by_test=yes
-if installer -pkg "$pkg" -target CurrentUserHomeDirectory > "$work/install.txt" 2>&1; then
+stand_in 0.0.3 || give_up "could not put a stand-in Midst Beta in /Applications"
+# The log is ours to write, not root's.
+# shellcheck disable=SC2024
+if sudo -n installer -pkg "$pkg" -target / > "$work/install.txt" 2>&1; then
   pass "3 installer reported success"
 else
   fail "3 installer failed: $(tr '\n' ' ' < "$work/install.txt")"
 fi
 got=$(version_of "$installed")
-if [ "$got" = "$want" ]; then pass "3 Midst $want is in ~/Applications"; else fail "3 ~/Applications holds Midst \"$got\", expected $want"; fi
+if [ "$got" = "$want" ]; then pass "3 Midst $want is in /Applications"; else fail "3 /Applications holds Midst \"$got\", expected $want"; fi
+if [ ! -e "$beta" ] && [ "$(version_of "$kept")" = 0.0.3 ]; then
+  pass "3 the stand-in Midst Beta was kept as \"Midst (previous version)\""
+else
+  fail "3 the stand-in Midst Beta was not kept as \"Midst (previous version)\" (Midst Beta: $(version_of "$beta"); previous version: $(version_of "$kept"))"
+fi
 got_id=absent
 [ -f "$installed/Contents/Info.plist" ] && got_id=$(plutil -extract CFBundleIdentifier raw -o - "$installed/Contents/Info.plist" 2> /dev/null || echo unreadable)
 if [ "$got_id" = "$BUNDLE_ID" ]; then pass "3 installed bundle identifier $BUNDLE_ID"; else fail "3 installed bundle identifier is \"$got_id\""; fi
@@ -235,6 +261,30 @@ old=$(version_of "$decoy/$APP_NAME")
 if [ "$old" = 0.0.1 ]; then pass "3 the older copy elsewhere was left alone"; else fail "3 the older copy elsewhere is now \"$old\": the installer updated it in place"; fi
 "$LSREGISTER" -u "$decoy/$APP_NAME" > /dev/null 2>&1
 rm -rf "$decoy"
+
+# The opt-in delete, through the real package: tick the choice, as a poet would in Customize.
+cat > "$work/delete-choice.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><array><dict>
+<key>attributeSetting</key><integer>1</integer>
+<key>choiceAttribute</key><string>selected</string>
+<key>choiceIdentifier</key><string>$REMOVE_ID</string>
+</dict></array></plist>
+PLIST
+stand_in 0.0.4 || give_up "could not put a second stand-in Midst Beta in /Applications"
+# The log is ours to write, not root's.
+# shellcheck disable=SC2024
+if sudo -n installer -pkg "$pkg" -target / -applyChoiceChangesXML "$work/delete-choice.plist" > "$work/install-delete.txt" 2>&1; then
+  pass "3 installer with the delete choice ticked reported success"
+else
+  fail "3 installer with the delete choice ticked failed: $(tr '\n' ' ' < "$work/install-delete.txt")"
+fi
+if [ ! -e "$beta" ] && [ ! -e "$kept2" ] && [ "$(version_of "$kept")" = 0.0.3 ] && [ "$(version_of "$installed")" = "$want" ]; then
+  pass "3 the ticked delete removed only the stand-in this install kept"
+else
+  fail "3 after the ticked delete: Midst Beta $(version_of "$beta"), previous version $(version_of "$kept"), previous version 2 $(version_of "$kept2"), Midst $(version_of "$installed") (expected absent, 0.0.3, absent, $want)"
+fi
 
 # --- 4. launch, open a synthetic poem, quit ---------------------------------------------------
 if [ "$got" != "$want" ]; then

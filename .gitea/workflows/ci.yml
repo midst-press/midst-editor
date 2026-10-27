@@ -40,8 +40,11 @@ permissions:
 defaults:
   run:
     shell: /opt/homebrew/bin/bash -eo pipefail {0}
+# github-main carries code from GitHub: on its PRs every job here waits for a person to add the github-reviewed
+# label (Stuart, 27 Oct, mirror-tools #15). The return path removes that label before it pushes new GitHub code.
 jobs:
   gates:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed'))
     # Pinned to the Mac Studio, whose runner is a separate `gitearunner` account. `macos-arm64` alone
     # also matches the M1 Max, whose runner is the account every Kindled session there shares, and
     # the build and test steps execute this repository's dependency tree as whichever user runs them.
@@ -98,7 +101,7 @@ jobs:
   # GitHub's e2e-linux installs Xvfb and relaxes AppArmor with sudo. Here the job runs as an unprivileged user in
   # the container, so it uses what the container provides and says plainly if Xvfb is missing.
   e2e-linux:
-    if: github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci')
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed')) && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci'))
     runs-on: ubuntu-arm-latest
     timeout-minutes: 30
     # The workflow's default shell is the macOS runners' Homebrew bash, which this container does not have.

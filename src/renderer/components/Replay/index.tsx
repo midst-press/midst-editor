@@ -38,6 +38,7 @@ import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
 import FindNotHere, { findInReplay } from '../../search/FindNotHere';
 import { i18n } from '../../../shared/i18n';
+import { changesMade } from '../../../shared/firstFrame';
 
 export default function Replay() {
   const navigate = useNavigate();
@@ -75,10 +76,15 @@ export default function Replay() {
     window.electron.store.set('history', JSON.stringify(poemHistory));
     window.electron.ipcRenderer.sendMessage('save-file', []);
   }, [htmlString, poemHistory]);
-  const drafts = useDraftMarkers(poemHistory.length, saveDocument);
+  const drafts = useDraftMarkers(
+    poemHistory.length,
+    saveDocument,
+    changesMade(poemHistory)
+  );
   const draftReason = drafts.reasonAt(step);
-  // Why a button cannot be used now, or null when it can (#273).
-  const playReason = poemHistory.length
+  // Why a button cannot be used now, or null when it can (#273). A new poem's empty first frame is not
+  // something to play (GitHub #29).
+  const playReason = changesMade(poemHistory)
     ? null
     : i18n._('replay.play.unavailable');
   // The editor sends the poet here to name a draft it has just marked.

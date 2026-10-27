@@ -429,7 +429,11 @@
       }
     },
     "pkg": {
-      "isRelocatable": false
+      "isRelocatable": false,
+      "allowAnywhere": false,
+      "allowCurrentUserHome": false,
+      "allowRootDirectory": true,
+      "scripts": "../installer/pkg-scripts"
     },
     "dmg": {
       "contents": [

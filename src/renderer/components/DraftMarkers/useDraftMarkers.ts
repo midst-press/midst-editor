@@ -37,13 +37,13 @@ export type ChangeRefusal =
 // What the poet is told for each refusal.
 export const refusalMessage = (
   reason: ChangeRefusal,
-  historyLength: number
+  changes: number
 ): string => {
   switch (reason) {
     case 'too-few-changes':
       return i18n._('drafts.refused.tooFewChanges', {
         needed: FRAMES_BEFORE_MARKERS,
-        count: historyLength,
+        count: changes,
       });
     case 'not-a-history-position':
       return i18n._('drafts.refused.noMoment');
@@ -70,10 +70,12 @@ export const UNAVAILABLE_STYLE = {
 } as const;
 
 // The open document's draft markers, and the three changes a poet can make to them. `save` writes the
-// document; each accepted change calls it.
+// document; each accepted change calls it. `changes` is how many changes the poet has made, which the 50 counts:
+// a new poem's empty first frame is a position on the Timeline but not a change (GitHub #29).
 export default function useDraftMarkers(
   historyLength: number,
-  save: () => void
+  save: () => void,
+  changes: number = historyLength
 ) {
   const [meta, setMeta] = useState<Meta | null>(() =>
     readStoredMeta(window.electron.store)
@@ -83,7 +85,7 @@ export default function useDraftMarkers(
   // returned, so it follows View > Language (editor #265).
   const [refused, setRefusal] = useState<{
     reason: ChangeRefusal;
-    historyLength: number;
+    changes: number;
   } | null>(null);
   // The last delete, while it can still be undone: the marker exactly as it was, and its place in the list.
   const [deleted, setDeleted] = useState<{
@@ -118,10 +120,10 @@ export default function useDraftMarkers(
         index,
         historyLength,
       });
-      setRefusal({ reason, historyLength });
+      setRefusal({ reason, changes });
       return false;
     },
-    [historyLength]
+    [historyLength, changes]
   );
 
   const apply = useCallback(
@@ -157,11 +159,11 @@ export default function useDraftMarkers(
             errorName: reread instanceof Error ? reread.name : typeof reread,
           });
         }
-        setRefusal({ reason: 'change-threw', historyLength });
+        setRefusal({ reason: 'change-threw', changes });
         return false;
       }
     },
-    [save, refuse, historyLength]
+    [save, refuse, historyLength, changes]
   );
 
   const markers = useMemo(
@@ -172,18 +174,18 @@ export default function useDraftMarkers(
   // the replay both show it on their disabled button (GitHub #66).
   const reasonAt = useCallback(
     (index: number): string | null => {
-      if (historyLength <= FRAMES_BEFORE_MARKERS) {
-        return refusalMessage('too-few-changes', historyLength);
+      if (changes <= FRAMES_BEFORE_MARKERS) {
+        return refusalMessage('too-few-changes', changes);
       }
       if (index < 0 || index >= historyLength) {
-        return refusalMessage('not-a-history-position', historyLength);
+        return refusalMessage('not-a-history-position', changes);
       }
       if (markers.some((marker) => marker.index === index)) {
-        return refusalMessage('position-has-a-marker', historyLength);
+        return refusalMessage('position-has-a-marker', changes);
       }
       return null;
     },
-    [historyLength, markers]
+    [historyLength, changes, markers]
   );
   const canCreateAt = useCallback(
     (index: number) => reasonAt(index) === null,
@@ -191,14 +193,14 @@ export default function useDraftMarkers(
   );
   const create = useCallback(
     (index: number) =>
-      historyLength > FRAMES_BEFORE_MARKERS
+      changes > FRAMES_BEFORE_MARKERS
         ? apply(
             (current) => createMarker(current, index, historyLength),
             'create',
             index
           )
         : refuse('too-few-changes', 'create', index),
-    [apply, refuse, historyLength]
+    [apply, refuse, historyLength, changes]
   );
   const rename = useCallback(
     (index: number, name: string) =>
@@ -233,8 +235,7 @@ export default function useDraftMarkers(
     );
   }, [apply, deleted]);
 
-  const refusal =
-    refused && refusalMessage(refused.reason, refused.historyLength);
+  const refusal = refused && refusalMessage(refused.reason, refused.changes);
   return {
     markers,
     reasonAt,

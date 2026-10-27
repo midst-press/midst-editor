@@ -9,15 +9,23 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
-import { checkWholePoemSoon } from '../renderer/spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../renderer/spellcheck/checkWholePoem';
 
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
   __esModule: true,
   checkWholePoemSoon: jest.fn(() => jest.fn()),
+  checkLinesAfterBreaks: jest.fn(() => ({
+    changed: jest.fn(),
+    cancel: jest.fn(),
+  })),
 }));
 const mockCheck = checkWholePoemSoon as unknown as jest.Mock;
+const mockLines = checkLinesAfterBreaks as unknown as jest.Mock;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -287,6 +295,34 @@ describe('Editor: content and appearance', () => {
     expect(cancel).not.toHaveBeenCalled();
     unmount();
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('with spellcheck on, tells the line-break check of each change, and stops it when the editor goes (#238)', () => {
+    mockLines.mockClear();
+    const { unmount: offUnmount } = mount();
+    expect(mockLines).not.toHaveBeenCalled();
+    offUnmount();
+    const lines = { changed: jest.fn(), cancel: jest.fn() };
+    mockLines.mockReturnValueOnce(lines);
+    bridge = installBridge({ spellcheck: 'true' });
+    const { unmount } = mount();
+    expect(mockLines.mock.calls[0][0].dom).toBe(proseMirror());
+    mockLines.mock.calls[0][1]('zq lines');
+    expect(
+      bridge.calls.filter((c) => c.kind === 'log.warn').map((c) => c.args)
+    ).toEqual([['zq lines']]);
+    typeText('zq');
+    expect(lines.changed).toHaveBeenCalled();
+    const { editor } = proseMirror();
+    unmount();
+    expect(lines.cancel).toHaveBeenCalledTimes(1);
+    const seen = lines.changed.mock.calls.length;
+    editor.emit('update', {
+      editor,
+      transaction: editor.state.tr,
+      appendedTransactions: [],
+    });
+    expect(lines.changed).toHaveBeenCalledTimes(seen);
   });
 
   it('focuses the editor when it is created', () => {

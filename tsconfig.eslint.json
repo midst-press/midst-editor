@@ -29,6 +29,8 @@
     // Test tooling outside src (midst-editor#29: scripts/coverage-merge.mjs).
     "scripts/**/*",
     // Release tooling and its tests (midst-editor#69: tools/prune_artifacts.cjs).
-    "tools/**/*"
+    "tools/**/*",
+    // The macOS installer's own scripts (midst-editor#16): installer/previous-midst-check.js.
+    "installer/**/*"
   ]
 }
