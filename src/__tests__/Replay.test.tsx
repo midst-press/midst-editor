@@ -34,6 +34,7 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
   const logError = jest.fn();
   (window as unknown as { electron: unknown }).electron = {
     versions: { isMac: true },
+    confirmContinueWriting: () => true,
     store: {
       get: (key: string) => values[key],
       set: (key: string, value: unknown) => {
@@ -189,6 +190,28 @@ describe('Replay: initial frame and slider', () => {
     const { container } = mount([]);
     expect(shown(container)).toBe('');
     expect(slider()).toHaveAttribute('aria-valuemax', '0');
+  });
+
+  // GitHub #90: from the left, Continue writing from here, the two Draft Marker buttons, then an X back to Edit.
+  it('orders the buttons at the right of the Timeline as Annelyse set them, ending in an X', () => {
+    mount();
+    const names = [
+      'Continue writing from here',
+      'Add a Draft Marker here',
+      'Draft Markers',
+      'Edit',
+    ];
+    const all = screen.getAllByRole('button');
+    const places = names.map((name) =>
+      all.indexOf(screen.getByRole('button', { name }))
+    );
+    expect(places.every((place) => place >= 0)).toBe(true);
+    expect([...places].sort((a, b) => a - b)).toEqual(places);
+    expect(
+      screen
+        .getByRole('button', { name: 'Edit' })
+        .querySelector('[data-testid="CloseIcon"]')
+    ).not.toBeNull();
   });
 
   it('offers no playback for an empty history (#111)', () => {

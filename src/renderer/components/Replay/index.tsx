@@ -11,7 +11,7 @@ import {
 import Slider from '@mui/material/Slider';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
@@ -424,6 +424,8 @@ export default function Replay() {
                   : false
               }
             />
+            {/* Continue writing from here first, then the two Draft Marker buttons, then X (GitHub #90). */}
+            <RestartFromButton step={step} pause={pause} />
             <Tooltip
               title={draftReason ?? i18n._('drafts.mark')}
               TransitionComponent={Zoom}
@@ -463,7 +465,6 @@ export default function Replay() {
                 <RefusalAlert message={drafts.refusal} />
               </span>
             </Tooltip>
-            <RestartFromButton step={step} pause={pause} />
             <Tooltip
               title={i18n._('drafts.title')}
               TransitionComponent={Zoom}
@@ -505,7 +506,8 @@ export default function Replay() {
                     color: cssVar('onControlBar'),
                   }}
                 >
-                  <EditIcon fontSize="small" />
+                  {/* An X back to Edit, as Escape does (GitHub #90); its name stays Edit (GitHub #80). */}
+                  <CloseIcon fontSize="small" />
                 </button>
               </Link>
             </Tooltip>
