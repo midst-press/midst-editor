@@ -8,15 +8,23 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
-import { checkWholePoemSoon } from '../renderer/spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../renderer/spellcheck/checkWholePoem';
 
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
   __esModule: true,
   checkWholePoemSoon: jest.fn(() => jest.fn()),
+  checkLinesAfterBreaks: jest.fn(() => ({
+    changed: jest.fn(),
+    cancel: jest.fn(),
+  })),
 }));
 const mockCheck = checkWholePoemSoon as unknown as jest.Mock;
+const mockLines = checkLinesAfterBreaks as unknown as jest.Mock;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -43,8 +51,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
       },
     },
     ipcRenderer: {
-      sendMessage: (channel: string, args: unknown) =>
-        record('send', channel, args),
+      // Rest spread, as Electron's own ipcRenderer.sendMessage is (channel, ...args):
+      // callers pass what they mean as arguments, and every send is recorded in order.
+      sendMessage: (channel: string, ...args: unknown[]) =>
+        record('send', channel, ...args),
       on: (channel: string, listener: Listener) => {
         listeners[channel] = [...(listeners[channel] ?? []), listener];
         return () => {
@@ -284,6 +294,34 @@ describe('Editor: content and appearance', () => {
     expect(cancel).not.toHaveBeenCalled();
     unmount();
     expect(cancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('with spellcheck on, tells the line-break check of each change, and stops it when the editor goes (#238)', () => {
+    mockLines.mockClear();
+    const { unmount: offUnmount } = mount();
+    expect(mockLines).not.toHaveBeenCalled();
+    offUnmount();
+    const lines = { changed: jest.fn(), cancel: jest.fn() };
+    mockLines.mockReturnValueOnce(lines);
+    bridge = installBridge({ spellcheck: 'true' });
+    const { unmount } = mount();
+    expect(mockLines.mock.calls[0][0].dom).toBe(proseMirror());
+    mockLines.mock.calls[0][1]('zq lines');
+    expect(
+      bridge.calls.filter((c) => c.kind === 'log.warn').map((c) => c.args)
+    ).toEqual([['zq lines']]);
+    typeText('zq');
+    expect(lines.changed).toHaveBeenCalled();
+    const { editor } = proseMirror();
+    unmount();
+    expect(lines.cancel).toHaveBeenCalledTimes(1);
+    const seen = lines.changed.mock.calls.length;
+    editor.emit('update', {
+      editor,
+      transaction: editor.state.tr,
+      appendedTransactions: [],
+    });
+    expect(lines.changed).toHaveBeenCalledTimes(seen);
   });
 
   it('focuses the editor when it is created', () => {
@@ -562,6 +600,39 @@ describe('Editor: autosave', () => {
       jest.advanceTimersByTime(5000);
     });
     expect(bridge.sends('save-file')).toHaveLength(1);
+  });
+
+  it('saves ten seconds after the first change while typing goes on without a pause, then starts again (#315)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('a');
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('b');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(399);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    expect(bridge.values.poem).toBe(`<p>zqa${'b'.repeat(16)}</p>`);
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('c');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(2);
   });
 
   it('abandons a pending autosave, with a warning, when another document is opened first', () => {
@@ -870,5 +941,65 @@ describe('Editor: the cursor when coming back', () => {
     mount({ initialText: '<p>qz</p>' });
     settleFocus();
     expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
+  });
+});
+
+describe('focus mode in the editor (GitHub #25)', () => {
+  // The Spacer's buttons resolve to whatever the built catalog holds (some ids fall back to
+  // their own names in jsdom); the Spacer is addressed by class, so the wording does not matter.
+  const spacer = () => document.querySelector('.Spacer');
+  const moon = () => screen.getByRole('button', { name: /Focus Mode/ });
+
+  it('the moon lives in the editor page', () => {
+    mount();
+    expect(moon()).toBeInTheDocument();
+  });
+
+  it('the moon asks main, the editor asks on mount, and the store is never touched (GitHub #25)', () => {
+    mount();
+    // An editor mounting after the mode changed (Replay and back) asks where the screen
+    // stands — once, before any click (main.ts answers it from the menu's mark).
+    expect(bridge.sends('focus-mode-changed')).toHaveLength(1);
+    bridge.clear();
+    fireEvent.click(moon());
+    expect(bridge.sends('focus-mode-requested')).toHaveLength(1);
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
+  });
+
+  it('entering follows main’s answer with a hidden screen', () => {
+    mount();
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  // vivian's blocking case, at the screen: main answers with the menu's mark (main.ts), so a
+  // channel's value alone moves the screen — no second click needed to leave what the moon
+  // entered.
+  it('one answer leaves focus mode: false shows the buttons again', () => {
+    mount();
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+    bridge.emit('set-focus-mode', false); // the menu's ONE choice, answered at the screen
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+  });
+
+  it('an unknown answer leaves the screen alone', () => {
+    mount();
+    fireEvent.click(moon());
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', undefined);
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  it('focus mode is never written to the store, whatever path it takes', () => {
+    mount();
+    bridge.clear();
+    fireEvent.click(moon()); // on, through the moon
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', false); // off, through the menu
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
   });
 });

@@ -15,14 +15,18 @@ import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
+  focusModeMark,
   logIfRejected,
   newFile,
+  offerRecovery,
   openFile,
   save,
   saveAs,
+  setFocusModeMark,
   setLanguage,
 } from '../main/menu';
 import { showAbout } from '../main/about';
+import * as recovery from '../main/recovery';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
 import * as saveFailure from '../main/saveFailurePolicy';
@@ -52,6 +56,15 @@ jest.mock('electron', () => ({
   ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
+// The recovery copies themselves are recovery.test.ts's; here, only when the menu asks for them (#315).
+jest.mock('../main/recovery', () => ({
+  writeRecovery: jest.fn(),
+  forgetRecovery: jest.fn(),
+  orphans: jest.fn(() => []),
+  adopt: jest.fn(),
+  declineToTrash: jest.fn(() => Promise.resolve()),
+  startFresh: jest.fn(),
+}));
 jest.mock('../main/logFile', () => ({
   logFilePath: () => '/zq/Logs/Midst/main.log',
 }));
@@ -70,6 +83,7 @@ jest.mock('../main/store', () => ({
   default: {
     get: (k: string) => mockStore.get(k),
     set: (k: string, v: unknown) => mockStore.set(k, v),
+    delete: (k: string) => mockStore.delete(k),
   },
 }));
 
@@ -424,76 +438,15 @@ describe('save', () => {
       ]);
     });
 
-    it('a first save to a file that cannot be written says so and keeps the document without a file', async () => {
-      // A new document, saved by the editor as it opens: nothing unsaved yet, but the poet has just
-      // chosen where it goes.
-      seedDocument({ filename: '', edited: 'false' });
+    it('a first save the poet chose, to a file that cannot be written, says so and keeps the recovery copy', async () => {
+      seedDocument({ filename: '' });
       showSaveDialog.mockReturnValue(unwritable());
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
-      await save(asWindow(win), false, false);
+      await save(asWindow(win), false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('filename')).toBe('');
-      expect(mockStore.get('baseFilename')).toBeUndefined();
-      // The editor stays open: a cancelled save sends the poet back to the start, a failed one does not.
-      expect(win.webContents.send).not.toHaveBeenCalled();
-    });
-
-    // #94: the panel would otherwise open at every pause in typing.
-    it('after a first save that failed, the editor\u2019s own saves do not open the save panel again', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(1);
-      expect(showMessageBox).toHaveBeenCalledTimes(1);
-      await save(asWindow(win), false, false);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(1);
-      expect(showMessageBox).toHaveBeenCalledTimes(1);
-      // The editor stays open and the poem unsaved: nothing sends the poet back to the start.
-      expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
-      expect(mockStore.get('edited')).toBe('true');
-      expect(mockStore.get('filename')).toBe('');
-      expect(logInfo).toHaveBeenCalledWith(
-        'autosave: not asking again where to save a document whose first save failed'
-      );
-      // Save, chosen by the poet, still asks where.
-      await save(asWindow(win), false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(2);
-    });
-
-    it('once the poem has been saved somewhere, a new document\u2019s first autosave asks where again', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      const elsewhere = path.join(dir, 'xv.midst');
-      showSaveDialog.mockReturnValue(elsewhere);
-      await save(asWindow(win), false);
-      expect(mockStore.get('filename')).toBe(elsewhere);
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(undefined);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(3);
-    });
-
-    it('a new document starts again: its first autosave asks where', async () => {
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(unwritable());
-      showMessageBox.mockReturnValue(OK);
-      const win = makeWindow();
-      await save(asWindow(win), false, false);
-      // New, and Proceed past the unsaved-changes warning.
-      showMessageBox.mockReturnValue(0);
-      await newFile(asWindow(win), false);
-      expect(win.webContents.send).toHaveBeenCalledWith('set-not-saved', false);
-      seedDocument({ filename: '' });
-      showSaveDialog.mockReturnValue(undefined);
-      await save(asWindow(win), false, false);
-      expect(showSaveDialog).toHaveBeenCalledTimes(2);
+      expect(recovery.forgetRecovery).not.toHaveBeenCalled();
     });
 
     it('off macOS, tells the window once that the poem is not saved, and again when a save works', async () => {
@@ -917,7 +870,33 @@ describe('exportRtf (GitHub #26)', () => {
   });
 });
 
+// A new poem's first frame: nothing inserted, nothing kept, at the start (GitHub #29).
+const EMPTY_FRAME = expect.objectContaining({
+  inserted: '',
+  front: 0,
+  end: 0,
+  pos: 0,
+});
+
 describe('newFile', () => {
+  // GitHub #29: a new poem's Timeline begins at an empty page, the frame timed when the poem was made.
+  it('begins the new poem with one empty frame, stored and sent alike', async () => {
+    seedDocument({ edited: 'false' });
+    const win = makeWindow();
+    const before = Date.now();
+    await newFile(asWindow(win), false);
+    const stored = JSON.parse(mockStore.get('history') as string);
+    expect(stored).toEqual([
+      { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
+    ]);
+    expect(Date.parse(stored[0].t)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(stored[0].t)).toBeLessThanOrEqual(Date.now());
+    const sent = (win.webContents.send as jest.Mock).mock.calls.find(
+      ([channel]) => channel === 'open-file'
+    );
+    expect(JSON.parse(JSON.stringify(sent[2]))).toEqual(stored);
+  });
+
   it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', async () => {
     seedDocument({ edited: 'true' });
     showMessageBox.mockReturnValue(1);
@@ -971,12 +950,16 @@ describe('newFile', () => {
     const win = makeWindow();
     await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
-    expect(mockStore.get('history')).toBe('[]');
     expect(mockStore.get('meta')).toBe('');
     expect(mockStore.get('filename')).toBe('');
     expect(mockStore.get('baseFilename')).toBe('');
     expect(mockStore.get('edited')).toBe('false');
-    expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '',
+      [EMPTY_FRAME],
+      ''
+    );
   });
 
   it('with no unsaved changes, does not ask', async () => {
@@ -985,7 +968,12 @@ describe('newFile', () => {
     await newFile(asWindow(win), false);
     expect(showMessageBox).not.toHaveBeenCalled();
     expect(mockStore.get('poem')).toBe('');
-    expect(win.webContents.send).toHaveBeenCalledWith('open-file', '', [], '');
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '',
+      [EMPTY_FRAME],
+      ''
+    );
   });
 
   it("on macOS, represents the document as Untitled; the title is the renderer's on every platform (#125)", async () => {
@@ -1518,6 +1506,9 @@ describe('the menu', () => {
     new MenuBuilder(asWindow(win)).buildMenu();
     return buildFromTemplate.mock.calls[0][0] as Item[];
   };
+  // Focus mode's tests build more than once (a state, then a rebuild): the template to read
+  // is the LAST one — a rebuild is buildMenu calling buildFromTemplate again.
+  const lastBuild = () => buildFromTemplate.mock.calls.at(-1)![0] as Item[];
 
   // Every word in the menus comes from the catalog: each labelled item's id is a catalog key, and its
   // label is that key's English, without the '&' on macOS (midst-infra docs/design/message-catalog.md).
@@ -2145,193 +2136,297 @@ describe('the menu', () => {
         '4'
       );
     });
-  });
+    // Focus Mode (GitHub #25): a checkbox that hides every interface option except the moon.
+    // It is never stored (a poem must not save its focus mode status); the mark in the built
+    // menu IS the state, and the click sends the mark's value to the renderer, which holds no
+    // copy of its own (vivian & cora, #327).
+    describe('Focus Mode', () => {
+      // eslint-disable-next-line no-unused-vars -- the name says what Electron passes to a checkbox's click
+      type CheckboxClick = (item: { checked: boolean }) => void;
 
-  describe('macOS only', () => {
-    it('Quit quits the app', () => {
-      sub(build('darwin'), 'Midst', 'Quit').click!();
-      expect(app.quit).toHaveBeenCalledTimes(1);
-    });
-
-    it('New on a destroyed window resets the stored document and reactivates the app', () => {
-      // Saved state on purpose. A destroyed window with unsaved work should not arise (closing is
-      // held until the poet chooses), so what New does about it is not pinned here.
-      seedDocument({ edited: 'false', filename: '/x/zq.midst' });
-      const win = makeWindow();
-      win.isDestroyed.mockReturnValue(true);
-      sub(build('darwin', win), 'File', 'New').click!();
-      expect(mockStore.get('poem')).toBe('');
-      expect(mockStore.get('history')).toBe('[]');
-      expect(mockStore.get('meta')).toBe('');
-      expect(mockStore.get('filename')).toBe('');
-      expect(mockStore.get('edited')).toBe('false');
-      expect(app.emit).toHaveBeenCalledWith('activate', false);
-      expect(win.webContents.send).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Windows and Linux only', () => {
-    it('Close closes the window', () => {
-      const win = makeWindow();
-      sub(build('linux', win), '&File', '&Close').click!();
-      expect(win.close).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe('Help > Show Log File', () => {
-    it.each([
-      ['darwin', 'Help'],
-      ['linux', 'Help'],
-    ])('on %s shows the log file in the file browser', (platform, menu) => {
-      process.env.NODE_ENV = 'production';
-      const template = build(platform);
-      const item = sub(template, menu, 'Show Log File');
-      expect(item.accelerator).toBeUndefined();
-      item.click!();
-      expect(shell.showItemInFolder).toHaveBeenCalledWith(
-        '/zq/Logs/Midst/main.log'
-      );
-    });
-  });
-
-  describe('View > Appearance (GitHub #16)', () => {
-    type Radio = Item & { type?: string; checked?: boolean };
-    const appearance = (platform: string) => {
-      process.env.NODE_ENV = 'production';
-      delete process.env.DEBUG_PROD;
-      const template = build(platform);
-      return sub(
-        template,
-        platform === 'darwin' ? 'View' : '&View',
-        'Appearance'
-      ).submenu as Radio[];
-    };
-
-    beforeEach(() => {
-      nativeTheme.themeSource = 'system';
-    });
-
-    it.each(['darwin', 'linux'])(
-      'offers Follow System, Light and Dark as one choice on %s',
-      (platform) => {
-        const items = appearance(platform);
-        expect(items.map((i) => [i.label, i.type])).toEqual([
-          ['Follow System', 'radio'],
-          ['Light', 'radio'],
-          ['Dark', 'radio'],
-        ]);
-      }
-    );
-
-    it('is also in the development View menu', () => {
-      process.env.NODE_ENV = 'development';
-      const template = build('darwin');
-      expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
-    });
-
-    it.each([
-      [undefined, 'Follow System'],
-      ['light', 'Light'],
-      ['dark', 'Dark'],
-      ['system', 'Follow System'],
-      ['purple', 'Follow System'],
-    ])('with %p stored, checks %s', (stored, label) => {
-      if (stored !== undefined) mockStore.set('appearance', stored);
-      expect(
-        appearance('darwin')
-          .filter((i) => i.checked)
-          .map((i) => i.label)
-      ).toEqual([label]);
-    });
-
-    it.each([
-      ['Dark', 'dark'],
-      ['Light', 'light'],
-      ['Follow System', 'system'],
-    ])('choosing %s stores it and sets the scheme', (label, value) => {
-      mockStore.set(
-        'appearance',
-        label === 'Follow System' ? 'dark' : 'system'
-      );
-      find(appearance('linux'), label).click!();
-      expect(mockStore.get('appearance')).toBe(value);
-      expect(nativeTheme.themeSource).toBe(value);
-    });
-  });
-
-  describe('View > Language (editor #265)', () => {
-    type Radio = Item & { type?: string; checked?: boolean };
-    const languages = (platform: string, win = makeWindow()) => {
-      process.env.NODE_ENV = 'production';
-      delete process.env.DEBUG_PROD;
-      setPlatform(platform);
-      new MenuBuilder(asWindow(win)).buildMenu();
-      const template = buildFromTemplate.mock.calls[0][0] as Item[];
-      return sub(template, platform === 'darwin' ? 'View' : '&View', 'Language')
-        .submenu as Radio[];
-    };
-
-    afterEach(() => {
-      activateLocale('en');
-    });
-
-    it.each(['darwin', 'linux'])(
-      'lists each catalog by its own name as one choice, after Appearance, on %s',
-      (platform) => {
-        const items = languages(platform);
-        expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
-          ['English', 'radio', true],
-        ]);
-        const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
-          (i) => i.id === 'menu.view'
-        )!.submenu as Item[];
-        const ids = view.map((i) => i.id);
-        expect(ids.indexOf('menu.view.language')).toBe(
-          ids.indexOf('menu.view.appearance') + 1
+      it.each([
+        ['darwin', 'Focus Mode'],
+        ['linux', 'Focus &Mode'],
+      ])('is an unstored checkbox on %s', (platform, text) => {
+        // The state is module memory (menu.ts): each test states the point it tests, and
+        // leaves it where it stated it.
+        setFocusModeMark(false);
+        const win = makeWindow();
+        const item = sub(
+          build(platform, win),
+          platform === 'darwin' ? 'Edit' : '&Edit',
+          text
         );
-      }
-    );
+        expect(item.type).toBe('checkbox');
+        expect(item.checked).toBe(false);
+      });
 
-    it('is also in the development View menu', () => {
-      process.env.NODE_ENV = 'development';
-      setPlatform('darwin');
-      new MenuBuilder(asWindow(makeWindow())).buildMenu();
-      const template = buildFromTemplate.mock.calls[0][0] as Item[];
-      expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+      // One copy of the state (cora, #327): the mark in the built menu. Electron flips the mark
+      // before the click runs, so the click's job is to make the screen follow the mark — send
+      // the mark's value. The store is never involved: focus mode is not saved with the poem.
+      it('sends the mark it was clicked into, off then on, and stores nothing', () => {
+        setFocusModeMark(false);
+        const win = makeWindow();
+        const item = sub(build('linux', win), '&Edit', 'Focus &Mode');
+        mockStore.clear();
+        (item.click as unknown as CheckboxClick)({ checked: false });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          false
+        );
+        (item.click as unknown as CheckboxClick)({ checked: true });
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-focus-mode',
+          true
+        );
+        // The store is a Map here: nothing about focus mode was ever written to it.
+        expect([...mockStore.keys()].filter((k) => /focus/i.test(k))).toEqual(
+          []
+        );
+        // And the store is never the source: a fresh app, whatever the store holds, builds
+        // the checkbox unmarked — regular Edit mode (GitHub #25). 'spellcheck' is the store
+        // pattern focus mode deliberately does not join (menu.ts): seed it, build, unmarked.
+        mockStore.set('spellcheck', 'true');
+        expect(sub(build('linux'), '&Edit', 'Focus &Mode').checked).toBe(false);
+        // Balanced: the click of this test moved main's memory; a new document starts regular.
+        setFocusModeMark(false);
+      });
+
+      // The mark lives in menu.ts's memory, so it survives the window, the page, and a
+      // rebuild alike (vivian & cora, #327): each test sets the state it asserts FROM and
+      // reads it back in the next build — no live-menu installation, no reach-by-id needed.
+      it("a rebuilt menu is built from main's memory, on and off", () => {
+        // The order a running app has: the state moves, the menu is rebuilt (setLanguage), and
+        // the new template carries the state. A template captured BEFORE the turn, left in the
+        // mock's list, carries the value it was built at — which is honest, so 'lastBuild' is
+        // the only read, and it is taken after each build below.
+        const builtOn = () => {
+          build('linux');
+          return sub(lastBuild(), '&Edit', 'Focus &Mode').checked;
+        };
+        setFocusModeMark(true);
+        expect(builtOn()).toBe(true);
+        setFocusModeMark(false);
+        expect(builtOn()).toBe(false);
+      });
+
+      // vivian's blocking case at 77665af, stated at the menu half: closing the window turns
+      // the mark off (main.ts's 'closed' — disable-save cannot carry it, vivian at 2b3758b).
+      // Memory is the one copy, so an off remembered is a regular-mode open — wherever the
+      // menu was rebuilt, in this run or the next.
+      it('an off remembered is a regular-mode open (vivian, 77665af)', () => {
+        setFocusModeMark(true);
+        expect(focusModeMark()).toBe(true);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(true);
+        // Leaving the editor: the state is turned off, once (main.ts disable-save).
+        setFocusModeMark(false);
+        build('linux');
+        expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(false);
+      });
+
+      // No accelerator, still (GitHub #25): a bare modifier chord is macOS input methods', and
+      // the guide's shortcut table (shortcutTable.ts) stays unchanged until the editor names one.
+      it('has no accelerator', () => {
+        setFocusModeMark(false);
+        const item = sub(build('linux'), '&Edit', 'Focus &Mode');
+        expect(item).not.toHaveProperty('accelerator');
+      });
     });
 
-    it('stores English, never the tag, for a language with no catalog', () => {
-      const win = makeWindow();
-      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
-        jest.fn(() => [win]);
-      setLanguage('xx', asWindow(win));
-      expect(mockStore.get('language')).toBe('en');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+    describe('applyStoredAppearance (GitHub #16)', () => {});
+
+    describe('macOS only', () => {
+      it('Quit quits the app', () => {
+        sub(build('darwin'), 'Midst', 'Quit').click!();
+        expect(app.quit).toHaveBeenCalledTimes(1);
+      });
+
+      it('New on a destroyed window resets the stored document and reactivates the app', () => {
+        // Saved state on purpose. A destroyed window with unsaved work should not arise (closing is
+        // held until the poet chooses), so what New does about it is not pinned here.
+        seedDocument({ edited: 'false', filename: '/x/zq.midst' });
+        const win = makeWindow();
+        win.isDestroyed.mockReturnValue(true);
+        sub(build('darwin', win), 'File', 'New').click!();
+        expect(mockStore.get('poem')).toBe('');
+        // A new poem begins at an empty page here too (GitHub #29).
+        expect(JSON.parse(mockStore.get('history') as string)).toEqual([
+          { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
+        ]);
+        expect(mockStore.get('meta')).toBe('');
+        expect(mockStore.get('filename')).toBe('');
+        expect(mockStore.get('edited')).toBe('false');
+        expect(app.emit).toHaveBeenCalledWith('activate', false);
+        expect(win.webContents.send).not.toHaveBeenCalled();
+      });
     });
 
-    it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
-      const win = makeWindow();
-      const other = makeWindow();
-      (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
-        jest.fn(() => [win, other]);
-      const items = languages('darwin', win);
-      buildFromTemplate.mockClear();
-      (Menu.setApplicationMenu as jest.Mock).mockClear();
-      win.webContents.on.mockClear();
-      // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
-      process.env.NODE_ENV = 'development';
-      find(items, 'English').click!();
-      expect(mockStore.get('language')).toBe('en');
-      expect(buildFromTemplate).toHaveBeenCalledTimes(1);
-      expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
-      expect(win.webContents.on).not.toHaveBeenCalled();
-      expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
-      expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+    describe('Windows and Linux only', () => {
+      it('Close closes the window', () => {
+        const win = makeWindow();
+        sub(build('linux', win), '&File', '&Close').click!();
+        expect(win.close).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('Help > Show Log File', () => {
+      it.each([
+        ['darwin', 'Help'],
+        ['linux', 'Help'],
+      ])('on %s shows the log file in the file browser', (platform, menu) => {
+        process.env.NODE_ENV = 'production';
+        const template = build(platform);
+        const item = sub(template, menu, 'Show Log File');
+        expect(item.accelerator).toBeUndefined();
+        item.click!();
+        expect(shell.showItemInFolder).toHaveBeenCalledWith(
+          '/zq/Logs/Midst/main.log'
+        );
+      });
+    });
+
+    describe('View > Appearance (GitHub #16)', () => {
+      type Radio = Item & { type?: string; checked?: boolean };
+      const appearance = (platform: string) => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.DEBUG_PROD;
+        const template = build(platform);
+        return sub(
+          template,
+          platform === 'darwin' ? 'View' : '&View',
+          'Appearance'
+        ).submenu as Radio[];
+      };
+
+      beforeEach(() => {
+        nativeTheme.themeSource = 'system';
+      });
+
+      it.each(['darwin', 'linux'])(
+        'offers Follow System, Light and Dark as one choice on %s',
+        (platform) => {
+          const items = appearance(platform);
+          expect(items.map((i) => [i.label, i.type])).toEqual([
+            ['Follow System', 'radio'],
+            ['Light', 'radio'],
+            ['Dark', 'radio'],
+          ]);
+        }
+      );
+
+      it('is also in the development View menu', () => {
+        process.env.NODE_ENV = 'development';
+        const template = build('darwin');
+        expect(sub(template, 'View', 'Appearance').submenu).toHaveLength(3);
+      });
+
+      it.each([
+        [undefined, 'Follow System'],
+        ['light', 'Light'],
+        ['dark', 'Dark'],
+        ['system', 'Follow System'],
+        ['purple', 'Follow System'],
+      ])('with %p stored, checks %s', (stored, label) => {
+        if (stored !== undefined) mockStore.set('appearance', stored);
+        expect(
+          appearance('darwin')
+            .filter((i) => i.checked)
+            .map((i) => i.label)
+        ).toEqual([label]);
+      });
+
+      it.each([
+        ['Dark', 'dark'],
+        ['Light', 'light'],
+        ['Follow System', 'system'],
+      ])('choosing %s stores it and sets the scheme', (label, value) => {
+        mockStore.set(
+          'appearance',
+          label === 'Follow System' ? 'dark' : 'system'
+        );
+        find(appearance('linux'), label).click!();
+        expect(mockStore.get('appearance')).toBe(value);
+        expect(nativeTheme.themeSource).toBe(value);
+      });
+    });
+
+    describe('View > Language (editor #265)', () => {
+      type Radio = Item & { type?: string; checked?: boolean };
+      const languages = (platform: string, win = makeWindow()) => {
+        process.env.NODE_ENV = 'production';
+        delete process.env.DEBUG_PROD;
+        setPlatform(platform);
+        new MenuBuilder(asWindow(win)).buildMenu();
+        const template = buildFromTemplate.mock.calls[0][0] as Item[];
+        return sub(
+          template,
+          platform === 'darwin' ? 'View' : '&View',
+          'Language'
+        ).submenu as Radio[];
+      };
+
+      afterEach(() => {
+        activateLocale('en');
+      });
+
+      it.each(['darwin', 'linux'])(
+        'lists each catalog by its own name as one choice, after Appearance, on %s',
+        (platform) => {
+          const items = languages(platform);
+          expect(items.map((i) => [i.label, i.type, i.checked])).toEqual([
+            ['English', 'radio', true],
+          ]);
+          const view = (buildFromTemplate.mock.calls[0][0] as Item[]).find(
+            (i) => i.id === 'menu.view'
+          )!.submenu as Item[];
+          const ids = view.map((i) => i.id);
+          expect(ids.indexOf('menu.view.language')).toBe(
+            ids.indexOf('menu.view.appearance') + 1
+          );
+        }
+      );
+
+      it('is also in the development View menu', () => {
+        process.env.NODE_ENV = 'development';
+        setPlatform('darwin');
+        new MenuBuilder(asWindow(makeWindow())).buildMenu();
+        const template = buildFromTemplate.mock.calls[0][0] as Item[];
+        expect(sub(template, 'View', 'Language').submenu).toHaveLength(1);
+      });
+
+      it('stores English, never the tag, for a language with no catalog', () => {
+        const win = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win]);
+        setLanguage('xx', asWindow(win));
+        expect(mockStore.get('language')).toBe('en');
+        expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      });
+
+      it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
+        const win = makeWindow();
+        const other = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win, other]);
+        const items = languages('darwin', win);
+        buildFromTemplate.mockClear();
+        (Menu.setApplicationMenu as jest.Mock).mockClear();
+        win.webContents.on.mockClear();
+        // In development the window's context menu is wired by buildMenu; a rebuild must not wire it again.
+        process.env.NODE_ENV = 'development';
+        find(items, 'English').click!();
+        expect(mockStore.get('language')).toBe('en');
+        expect(buildFromTemplate).toHaveBeenCalledTimes(1);
+        expect(Menu.setApplicationMenu).toHaveBeenCalledTimes(1);
+        expect(win.webContents.on).not.toHaveBeenCalled();
+        expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+        expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+      });
     });
   });
-});
-
-describe('applyStoredAppearance (GitHub #16)', () => {
   it.each([
     [undefined, 'system'],
     ['dark', 'dark'],
@@ -2388,5 +2483,229 @@ describe('logIfRejected (#160)', () => {
       })
     ).toThrow('xv');
     expect(logError).not.toHaveBeenCalled();
+  });
+});
+
+// An untitled poem (#315; Annelyse, GitHub #81): no name is asked for until the poet saves on purpose.
+describe('an untitled poem', () => {
+  const writeRecovery = recovery.writeRecovery as jest.Mock;
+  const forgetRecovery = recovery.forgetRecovery as jest.Mock;
+
+  it("the editor's own saves open no panel and keep a recovery copy of the whole document", async () => {
+    seedDocument({ filename: '', poem: '<p>zq</p>' });
+    const win = makeWindow();
+    await save(asWindow(win), false, false);
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(writeRecovery).toHaveBeenCalledTimes(1);
+    const written = writeRecovery.mock.calls[0][0] as string;
+    expect(written.startsWith('midstVersion: 1')).toBe(true);
+    expect(written).toContain('<p>zq</p>');
+    expect(written).toContain('"history"');
+    expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+  });
+
+  it('nothing is written for a poem nothing has been typed into', async () => {
+    seedDocument({ filename: '', edited: 'false' });
+    await save(asWindow(makeWindow()), false, false);
+    expect(writeRecovery).not.toHaveBeenCalled();
+    expect(showSaveDialog).not.toHaveBeenCalled();
+  });
+
+  it('a recovery copy that cannot be written is logged, by error name only, and opens nothing', async () => {
+    seedDocument({ filename: '', poem: '<p>POEM-SENTINEL</p>' });
+    writeRecovery.mockImplementationOnce(() => {
+      throw new Error('zq disk full');
+    });
+    await save(asWindow(makeWindow()), false, false);
+    expect(logError).toHaveBeenCalledWith(
+      "autosave: the untitled poem's recovery copy was not written",
+      expect.objectContaining({ name: 'Error' })
+    );
+    expect(showMessageBox).not.toHaveBeenCalled();
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+  });
+
+  it('a file of an already saved poem is still autosaved into, with no recovery copy', async () => {
+    const file = path.join(dir, 'zq.midst');
+    seedDocument({ filename: file });
+    await save(asWindow(makeWindow()), false, false);
+    expect(fs.existsSync(file)).toBe(true);
+    expect(writeRecovery).not.toHaveBeenCalled();
+  });
+
+  it("the poet's first Save, once written, forgets the recovery copy; Save As does too", async () => {
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.midst'));
+    await save(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+    seedDocument({ filename: '' });
+    showSaveDialog.mockReturnValue(path.join(dir, 'xv.midst'));
+    await saveAs(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(2);
+  });
+
+  it('saving a poem that already has a file forgets nothing', async () => {
+    seedDocument({ filename: path.join(dir, 'zq.midst') });
+    await save(asWindow(makeWindow()), false);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+  });
+
+  it('leaving it for a new poem forgets the recovery copy; Cancel keeps it', async () => {
+    seedDocument({ filename: '' });
+    showMessageBox.mockReturnValue(1);
+    await newFile(asWindow(makeWindow()), false);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+    showMessageBox.mockReturnValue(0);
+    await newFile(asWindow(makeWindow()), false);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaving it to open another poem forgets the recovery copy; Cancel keeps it', async () => {
+    seedDocument({ filename: '' });
+    showMessageBox.mockReturnValue(1);
+    await openFile(asWindow(makeWindow()), false, [
+      path.join(dir, 'none.midst'),
+    ]);
+    expect(forgetRecovery).not.toHaveBeenCalled();
+    const target = path.join(dir, 'zq.midst');
+    fs.writeFileSync(target, goodFile());
+    showMessageBox.mockReturnValue(0);
+    await openFile(asWindow(makeWindow()), false, [target]);
+    await Promise.all(pendingIo);
+    expect(forgetRecovery).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('offerRecovery', () => {
+  const orphans = recovery.orphans as jest.Mock;
+  const plant = (id: string, text: string) => {
+    const file = path.join(dir, `${id}.midst`);
+    fs.writeFileSync(file, goodFile(text));
+    return { id, file, lastWritten: new Date(2026, 9, 26, 17, 52) };
+  };
+
+  it("asks in Annelyse's words, with Enter on Yes, and Yes opens the poem untitled and unsaved", async () => {
+    const one = plant('a', '<p>zq</p>');
+    orphans.mockReturnValue([one]);
+    showMessageBox.mockReturnValue(0);
+    const win = makeWindow();
+    await offerRecovery(asWindow(win), true);
+    expect(recovery.startFresh).toHaveBeenCalled();
+    const options = showMessageBox.mock.calls[0][1];
+    expect(options.message).toBe(
+      'Midst unexpectedly quit while you were working on the poem "Untitled." Would you like to recover your work?'
+    );
+    expect(options.buttons).toEqual(['Yes', 'No']);
+    expect(options.defaultId).toBe(0);
+    expect(options.cancelId).toBe(1);
+    expect(mockStore.get('poem')).toBe('<p>zq</p>');
+    expect(mockStore.get('filename')).toBe('');
+    expect(mockStore.get('edited')).toBe('true');
+    expect(win.setDocumentEdited).toHaveBeenCalledWith(true);
+    expect(win.webContents.send).toHaveBeenCalledWith(
+      'open-file',
+      '<p>zq</p>',
+      history,
+      ''
+    );
+    expect(recovery.adopt).toHaveBeenCalledWith(one);
+    expect(recovery.declineToTrash).not.toHaveBeenCalled();
+  });
+
+  it("Yes brings back the poem's settings with it", async () => {
+    const file = path.join(dir, 'm.midst');
+    fs.writeFileSync(
+      file,
+      `midstVersion: 1\n${JSON.stringify({
+        text: '<p>zq</p>',
+        history,
+        meta: { fontSize: 3 },
+      })}`
+    );
+    orphans.mockReturnValue([{ id: 'm', file, lastWritten: new Date() }]);
+    showMessageBox.mockReturnValue(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(mockStore.get('meta')).toBe('{"fontSize":3}');
+  });
+
+  it('No moves that poem to the Trash and offers the next, newest first', async () => {
+    const one = plant('a', '<p>zq</p>');
+    const two = plant('b', '<p>xv</p>');
+    orphans.mockReturnValue([one, two]);
+    showMessageBox.mockReturnValueOnce(1).mockReturnValueOnce(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(recovery.declineToTrash).toHaveBeenCalledWith(one, 'Untitled');
+    expect(recovery.adopt).toHaveBeenCalledWith(two);
+    expect(mockStore.get('poem')).toBe('<p>xv</p>');
+  });
+
+  describe("the crashed run's untitled poem in the store", () => {
+    const crashed = (filename: string) => {
+      mockStore.set('filename', filename);
+      mockStore.set('poem', '<p>zq</p>');
+      mockStore.set('history', '[]');
+      mockStore.set('edited', 'true');
+    };
+
+    it('is cleared when the poet declines every copy, so nothing asks about it again', async () => {
+      crashed('');
+      orphans.mockReturnValue([
+        plant('a', '<p>zq</p>'),
+        plant('b', '<p>xv</p>'),
+      ]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(recovery.declineToTrash).toHaveBeenCalledTimes(2);
+      expect(mockStore.get('poem')).toBeUndefined();
+      expect(mockStore.get('history')).toBeUndefined();
+      expect(mockStore.get('edited')).toBe('false');
+    });
+
+    it('is kept when a copy could not be read, since it may be the only good one', async () => {
+      crashed('');
+      const bad = {
+        id: 'c',
+        file: path.join(dir, 'missing.midst'),
+        lastWritten: new Date(),
+      };
+      orphans.mockReturnValue([plant('a', '<p>zq</p>'), bad]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+
+    it('is left alone when it has a file of its own', async () => {
+      crashed('/a/zq.midst');
+      orphans.mockReturnValue([plant('a', '<p>xv</p>')]);
+      showMessageBox.mockReturnValue(1);
+      await offerRecovery(asWindow(makeWindow()), false);
+      expect(mockStore.get('poem')).toBe('<p>zq</p>');
+      expect(mockStore.get('edited')).toBe('true');
+    });
+  });
+
+  it('a copy that cannot be opened is kept, logged by id, and the next one is offered', async () => {
+    const bad = {
+      id: 'c',
+      file: path.join(dir, 'c.midst'),
+      lastWritten: new Date(),
+    };
+    fs.writeFileSync(bad.file, 'midstVersion: 1\n{not json POEM-SENTINEL');
+    const good = plant('d', '<p>zq</p>');
+    orphans.mockReturnValue([bad, good]);
+    showMessageBox.mockReturnValue(0);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(recovery.declineToTrash).not.toHaveBeenCalled();
+    expect(recovery.adopt).toHaveBeenCalledTimes(1);
+    expect(recovery.adopt).toHaveBeenCalledWith(good);
+    expect(fs.existsSync(bad.file)).toBe(true);
+    expect(everythingLogged()).not.toContain('POEM-SENTINEL');
+  });
+
+  it('with nothing to recover, asks nothing', async () => {
+    orphans.mockReturnValue([]);
+    await offerRecovery(asWindow(makeWindow()), false);
+    expect(showMessageBox).not.toHaveBeenCalled();
   });
 });

@@ -33,19 +33,25 @@ import {
 } from './logging';
 import MenuBuilder, {
   applyStoredAppearance,
+  focusModeMark,
+  requestFocusMode,
+  setFocusModeMark,
   isDevelopment,
   save,
   newFile,
   openFile,
   openPath,
   logIfRejected,
+  offerRecovery,
   setLanguage,
 } from './menu';
+import { forgetRecovery } from './recovery';
 import store from './store';
 import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
 import { resolveHtmlPath } from './util';
+import poemIn, { poemFromData } from './secondInstance';
 import { describeError } from '../shared/errorSummary';
 import {
   activateLocale,
@@ -160,6 +166,9 @@ const createWindow = async () => {
       mainWindow.show();
     }
 
+    // A poem a crashed run left untitled is offered back first (#315), before any file the OS asked to open.
+    const win = mainWindow;
+    logIfRejected('recovery', () => offerRecovery(win, isDarwin()));
     if (earlyPath !== '') {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
@@ -170,6 +179,12 @@ const createWindow = async () => {
   mainWindow.on('closed', () => {
     mainWindow = null;
     windowShown = false;
+    // Focus mode leaves with the window (GitHub #25, vivian at 2b3758b): the mark lives in
+    // main's memory, which outlives the window, so this is the one place every way of closing
+    // passes through — React's effect cleanup never runs when the page is destroyed, so no
+    // renderer message can be relied on here. A poem opened after a close, in this run or by
+    // macOS clicking the Dock, asks on mount and is answered off: regular Edit mode.
+    setFocusModeMark(false);
   });
   // Closing asks the editor for the poem first, as Save does (#157), and only then reads `edited` (#236). Quit,
   // Close and Save are menu items, run in this process, while a keystroke reaches the editor first and `edited`
@@ -208,7 +223,9 @@ const createWindow = async () => {
           cancelId: 1,
         });
         if (choice === 0) {
-          // "Quit Anyway": the document is removed from the store and the window closed.
+          // "Quit Anyway": the document is removed from the store and the window closed, and an untitled poem's
+          // recovery copy goes with it: the poet chose to leave it (#315).
+          forgetRecovery();
           clearDocument();
           win.destroy();
         }
@@ -259,6 +276,31 @@ ipcMain.on('button-open-file', () => {
   logIfRejected('open', () => openFile(win, isDarwin()));
 });
 
+// Focus Mode (GitHub #25): main owns the state (menu.ts) — the menu's mark is the state, the
+// moon asks and main turns it and answers, a mounting editor asks where the screen stands and is
+// answered from the mark (vivian, #327). The house round-trip (preload.ts): sendMessage takes
+// (channel, args[]) and every handler receives that array as one argument — like 'set-language'
+// above — and passes the event, which is never counted as content.
+ipcMain.on('focus-mode-changed', (_event, args: unknown) => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  // An argument this message does not send is recorded, never obeyed.
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-changed: unexpected arguments, ignored', { args });
+  }
+  logIfRejected('focus mode report', () =>
+    win.webContents.send('set-focus-mode', focusModeMark())
+  );
+});
+ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
+  if (mainWindow === null) return;
+  const win = mainWindow;
+  if (Array.isArray(args) ? args.length > 0 : args !== undefined) {
+    log.warn('focus-mode-requested: unexpected arguments, ignored', { args });
+  }
+  logIfRejected('focus mode', () => requestFocusMode(win));
+});
+
 // The languages on the opening screen (editor #265): their order, and the poet's choice, which does what View >
 // Language does. Only a string is taken; setLanguage stores English for anything with no catalog.
 // "Continue writing from here" asks first, in a native box (GitHub #90). No window, no restart.
@@ -301,6 +343,11 @@ ipcMain.on('enable-save', () => {
   setEditorShowing(true);
   setSaveEnabled(true);
 });
+// No reset here (vivian at 2b3758b): this arrives from the editor's effect cleanup, which
+// never runs when the window is destroyed, and it also arrives on the way to Replay —
+// /editor and /replay are sibling routes, so Replay unmounts the editor too. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so nothing here decides it; the
+// mark leaves at the window's 'closed', the one place every closing passes through.
 ipcMain.on('disable-save', () => {
   setEditorShowing(false);
   setSaveEnabled(false);
@@ -367,6 +414,33 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// One Midst at a time (#336; Annelyse chose it on GitHub #91, 26 Oct). Two copies would share one store, the open poem in it, and
+// the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
+// Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
+// --user-data-dir, are unaffected.
+const firstCopy = app.requestSingleInstanceLock({ poem: poemIn(process.argv) });
+if (!firstCopy) {
+  log.info('another Midst is running; this launch hands over and quits');
+  app.quit();
+}
+app.on('second-instance', (_event, argv, _cwd, data) => {
+  if (mainWindow !== null) {
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  }
+  const sent = poemFromData(data);
+  const poem = sent || poemIn(argv);
+  // Which channel carried it, never the path: a poem's file name can be its title.
+  let channel = 'none';
+  if (sent) channel = 'sent';
+  else if (poem) channel = 'argv';
+  log.info('second launch', { poem: channel, args: argv.length });
+  if (poem === '') return;
+  // As open-file below: held for ready-to-show only while no window has been shown.
+  if (!windowShown) earlyPath = poem;
+  ipcMain.emit('app-open', [poem]);
+});
+
 // Responding to external requests to open a file
 app.on('open-file', async (event, filename) => {
   // this event fires on mac before the main window exists
@@ -380,22 +454,24 @@ app.on('open-file', async (event, filename) => {
   ipcMain.emit('app-open', [filename]);
 });
 
-app
-  .whenReady()
-  .then(() => {
-    // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
-    // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
-    applyLogLevel();
-    log.info('started', { version: app.getVersion() });
-    // The menus, dialogs and window speak the language the poet chose from View > Language, else
-    // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
-    // rebuilds the menus and tells the window (setLanguage).
-    activateLocale(chosenLocale(store.get('language')));
-    createWindow();
-    app.on('activate', (_event, hasVisibleWindows) => {
-      if (!hasVisibleWindows) {
-        createWindow();
-      }
-    });
-  })
-  .catch((err) => log.error('app failed to become ready', err));
+// A launch that lost the lock creates nothing: it is quitting.
+if (firstCopy)
+  app
+    .whenReady()
+    .then(() => {
+      // main.log begins with the start-up, at the poet's level, so a log sent in says which version wrote it. Until
+      // #178 the only start-up line was the update check's failure, and e2e/open-failures relies on one.
+      applyLogLevel();
+      log.info('started', { version: app.getVersion() });
+      // The menus, dialogs and window speak the language the poet chose from View > Language, else
+      // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
+      // rebuilds the menus and tells the window (setLanguage).
+      activateLocale(chosenLocale(store.get('language')));
+      createWindow();
+      app.on('activate', (_event, hasVisibleWindows) => {
+        if (!hasVisibleWindows) {
+          createWindow();
+        }
+      });
+    })
+    .catch((err) => log.error('app failed to become ready', err));

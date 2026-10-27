@@ -1,0 +1,78 @@
+#!/bin/bash
+# Runs as root before the new Midst is written to /Applications (issue 16).
+#
+# An older Midst in /Applications is kept, renamed "Midst (previous version).app", so the new one
+# can be installed as "Midst" without writing over it. An older Midst is:
+#   - "Midst Beta.app", whatever is inside it, or
+#   - a "Midst.app" that is not one of ours: ours carry the bundle id press.Midst.MidstApp and a
+#     version of 0.1.0 or later. The original app shares that id at 0.0.x. Anything we cannot read
+#     counts as older, because keeping an app is recoverable and writing over it is not.
+#
+# Each app renamed is written, one path per line, to $INSTALLER_TEMP/press.Midst.previous-apps.
+# The opt-in "Delete the older version of Midst" choice deletes exactly those paths, and nothing
+# else, after the new app is installed.
+#
+# If anything here fails, the script exits 1 and the installer stops before the new app is
+# written. It never deletes anything, and never moves an app onto an existing name.
+#
+# $3 is the target volume. MIDST_PREVIOUS_RECORD overrides the record path for the tests.
+set -u
+
+say() { echo "Midst preinstall: $*"; }
+fail() { echo "Midst preinstall: FAILED: $*" >&2; exit 1; }
+
+apps="${3%/}/Applications"
+record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
+
+# Create the record before anything moves, so a record we cannot write stops the install while
+# every app is still where it was.
+[ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept could not be recorded"
+: > "$record" || fail "could not create $record"
+
+plist_value() { # <app> <key>: prints the value, or fails
+  plutil -extract "$2" raw -o - "$1/Contents/Info.plist" 2> /dev/null
+}
+
+ours() { # <app>: succeeds only for a Midst from this project
+  local id version
+  [ ! -L "$1" ] || return 1
+  id=$(plist_value "$1" CFBundleIdentifier) || return 1
+  [ "$id" = press.Midst.MidstApp ] || return 1
+  version=$(plist_value "$1" CFBundleShortVersionString) || return 1
+  [[ "$version" =~ ^([0-9]+)\.([0-9]+)(\.|$) ]] || return 1
+  [ "${BASH_REMATCH[1]}" != 0 ] || [ "${BASH_REMATCH[2]}" != 0 ]
+}
+
+free_name() { # prints the first unused "Midst (previous version[ N]).app"
+  local n=1 name="$apps/Midst (previous version).app"
+  while [ -e "$name" ] || [ -L "$name" ]; do
+    n=$((n + 1))
+    [ "$n" -le 99 ] || return 1
+    name="$apps/Midst (previous version $n).app"
+  done
+  echo "$name"
+}
+
+keep() { # <app>: renames it aside and records the new path
+  local to
+  to=$(free_name) || fail "no free name for $1 among \"Midst (previous version 2..99).app\""
+  mv -- "$1" "$to" || fail "could not rename $1 to $to"
+  if ! { [ -e "$to" ] || [ -L "$to" ]; } || [ -e "$1" ] || [ -L "$1" ]; then
+    fail "renaming $1 to $to did not take effect"
+  fi
+  printf '%s\n' "$to" >> "$record" || fail "renamed $1 to $to, but could not record it"
+  say "kept the older $(basename "$1") as $(basename "$to")"
+}
+
+beta="$apps/Midst Beta.app"
+if [ -e "$beta" ] || [ -L "$beta" ]; then keep "$beta"; fi
+
+current="$apps/Midst.app"
+if [ -e "$current" ] || [ -L "$current" ]; then
+  if ours "$current"; then
+    say "updating $current in place"
+  else
+    keep "$current"
+  fi
+fi
+exit 0
