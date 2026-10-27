@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
+import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
@@ -344,6 +345,26 @@ describe('Editor: content and appearance', () => {
     act(() => proseMirror().blur());
     settleFocus();
     expect(document.activeElement).not.toBe(proseMirror());
+  });
+
+  // GitHub #92: taking the focus back must not scroll the caret into view, or a click in the header or footer of a
+  // long poem the poet had scrolled away from makes the poem jump back to the caret.
+  it('on a Mac, takes focus back without scrolling the page to the caret', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    const { editor } = proseMirror() as unknown as { editor: TipTapEditor };
+    const scrolled: boolean[] = [];
+    const record = ({ transaction }: { transaction: Transaction }) =>
+      scrolled.push(transaction.scrolledIntoView);
+    editor.on('transaction', record);
+    act(() => proseMirror().blur());
+    settleFocus();
+    editor.off('transaction', record);
+    expect(document.activeElement).toBe(proseMirror());
+    // CONTROL: the refocus dispatched something, so an empty list is not why this passes.
+    expect(scrolled.length).toBeGreaterThan(0);
+    expect(scrolled).not.toContain(true);
   });
 
   it('on a Mac, leaves the focus in the find bar, and gets it back when the bar closes (GitHub #27)', () => {
