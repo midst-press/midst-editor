@@ -9,7 +9,7 @@
 name: user-guide
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    types: [opened, synchronize, reopened, edited, labeled]
 concurrency:
   group: user-guide-${{ github.ref }}
   cancel-in-progress: true
