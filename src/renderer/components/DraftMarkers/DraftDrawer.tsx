@@ -26,10 +26,12 @@ interface Props {
   setShowMarkers: (show: boolean) => void;
   showLabels: boolean;
   setShowLabels: (show: boolean) => void;
+  showTimestamp: boolean;
+  setShowTimestamp: (show: boolean) => void;
 }
 /* eslint-enable no-unused-vars */
 
-// The list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
+// The Settings panel (GitHub #94), which for now holds the drafts: the list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
 // moment, rename it, or delete it. A delete happens at once, as the original did, and can be undone for a few
 // seconds (#277).
 //
@@ -50,6 +52,8 @@ export default function DraftDrawer({
   setShowMarkers,
   showLabels,
   setShowLabels,
+  showTimestamp,
+  setShowTimestamp,
 }: Props) {
   const labelOf = (at: number | null) =>
     markers.find(({ index }) => index === at)?.label;
@@ -83,9 +87,10 @@ export default function DraftDrawer({
       ref={panel}
       tabIndex={-1}
       className="DraftDrawer"
-      aria-label={i18n._('drafts.title')}
+      aria-label={i18n._('settings.title')}
     >
-      <h2>{i18n._('drafts.title')}</h2>
+      <h2>{i18n._('settings.title')}</h2>
+      <h3>{i18n._('drafts.title')}</h3>
       <RefusalAlert message={refusal} />
       {canUndo ? (
         <p role="status" className="DraftUndo">
@@ -167,6 +172,18 @@ export default function DraftDrawer({
           </li>
         ))}
       </ul>
+      {/* At the bottom, as Annelyse placed it (GitHub #94). */}
+      <FormControlLabel
+        className="ShowTimestamp"
+        control={
+          <Switch
+            size="small"
+            checked={showTimestamp}
+            onChange={(e) => setShowTimestamp(e.target.checked)}
+          />
+        }
+        label={i18n._('settings.showTimestamp')}
+      />
     </aside>
   );
 }

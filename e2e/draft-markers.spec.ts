@@ -87,7 +87,7 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     // and Enter used to start it behind the list, because focus sits on the drawer, not inside it.
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
-    await win.getByRole('button', { name: 'Draft Markers' }).click();
+    await win.getByRole('button', { name: 'Settings' }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // One key at a time: the two together would start playback and stop it again. Read once, not
     // with a retrying expect: a retry would wait until the playback it is meant to catch had run to

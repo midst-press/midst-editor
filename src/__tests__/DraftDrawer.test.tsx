@@ -37,6 +37,7 @@ function Harness({
   const [naming, setNaming] = useState<number | null>(startNaming);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const [showTimestamp, setShowTimestamp] = useState(false);
   return (
     <DraftDrawer
       open
@@ -58,6 +59,11 @@ function Harness({
       setShowLabels={(shown) => {
         onShow('labels', shown);
         setShowLabels(shown);
+      }}
+      showTimestamp={showTimestamp}
+      setShowTimestamp={(shown) => {
+        onShow('timestamp', shown);
+        setShowTimestamp(shown);
       }}
     />
   );
@@ -85,6 +91,31 @@ const names = () =>
   );
 
 describe('DraftDrawer', () => {
+  // GitHub #94: the drafts list is now the Settings panel, with Show timestamp at its bottom, off at first.
+  it('is the Settings panel, with the drafts under their own heading and Show timestamp last, off', () => {
+    const onShow = jest.fn();
+    show({ onShow });
+    expect(
+      screen.getByRole('complementary', { name: 'Settings' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Settings' })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { level: 3, name: 'Draft Markers' })
+    ).toBeInTheDocument();
+    const timestamp = screen.getByRole('checkbox', { name: 'Show timestamp' });
+    expect(timestamp).not.toBeChecked();
+    const panel = document.querySelector('.DraftDrawer')!;
+    const controls = Array.from(
+      panel.querySelectorAll('input, button')
+    ) as Element[];
+    expect(controls[controls.length - 1]).toBe(timestamp);
+    fireEvent.click(timestamp);
+    expect(onShow).toHaveBeenLastCalledWith('timestamp', true);
+    expect(timestamp).toBeChecked();
+  });
+
   it('lists the drafts newest first', () => {
     show();
     expect(names()).toEqual(['xv', 'Draft 2', 'zq']);
