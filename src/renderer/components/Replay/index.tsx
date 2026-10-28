@@ -29,6 +29,7 @@ import { HistoryContext, TextContext } from 'renderer/context';
 import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
+import MarkerLabel from '../DraftMarkers/MarkerLabel';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
@@ -91,8 +92,15 @@ export default function Replay() {
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
     ?.nameDraftAt;
-  const [naming, setNaming] = useState<number | null>(nameOnArrival ?? null);
-  const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
+  // The name being typed in Settings, if any.
+  const [naming, setNaming] = useState<number | null>(null);
+  // A new marker is named on the timeline itself, not in Settings (GitHub #95). Made from Edit mode, finishing
+  // the name goes back to Edit; made here, it stays on that frame.
+  const [timelineNaming, setTimelineNaming] = useState<number | null>(
+    nameOnArrival ?? null
+  );
+  const backToEdit = useRef(nameOnArrival !== undefined);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
   useEffect(() => {
     if (!drawerOpen && refocusDrafts.current) {
@@ -181,6 +189,41 @@ export default function Replay() {
   let timestampDisplay: 'on' | 'auto' | undefined;
   // eslint-disable-next-line lingui/no-unlocalized-strings -- the slider's display modes, not text for the poet
   if (poemHistory.length) timestampDisplay = showTimestamp.on ? 'on' : 'auto';
+  // A Draft Marker's name on the timeline (GitHub #95).
+  const jumpTo = (index: number) => {
+    pause();
+    setStep(index);
+  };
+  const leaveTimelineNaming = (goBack: boolean) => {
+    setTimelineNaming(null);
+    if (backToEdit.current) {
+      backToEdit.current = false;
+      if (goBack) navigate('/editor');
+    }
+  };
+  const markLabel = (index: number, label: string) => (
+    <MarkerLabel
+      index={index}
+      label={label}
+      naming={timelineNaming === index}
+      onJump={jumpTo}
+      onStartNaming={(at) => {
+        jumpTo(at);
+        setTimelineNaming(at);
+      }}
+      onFinish={(at, name, how) => {
+        drafts.rename(at, name);
+        // eslint-disable-next-line lingui/no-unlocalized-strings -- how naming ended, not text for the poet
+        leaveTimelineNaming(how === 'enter');
+      }}
+      // Escape keeps the name it had.
+      onCancel={() => leaveTimelineNaming(true)}
+      onDelete={(at) => {
+        if (timelineNaming === at) setTimelineNaming(null);
+        drafts.remove(at);
+      }}
+    />
+  );
   const labelFormatter = (x: number) => {
     if (x > maxStep) return '';
     return poemHistory[x]
@@ -412,22 +455,33 @@ export default function Replay() {
                   backgroundColor: cssVar('textPrimary'),
                   opacity: 0.7,
                 },
+                // Above the dot, so the timestamp passes behind the names where they meet (GitHub #95); the
+                // names themselves are styled in Replay.css.
                 '& .MuiSlider-markLabel': {
                   top: '-34px',
                   fontSize: '0.75rem',
-                  color: cssVar('textPrimary'),
-                  maxWidth: '140px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  zIndex: 2,
                 },
               }}
               onChange={handleStepChange}
+              // MUI hides mark labels from assistive technology; these are buttons and a name field now
+              // (GitHub #95), so they must be reachable.
+              slotProps={{ markLabel: { 'aria-hidden': undefined } }}
               marks={
-                showMarkers
-                  ? drafts.markers.map(({ index, label }) => ({
-                      value: index,
-                      label: showLabels ? label : undefined,
-                    }))
+                // A marker being named shows even with the markers turned off.
+                showMarkers || timelineNaming !== null
+                  ? drafts.markers
+                      .filter(
+                        ({ index }) => showMarkers || index === timelineNaming
+                      )
+                      .map(({ index, label }) => ({
+                        value: index,
+                        // A name being typed shows even with the names turned off.
+                        label:
+                          showLabels || timelineNaming === index
+                            ? markLabel(index, label)
+                            : undefined,
+                      }))
                   : false
               }
             />
@@ -456,10 +510,7 @@ export default function Replay() {
                   disabled={draftReason !== null}
                   onClick={() => {
                     pause();
-                    if (drafts.create(step)) {
-                      setNaming(step);
-                      setDrawerOpen(true);
-                    }
+                    if (drafts.create(step)) setTimelineNaming(step);
                   }}
                 >
                   <BookmarkAddIcon fontSize="small" />
@@ -470,6 +521,15 @@ export default function Replay() {
                   </span>
                 )}
                 <RefusalAlert message={drafts.refusal} />
+                {/* A delete from the timeline can be undone here, as in Settings (#277, GitHub #95). */}
+                {drafts.canUndoDelete && !drawerOpen ? (
+                  <span role="status" className="DraftUndo TimelineUndo">
+                    {i18n._('drafts.deleted')}{' '}
+                    <button type="button" onClick={drafts.undoDelete}>
+                      {i18n._('drafts.undo')}
+                    </button>
+                  </span>
+                ) : null}
               </span>
             </Tooltip>
             <Tooltip

@@ -309,12 +309,14 @@ msgstr "Unsaved changes"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy
 msgid "drafts.delete"
 msgstr "Delete Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.deleted"
 msgstr "Draft Marker deleted."
@@ -330,6 +332,7 @@ msgstr "Add a Draft Marker here"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy
 msgid "drafts.nameField"
 msgstr "Draft Marker name"
@@ -408,6 +411,7 @@ msgstr "Draft Markers"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.undo"
 msgstr "Undo"

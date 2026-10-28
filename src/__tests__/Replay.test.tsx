@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import type { ElectronHandler } from 'main/preload';
 import type { ChangeObj } from '@midst-press/midst-format/history';
@@ -129,6 +129,10 @@ const mount = (
       </TextContext.Provider>
     </MemoryRouter>
   );
+
+// The Settings panel, for its own list of drafts: the timeline names them too (GitHub #95).
+const inSettings = () =>
+  within(document.querySelector('.DraftDrawer') as HTMLElement);
 
 const shown = (container: HTMLElement) =>
   container.querySelector('.ProseMirror')?.textContent ?? '';
@@ -636,7 +640,8 @@ describe('Replay: marking a draft', () => {
     ]);
   });
 
-  it('pauses playback, opens the drafts list with the new name ready to type', () => {
+  // GitHub #95: the new name is typed on the timeline, not in Settings.
+  it('pauses playback and opens the new name on the timeline, ready to type, with Settings closed', () => {
     jest.useFakeTimers();
     mount();
     seek(10);
@@ -644,9 +649,10 @@ describe('Replay: marking a draft', () => {
     advance(60);
     markDraft();
     expect(playButton()).toBeInTheDocument();
-    expect(
-      screen.getByRole('textbox', { name: 'Draft Marker name' })
-    ).toHaveValue('Draft 1');
+    const field = screen.getByRole('textbox', { name: 'Draft Marker name' });
+    expect(field).toHaveValue('Draft 1');
+    expect(field.closest('.MuiSlider-markLabel')).not.toBeNull();
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
   });
 
   it('refuses a second marker on the same frame', () => {
@@ -708,6 +714,174 @@ describe('Replay: marking a draft', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'The Draft Markers of this poem could not be read, so nothing was changed.'
     );
+  });
+});
+
+// GitHub #95: a Draft Marker's name on the timeline is where the poet works with it.
+describe('Replay: Draft Markers on the timeline', () => {
+  const seeded = {
+    'font-size': '2',
+    meta: JSON.stringify({
+      draftMarkers: [
+        { index: 5, name: 'zq' },
+        { index: 40, name: 'xv' },
+      ],
+    }),
+  };
+  const onTimeline = (name: string) =>
+    Array.from(
+      document.querySelectorAll<HTMLButtonElement>(
+        '.MuiSlider-markLabel .draft-mark-label'
+      )
+    ).find((b) => b.textContent === name)!;
+  const names = () =>
+    bridge.meta().draftMarkers.map((m: { name?: string }) => m.name);
+  const field = () =>
+    screen.getByRole('textbox', { name: 'Draft Marker name' });
+
+  it('names are buttons that assistive technology can reach', () => {
+    bridge = installBridge(seeded);
+    mount();
+    expect(screen.getByRole('button', { name: 'zq' })).toBe(onTimeline('zq'));
+  });
+
+  it('a click on a name goes to its exact frame, and the press does not move the slider first', () => {
+    bridge = installBridge(seeded);
+    const { container } = mount();
+    seek(20);
+    fireEvent.mouseDown(onTimeline('zq'));
+    expect(slider()).toHaveValue('20');
+    fireEvent.click(onTimeline('zq'));
+    expect(slider()).toHaveValue('5');
+    expect(shown(container)).toBe('a'.repeat(6));
+  });
+
+  it('Enter on a focused name goes to it without playing', () => {
+    bridge = installBridge(seeded);
+    mount();
+    fireEvent.keyDown(onTimeline('xv'), { key: 'Enter' });
+    expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
+  });
+
+  it('a double-click opens the name for typing there, selected; Enter keeps it and stays on that frame', () => {
+    bridge = installBridge(seeded);
+    mount();
+    fireEvent.doubleClick(onTimeline('xv'));
+    expect(slider()).toHaveValue('40');
+    const typing = field() as HTMLInputElement;
+    expect(typing.closest('.MuiSlider-markLabel')).not.toBeNull();
+    expect(document.activeElement).toBe(typing);
+    expect(typing.selectionStart).toBe(0);
+    expect(typing.selectionEnd).toBe(2);
+    fireEvent.change(typing, { target: { value: 'qq' } });
+    fireEvent.keyDown(typing, { key: 'Enter' });
+    expect(names()).toEqual(['zq', 'qq']);
+    expect(
+      screen.queryByRole('textbox', { name: 'Draft Marker name' })
+    ).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(slider()).toHaveValue('40');
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+  });
+
+  it('Escape while renaming on the timeline keeps the old name and stays', () => {
+    bridge = installBridge(seeded);
+    mount();
+    fireEvent.doubleClick(onTimeline('xv'));
+    fireEvent.change(field(), { target: { value: 'qq' } });
+    fireEvent.keyDown(field(), { key: 'Escape' });
+    expect(names()).toEqual(['zq', 'xv']);
+    expect(
+      screen.queryByRole('textbox', { name: 'Draft Marker name' })
+    ).toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+  });
+
+  it('a marker made here is named here, and Enter stays on its frame with the timeline open', () => {
+    mount();
+    seek(20);
+    markDraft();
+    fireEvent.change(field(), { target: { value: 'qz' } });
+    fireEvent.keyDown(field(), { key: 'Enter' });
+    expect(names()).toEqual(['qz']);
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    expect(slider()).toHaveValue('20');
+  });
+
+  it('even with the markers hidden, a new one shows while it is named', () => {
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    fireEvent.click(
+      screen.getByRole('checkbox', {
+        name: 'Show Draft Markers on the Timeline',
+      })
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    seek(20);
+    markDraft();
+    expect(field()).toHaveValue('Draft 1');
+  });
+
+  describe('made from Edit mode', () => {
+    const arrive = () => {
+      bridge = installBridge(seeded);
+      mount(makeHistory(LONG), { nameDraftAt: 40 });
+    };
+
+    it('Enter keeps the name and goes back to Edit', () => {
+      arrive();
+      fireEvent.change(field(), { target: { value: 'qq' } });
+      fireEvent.keyDown(field(), { key: 'Enter' });
+      expect(names()).toEqual(['zq', 'qq']);
+      expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+    });
+
+    it('Escape keeps the name it had and goes back to Edit', () => {
+      arrive();
+      fireEvent.change(field(), { target: { value: 'qq' } });
+      fireEvent.keyDown(field(), { key: 'Escape' });
+      expect(names()).toEqual(['zq', 'xv']);
+      expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+    });
+
+    it('leaving the field some other way keeps the name and stays, and a later Enter on a rename stays too', () => {
+      arrive();
+      fireEvent.change(field(), { target: { value: 'qq' } });
+      fireEvent.blur(field());
+      expect(names()).toEqual(['zq', 'qq']);
+      expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+      fireEvent.doubleClick(onTimeline('zq'));
+      fireEvent.keyDown(field(), { key: 'Enter' });
+      expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    });
+  });
+
+  it('the menu opens from the keyboard too (the Menu key, Shift+F10), where there is no pointer', () => {
+    bridge = installBridge(seeded);
+    mount();
+    fireEvent.contextMenu(onTimeline('xv'), { clientX: 0, clientY: 0 });
+    expect(
+      screen.getByRole('menuitem', { name: 'Delete Draft Marker' })
+    ).toBeInTheDocument();
+  });
+
+  it('right-click (Control-click on a Mac) offers Delete, which can be undone from the timeline', () => {
+    bridge = installBridge(seeded);
+    mount();
+    seek(20);
+    fireEvent.contextMenu(onTimeline('zq'), { clientX: 30, clientY: 40 });
+    fireEvent.mouseDown(
+      screen.getByRole('menuitem', { name: 'Delete Draft Marker' })
+    );
+    expect(slider()).toHaveValue('20');
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'Delete Draft Marker' })
+    );
+    expect(names()).toEqual(['xv']);
+    const status = screen.getByRole('status');
+    expect(status).toHaveTextContent('Draft Marker deleted.');
+    fireEvent.click(within(status).getByRole('button', { name: 'Undo' }));
+    expect(names()).toEqual(['zq', 'xv']);
   });
 });
 
@@ -789,7 +963,7 @@ describe('Replay: drafts list', () => {
     bridge = installBridge(seeded);
     const { container } = mount();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'zq' }));
+    fireEvent.click(inSettings().getByRole('button', { name: 'zq' }));
     expect(shown(container)).toBe('a'.repeat(6));
     expect(slider()).toHaveValue('5');
   });
@@ -801,7 +975,7 @@ describe('Replay: drafts list', () => {
     seek(10);
     fireEvent.click(playButton());
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.click(screen.getByRole('button', { name: 'xv' }));
+    fireEvent.click(inSettings().getByRole('button', { name: 'xv' }));
     expect(playButton()).toBeInTheDocument();
     advance(60 * 10);
     expect(shown(container)).toBe('a'.repeat(41));
@@ -839,12 +1013,13 @@ describe('Replay: drafts list', () => {
     expect(bridge.calls.at(-1)).toEqual(['send', 'save-file', []]);
   });
 
-  it('opens already naming the draft the editor sent the poet to name', () => {
+  it('opens already naming, on the timeline, the draft the editor sent the poet to name (GitHub #95)', () => {
     bridge = installBridge(seeded);
     mount(makeHistory(LONG), { nameDraftAt: 40 });
-    expect(
-      screen.getByRole('textbox', { name: 'Draft Marker name' })
-    ).toHaveValue('xv');
+    const field = screen.getByRole('textbox', { name: 'Draft Marker name' });
+    expect(field).toHaveValue('xv');
+    expect(field.closest('.MuiSlider-markLabel')).not.toBeNull();
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
   });
 
   it('does not open the list when no draft is to be named', () => {
@@ -893,7 +1068,8 @@ describe('Replay: drafts list', () => {
   // the poem and the control bar: not a modal, nothing dimmed, and nothing behind it hidden from assistive technology.
   it('opens as a panel beside the poem and the timeline, not as a modal over them', () => {
     bridge = installBridge(seeded);
-    mount(makeHistory(LONG), { nameDraftAt: 40 });
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
     const panel = document.querySelector('.DraftDrawer') as HTMLElement;
     expect(panel.parentElement).toHaveClass('ReplayLayout');
     expect(
@@ -940,7 +1116,10 @@ describe('Replay: drafts list', () => {
   // the list from each of them, as the user guide says; in the name field it also keeps the old name.
   it('Escape in the name field keeps the old name, closes the list, and puts the focus back on Drafts', () => {
     bridge = installBridge(seeded);
-    mount(makeHistory(LONG), { nameDraftAt: 40 });
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    // The newest first: xv, at frame 40.
+    fireEvent.click(screen.getAllByLabelText('Rename Draft Marker')[0]);
     const field = screen.getByRole('textbox', { name: 'Draft Marker name' });
     fireEvent.change(field, { target: { value: 'zz' } });
     fireEvent.keyDown(field, { key: 'Escape' });

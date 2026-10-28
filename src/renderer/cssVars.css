@@ -31,6 +31,8 @@
   --midst-find-problem: #a00;
   --midst-search-match: rgba(255, 213, 79, 0.45);
   --midst-search-match-current: rgba(255, 152, 0, 0.7);
+  --midst-draft-marker: #fff8cc;
+  --midst-on-draft-marker: rgba(0, 0, 0, 0.87);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,5 +63,7 @@
     --midst-find-problem: #ff8a80;
     --midst-search-match: rgba(255, 213, 79, 0.3);
     --midst-search-match-current: rgba(255, 152, 0, 0.5);
+    --midst-draft-marker: #fff8cc;
+    --midst-on-draft-marker: rgba(0, 0, 0, 0.87);
   }
 }
