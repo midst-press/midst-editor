@@ -152,9 +152,10 @@ export function shortcutRows(
       rows.push(row);
     }
     (mac ? row.mac : row.other).push(keysFor(entry.accelerator, mac));
-    (mac ? row.macWhere : row.otherWhere).push(
-      `${entry.menu} > ${entry.label}`
-    );
+    // A second key for the same item names its place once.
+    const places = mac ? row.macWhere : row.otherWhere;
+    const place = `${entry.menu} > ${entry.label}`;
+    if (!places.includes(place)) places.push(place);
   };
   menuEntries(macTemplate).forEach((entry) => add(entry, true));
   menuEntries(otherTemplate).forEach((entry) => add(entry, false));
