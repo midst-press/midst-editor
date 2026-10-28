@@ -1,6 +1,6 @@
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { SyntheticEvent } from 'react';
 import { i18n } from '../../../shared/i18n';
 
@@ -40,14 +40,14 @@ export default function MarkerLabel({
   const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(
     null
   );
-  // Enter and Escape both end the typing; the blur that follows must not count a second time.
-  const [done, setDone] = useState(false);
+  // Enter and Escape both end the typing; a blur after them must not count a second time. A ref, not state, so a
+  // blur handled in the same render still sees it (vivian-1a61bc9a, review of #348).
+  const done = useRef(false);
   const [typingFor, setTypingFor] = useState(naming);
   if (naming !== typingFor) {
     setTypingFor(naming);
     if (naming) {
       setTyped(label);
-      setDone(false);
     }
   }
 
@@ -63,21 +63,25 @@ export default function MarkerLabel({
         size={Math.max(typed.length, 4)}
         onMouseDown={keepFromSlider}
         onChange={(e) => setTyped(e.target.value)}
-        onFocus={(e) => e.target.select()}
+        onFocus={(e) => {
+          // A field opening for a new round of typing: nothing has ended it yet.
+          done.current = false;
+          e.target.select();
+        }}
         onBlur={() => {
           // eslint-disable-next-line lingui/no-unlocalized-strings -- how naming ended, not text for the poet
-          if (!done) onFinish(index, typed, 'blur');
+          if (!done.current) onFinish(index, typed, 'blur');
         }}
         onKeyDown={(e) => {
           // The timeline's own keys (Space and Enter play, Escape leaves) are not for the name field.
           e.stopPropagation();
           if (e.key === 'Enter') {
-            setDone(true);
+            done.current = true;
             // eslint-disable-next-line lingui/no-unlocalized-strings -- how naming ended, not text for the poet
             onFinish(index, typed, 'enter');
           }
           if (e.key === 'Escape') {
-            setDone(true);
+            done.current = true;
             onCancel(index);
           }
         }}

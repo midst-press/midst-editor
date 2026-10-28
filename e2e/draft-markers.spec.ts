@@ -203,6 +203,36 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
   }
 });
 
+// GitHub #95, found in review by vivian-1a61bc9a: Escape keeps the name a marker had. The name field is removed as
+// Escape is handled, and Chromium blurs a focused element as it goes; that blur must not save what was typed. jsdom
+// fires no such blur, so only the real app can show it.
+test('Escape on a new marker made while writing keeps its default name, in the file', async () => {
+  const doc = makePlayableMidst(LONG);
+  const work = mkdtempSync(join(tmpdir(), 'midst-drafts-escape-'));
+  const poemPath = join(work, 'escape.midst');
+  writeFileSync(poemPath, doc.file);
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the long poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await win.getByRole('button', { name: MARK }).click();
+    const nameField = win.getByLabel('Draft Marker name');
+    await expect(nameField).toHaveValue('Draft 1', { timeout: 25_000 });
+    await nameField.fill('zq xv');
+    await nameField.press('Escape');
+    await expect(win.locator('.ReplayContainer')).toBeHidden();
+    // Long enough for a save that should not happen to reach the file.
+    await win.waitForTimeout(2_000);
+    expect(metaOnDisk(poemPath).draftMarkers).toEqual([
+      { index: doc.history.length - 1, defaultName: 'Draft 1' },
+    ]);
+  } finally {
+    await app.close();
+  }
+});
+
 // The editor saves a second after the last keystroke. Going to the replay inside that second leaves
 // the stored text behind what the replay shows, so a marker on the last moment must take the text and
 // history to the file with it, or the file holds a marker that points past its own history.
