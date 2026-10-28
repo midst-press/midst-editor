@@ -15,7 +15,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
-import BookmarksIcon from '@mui/icons-material/Bookmarks';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
@@ -34,6 +34,7 @@ import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
 import useAutoscroll from './useAutoscroll';
+import useShowTimestamp from './useShowTimestamp';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
 import FindNotHere, { findInReplay } from '../../search/FindNotHere';
@@ -101,6 +102,7 @@ export default function Replay() {
   }, [drawerOpen]);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const showTimestamp = useShowTimestamp();
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
@@ -174,6 +176,11 @@ export default function Replay() {
     editor.commands.focus();
   }, [editor]);
 
+  // The time on the timeline: always shown when the poet asks in Settings (GitHub #94), otherwise only while
+  // pointing at the dot, and never with no history.
+  let timestampDisplay: 'on' | 'auto' | undefined;
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- the slider's display modes, not text for the poet
+  if (poemHistory.length) timestampDisplay = showTimestamp.on ? 'on' : 'auto';
   const labelFormatter = (x: number) => {
     if (x > maxStep) return '';
     return poemHistory[x]
@@ -392,7 +399,7 @@ export default function Replay() {
               step={1}
               size="small"
               valueLabelFormat={labelFormatter}
-              valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
+              valueLabelDisplay={timestampDisplay}
               sx={{
                 color: cssVar('onControlBar'),
                 marginRight: '15px',
@@ -466,7 +473,7 @@ export default function Replay() {
               </span>
             </Tooltip>
             <Tooltip
-              title={i18n._('drafts.title')}
+              title={i18n._('settings.title')}
               TransitionComponent={Zoom}
               enterDelay={1000}
               arrow
@@ -475,7 +482,7 @@ export default function Replay() {
             >
               <button
                 ref={draftsButton}
-                aria-label={i18n._('drafts.title')}
+                aria-label={i18n._('settings.title')}
                 aria-expanded={drawerOpen}
                 type="button"
                 className="control-bar-icon"
@@ -486,7 +493,8 @@ export default function Replay() {
                   setDrawerOpen(!drawerOpen);
                 }}
               >
-                <BookmarksIcon fontSize="small" />
+                {/* A gear: the drafts list is now the Settings panel (GitHub #94). */}
+                <SettingsIcon fontSize="small" />
               </button>
             </Tooltip>
             <Tooltip
@@ -532,6 +540,8 @@ export default function Replay() {
         setShowMarkers={setShowMarkers}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
+        showTimestamp={showTimestamp.on}
+        setShowTimestamp={showTimestamp.set}
       />
       <FindNotHere message={findInReplay(window.electron.versions.isMac)} />
     </div>

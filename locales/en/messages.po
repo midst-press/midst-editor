@@ -402,9 +402,6 @@ msgstr "Show their names"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.title"
 msgstr "Draft Markers"
@@ -1203,6 +1200,21 @@ msgstr "\"{type}\" inside a line"
 #, fuzzy
 msgid "rtf.refused.node"
 msgstr "\"{type}\""
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "settings.showTimestamp"
+msgstr "Show timestamp"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "settings.title"
+msgstr "Settings"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx

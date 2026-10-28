@@ -179,6 +179,12 @@
   margin: 0 0 8px;
 }
 
+/* A section of Settings (GitHub #94), under the panel's own heading. */
+.DraftDrawer h3 {
+  font-size: 0.875rem;
+  margin: 8px 0 4px;
+}
+
 .DraftDrawer ul {
   list-style: none;
   padding: 0;
