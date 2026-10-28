@@ -42,13 +42,18 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await openDocument(app, userData, poemPath, 'the long poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
 
-    // 1. From the editor: marks the latest moment and goes to the replay with the name open.
+    // 1. From the editor: marks the latest moment and goes to the Timeline with its name open there, not in
+    // Settings (GitHub #95).
     await win.getByRole('button', { name: MARK }).click();
     const nameField = win.getByLabel('Draft Marker name');
     await expect(nameField, 'the name did not open for typing').toBeVisible({
       timeout: 25_000,
     });
     await expect(nameField).toHaveValue('Draft 1');
+    await expect(
+      win.locator('.MuiSlider-markLabel .draft-mark-name')
+    ).toHaveCount(1);
+    await expect(win.locator('.DraftDrawer')).toBeHidden();
     expect(
       await waitUntil(
         () => metaOnDisk(poemPath)?.draftMarkers?.length === 1,
@@ -61,7 +66,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       highestDraftNumber: 1,
     });
 
-    // 2. Name it. Space and Enter are typed into the name, not taken as play and pause.
+    // 2. Name it. Space is typed into the name, not taken as play. Enter keeps it and, since it was made
+    // while writing, goes back to writing.
     await nameField.fill('zq xv');
     await nameField.press('Enter');
     expect(
@@ -71,20 +77,22 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       ),
       'the name never reached the file'
     ).toBe(true);
-    await expect(win.locator('.DraftDrawer .draft-name')).toHaveText(['zq xv']);
     await expect(
       win.locator('.ReplayContainer'),
-      'naming a draft left the replay'
-    ).toBeVisible();
+      'Enter on a marker made while writing did not go back to writing'
+    ).toBeHidden();
+    await expect(win.locator('.ProseMirror')).toBeVisible();
 
-    // 3. One marker per moment: here the button is off. One step earlier it is on.
-    await win.keyboard.press('Escape');
-    await expect(win.locator('.DraftDrawer')).toBeHidden();
+    // 3. Back on the Timeline. One marker per moment: here the button is off.
+    await win.getByRole('link', { name: 'Timeline' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
     const mark = win.getByRole('button', { name: MARK });
     await expect(mark).toBeDisabled();
 
-    // With the list open and nothing in it touched yet, the keys still do not reach playback: Space
-    // and Enter used to start it behind the list, because focus sits on the drawer, not inside it.
+    // With Settings open and nothing in it touched yet, the keys still do not reach playback: Space
+    // and Enter used to start it behind the list, because focus sits on the panel, not inside it.
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
     await win.getByRole('button', { name: 'Settings' }).click();
@@ -112,11 +120,21 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await expect(win.locator('.DraftDrawer')).toBeHidden();
     await expect(win.locator('.ReplayContainer')).toBeVisible();
     await expect(win.locator('.MuiSlider-mark')).toHaveCount(1);
-    await win.locator('.MuiSlider-thumb input').press('ArrowLeft');
+
+    // 4. A marker made on the Timeline is named there too, and Enter stays on its frame (GitHub #95).
+    // Well apart from the first, so neither name covers the other.
+    await thumb.press('PageDown');
+    await thumb.press('PageDown');
+    await thumb.press('PageDown');
+    const second = Number(await thumb.inputValue());
+    expect(second).toBeLessThan(last - 20);
     await expect(mark).toBeEnabled();
     await mark.click();
     await expect(win.getByLabel('Draft Marker name')).toHaveValue('Draft 2');
     await win.getByLabel('Draft Marker name').press('Enter');
+    await expect(win.getByLabel('Draft Marker name')).toHaveCount(0);
+    await expect(win.locator('.ReplayContainer')).toBeVisible();
+    await expect(thumb).toHaveValue(String(second));
     expect(
       await waitUntil(
         () => metaOnDisk(poemPath).draftMarkers.length === 2,
@@ -127,21 +145,37 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     expect(metaOnDisk(poemPath)).toEqual({
       draftMarkers: [
         { index: last, name: 'zq xv', defaultName: 'Draft 1' },
-        { index: last - 1, name: 'Draft 2', defaultName: 'Draft 2' },
+        { index: second, name: 'Draft 2', defaultName: 'Draft 2' },
       ],
       highestDraftNumber: 2,
     });
-    // Newest first in the list.
-    await expect(win.locator('.DraftDrawer .draft-name')).toHaveText([
-      'Draft 2',
-      'zq xv',
-    ]);
 
-    // 4. Delete the first one: gone from the file at once, and its number is not given out again.
-    await win
-      .getByRole('button', { name: 'Delete Draft Marker' })
-      .nth(1)
-      .click();
+    // 5. A click on a name goes to exactly its frame, from wherever the dot is.
+    const onTimeline = (name: string) =>
+      win.locator('.MuiSlider-markLabel .draft-mark-label', { hasText: name });
+    await thumb.press('Home');
+    await expect(thumb).toHaveValue('0');
+    await onTimeline('zq xv').click();
+    await expect(thumb).toHaveValue(String(last));
+    await onTimeline('Draft 2').click();
+    await expect(thumb).toHaveValue(String(second));
+
+    // 6. A double-click renames in place.
+    await onTimeline('Draft 2').dblclick();
+    await expect(win.getByLabel('Draft Marker name')).toBeFocused();
+    await win.getByLabel('Draft Marker name').fill('qq');
+    await win.getByLabel('Draft Marker name').press('Enter');
+    expect(
+      await waitUntil(
+        () => metaOnDisk(poemPath).draftMarkers[1].name === 'qq',
+        10_000
+      ),
+      'the rename on the timeline never reached the file'
+    ).toBe(true);
+
+    // 7. Right-click offers Delete: gone from the file at once, and its number is not given out again.
+    await onTimeline('zq xv').click({ button: 'right' });
+    await win.getByRole('menuitem', { name: 'Delete Draft Marker' }).click();
     expect(
       await waitUntil(
         () => metaOnDisk(poemPath).draftMarkers.length === 1,
@@ -150,11 +184,12 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       'the delete never reached the file'
     ).toBe(true);
     expect(metaOnDisk(poemPath)).toEqual({
-      draftMarkers: [
-        { index: last - 1, name: 'Draft 2', defaultName: 'Draft 2' },
-      ],
+      draftMarkers: [{ index: second, name: 'qq', defaultName: 'Draft 2' }],
       highestDraftNumber: 2,
     });
+    await expect(win.getByRole('status')).toContainText(
+      'Draft Marker deleted.'
+    );
 
     // The poem itself is untouched by all of this.
     const saved = JSON.parse(
@@ -310,10 +345,15 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
     await win.waitForLoadState('domcontentloaded');
     await openDocument(app, userData, poemPath, 'the long poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    // A marker to list, then Settings opened: a new marker no longer opens it (GitHub #95).
     await win.getByRole('button', { name: MARK }).click();
     await expect(win.getByLabel('Draft Marker name')).toBeVisible({
       timeout: 25_000,
     });
+    await win.getByLabel('Draft Marker name').press('Enter');
+    await win.getByRole('link', { name: 'Timeline' }).click();
+    await win.getByRole('button', { name: 'Settings' }).click();
+    await expect(win.locator('.DraftDrawer')).toBeVisible();
 
     await expectBeside(win);
     await win.screenshot({ path: test.info().outputPath('drafts-beside.png') });

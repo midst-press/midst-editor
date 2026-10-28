@@ -215,3 +215,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* A Draft Marker's name on the timeline (GitHub #95): pale yellow, a little padding, a pale pink outline. Dark text
+   in either appearance, on the yellow. */
+.draft-mark-label,
+.draft-mark-name {
+  background-color: var(--midst-draft-marker);
+  border: 1px solid var(--midst-primary-dark);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--midst-on-draft-marker);
+  font: inherit;
+}
+
+.draft-mark-label {
+  display: block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}

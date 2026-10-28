@@ -57,6 +57,9 @@ export const CSS_VARS = {
   findProblem: { name: '--midst-find-problem' },
   searchMatch: { name: '--midst-search-match' },
   searchMatchCurrent: { name: '--midst-search-match-current' },
+  // A Draft Marker's name on the timeline (GitHub #95): pale yellow with dark text, in either scheme.
+  draftMarker: { name: '--midst-draft-marker' },
+  onDraftMarker: { name: '--midst-on-draft-marker' },
 } as const satisfies Record<string, CssVar>;
 
 export type CssVarKey = keyof typeof CSS_VARS;
