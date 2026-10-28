@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { mkdtempSync } from 'fs';
+import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
-import { launch } from './harness';
+import { makePlayableMidst } from './fixtures';
+import { launch, openDocument } from './harness';
 
 // The window is frameless (frame: false) and draws its own title bar with
 // @jshafto/custom-electron-titlebar-update. Electron 43 changed how frameless windows are drawn on
@@ -115,6 +116,35 @@ test('the title bar spans the window top, and the content starts below it', asyn
         'macOS draws its own window controls'
       ).toHaveLength(0);
     }
+  } finally {
+    await app.close();
+  }
+});
+
+// GitHub #94: the squiggly M is about half its old size and starts clear of the macOS window buttons.
+// The buttons are native, so the page cannot measure them; in a native capture on 28 Oct the green
+// one ended at about 60px from the window's left edge. The logo is hidden on the opening screen.
+test('on macOS the logo is small and starts clear of the window buttons', async () => {
+  test.skip(process.platform !== 'darwin', 'the window buttons are macOS’s');
+  const doc = makePlayableMidst('zq vex lumb orrin taf quell');
+  const work = mkdtempSync(join(tmpdir(), 'midst-titlebar-logo-'));
+  const poemPath = join(work, 'synthetic.midst');
+  writeFileSync(poemPath, doc.file);
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await expect(win.locator('.message-container')).toBeVisible();
+    await openDocument(app, userData, poemPath, 'the synthetic poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    const logo = await win.locator('svg.svg').evaluate((e) => {
+      const r = e.getBoundingClientRect();
+      return { x: r.x, height: r.height };
+    });
+    expect(logo.height, 'logo height').toBe(40);
+    expect(
+      logo.x,
+      'logo starts past the window buttons'
+    ).toBeGreaterThanOrEqual(70);
   } finally {
     await app.close();
   }

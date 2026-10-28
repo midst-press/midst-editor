@@ -67,7 +67,8 @@
   border-radius: 5px !important;
   width: 68px !important;
   background-color: var(--midst-surface) !important;
-  color: var(--midst-primary-dark) !important;
+  /* The time inside is in the text colour, for readability (GitHub #94); the border stays pink. */
+  color: var(--midst-text-primary) !important;
   border: var(--midst-primary-dark) solid 1px !important;
   font-family:
     system-ui,
