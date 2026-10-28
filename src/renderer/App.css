@@ -49,17 +49,18 @@ body {
   overflow: visible;
 }
 
+/* The squiggly M, about half its old size (GitHub #94), just right of the window buttons on a Mac. */
 .svg {
   fill: var(--midst-primary-dark);
   opacity: 70%;
-  height: 80px;
+  height: 40px;
   position: absolute;
   z-index: 1000;
-  left: 20px;
-  top: 2px;
+  left: 76px;
+  top: 4px;
 }
 
 .svg-linux {
   left: 200px;
-  height: 60px;
+  height: 30px;
 }
