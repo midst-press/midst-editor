@@ -308,6 +308,24 @@ msgid "dialog.unsavedChanges.title"
 msgstr "Unsaved changes"
 
 #. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.detail"
+msgstr "Copy what you have written somewhere safe before you close Midst. This has been recorded in the log, {logFile}, which Help > Show Log File shows."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.message"
+msgstr "Midst could not keep your latest changes to this poem, so they may not be saved or recovered."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.title"
+msgstr "Your latest changes are not being kept"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy

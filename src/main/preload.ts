@@ -6,6 +6,7 @@ import {
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TITLEBAR_BACKGROUND } from './appearance';
+import { StoreKey, StoreSchema } from '../shared/storeSchema';
 
 export type Channels =
   | 'ipc-example'
@@ -110,12 +111,14 @@ const electronHandler = {
       };
     },
   },
+  // Typed by StoreSchema (#355). main checks both again, since nothing types what crosses IPC. `set` waits
+  // for main and answers whether the value was stored.
   store: {
-    get(key: string) {
+    get<K extends StoreKey>(key: K): StoreSchema[K] | undefined {
       return ipcRenderer.sendSync('electron-store-get', key);
     },
-    set(property: string, val: string) {
-      ipcRenderer.send('electron-store-set', property, val);
+    set<K extends StoreKey>(key: K, value: StoreSchema[K]): boolean {
+      return ipcRenderer.sendSync('electron-store-set', key, value) === true;
     },
   },
   titlebar: {

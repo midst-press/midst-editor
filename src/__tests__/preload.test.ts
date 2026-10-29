@@ -216,22 +216,27 @@ describe('store', () => {
   it('get reads synchronously by key and returns the main-process value', () => {
     mockIpc.sendSync.mockReturnValue('zq-value');
     const api = loadPreload();
-    expect(api.store.get('xv-key')).toBe('zq-value');
-    expect(mockIpc.sendSync).toHaveBeenCalledWith(
-      'electron-store-get',
-      'xv-key'
-    );
+    expect(api.store.get('poem')).toBe('zq-value');
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('electron-store-get', 'poem');
   });
 
-  it('set sends property and value on the set channel', () => {
-    const api = loadPreload();
-    api.store.set('xv-key', 'zq-value');
-    expect(mockIpc.send).toHaveBeenCalledWith(
-      'electron-store-set',
-      'xv-key',
-      'zq-value'
-    );
-  });
+  it.each([
+    [true, true],
+    [false, false],
+    [undefined, false],
+  ])(
+    'set waits for main and answers whether it stored the value (main answered %p)',
+    (answer, stored) => {
+      mockIpc.sendSync.mockReturnValue(answer);
+      const api = loadPreload();
+      expect(api.store.set('poem', 'zq-value')).toBe(stored);
+      expect(mockIpc.sendSync).toHaveBeenCalledWith(
+        'electron-store-set',
+        'poem',
+        'zq-value'
+      );
+    }
+  );
 });
 
 describe('log', () => {

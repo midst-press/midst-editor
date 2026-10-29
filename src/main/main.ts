@@ -47,6 +47,12 @@ import MenuBuilder, {
 } from './menu';
 import { forgetRecovery } from './recovery';
 import store from './store';
+import {
+  DOCUMENT_KEYS,
+  fitsSchema,
+  isStoreKey,
+  WORK_KEYS,
+} from '../shared/storeSchema';
 import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
@@ -104,10 +110,8 @@ const installExtensions = async () => {
 
 // The document the window held, removed from the store when the window closes.
 const clearDocument = () => {
-  ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
-    store.delete(key)
-  );
-  store.set('edited', 'false');
+  DOCUMENT_KEYS.forEach((key) => store.delete(key));
+  store.set('edited', false);
 };
 
 const createWindow = async () => {
@@ -204,7 +208,7 @@ const createWindow = async () => {
       try {
         await flushEditor(win);
         if (win.isDestroyed()) return;
-        if (store.get('edited') === 'false') {
+        if (store.get('edited') === false) {
           clearDocument();
           win.destroy();
           return;
@@ -354,12 +358,48 @@ ipcMain.on('disable-save', () => {
   setSaveEnabled(false);
 });
 
-// IPC listener
-ipcMain.on('electron-store-get', async (event, val) => {
-  event.returnValue = store.get(val);
+// The renderer's store calls (#355). What crosses IPC is untyped whatever the preload says, so the key
+// and the value are checked against the schema here. A get of a key the app does not have answers
+// undefined. A set answers whether it was stored: a refused one is logged, and when the key holds the
+// poem the poet is told, once until a write of the poem is stored again, because their latest work is
+// not being kept.
+let toldWorkNotKept = false;
+ipcMain.on('electron-store-get', (event, key) => {
+  if (isStoreKey(key)) {
+    event.returnValue = store.get(key);
+    return;
+  }
+  log.error('the renderer asked for a store key the app does not have', {
+    key: String(key),
+  });
+  event.returnValue = undefined;
 });
-ipcMain.on('electron-store-set', async (event, key, val) => {
+ipcMain.on('electron-store-set', (event, key, val) => {
+  if (!isStoreKey(key) || !fitsSchema(key, val)) {
+    log.error('the renderer wrote a store key or value the app does not have', {
+      key: String(key),
+      found: typeof val,
+    });
+    event.returnValue = false;
+    if (isStoreKey(key) && WORK_KEYS.has(key) && !toldWorkNotKept) {
+      toldWorkNotKept = true;
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const options = {
+        type: 'error' as const,
+        title: i18n._('dialog.workNotKept.title'),
+        message: i18n._('dialog.workNotKept.message'),
+        detail: i18n._('dialog.workNotKept.detail', {
+          logFile: logFileForPeople(),
+        }),
+      };
+      if (win) dialog.showMessageBox(win, options);
+      else dialog.showMessageBox(options);
+    }
+    return;
+  }
   store.set(key, val);
+  event.returnValue = true;
+  if (WORK_KEYS.has(key)) toldWorkNotKept = false;
   // Applied immediately so raising the level takes effect inside the session being reproduced,
   // rather than only after a restart.
   if (key === LOG_LEVEL_KEY) {
