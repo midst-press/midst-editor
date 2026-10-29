@@ -1,7 +1,6 @@
 import { useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { ChangeObj } from '@midst-press/midst-format/history';
 import './LandingDialog.css';
 import Logo from './LogoThin';
 import FindNotHere, { findBeforeOpen } from '../../search/FindNotHere';
@@ -30,8 +29,8 @@ export default function LandingDialog() {
     const removeOpen = window.electron.ipcRenderer.on(
       'open-file',
       (poem, history) => {
-        setHtmlString(poem as string);
-        setPoemHistory(history as ChangeObj[]);
+        setHtmlString(poem);
+        setPoemHistory(history);
         navigate('/editor');
       }
     );

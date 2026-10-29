@@ -9,6 +9,10 @@ import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
+
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
 // Synthetic data only. Step N of the history below shows N + 1 letters 'a'.
@@ -67,7 +71,7 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
     listeners,
     emit: (channel: string, ...args: unknown[]) =>
       act(() => {
-        (listeners[channel] ?? []).forEach((l) => l(...args));
+        (listeners[channel] ?? []).forEach((l) => (l as AnyListener)(...args));
       }),
     meta: () => JSON.parse(values.meta as string),
   };

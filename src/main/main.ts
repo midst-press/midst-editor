@@ -66,6 +66,7 @@ import {
   languageOrder,
 } from '../shared/i18n';
 import confirmContinueWriting from './continueWriting';
+import sendToWindow from './sendToWindow';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -74,12 +75,6 @@ setupTitlebar();
 let earlyPath = '';
 // Whether the current window has been shown. Until then, ready-to-show is what opens a requested file.
 let windowShown = false;
-
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  log.debug(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -293,7 +288,7 @@ ipcMain.on('focus-mode-changed', (_event, args: unknown) => {
     log.warn('focus-mode-changed: unexpected arguments, ignored', { args });
   }
   logIfRejected('focus mode report', () =>
-    win.webContents.send('set-focus-mode', focusModeMark())
+    sendToWindow(win, 'set-focus-mode', focusModeMark())
   );
 });
 ipcMain.on('focus-mode-requested', (_event, args: unknown) => {

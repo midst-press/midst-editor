@@ -1,6 +1,6 @@
 import './Replay.css';
 import { useState, useEffect, useRef, useContext, useCallback } from 'react';
-import { reconstructHTML, ChangeObj } from '@midst-press/midst-format/history';
+import { reconstructHTML } from '@midst-press/midst-format/history';
 import {
   scrollParent,
   targetScrollTop,
@@ -235,8 +235,8 @@ export default function Replay() {
       'open-file',
       (savedPoem, savedHistory) => {
         pause();
-        setHtmlString(savedPoem as string);
-        setPoemHistory(savedHistory as ChangeObj[]);
+        setHtmlString(savedPoem);
+        setPoemHistory(savedHistory);
         navigate('/editor');
       }
     );

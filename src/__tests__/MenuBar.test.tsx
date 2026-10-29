@@ -7,6 +7,10 @@ import StarterKit from '@tiptap/starter-kit';
 import type { ElectronHandler } from 'main/preload';
 import MenuBar from '../renderer/components/Editor/MenuBar';
 
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
+
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
 // Synthetic text only.
@@ -113,7 +117,9 @@ const selectAll = () =>
     editor.commands.selectAll();
   });
 const emitSetFontSize = (size: unknown) =>
-  act(() => listeners['set-font-size'].forEach((l) => l(size)));
+  act(() =>
+    listeners['set-font-size'].forEach((l) => (l as AnyListener)(size))
+  );
 
 describe('MenuBar controls', () => {
   it('offers seven buttons with accessible names', () => {

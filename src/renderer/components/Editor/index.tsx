@@ -165,22 +165,19 @@ export default function Editor() {
         // ref at the new document immediately rather than waiting for the re-render.
         latest.current = {
           gen: latest.current.gen + 1,
-          htmlString: savedPoem as string,
-          poemHistory: savedHistory as ChangeObj[],
+          htmlString: savedPoem,
+          poemHistory: savedHistory,
         };
-        setHtmlString(savedPoem as string);
+        setHtmlString(savedPoem);
 
-        setPoemHistory(savedHistory as ChangeObj[]);
+        setPoemHistory(savedHistory);
         if (myEditor) {
           // TipTap 3 emits an update by default; opening a file is not an edit.
-          myEditor.commands.setContent(savedPoem as string, {
+          myEditor.commands.setContent(savedPoem, {
             emitUpdate: false,
           });
         }
-        saveFileAndUpdateStore(
-          savedPoem as string,
-          savedHistory as ChangeObj[]
-        );
+        saveFileAndUpdateStore(savedPoem, savedHistory);
         navigate('/editor');
       }
     );

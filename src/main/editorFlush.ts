@@ -1,5 +1,6 @@
 import { BrowserWindow, ipcMain } from 'electron';
 import log from 'electron-log';
+import sendToWindow from './sendToWindow';
 
 // File > Save, Save As and Export as RTF… read the poem from the store, and the editor writes the store
 // only when its autosave fires, a second after the last keystroke. Read straight away, they missed the
@@ -43,6 +44,6 @@ export const flushEditor = (mainWindow: BrowserWindow): Promise<void> => {
       waiting.delete(id);
       resolve();
     });
-    mainWindow.webContents.send('flush-editor', id);
+    sendToWindow(mainWindow, 'flush-editor', id);
   });
 };

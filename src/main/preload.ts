@@ -7,33 +7,7 @@ import {
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TITLEBAR_BACKGROUND } from './appearance';
 import { StoreKey, StoreSchema } from '../shared/storeSchema';
-
-export type Channels =
-  | 'ipc-example'
-  | 'open-file'
-  | 'set-filename'
-  | 'set-font-size'
-  | 'set-locale'
-  | 'set-language'
-  | 'toggle-edit-mode'
-  | 'save-file'
-  | 'toggle-spellcheck'
-  | 'set-focus-mode'
-  | 'focus-mode-requested'
-  | 'focus-mode-changed'
-  | 'find-in-poem'
-  | 'choose-font'
-  | 'new-file'
-  | 'new-file-from-menu'
-  | 'button-open-file'
-  | 'open-help'
-  | 'enable-save'
-  | 'disable-save'
-  | 'cancel-save'
-  | 'set-not-saved'
-  | 'flush-editor'
-  | 'editor-flushed'
-  | 'app-open';
+import { MainToWindow, WindowToMain } from '../shared/channels';
 
 let titlebar: CustomTitlebar | null = null;
 
@@ -88,22 +62,32 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 const electronHandler = {
+  // Typed by the channel maps in shared/channels.ts (#355).
   ipcRenderer: {
-    sendMessage(channel: Channels, args: unknown[]) {
+    sendMessage<C extends keyof WindowToMain>(
+      channel: C,
+      args: WindowToMain[C]
+    ) {
       ipcRenderer.send(channel, args);
     },
-    on(channel: Channels, func: (...args: unknown[]) => void) {
+    on<C extends keyof MainToWindow>(
+      channel: C,
+      func: (...args: MainToWindow[C]) => void
+    ) {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
+        func(...(args as MainToWindow[C]));
       ipcRenderer.on(channel, subscription);
 
       return () => {
         ipcRenderer.removeListener(channel, subscription);
       };
     },
-    once(channel: Channels, func: (...args: unknown[]) => void) {
+    once<C extends keyof MainToWindow>(
+      channel: C,
+      func: (...args: MainToWindow[C]) => void
+    ) {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
+        func(...(args as MainToWindow[C]));
       ipcRenderer.once(channel, subscription);
 
       return () => {
