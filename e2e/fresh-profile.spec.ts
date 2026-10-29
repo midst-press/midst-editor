@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { existsSync, mkdtempSync, writeFileSync } from 'fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
@@ -12,7 +18,7 @@ import {
 } from './harness';
 
 // Issue #14: the first open on a new profile warned of unsaved changes when nothing had been edited.
-// `edited` had no value on a new profile, and only the string 'false' counted as "nothing to lose".
+// `edited` had no value on a new profile, and only 'false' (now the boolean false) counted as "nothing to lose".
 // The other specs seed that value; this one launches with NO seed, which is what a poet's first run
 // of the app is.
 //
@@ -52,6 +58,47 @@ test('the first open on a new profile does not warn of unsaved changes', async (
     expect(await dialogsSeen(app), 'a dialog appeared on first open').toEqual(
       []
     );
+  } finally {
+    await app.close();
+  }
+});
+
+// #355: profiles from before 0.9.x hold `edited` as the string 'false'. The app converts it when it starts,
+// so a returning poet's first open does not warn of unsaved changes either.
+test("a profile holding edited as the string 'false' opens without a warning, and keeps it as false", async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-e2e-'));
+  const doc = makeMidst('OLD-PROFILE-SENTINEL', 10);
+  const file = join(work, 'poem.midst');
+  writeFileSync(file, doc.file);
+  const userData = join(work, 'userdata');
+  mkdirSync(userData, { recursive: true });
+  writeFileSync(
+    join(userData, 'config.json'),
+    JSON.stringify({ edited: 'false' })
+  );
+
+  const { app } = await launch(work, { seed: false });
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    // The app converted the string when it started: what is on disk now is the boolean.
+    expect(
+      JSON.parse(readFileSync(join(userData, 'config.json'), 'utf8')).edited
+    ).toBe(false);
+
+    await openDocument(app, userData, file, 'the poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await new Promise((resolve) => {
+      setTimeout(resolve, SETTLE_MS);
+    });
+
+    expect(readStore(userData).poem, 'the poem was not loaded').toContain(
+      doc.sentinel
+    );
+    expect(
+      await dialogsSeen(app),
+      'a dialog appeared on the first open of an old profile'
+    ).toEqual([]);
   } finally {
     await app.close();
   }
