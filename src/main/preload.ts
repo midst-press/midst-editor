@@ -111,14 +111,15 @@ const electronHandler = {
       };
     },
   },
-  // Typed by StoreSchema (#355). main checks both again, since nothing types what crosses IPC. `set` waits
-  // for main and answers whether the value was stored.
+  // Typed by StoreSchema (#355). main checks both again, since nothing types what crosses IPC. `set` does
+  // not wait: a refused write is logged by main, which tells the poet when it is the poem, and waiting would
+  // hold up typing on every autosave while electron-store rewrites its file (Cora, review of #370).
   store: {
     get<K extends StoreKey>(key: K): StoreSchema[K] | undefined {
       return ipcRenderer.sendSync('electron-store-get', key);
     },
-    set<K extends StoreKey>(key: K, value: StoreSchema[K]): boolean {
-      return ipcRenderer.sendSync('electron-store-set', key, value) === true;
+    set<K extends StoreKey>(key: K, value: StoreSchema[K]): void {
+      ipcRenderer.send('electron-store-set', key, value);
     },
   },
   titlebar: {

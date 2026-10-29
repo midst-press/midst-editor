@@ -360,9 +360,8 @@ ipcMain.on('disable-save', () => {
 
 // The renderer's store calls (#355). What crosses IPC is untyped whatever the preload says, so the key
 // and the value are checked against the schema here. A get of a key the app does not have answers
-// undefined. A set answers whether it was stored: a refused one is logged, and when the key holds the
-// poem the poet is told, once until a write of the poem is stored again, because their latest work is
-// not being kept.
+// undefined. A refused set is logged, and when the key holds the poem the poet is told, once until a write
+// of the poem is stored again, because their latest work is not being kept.
 let toldWorkNotKept = false;
 ipcMain.on('electron-store-get', (event, key) => {
   if (isStoreKey(key)) {
@@ -380,7 +379,10 @@ ipcMain.on('electron-store-set', (event, key, val) => {
       key: String(key),
       found: typeof val,
     });
-    event.returnValue = false;
+    // A refused `edited` would leave the old value, which can be false, and closing would then skip the
+    // unsaved-changes prompt. Whatever was meant, it is stored as unsaved: the safe direction (Silas,
+    // review of #370).
+    if (key === 'edited') store.set('edited', true);
     if (isStoreKey(key) && WORK_KEYS.has(key) && !toldWorkNotKept) {
       toldWorkNotKept = true;
       const win = BrowserWindow.fromWebContents(event.sender);
@@ -398,7 +400,6 @@ ipcMain.on('electron-store-set', (event, key, val) => {
     return;
   }
   store.set(key, val);
-  event.returnValue = true;
   if (WORK_KEYS.has(key)) toldWorkNotKept = false;
   // Applied immediately so raising the level takes effect inside the session being reproduced,
   // rather than only after a restart.

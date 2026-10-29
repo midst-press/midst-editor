@@ -220,23 +220,16 @@ describe('store', () => {
     expect(mockIpc.sendSync).toHaveBeenCalledWith('electron-store-get', 'poem');
   });
 
-  it.each([
-    [true, true],
-    [false, false],
-    [undefined, false],
-  ])(
-    'set waits for main and answers whether it stored the value (main answered %p)',
-    (answer, stored) => {
-      mockIpc.sendSync.mockReturnValue(answer);
-      const api = loadPreload();
-      expect(api.store.set('poem', 'zq-value')).toBe(stored);
-      expect(mockIpc.sendSync).toHaveBeenCalledWith(
-        'electron-store-set',
-        'poem',
-        'zq-value'
-      );
-    }
-  );
+  it('set sends the key and value on the set channel, without waiting', () => {
+    const api = loadPreload();
+    api.store.set('poem', 'zq-value');
+    expect(mockIpc.send).toHaveBeenCalledWith(
+      'electron-store-set',
+      'poem',
+      'zq-value'
+    );
+    expect(mockIpc.sendSync).not.toHaveBeenCalled();
+  });
 });
 
 describe('log', () => {

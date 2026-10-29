@@ -432,15 +432,13 @@ describe('main process', () => {
       return event.returnValue;
     };
     const set = async (fireIpc: FireIpc, key: unknown, value: unknown) => {
-      const event = { returnValue: 'unset' as unknown, sender: {} };
-      await fireIpc('electron-store-set', event, key, value);
-      return event.returnValue;
+      await fireIpc('electron-store-set', { sender: {} }, key, value);
     };
 
-    it('stores a value of its type, and answers true', async () => {
+    it('stores a value of its type', async () => {
       const { fireIpc, store, electron } = await boot();
-      expect(await set(fireIpc, 'poem', '<p>zq</p>')).toBe(true);
-      expect(await set(fireIpc, 'edited', true)).toBe(true);
+      await set(fireIpc, 'poem', '<p>zq</p>');
+      await set(fireIpc, 'edited', true);
       expect(store.get('poem')).toBe('<p>zq</p>');
       expect(store.get('edited')).toBe(true);
       expect(await get(fireIpc, 'poem')).toBe('<p>zq</p>');
@@ -448,14 +446,13 @@ describe('main process', () => {
     });
 
     it.each([
-      ['edited', 'true'],
       ['font-size', 3],
       ['zq-not-a-key', 'xv'],
     ])(
-      'refuses %p written as %p, stores nothing, answers false and logs it',
+      'refuses %p written as %p, stores nothing and logs it',
       async (key, value) => {
         const { fireIpc, store, log, electron } = await boot();
-        expect(await set(fireIpc, key, value)).toBe(false);
+        await set(fireIpc, key, value);
         expect(store.get(key as 'edited')).toBeUndefined();
         expect(log.error).toHaveBeenCalledWith(
           'the renderer wrote a store key or value the app does not have',
@@ -463,6 +460,20 @@ describe('main process', () => {
         );
         // Not the poem: logged only.
         expect(electron.dialog.showMessageBox).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each([['true'], ['false'], [0], [null]])(
+      'stores edited as unsaved when it is written as %p, and logs it',
+      async (value) => {
+        const { fireIpc, store, log } = await boot();
+        store.set('edited', false);
+        await set(fireIpc, 'edited', value);
+        expect(store.get('edited')).toBe(true);
+        expect(log.error).toHaveBeenCalledWith(
+          'the renderer wrote a store key or value the app does not have',
+          { key: 'edited', found: typeof value }
+        );
       }
     );
 
@@ -479,15 +490,15 @@ describe('main process', () => {
     // what the poet types, so they are told, once until the poem is stored again.
     it('tells the poet once when the poem is refused, and again only after it has been stored', async () => {
       const { fireIpc, electron, win } = await boot();
-      expect(await set(fireIpc, 'poem', 7)).toBe(false);
-      expect(await set(fireIpc, 'history', null)).toBe(false);
+      await set(fireIpc, 'poem', 7);
+      await set(fireIpc, 'history', null);
       expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(1);
       expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(
         win(),
         expect.objectContaining({ type: 'error' })
       );
-      expect(await set(fireIpc, 'poem', '<p>zq</p>')).toBe(true);
-      expect(await set(fireIpc, 'meta', false)).toBe(false);
+      await set(fireIpc, 'poem', '<p>zq</p>');
+      await set(fireIpc, 'meta', false);
       expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(2);
     });
   });
