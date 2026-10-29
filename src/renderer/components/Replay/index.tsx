@@ -15,7 +15,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
-import BookmarksIcon from '@mui/icons-material/Bookmarks';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import Grow from '@mui/material/Grow';
@@ -29,11 +29,13 @@ import { HistoryContext, TextContext } from 'renderer/context';
 import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
+import MarkerLabel from '../DraftMarkers/MarkerLabel';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
 import useAutoscroll from './useAutoscroll';
+import useShowTimestamp from './useShowTimestamp';
 import usePlayback from './usePlayback';
 import RestartFromButton from './RestartFromButton';
 import FindNotHere, { findInReplay } from '../../search/FindNotHere';
@@ -90,8 +92,15 @@ export default function Replay() {
   // The editor sends the poet here to name a draft it has just marked.
   const nameOnArrival = (useLocation().state as { nameDraftAt?: number } | null)
     ?.nameDraftAt;
-  const [naming, setNaming] = useState<number | null>(nameOnArrival ?? null);
-  const [drawerOpen, setDrawerOpen] = useState(nameOnArrival !== undefined);
+  // The name being typed in Settings, if any.
+  const [naming, setNaming] = useState<number | null>(null);
+  // A new marker is named on the timeline itself, not in Settings (GitHub #95). Made from Edit mode, finishing
+  // the name goes back to Edit; made here, it stays on that frame.
+  const [timelineNaming, setTimelineNaming] = useState<number | null>(
+    nameOnArrival ?? null
+  );
+  const backToEdit = useRef(nameOnArrival !== undefined);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
   useEffect(() => {
     if (!drawerOpen && refocusDrafts.current) {
@@ -101,6 +110,7 @@ export default function Replay() {
   }, [drawerOpen]);
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
+  const showTimestamp = useShowTimestamp();
   const heightClass = window.electron.versions.isMac
     ? 'history-height-tall'
     : 'history-height-short';
@@ -174,6 +184,46 @@ export default function Replay() {
     editor.commands.focus();
   }, [editor]);
 
+  // The time on the timeline: always shown when the poet asks in Settings (GitHub #94), otherwise only while
+  // pointing at the dot, and never with no history.
+  let timestampDisplay: 'on' | 'auto' | undefined;
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- the slider's display modes, not text for the poet
+  if (poemHistory.length) timestampDisplay = showTimestamp.on ? 'on' : 'auto';
+  // A Draft Marker's name on the timeline (GitHub #95).
+  const jumpTo = (index: number) => {
+    pause();
+    setStep(index);
+  };
+  const leaveTimelineNaming = (goBack: boolean) => {
+    setTimelineNaming(null);
+    if (backToEdit.current) {
+      backToEdit.current = false;
+      if (goBack) navigate('/editor');
+    }
+  };
+  const markLabel = (index: number, label: string) => (
+    <MarkerLabel
+      index={index}
+      label={label}
+      naming={timelineNaming === index}
+      onJump={jumpTo}
+      onStartNaming={(at) => {
+        jumpTo(at);
+        setTimelineNaming(at);
+      }}
+      onFinish={(at, name, how) => {
+        drafts.rename(at, name);
+        // eslint-disable-next-line lingui/no-unlocalized-strings -- how naming ended, not text for the poet
+        leaveTimelineNaming(how === 'enter');
+      }}
+      // Escape keeps the name it had.
+      onCancel={() => leaveTimelineNaming(true)}
+      onDelete={(at) => {
+        if (timelineNaming === at) setTimelineNaming(null);
+        drafts.remove(at);
+      }}
+    />
+  );
   const labelFormatter = (x: number) => {
     if (x > maxStep) return '';
     return poemHistory[x]
@@ -392,7 +442,7 @@ export default function Replay() {
               step={1}
               size="small"
               valueLabelFormat={labelFormatter}
-              valueLabelDisplay={poemHistory.length ? 'auto' : undefined}
+              valueLabelDisplay={timestampDisplay}
               sx={{
                 color: cssVar('onControlBar'),
                 marginRight: '15px',
@@ -405,22 +455,33 @@ export default function Replay() {
                   backgroundColor: cssVar('textPrimary'),
                   opacity: 0.7,
                 },
+                // Above the dot, so the timestamp passes behind the names where they meet (GitHub #95); the
+                // names themselves are styled in Replay.css.
                 '& .MuiSlider-markLabel': {
                   top: '-34px',
                   fontSize: '0.75rem',
-                  color: cssVar('textPrimary'),
-                  maxWidth: '140px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
+                  zIndex: 2,
                 },
               }}
               onChange={handleStepChange}
+              // MUI hides mark labels from assistive technology; these are buttons and a name field now
+              // (GitHub #95), so they must be reachable.
+              slotProps={{ markLabel: { 'aria-hidden': undefined } }}
               marks={
-                showMarkers
-                  ? drafts.markers.map(({ index, label }) => ({
-                      value: index,
-                      label: showLabels ? label : undefined,
-                    }))
+                // A marker being named shows even with the markers turned off.
+                showMarkers || timelineNaming !== null
+                  ? drafts.markers
+                      .filter(
+                        ({ index }) => showMarkers || index === timelineNaming
+                      )
+                      .map(({ index, label }) => ({
+                        value: index,
+                        // A name being typed shows even with the names turned off.
+                        label:
+                          showLabels || timelineNaming === index
+                            ? markLabel(index, label)
+                            : undefined,
+                      }))
                   : false
               }
             />
@@ -449,10 +510,7 @@ export default function Replay() {
                   disabled={draftReason !== null}
                   onClick={() => {
                     pause();
-                    if (drafts.create(step)) {
-                      setNaming(step);
-                      setDrawerOpen(true);
-                    }
+                    if (drafts.create(step)) setTimelineNaming(step);
                   }}
                 >
                   <BookmarkAddIcon fontSize="small" />
@@ -463,10 +521,19 @@ export default function Replay() {
                   </span>
                 )}
                 <RefusalAlert message={drafts.refusal} />
+                {/* A delete from the timeline can be undone here, as in Settings (#277, GitHub #95). */}
+                {drafts.canUndoDelete && !drawerOpen ? (
+                  <span role="status" className="DraftUndo TimelineUndo">
+                    {i18n._('drafts.deleted')}{' '}
+                    <button type="button" onClick={drafts.undoDelete}>
+                      {i18n._('drafts.undo')}
+                    </button>
+                  </span>
+                ) : null}
               </span>
             </Tooltip>
             <Tooltip
-              title={i18n._('drafts.title')}
+              title={i18n._('settings.title')}
               TransitionComponent={Zoom}
               enterDelay={1000}
               arrow
@@ -475,7 +542,7 @@ export default function Replay() {
             >
               <button
                 ref={draftsButton}
-                aria-label={i18n._('drafts.title')}
+                aria-label={i18n._('settings.title')}
                 aria-expanded={drawerOpen}
                 type="button"
                 className="control-bar-icon"
@@ -486,7 +553,8 @@ export default function Replay() {
                   setDrawerOpen(!drawerOpen);
                 }}
               >
-                <BookmarksIcon fontSize="small" />
+                {/* A gear: the drafts list is now the Settings panel (GitHub #94). */}
+                <SettingsIcon fontSize="small" />
               </button>
             </Tooltip>
             <Tooltip
@@ -532,6 +600,8 @@ export default function Replay() {
         setShowMarkers={setShowMarkers}
         showLabels={showLabels}
         setShowLabels={setShowLabels}
+        showTimestamp={showTimestamp.on}
+        setShowTimestamp={showTimestamp.set}
       />
       <FindNotHere message={findInReplay(window.electron.versions.isMac)} />
     </div>

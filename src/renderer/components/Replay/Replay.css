@@ -67,7 +67,8 @@
   border-radius: 5px !important;
   width: 68px !important;
   background-color: var(--midst-surface) !important;
-  color: var(--midst-primary-dark) !important;
+  /* The time inside is in the text colour, for readability (GitHub #94); the border stays pink. */
+  color: var(--midst-text-primary) !important;
   border: var(--midst-primary-dark) solid 1px !important;
   font-family:
     system-ui,
@@ -179,6 +180,12 @@
   margin: 0 0 8px;
 }
 
+/* A section of Settings (GitHub #94), under the panel's own heading. */
+.DraftDrawer h3 {
+  font-size: 0.875rem;
+  margin: 8px 0 4px;
+}
+
 .DraftDrawer ul {
   list-style: none;
   padding: 0;
@@ -208,4 +215,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A Draft Marker's name on the timeline (GitHub #95): pale yellow, a little padding, a pale pink outline. Dark text
+   in either appearance, on the yellow. */
+.draft-mark-label,
+.draft-mark-name {
+  background-color: var(--midst-draft-marker);
+  border: 1px solid var(--midst-primary-dark);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--midst-on-draft-marker);
+  font: inherit;
+}
+
+.draft-mark-label {
+  display: block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 }
