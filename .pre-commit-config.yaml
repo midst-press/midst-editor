@@ -9,14 +9,16 @@ default_install_hook_types: [pre-commit, commit-msg, pre-push]
 default_stages: [pre-commit, manual]
 # The vendored build is byte-exact (vendor/midst-format/VENDOR.md): no whitespace fixer, line-ending fixer or
 # formatter may touch it, so each of those hooks excludes it. The vendored-format hook below guards it.
+# content/ (Annelyse's, midst-web #281) is excluded from the same hooks: it arrives from GitHub as she wrote it, and a
+# fixer would fail CI on her text or strip a Markdown line break. The hooks that only check still cover it.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: end-of-file-fixer
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: check-merge-conflict
       - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json
@@ -29,7 +31,7 @@ repos:
       - id: check-yaml
       - id: mixed-line-ending
         args: [--fix=lf]
-        exclude: ^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/
       - id: detect-private-key
       - id: check-added-large-files
         args: [--maxkb=2048]
@@ -80,7 +82,7 @@ repos:
         language: system
         entry: npx --no-install prettier --write
         files: '\.(ts|tsx|js|jsx|json|css|scss|md|ya?ml)$'
-        exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/'
+        exclude: '(package-lock\.json|yarn\.lock)$|^vendor/midst-format/|^content/'
       - id: catalog-compile
         name: compile the message catalog (typecheck reads locales/<lang>/messages.ts, which is generated)
         language: system
@@ -125,6 +127,27 @@ repos:
         entry: node --test tools/test-install-hooks.cjs
         pass_filenames: false
         files: '^tools/(install-hooks\.cjs|require-hooks\.cjs|test-install-hooks\.cjs)$'
+
+      - id: test-growing-text
+        name: bounded growing-text driver and isolated Electron cache controls
+        language: system
+        entry: node --test tools/test-growing-text.cjs
+        pass_filenames: false
+        files: '^(e2e/(growing-text\.spec|fixtures)\.ts|tools/(install-electron|test-growing-text)\.cjs)$'
+
+      # ---- content/ is Annelyse's (midst-web #281). A copy of midst-web's guard, tested there and here. ----
+      - id: content-owner
+        name: content/ is Annelyse's; only the return path changes it (midst-web#281)
+        language: system
+        entry: node tools/check-content-owner.mjs --staged
+        pass_filenames: false
+        always_run: true
+      - id: content-owner-self-test
+        name: the content/ guard refuses what it should and passes the return path
+        language: system
+        entry: node --test tools/test-check-content-owner.mjs
+        pass_filenames: false
+        files: '^tools/(test-)?check-content-owner\.mjs$'
 
       # ---- a pushed branch is never rewritten. The servers refuse it (Gitea and GitHub); this says so before
       # anything is sent, and what to do instead. A copy from midst-infra, tested there. ----

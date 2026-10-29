@@ -43,3 +43,22 @@ export const loadDataIntoWorkspace = (
   }
   store.set('edited', JSON.stringify(false));
 };
+
+// An untitled poem recovered after a crash (#315): the document as its recovery copy holds it, with no file of its own,
+// and unsaved, so closing the window or starting another poem still asks.
+export const loadRecoveredIntoWorkspace = (
+  data: string,
+  mainWindow: BrowserWindow,
+  darwin: boolean
+) => {
+  const { text, history, meta } = JSON.parse(stripVersionInfo(data));
+  store.set('poem', text);
+  store.set('history', JSON.stringify(history));
+  store.set('meta', meta === undefined ? '' : JSON.stringify(meta));
+  store.set('filename', '');
+  store.set('baseFilename', '');
+  saveFailure.startAgain();
+  mainWindow.webContents.send('open-file', text, history, '');
+  if (darwin) mainWindow.setDocumentEdited(true);
+  store.set('edited', JSON.stringify(true));
+};

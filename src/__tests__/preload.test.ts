@@ -90,6 +90,7 @@ describe('exposure', () => {
     expect(mockExposeInMainWorld.mock.calls[0][0]).toBe('electron');
     expect(Object.keys(api).sort()).toEqual(
       [
+        'confirmContinueWriting',
         'ipcRenderer',
         'languageOrder',
         'log',
@@ -193,6 +194,21 @@ describe('languageOrder (editor #265)', () => {
     mockIpc.sendSync.mockReturnValue(['en', 'zq']);
     expect(loadPreload().languageOrder()).toEqual(['en', 'zq']);
     expect(mockIpc.sendSync).toHaveBeenCalledWith('language-order');
+  });
+});
+
+describe('confirmContinueWriting (GitHub #90)', () => {
+  it('asks the main process synchronously, and is true only for a true answer', () => {
+    mockIpc.sendSync.mockReturnValue(true);
+    expect(loadPreload().confirmContinueWriting()).toBe(true);
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('confirm-continue-writing');
+    jest.clearAllMocks();
+    mockIpc.sendSync.mockReturnValue(false);
+    expect(loadPreload().confirmContinueWriting()).toBe(false);
+    jest.clearAllMocks();
+    // Anything else, such as no handler answering, is not a Continue.
+    mockIpc.sendSync.mockReturnValue(undefined);
+    expect(loadPreload().confirmContinueWriting()).toBe(false);
   });
 });
 

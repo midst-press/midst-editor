@@ -1,18 +1,11 @@
-@media screen and (min-width: 768px) {
-  .HistoryDisplay {
-    padding: 0px 60px;
-  }
-}
-
-@media screen and (max-width: 769px) {
-  .HistoryDisplay {
-    padding: 0px 32px;
-  }
-}
-
+/* The same column as the editor's (Editor.css, #312). */
 .HistoryDisplay {
+  padding: 0 max(15%, 32px);
   width: 100%;
-  font-family:
+  /* The poem's font (#240), set on an ancestor by PoemFontContext; the fallback is the app's own font,
+     APP_FONT_STACK in poemFont.ts. */
+  font-family: var(
+    --poem-font,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -23,7 +16,8 @@
     Cantarell,
     'Open Sans',
     'Helvetica Neue',
-    sans-serif;
+    sans-serif
+  );
   /* font-size: 1rem;
   line-height: 1.5rem; */
   box-sizing: border-box;
@@ -77,7 +71,8 @@
   border-radius: 5px !important;
   width: 68px !important;
   background-color: var(--midst-surface) !important;
-  color: var(--midst-primary-dark) !important;
+  /* The time inside is in the text colour, for readability (GitHub #94); the border stays pink. */
+  color: var(--midst-text-primary) !important;
   border: var(--midst-primary-dark) solid 1px !important;
   font-family:
     system-ui,
@@ -150,9 +145,26 @@
   font-size: 32px;
 }
 
+/* The drafts list beside the poem and the timeline, never over them (#313, GitHub #85): the poem and the control
+   bar take the width that is left. */
+.ReplayLayout {
+  display: flex;
+  align-items: flex-start;
+}
+
+.ReplayMain {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .DraftDrawer {
+  flex: 0 0 auto;
   width: 300px;
   padding: 16px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  outline: none;
   font-family:
     system-ui,
     -apple-system,
@@ -170,6 +182,12 @@
 .DraftDrawer h2 {
   font-size: 1rem;
   margin: 0 0 8px;
+}
+
+/* A section of Settings (GitHub #94), under the panel's own heading. */
+.DraftDrawer h3 {
+  font-size: 0.875rem;
+  margin: 8px 0 4px;
 }
 
 .DraftDrawer ul {
@@ -201,4 +219,25 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* A Draft Marker's name on the timeline (GitHub #95): pale yellow, a little padding, a pale pink outline. Dark text
+   in either appearance, on the yellow. */
+.draft-mark-label,
+.draft-mark-name {
+  background-color: var(--midst-draft-marker);
+  border: 1px solid var(--midst-primary-dark);
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--midst-on-draft-marker);
+  font: inherit;
+}
+
+.draft-mark-label {
+  display: block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 }

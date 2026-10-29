@@ -14,6 +14,7 @@ msgstr ""
 "Plural-Forms: \n"
 
 #. js-lingui-explicit-id
+#: src/main/continueWriting.ts
 #: src/main/main.ts
 #: src/main/menu.ts
 #: src/main/menu.ts
@@ -23,11 +24,23 @@ msgid "button.cancel"
 msgstr "Cancel"
 
 #. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.no"
+msgstr "No"
+
+#. js-lingui-explicit-id
 #: src/main/about.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "button.ok"
 msgstr "OK"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "button.yes"
+msgstr "Yes"
 
 #. js-lingui-explicit-id
 #: src/main/about.ts
@@ -229,6 +242,24 @@ msgstr ""
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "dialog.recover.detail"
+msgstr "Last kept {when}."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.message"
+msgstr "Midst unexpectedly quit while you were working on the poem \"{title}.\" Would you like to recover your work?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.recover.title"
+msgstr "Recover your work?"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "dialog.saveAs.message"
 msgstr "Save file as..."
 
@@ -278,15 +309,17 @@ msgstr "Unsaved changes"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy
 msgid "drafts.delete"
-msgstr "Delete draft"
+msgstr "Delete Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.deleted"
-msgstr "Draft deleted."
+msgstr "Draft Marker deleted."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
@@ -295,37 +328,38 @@ msgstr "Draft deleted."
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.mark"
-msgstr "Mark this moment as a draft"
+msgstr "Add a Draft Marker here"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy
 msgid "drafts.nameField"
-msgstr "Draft name"
+msgstr "Draft Marker name"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.none"
-msgstr "No drafts marked yet."
+msgstr "No Draft Markers yet."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.alreadyMarked"
-msgstr "This moment already has a draft."
+msgstr "This moment already has a Draft Marker."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.failed"
-msgstr "Something went wrong while changing this draft. The drafts list shows what was kept."
+msgstr "Something went wrong while changing this Draft Marker. The Draft Markers list shows what was kept."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.gone"
-msgstr "That draft is no longer there."
+msgstr "That Draft Marker is no longer there."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
@@ -337,31 +371,31 @@ msgstr "There is no moment here to mark."
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.noNumberLeft"
-msgstr "No more drafts can be numbered in this poem."
+msgstr "No more Draft Markers can be numbered in this poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.tooFewChanges"
-msgstr "A draft can be marked once the poem has more than {needed} changes. This one has {count}."
+msgstr "A Draft Marker can be added once the poem has more than {needed} changes. This one has {count}."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
 msgid "drafts.refused.unreadable"
-msgstr "The drafts of this poem could not be read, so nothing was changed."
+msgstr "The Draft Markers of this poem could not be read, so nothing was changed."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.rename"
-msgstr "Rename draft"
+msgstr "Rename Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
 msgid "drafts.showMarkers"
-msgstr "Show markers on the timeline"
+msgstr "Show Draft Markers on the Timeline"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
@@ -371,15 +405,13 @@ msgstr "Show their names"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.title"
-msgstr "Drafts"
+msgstr "Draft Markers"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.undo"
 msgstr "Undo"
@@ -389,7 +421,7 @@ msgstr "Undo"
 #: src/renderer/components/Editor/index.tsx
 #, fuzzy
 msgid "editor.replay"
-msgstr "Replay"
+msgstr "Timeline"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -446,7 +478,7 @@ msgstr "Find in the poem"
 #: src/renderer/search/FindNotHere.tsx
 #, fuzzy
 msgid "find.inReplay"
-msgstr "Find works while you are writing. Press Edit, or {shortcut}, to go back to the poem."
+msgstr "Find works while you're editing. Press Edit, or {shortcut}, to go back to the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/search/FindBar.tsx
@@ -486,6 +518,80 @@ msgstr "Type the words to find first."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.enter.tooltip"
+msgstr "Hide everything but the poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.exit.tooltip"
+msgstr "Bring the controls back"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "focusMode.toggle"
+msgstr "Focus Mode"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.appFont"
+msgstr "The app's own font"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.loading"
+msgstr "Listing the fonts on this computer…"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.metaUnreadable"
+msgstr "This poem's settings could not be read, so its font was not changed."
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.noMatch"
+msgstr "No font matches."
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.notInstalled"
+msgstr "{family} (not installed here)"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.search"
+msgstr "Search fonts"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.title"
+msgstr "Font for this poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.unavailable"
+msgstr "The fonts on this computer could not be listed."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.bold"
@@ -499,7 +605,6 @@ msgstr "Bold can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.italic"
 msgstr "Italic"
@@ -509,6 +614,30 @@ msgstr "Italic"
 #, fuzzy
 msgid "format.italic.unavailable"
 msgstr "Italic can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.strike"
+msgstr "Strikethrough"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.strike.unavailable"
+msgstr "Strikethrough can't be used in this part of the poem."
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.underline"
+msgstr "Underline"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/Editor/MenuBar.tsx
+#, fuzzy
+msgid "format.underline.unavailable"
+msgstr "Underline can't be used in this part of the poem."
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -701,6 +830,12 @@ msgstr "Find words in the poem"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "menu.edit.focusMode"
+msgstr "Focus &Mode"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "menu.edit.paste"
 msgstr "Paste"
 
@@ -738,7 +873,7 @@ msgstr "Select the whole poem"
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.edit.spellcheck.mac"
-msgstr "Show/hide spellcheck"
+msgstr "Check Spelling"
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -750,7 +885,7 @@ msgstr "Turn spellcheck on or off"
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.edit.spellcheck.other"
-msgstr "Toggle Spellcheck"
+msgstr "Check Spelling"
 
 #. js-lingui-explicit-id
 #: src/main/shortcutTable.ts
@@ -768,7 +903,7 @@ msgstr "Toggle Timeline"
 #: src/main/shortcutTable.ts
 #, fuzzy
 msgid "menu.edit.toggleTimeline.description"
-msgstr "Switch between writing and Replay"
+msgstr "Switch between Edit and Timeline"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -922,6 +1057,12 @@ msgstr "Toggle &Developer Tools"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #, fuzzy
+msgid "menu.view.font"
+msgstr "Font…"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
 msgid "menu.view.fullScreen"
 msgstr "Toggle &Full Screen"
 
@@ -945,6 +1086,7 @@ msgstr "&Reload"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "menu.view.textSizeDecrease"
 msgstr "Decrease text size"
@@ -956,6 +1098,7 @@ msgid "menu.view.textSizeDecrease.description"
 msgstr "Make the text smaller"
 
 #. js-lingui-explicit-id
+#: src/main/menu.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.view.textSizeIncrease"
@@ -1026,7 +1169,7 @@ msgstr "Not following the writing: the page stays where you put it. Click to fol
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.follow.on"
-msgstr "Following the writing as it replays. Click to stop scrolling."
+msgstr "Following the writing as it plays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
@@ -1046,14 +1189,32 @@ msgstr "Play"
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.play.unavailable"
-msgstr "There is nothing to replay yet: this poem has no history."
+msgstr "There is nothing to play yet: this poem has no history."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #: src/renderer/components/Replay/RestartFromButton.tsx
 #, fuzzy
 msgid "restart.button"
-msgstr "Restart from here"
+msgstr "Continue writing from here"
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.continue"
+msgstr "Continue"
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.detail"
+msgstr "None of your work will be lost."
+
+#. js-lingui-explicit-id
+#: src/main/continueWriting.ts
+#, fuzzy
+msgid "restart.confirm.message"
+msgstr "Do you want to continue writing from this point on your Timeline?"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/RestartFromButton.tsx
@@ -1108,6 +1269,21 @@ msgstr "\"{type}\" inside a line"
 #, fuzzy
 msgid "rtf.refused.node"
 msgstr "\"{type}\""
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "settings.showTimestamp"
+msgstr "Show timestamp"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/index.tsx
+#, fuzzy
+msgid "settings.title"
+msgstr "Settings"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx

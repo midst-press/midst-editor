@@ -28,7 +28,17 @@ import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
-import { loadDataIntoWorkspace } from './util';
+import { emptyFirstFrame } from '../shared/firstFrame';
+import { loadDataIntoWorkspace, loadRecoveredIntoWorkspace } from './util';
+import {
+  adopt,
+  declineToTrash,
+  forgetRecovery,
+  Orphan,
+  orphans,
+  startFresh,
+  writeRecovery,
+} from './recovery';
 import * as saveFailure from './saveFailurePolicy';
 import {
   activateLocale,
@@ -82,8 +92,57 @@ const toggleEditMode = (mainWindow: BrowserWindow) => {
 const findInPoem = (mainWindow: BrowserWindow) => {
   mainWindow.webContents.send('find-in-poem');
 };
-const toggleSpellcheck = (mainWindow: BrowserWindow) => {
+// Check Spelling is a checkbox (GitHub #80, editor #320), and the menu owns the setting: Electron has already
+// flipped the item's mark when this runs, so the store follows the mark, and the window is told to apply it.
+// Whatever the window is showing, the mark and the setting agree; the writing screen reads the setting when it opens.
+const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
+  store.set('spellcheck', String(on));
   mainWindow.webContents.send('toggle-spellcheck');
+};
+// Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
+// one owner is main: menu.ts's memory, mirrored onto the live checkbox by id (getMenuItemById,
+// the same way the save items are enabled) and onto the screen by the send (vivian & cora,
+// #327 — two copies drift, one copy cannot). Electron flips the mark on the menu's own click
+// before the click runs; the click keeps memory in step and sends the same value; a rebuilt menu
+// (a language change) is built from memory; closing the window turns it off (main.ts
+// 'closed'). It is never in the store: a poem
+// must not save its focus mode status, and the store outlives the window, so storing it there
+// would break that on relaunch. The mark leaves with the window: main.ts's 'closed' handler
+// turns it off, the one place every way of closing passes through — a renderer message cannot be
+// relied on there, because closing destroys the page without running its cleanup (vivian at
+// 2b3758b). Replay-and-back keeps it: /editor and /replay are sibling routes, the editor
+// remounts and asks focus-mode-changed, and main answers what the mark holds. Whether focus
+// mode survives a trip to the Timeline is Annelyse's call, so the mode simply waits there —
+// unasked questions answer themselves only when someone asks them (GitHub #25: regular Edit
+// mode is where a poem OPENS). No accelerator: a bare modifier chord such as Cmd+. is held by
+// macOS input methods, so the shortcut decision is the editor's, not ours.
+// The one copy: main's memory, reset by the window's 'closed' (main.ts) and by the app
+// relaunching (a fresh module starts off — regular Edit mode, the spec's reopen).
+let focusModeOn = false;
+// Test seam (the house's own style, like getMenuItemById's reach): the checkbox is built from
+// this value (checked:) and the moon turns it before answering; a language change rebuilds the
+// menu, which reads it again. The memory is read through this so a test can watch what a build
+// actually saw, rather than what was set.
+export const focusModeMark = (): boolean => focusModeOn;
+export const setFocusModeMark = (on: boolean) => {
+  // main's memory only — never store.set: the store outlives the window, and a poem must not
+  // save its focus mode status (GitHub #25). A rebuilt menu is built from this value (checked:);
+  // a live menu reaches its item by id, as setSaveEnabled does, and a menu that is not there is
+  // no failure — the memory is the state, and it is complete without the menu.
+  focusModeOn = on;
+  const item = app.applicationMenu?.getMenuItemById('menu.edit.focusMode');
+  if (item) item.checked = on;
+};
+// The menu's click: Electron has already flipped the mark, and the screen follows it (one path
+// for both halves, so there is nothing left to hold a second copy of the state).
+export const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
+  mainWindow.webContents.send('set-focus-mode', on);
+};
+// The moon's request, from wherever the click happened: main turns the mark and answers.
+export const requestFocusMode = (mainWindow: BrowserWindow) => {
+  const on = !focusModeMark();
+  setFocusModeMark(on);
+  setFocusMode(mainWindow, on);
 };
 
 const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
@@ -181,23 +240,18 @@ const saveFilters = () => [
 // `byPoet` is true when they chose Save or Save As, or have just picked the file in a dialog.
 // `saveElsewhere` is what "Save As…" in that message does.
 
-// Off macOS the window's title says when the poem is not saved; the renderer sets it (#94). Sent only when
-// that changes. On macOS the edited dot says it instead.
-const sayWhetherSaved = (
-  mainWindow: BrowserWindow,
-  darwin: boolean,
-  wasShown: boolean
-) => {
+// The window's title says when the poem is not saved, on every platform, macOS included (Annelyse, GitHub #75); the
+// renderer sets it (#94). Sent only when that changes. On macOS the edited dot says it as well.
+const sayWhetherSaved = (mainWindow: BrowserWindow, wasShown: boolean) => {
   const shown = saveFailure.showsNotSaved();
-  if (!darwin && shown !== wasShown)
-    mainWindow.webContents.send('set-not-saved', shown);
+  if (shown !== wasShown) mainWindow.webContents.send('set-not-saved', shown);
 };
 
 // The window now holds another document: nothing about the last one's failed saves applies to it.
-const forgetSaveFailures = (mainWindow: BrowserWindow, darwin: boolean) => {
+const forgetSaveFailures = (mainWindow: BrowserWindow) => {
   const wasShown = saveFailure.showsNotSaved();
   saveFailure.startAgain();
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
 };
 
 // The write succeeded: the document is now this file, and saved.
@@ -206,7 +260,7 @@ const recordSaved = (
   darwin: boolean,
   filename: string
 ) => {
-  forgetSaveFailures(mainWindow, darwin);
+  forgetSaveFailures(mainWindow);
   store.set('filename', filename);
   store.set('baseFilename', path.basename(filename));
   rememberFolder(filename);
@@ -245,7 +299,7 @@ const reportCouldNotSave = async (
     nothingUnsaved: store.get('edited') === 'false',
   });
   if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
-  sayWhetherSaved(mainWindow, darwin, wasShown);
+  sayWhetherSaved(mainWindow, wasShown);
   if (!tell) return;
   const choice = dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
@@ -328,6 +382,8 @@ const writeAndRecord = async (
     return;
   }
   recordSaved(mainWindow, darwin, filename);
+  // The poem is in the poet's own file now: its recovery copy goes, and only after that write succeeded (#315).
+  if (firstSave) forgetRecovery();
 };
 
 export const saveAs = async (mainWindow: BrowserWindow, darwin: boolean) => {
@@ -432,12 +488,26 @@ export const save = async (
     return;
   }
   const stored = store.get('filename') as string | undefined;
-  if (!stored && !saveFailure.mayAskWhereToSave(byPoet)) {
-    // Its first save failed, and the panel would otherwise open at every pause in typing (#94). The poem
-    // stays unsaved: Save and Save As still ask where it goes, and closing the window warns that it is unsaved.
-    log.info(
-      'autosave: not asking again where to save a document whose first save failed'
-    );
+  // An untitled poem is not asked a name until the poet saves on purpose (#315; Annelyse, GitHub #81): the editor's own
+  // saves keep its recovery copy instead. Nothing is written for a poem nothing has been typed into.
+  if (!stored && !byPoet) {
+    if (store.get('edited') !== 'true') return;
+    try {
+      writeRecovery(
+        includeVersionInfo(
+          serializeDocument(
+            document.text,
+            document.history,
+            (store.get('meta') as string | undefined) ?? ''
+          )
+        )
+      );
+    } catch (err) {
+      log.error(
+        "autosave: the untitled poem's recovery copy was not written",
+        describeError(err)
+      );
+    }
     return;
   }
   const filename =
@@ -469,14 +539,18 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   if (cancel) {
     return;
   }
+  // The poet chose to leave the unsaved poem: an untitled one's recovery copy goes with it (#315).
+  forgetRecovery();
+  // The Timeline of a new poem begins at an empty page (GitHub #29).
+  const history = [emptyFirstFrame()];
   store.set('poem', '');
-  store.set('history', JSON.stringify([]));
+  store.set('history', JSON.stringify(history));
   store.set('meta', '');
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', JSON.stringify(false));
-  forgetSaveFailures(mainWindow, darwin);
-  mainWindow.webContents.send('open-file', '', [], '');
+  forgetSaveFailures(mainWindow);
+  mainWindow.webContents.send('open-file', '', history, '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
   }
@@ -628,6 +702,8 @@ export const openFile = async (
   if (cancel) {
     return;
   }
+  // The poet chose to leave the unsaved poem: an untitled one's recovery copy goes with it (#315).
+  forgetRecovery();
   let filename: string[] | undefined;
   if (earlyFilename) {
     filename = earlyFilename;
@@ -754,6 +830,35 @@ export default class MenuBuilder {
         accelerator: decrease,
         click: () => decreaseFontSize(this.mainWindow),
       },
+      {
+        // The poem's font (#240): the picker is in the window, since a menu cannot show each font in its own face.
+        id: 'menu.view.font',
+        label: this.label(i18n._('menu.view.font')),
+        click: () => this.mainWindow.webContents.send('choose-font'),
+      },
+    ];
+  }
+
+  // On a Mac, Command+= and Command+- work too, without Shift (GitHub #94). Hidden items with the
+  // same ids and labels, so the menu shows one shortcut each: Stuart's Command+Shift keys (#121).
+  private plainTextSizeItems(): MenuItemConstructorOptions[] {
+    return [
+      {
+        id: 'menu.view.textSizeIncrease',
+        label: this.label(i18n._('menu.view.textSizeIncrease')),
+        accelerator: 'Command+=',
+        visible: false,
+        acceleratorWorksWhenHidden: true,
+        click: () => increaseFontSize(this.mainWindow),
+      },
+      {
+        id: 'menu.view.textSizeDecrease',
+        label: this.label(i18n._('menu.view.textSizeDecrease')),
+        accelerator: 'Command+-',
+        visible: false,
+        acceleratorWorksWhenHidden: true,
+        click: () => decreaseFontSize(this.mainWindow),
+      },
     ];
   }
 
@@ -789,8 +894,38 @@ export default class MenuBuilder {
     };
   }
 
-  // The spellcheck item has a different name on each platform.
   private modeItems(modifier: string) {
+    const checkSpelling: MenuItemConstructorOptions = {
+      id: this.darwin
+        ? 'menu.edit.spellcheck.mac'
+        : 'menu.edit.spellcheck.other',
+      // Each id written out in its own call: the catalog extractor finds only literal ids.
+      label: this.label(
+        this.darwin
+          ? i18n._('menu.edit.spellcheck.mac')
+          : i18n._('menu.edit.spellcheck.other')
+      ),
+      type: 'checkbox',
+      checked: store.get('spellcheck') === 'true',
+      accelerator: `${modifier}+;`,
+      click: (item) => setSpellcheck(this.mainWindow, item.checked),
+    };
+    const focusMode: MenuItemConstructorOptions = {
+      id: 'menu.edit.focusMode',
+      label: this.label(i18n._('menu.edit.focusMode')),
+      type: 'checkbox',
+      // The module's memory (focusModeMark reads it): a rebuilt menu — a language change — shows
+      // what the screen shows, and a menu rebuilt after the editor closed shows regular mode,
+      // because leaving the editor turned the mark off (main.ts, vivian 77665af). At launch,
+      // unmarked.
+      checked: focusModeMark(),
+      // Electron flips the mark before the click runs; setFocusModeMark keeps the module's
+      // copy in step, so the editor's later mount-ask is answered from the same value.
+      click: (item) => {
+        setFocusModeMark(item.checked);
+        setFocusMode(this.mainWindow, item.checked);
+      },
+    };
     return [
       {
         id: 'menu.edit.find',
@@ -804,19 +939,8 @@ export default class MenuBuilder {
         accelerator: `${modifier}+T`,
         click: () => toggleEditMode(this.mainWindow),
       },
-      this.darwin
-        ? {
-            id: 'menu.edit.spellcheck.mac',
-            label: this.label(i18n._('menu.edit.spellcheck.mac')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          }
-        : {
-            id: 'menu.edit.spellcheck.other',
-            label: this.label(i18n._('menu.edit.spellcheck.other')),
-            accelerator: `${modifier}+;`,
-            click: () => toggleSpellcheck(this.mainWindow),
-          },
+      focusMode,
+      checkSpelling,
     ];
   }
 
@@ -993,7 +1117,8 @@ export default class MenuBuilder {
           click: () => {
             if (this.mainWindow.isDestroyed()) {
               store.set('poem', '');
-              store.set('history', JSON.stringify([]));
+              // A new poem, so it too begins at an empty page (GitHub #29).
+              store.set('history', JSON.stringify([emptyFirstFrame()]));
               store.set('meta', '');
               store.set('filename', '');
               store.set('edited', JSON.stringify(false));
@@ -1042,12 +1167,14 @@ export default class MenuBuilder {
             fullScreen,
             this.devToolsItem('Alt+Command+I'),
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+            ...this.plainTextSizeItems(),
             this.appearanceItem(),
             this.languageItem(),
           ]
         : [
             fullScreen,
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+            ...this.plainTextSizeItems(),
             this.appearanceItem(),
             this.languageItem(),
           ],
@@ -1156,3 +1283,74 @@ export default class MenuBuilder {
     ];
   }
 }
+
+// At launch, each untitled poem a crashed run left is offered back, newest first (#315; Annelyse, GitHub #81). Yes
+// opens it as this window's untitled poem, and the rest wait for the next launch. No moves it to the Trash. A copy
+// that cannot be read is kept and logged, never discarded.
+//
+// The crashed run also left its untitled poem in the store, marked edited. When the poet has declined every copy
+// and none was kept, that is cleared as closing the window would have cleared it: otherwise the next New, Open or
+// close asks about unsaved changes to a poem the poet just said No to.
+export const offerRecovery = async (
+  mainWindow: BrowserWindow,
+  darwin: boolean
+) => {
+  startFresh();
+  let declined = 0;
+  let kept = 0;
+  let adopted = false;
+  const offer = async ([orphan, ...rest]: Orphan[]): Promise<void> => {
+    if (!orphan) return;
+    let data: string;
+    try {
+      data = fs.readFileSync(orphan.file, 'utf8');
+    } catch (err) {
+      log.error('recovery: a recovery copy could not be read; it is kept', {
+        id: orphan.id,
+        ...describeError(err),
+      });
+      kept += 1;
+      await offer(rest);
+      return;
+    }
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      title: i18n._('dialog.recover.title'),
+      message: i18n._('dialog.recover.message', { title: untitled() }),
+      detail: i18n._('dialog.recover.detail', {
+        when: orphan.lastWritten.toLocaleString(),
+      }),
+      buttons: [i18n._('button.yes'), i18n._('button.no')],
+      // Enter is Yes (Annelyse); dismissing is No, which keeps the poem in the Trash.
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (choice === 0) {
+      try {
+        loadRecoveredIntoWorkspace(data, mainWindow, darwin);
+      } catch (err) {
+        log.error('recovery: a recovery copy could not be opened; it is kept', {
+          id: orphan.id,
+          ...describeError(err),
+        });
+        kept += 1;
+        await offer(rest);
+        return;
+      }
+      adopt(orphan);
+      adopted = true;
+      log.info('recovery: an untitled poem was recovered', { id: orphan.id });
+      return;
+    }
+    await declineToTrash(orphan, untitled());
+    declined += 1;
+    await offer(rest);
+  };
+  await offer(orphans());
+  if (declined > 0 && kept === 0 && !adopted && !store.get('filename')) {
+    ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
+      store.delete(key)
+    );
+    store.set('edited', 'false');
+  }
+};

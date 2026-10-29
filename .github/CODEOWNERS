@@ -1,1 +1,4 @@
-@sjswerdloff @AnnelyseGelman
+# content/ is Annelyse's (#281): on GitHub, code-owner review asks her, and only her, about it. Nothing else has
+# an owner, so a push-up does not wait on her. Gitea does not read this file (it reads ./, docs/ or .gitea/); there
+# the content-owner check is what enforces it.
+/content/ @AnnelyseGelman

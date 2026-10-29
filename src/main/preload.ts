@@ -17,7 +17,11 @@ export type Channels =
   | 'toggle-edit-mode'
   | 'save-file'
   | 'toggle-spellcheck'
+  | 'set-focus-mode'
+  | 'focus-mode-requested'
+  | 'focus-mode-changed'
   | 'find-in-poem'
+  | 'choose-font'
   | 'new-file'
   | 'new-file-from-menu'
   | 'button-open-file'
@@ -143,6 +147,10 @@ const electronHandler = {
   // The languages in the order the main process shows them: English, the system's own, the rest (editor #265).
   languageOrder(): string[] {
     return ipcRenderer.sendSync('language-order');
+  },
+  // Whether the poet chose Continue in the box "Continue writing from here" asks (GitHub #90).
+  confirmContinueWriting(): boolean {
+    return ipcRenderer.sendSync('confirm-continue-writing') === true;
   },
 };
 

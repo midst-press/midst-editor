@@ -49,10 +49,15 @@ let events: Event[];
 let logError: jest.Mock;
 let finalState: { text: string; history: ChangeObj[] } | null;
 
+// The poet's answer to "Continue writing from here"'s question (GitHub #90): Continue unless a test says Cancel.
+let confirmContinueWriting: jest.Mock;
+
 const installBridge = () => {
   logError = jest.fn();
+  confirmContinueWriting = jest.fn(() => true);
   (window as unknown as { electron: unknown }).electron = {
     versions: { isMac: true },
+    confirmContinueWriting,
     store: {
       get: () => 'false',
       set: (key: string, value: unknown) =>
@@ -180,7 +185,7 @@ const slider = () => screen.getByRole('slider', { hidden: true });
 const seek = (v: number) =>
   fireEvent.change(slider(), { target: { value: String(v) } });
 const restartButton = () =>
-  screen.getByRole('button', { name: 'Restart from here' });
+  screen.getByRole('button', { name: 'Continue writing from here' });
 
 describe('Restart from here', () => {
   it('is disabled at the last frame, with its reason', () => {
@@ -379,6 +384,34 @@ describe('Restart from here', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
+  // GitHub #90: it asks first, and Cancel is as if the button had never been pressed.
+  it('asks once before changing anything, and goes on when the poet chooses Continue', () => {
+    mount(historyOf(TEXTS));
+    seek(1);
+    fireEvent.click(restartButton());
+    expect(confirmContinueWriting).toHaveBeenCalledTimes(1);
+    expect(finalState).not.toBeNull();
+    expect(screen.getByText(/EDITOR PAGE/)).toBeInTheDocument();
+  });
+
+  it('on Cancel, changes nothing, stays on the Timeline and keeps playing', () => {
+    const old = historyOf(TEXTS);
+    mount(old);
+    seek(1);
+    fireEvent.click(
+      screen.getByTestId('PlayArrowIcon').closest('button') as HTMLElement
+    );
+    confirmContinueWriting.mockReturnValue(false);
+    fireEvent.click(restartButton());
+    expect(confirmContinueWriting).toHaveBeenCalledTimes(1);
+    expect(finalState).toBeNull();
+    expect(events.filter(([what]) => what === 'store.set')).toEqual([]);
+    expect(screen.queryByText(/EDITOR PAGE/)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByTestId('PauseIcon')).not.toBeNull();
+    expect(logError).not.toHaveBeenCalled();
+  });
+
   it('pauses playback when pressed', () => {
     // A refused restart keeps the poet on the replay, where the pause can be seen.
     mount(historyOf(TEXTS), '<p>other</p>');
@@ -397,7 +430,8 @@ describe('Restart from here', () => {
     seek(1);
     const { container } = render(<RestartIcon />);
     const testId = container.querySelector('svg')?.getAttribute('data-testid');
-    expect(testId).toBe('UTurnLeftIcon');
+    // A magic wand (GitHub #90).
+    expect(testId).toBe('AutoFixHighIcon');
     expect(
       restartButton().querySelector(`[data-testid="${testId}"]`)
     ).not.toBeNull();

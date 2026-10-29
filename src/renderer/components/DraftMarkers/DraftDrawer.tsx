@@ -1,9 +1,8 @@
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
-import Drawer from '@mui/material/Drawer';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
 import RefusalAlert from './RefusalAlert';
 import { i18n } from '../../../shared/i18n';
@@ -11,7 +10,6 @@ import { i18n } from '../../../shared/i18n';
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {
   open: boolean;
-  onClose: () => void;
   markers: ShownMarker[];
   // The history position whose name is open for typing, if any.
   naming: number | null;
@@ -22,21 +20,25 @@ interface Props {
   // A draft was just deleted and can still be put back (#277).
   canUndo: boolean;
   onUndo: () => void;
-  // Why the last change was refused, shown here because the drawer covers the page.
+  // Why the last change was refused, shown here beside the change.
   refusal: string | null;
   showMarkers: boolean;
   setShowMarkers: (show: boolean) => void;
   showLabels: boolean;
   setShowLabels: (show: boolean) => void;
+  showTimestamp: boolean;
+  setShowTimestamp: (show: boolean) => void;
 }
 /* eslint-enable no-unused-vars */
 
-// The list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
+// The Settings panel (GitHub #94), which for now holds the drafts: the list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
 // moment, rename it, or delete it. A delete happens at once, as the original did, and can be undone for a few
 // seconds (#277).
+//
+// It is a panel beside the poem and the timeline, not over them (#313, GitHub #85): a poet naming a draft sees the
+// moment being named. The replay lays it out beside the rest of the page, and nothing behind it is dimmed.
 export default function DraftDrawer({
   open,
-  onClose,
   markers,
   naming,
   setNaming,
@@ -50,6 +52,8 @@ export default function DraftDrawer({
   setShowMarkers,
   showLabels,
   setShowLabels,
+  showTimestamp,
+  setShowTimestamp,
 }: Props) {
   const labelOf = (at: number | null) =>
     markers.find(({ index }) => index === at)?.label;
@@ -68,92 +72,118 @@ export default function DraftDrawer({
     setNaming(null);
   };
 
+  // On opening, the focus moves into the list, as it did when the list was a modal: the keys then belong to it, and
+  // Space cannot press the button that opened it. The name field, when one opens, has taken the focus already.
+  const panel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (open && !panel.current?.contains(document.activeElement)) {
+      panel.current?.focus();
+    }
+  }, [open]);
+
+  if (!open) return null;
   return (
-    <Drawer anchor="right" open={open} onClose={onClose}>
-      <div className="DraftDrawer" aria-label={i18n._('drafts.title')}>
-        <h2>{i18n._('drafts.title')}</h2>
-        <RefusalAlert message={refusal} />
-        {canUndo ? (
-          <p role="status" className="DraftUndo">
-            {i18n._('drafts.deleted')}{' '}
-            <button type="button" onClick={onUndo}>
-              {i18n._('drafts.undo')}
-            </button>
-          </p>
-        ) : null}
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={showMarkers}
-              onChange={(e) => setShowMarkers(e.target.checked)}
-            />
-          }
-          label={i18n._('drafts.showMarkers')}
-        />
-        <FormControlLabel
-          control={
-            <Switch
-              size="small"
-              checked={showLabels}
-              onChange={(e) => setShowLabels(e.target.checked)}
-            />
-          }
-          label={i18n._('drafts.showNames')}
-        />
-        {markers.length === 0 ? <p>{i18n._('drafts.none')}</p> : null}
-        <ul>
-          {[...markers].reverse().map((marker) => (
-            <li key={marker.index}>
-              {naming === marker.index ? (
-                <input
-                  aria-label={i18n._('drafts.nameField')}
-                  // The poet has just asked to name this draft.
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  onFocus={(e) => e.target.select()}
-                  onBlur={() => finishNaming(marker.index)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') finishNaming(marker.index);
-                    if (e.key === 'Escape') setNaming(null);
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="draft-name"
-                  onClick={() => onJump(marker.index)}
-                >
-                  {marker.label}
-                </button>
-              )}
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={i18n._('drafts.rename')}
-                onClick={() => setNaming(marker.index)}
-              >
-                <EditIcon fontSize="small" />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                aria-label={i18n._('drafts.delete')}
-                // Keeps the name field from saving a name for the draft being deleted.
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setNaming(null);
-                  onDelete(marker.index);
+    <aside
+      ref={panel}
+      tabIndex={-1}
+      className="DraftDrawer"
+      aria-label={i18n._('settings.title')}
+    >
+      <h2>{i18n._('settings.title')}</h2>
+      <h3>{i18n._('drafts.title')}</h3>
+      <RefusalAlert message={refusal} />
+      {canUndo ? (
+        <p role="status" className="DraftUndo">
+          {i18n._('drafts.deleted')}{' '}
+          <button type="button" onClick={onUndo}>
+            {i18n._('drafts.undo')}
+          </button>
+        </p>
+      ) : null}
+      <FormControlLabel
+        control={
+          <Switch
+            size="small"
+            checked={showMarkers}
+            onChange={(e) => setShowMarkers(e.target.checked)}
+          />
+        }
+        label={i18n._('drafts.showMarkers')}
+      />
+      <FormControlLabel
+        control={
+          <Switch
+            size="small"
+            checked={showLabels}
+            onChange={(e) => setShowLabels(e.target.checked)}
+          />
+        }
+        label={i18n._('drafts.showNames')}
+      />
+      {markers.length === 0 ? <p>{i18n._('drafts.none')}</p> : null}
+      <ul>
+        {[...markers].reverse().map((marker) => (
+          <li key={marker.index}>
+            {naming === marker.index ? (
+              <input
+                aria-label={i18n._('drafts.nameField')}
+                // The poet has just asked to name this draft.
+                // eslint-disable-next-line jsx-a11y/no-autofocus
+                autoFocus
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onBlur={() => finishNaming(marker.index)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') finishNaming(marker.index);
+                  if (e.key === 'Escape') setNaming(null);
                 }}
+              />
+            ) : (
+              <button
+                type="button"
+                className="draft-name"
+                onClick={() => onJump(marker.index)}
               >
-                <DeleteIcon fontSize="small" />
+                {marker.label}
               </button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </Drawer>
+            )}
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={i18n._('drafts.rename')}
+              onClick={() => setNaming(marker.index)}
+            >
+              <EditIcon fontSize="small" />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label={i18n._('drafts.delete')}
+              // Keeps the name field from saving a name for the draft being deleted.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                setNaming(null);
+                onDelete(marker.index);
+              }}
+            >
+              <DeleteIcon fontSize="small" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      {/* At the bottom, as Annelyse placed it (GitHub #94). */}
+      <FormControlLabel
+        className="ShowTimestamp"
+        control={
+          <Switch
+            size="small"
+            checked={showTimestamp}
+            onChange={(e) => setShowTimestamp(e.target.checked)}
+          />
+        }
+        label={i18n._('settings.showTimestamp')}
+      />
+    </aside>
   );
 }

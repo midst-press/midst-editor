@@ -3,20 +3,29 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
+import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
-import { checkWholePoemSoon } from '../renderer/spellcheck/checkWholePoem';
+import {
+  checkLinesAfterBreaks,
+  checkWholePoemSoon,
+} from '../renderer/spellcheck/checkWholePoem';
 
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
   __esModule: true,
   checkWholePoemSoon: jest.fn(() => jest.fn()),
+  checkLinesAfterBreaks: jest.fn(() => ({
+    changed: jest.fn(),
+    cancel: jest.fn(),
+  })),
 }));
 const mockCheck = checkWholePoemSoon as unknown as jest.Mock;
+const mockLines = checkLinesAfterBreaks as unknown as jest.Mock;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -43,8 +52,10 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
       },
     },
     ipcRenderer: {
-      sendMessage: (channel: string, args: unknown) =>
-        record('send', channel, args),
+      // Rest spread, as Electron's own ipcRenderer.sendMessage is (channel, ...args):
+      // callers pass what they mean as arguments, and every send is recorded in order.
+      sendMessage: (channel: string, ...args: unknown[]) =>
+        record('send', channel, ...args),
       on: (channel: string, listener: Listener) => {
         listeners[channel] = [...(listeners[channel] ?? []), listener];
         return () => {
@@ -286,6 +297,34 @@ describe('Editor: content and appearance', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('with spellcheck on, tells the line-break check of each change, and stops it when the editor goes (#238)', () => {
+    mockLines.mockClear();
+    const { unmount: offUnmount } = mount();
+    expect(mockLines).not.toHaveBeenCalled();
+    offUnmount();
+    const lines = { changed: jest.fn(), cancel: jest.fn() };
+    mockLines.mockReturnValueOnce(lines);
+    bridge = installBridge({ spellcheck: 'true' });
+    const { unmount } = mount();
+    expect(mockLines.mock.calls[0][0].dom).toBe(proseMirror());
+    mockLines.mock.calls[0][1]('zq lines');
+    expect(
+      bridge.calls.filter((c) => c.kind === 'log.warn').map((c) => c.args)
+    ).toEqual([['zq lines']]);
+    typeText('zq');
+    expect(lines.changed).toHaveBeenCalled();
+    const { editor } = proseMirror();
+    unmount();
+    expect(lines.cancel).toHaveBeenCalledTimes(1);
+    const seen = lines.changed.mock.calls.length;
+    editor.emit('update', {
+      editor,
+      transaction: editor.state.tr,
+      appendedTransactions: [],
+    });
+    expect(lines.changed).toHaveBeenCalledTimes(seen);
+  });
+
   it('focuses the editor when it is created', () => {
     mount();
     settleFocus();
@@ -306,6 +345,26 @@ describe('Editor: content and appearance', () => {
     act(() => proseMirror().blur());
     settleFocus();
     expect(document.activeElement).not.toBe(proseMirror());
+  });
+
+  // GitHub #92: taking the focus back must not scroll the caret into view, or a click in the header or footer of a
+  // long poem the poet had scrolled away from makes the poem jump back to the caret.
+  it('on a Mac, takes focus back without scrolling the page to the caret', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    const { editor } = proseMirror() as unknown as { editor: TipTapEditor };
+    const scrolled: boolean[] = [];
+    const record = ({ transaction }: { transaction: Transaction }) =>
+      scrolled.push(transaction.scrolledIntoView);
+    editor.on('transaction', record);
+    act(() => proseMirror().blur());
+    settleFocus();
+    editor.off('transaction', record);
+    expect(document.activeElement).toBe(proseMirror());
+    // CONTROL: the refocus dispatched something, so an empty list is not why this passes.
+    expect(scrolled.length).toBeGreaterThan(0);
+    expect(scrolled).not.toContain(true);
   });
 
   it('on a Mac, leaves the focus in the find bar, and gets it back when the bar closes (GitHub #27)', () => {
@@ -368,7 +427,7 @@ describe('Editor: on entering and leaving', () => {
     mount();
     bridge.emit('cancel-save');
     expect(screen.getByTestId('where')).toHaveTextContent('/');
-    expect(screen.queryByRole('button', { name: 'Replay' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Timeline' })).toBeNull();
   });
 
   it('goes to the replay, saving first, on toggle-edit-mode', () => {
@@ -564,6 +623,39 @@ describe('Editor: autosave', () => {
     expect(bridge.sends('save-file')).toHaveLength(1);
   });
 
+  it('saves ten seconds after the first change while typing goes on without a pause, then starts again (#315)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    bridge.clear();
+    typeText('a');
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('b');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(399);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    expect(bridge.values.poem).toBe(`<p>zqa${'b'.repeat(16)}</p>`);
+    for (let i = 0; i < 16; i += 1) {
+      act(() => {
+        jest.advanceTimersByTime(600);
+      });
+      typeText('c');
+    }
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(2);
+  });
+
   it('abandons a pending autosave, with a warning, when another document is opened first', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
@@ -625,13 +717,15 @@ describe('Editor: spellcheck toggle', () => {
     return spy;
   };
 
-  it('stores the flipped setting, saves, remembers to return to the editor, and reloads', () => {
+  // The menu owns the setting and its checkmark (editor #320); the window saves and reloads to apply it.
+  it('leaves the setting to the menu, saves, remembers to return to the editor, and reloads', () => {
     const errors = stubReload();
     mount({ initialText: '<p>zq</p>' });
     bridge.clear();
+    const before = bridge.values.spellcheck;
     bridge.emit('toggle-spellcheck');
 
-    expect(bridge.values.spellcheck).toBe('true');
+    expect(bridge.values.spellcheck).toBe(before);
     expect(bridge.values.poem).toBe('<p>zq</p>');
     expect(bridge.sends('save-file')).toHaveLength(1);
     expect(bridge.index('send', 'save-file')).toBeGreaterThan(
@@ -655,12 +749,12 @@ describe('Editor: spellcheck toggle', () => {
     errors.mockRestore();
   });
 
-  it('turns an enabled setting off', () => {
+  it('does not flip a setting the menu has already changed', () => {
     const errors = stubReload();
     bridge = installBridge({ spellcheck: 'true' });
     mount();
     bridge.emit('toggle-spellcheck');
-    expect(bridge.values.spellcheck).toBe('false');
+    expect(bridge.values.spellcheck).toBe('true');
     errors.mockRestore();
   });
 
@@ -681,7 +775,7 @@ describe('Editor: Replay button', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
     bridge.clear();
-    fireEvent.click(screen.getByRole('button', { name: 'Replay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
 
     expect(bridge.values.poem).toBe('<p>zqxv</p>');
     expect(JSON.parse(bridge.values.history as string)).toHaveLength(1);
@@ -695,7 +789,7 @@ describe('Editor: Replay button', () => {
   it('does not save a second time from the cancelled autosave after leaving', () => {
     mount({ initialText: '<p>zq</p>' });
     typeText('xv');
-    fireEvent.click(screen.getByRole('button', { name: 'Replay' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Timeline' }));
     bridge.clear();
     act(() => {
       jest.advanceTimersByTime(5000);
@@ -708,14 +802,14 @@ describe('Editor: draft marker button', () => {
   it('is disabled while the history is short', () => {
     mount({ initialHistory: [change(1)] });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeDisabled();
   });
 
   it('is enabled once the history is long enough', () => {
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeEnabled();
   });
 
@@ -723,7 +817,7 @@ describe('Editor: draft marker button', () => {
     mount({ initialText: '<p>zq</p>', initialHistory: LONG_HISTORY });
     bridge.clear();
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
 
     const meta = JSON.parse(bridge.values.meta as string);
@@ -741,7 +835,7 @@ describe('Editor: draft marker button', () => {
     mount({ initialText: '<p>zq</p>', initialHistory: LONG_HISTORY });
     typeText('xv');
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
     bridge.clear();
     act(() => {
@@ -758,17 +852,17 @@ describe('Editor: draft marker button', () => {
     });
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     ).toBeDisabled();
   });
 
   it('says why it is disabled while the history is short, and looks unavailable (GitHub #66)', () => {
     mount({ initialHistory: [change(1)] });
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription(
-      'A draft can be marked once the poem has more than 50 changes. This one has 1.'
+      'A Draft Marker can be added once the poem has more than 50 changes. This one has 1.'
     );
     expect(button).toHaveStyle({ opacity: '0.38' });
   });
@@ -781,14 +875,14 @@ describe('Editor: draft marker button', () => {
     });
     mount({ initialHistory: LONG_HISTORY });
     expect(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
-    ).toHaveAccessibleDescription('This moment already has a draft.');
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
+    ).toHaveAccessibleDescription('This moment already has a Draft Marker.');
   });
 
   it('has no reason and looks available when a draft can be marked', () => {
     mount({ initialHistory: LONG_HISTORY });
     const button = screen.getByRole('button', {
-      name: 'Mark this moment as a draft',
+      name: 'Add a Draft Marker here',
     });
     expect(button).toHaveAccessibleDescription('');
     expect(button).not.toHaveStyle({ opacity: '0.38' });
@@ -798,7 +892,7 @@ describe('Editor: draft marker button', () => {
     bridge = installBridge({ meta: 'not json' });
     mount({ initialHistory: LONG_HISTORY });
     fireEvent.click(
-      screen.getByRole('button', { name: 'Mark this moment as a draft' })
+      screen.getByRole('button', { name: 'Add a Draft Marker here' })
     );
     expect(screen.getByTestId('where')).toHaveTextContent('/editor');
     expect(bridge.values.meta).toBe('not json');
@@ -817,7 +911,7 @@ describe('Editor: draft marker button', () => {
       },
     ]);
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'The drafts of this poem could not be read, so nothing was changed.'
+      'The Draft Markers of this poem could not be read, so nothing was changed.'
     );
   });
 });
@@ -868,5 +962,65 @@ describe('Editor: the cursor when coming back', () => {
     mount({ initialText: '<p>qz</p>' });
     settleFocus();
     expect(selectionNow()).toEqual({ from: 1, to: 1, anchor: 1, head: 1 });
+  });
+});
+
+describe('focus mode in the editor (GitHub #25)', () => {
+  // The Spacer's buttons resolve to whatever the built catalog holds (some ids fall back to
+  // their own names in jsdom); the Spacer is addressed by class, so the wording does not matter.
+  const spacer = () => document.querySelector('.Spacer');
+  const moon = () => screen.getByRole('button', { name: /Focus Mode/ });
+
+  it('the moon lives in the editor page', () => {
+    mount();
+    expect(moon()).toBeInTheDocument();
+  });
+
+  it('the moon asks main, the editor asks on mount, and the store is never touched (GitHub #25)', () => {
+    mount();
+    // An editor mounting after the mode changed (Replay and back) asks where the screen
+    // stands — once, before any click (main.ts answers it from the menu's mark).
+    expect(bridge.sends('focus-mode-changed')).toHaveLength(1);
+    bridge.clear();
+    fireEvent.click(moon());
+    expect(bridge.sends('focus-mode-requested')).toHaveLength(1);
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
+  });
+
+  it('entering follows main’s answer with a hidden screen', () => {
+    mount();
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  // vivian's blocking case, at the screen: main answers with the menu's mark (main.ts), so a
+  // channel's value alone moves the screen — no second click needed to leave what the moon
+  // entered.
+  it('one answer leaves focus mode: false shows the buttons again', () => {
+    mount();
+    fireEvent.click(moon()); // asks main
+    bridge.emit('set-focus-mode', true); // main turns the mark and answers
+    expect(spacer()).toHaveClass('Spacer-hidden');
+    bridge.emit('set-focus-mode', false); // the menu's ONE choice, answered at the screen
+    expect(spacer()).not.toHaveClass('Spacer-hidden');
+  });
+
+  it('an unknown answer leaves the screen alone', () => {
+    mount();
+    fireEvent.click(moon());
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', undefined);
+    expect(spacer()).toHaveClass('Spacer-hidden');
+  });
+
+  it('focus mode is never written to the store, whatever path it takes', () => {
+    mount();
+    bridge.clear();
+    fireEvent.click(moon()); // on, through the moon
+    bridge.emit('set-focus-mode', true);
+    bridge.emit('set-focus-mode', false); // off, through the menu
+    expect(bridge.calls.filter((c) => c.kind === 'store.set')).toEqual([]);
   });
 });

@@ -192,6 +192,7 @@ describe('the dark scheme meets WCAG AA', () => {
     ['link', 'card'],
     ['button-text', 'button-background'],
     ['button-text', 'button-hover'],
+    ['on-draft-marker', 'draft-marker'],
   ])('%s on %s is at least 4.5:1', (fg, bg) => {
     expect(contrast(fg, bg)).toBeGreaterThanOrEqual(4.5);
   });

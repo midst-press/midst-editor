@@ -54,7 +54,7 @@ test('a poem plays back, advancing through its timeline', async () => {
     await openDocument(app, userData, poemPath, 'the playable poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
 
-    await win.getByRole('link', { name: 'Replay' }).click();
+    await win.getByRole('link', { name: 'Timeline' }).click();
     await expect(
       win.locator('.ReplayContainer'),
       'the replay view did not render'
@@ -139,7 +139,7 @@ test('pausing playback stops it, and it stays stopped', async () => {
 
     await openDocument(app, userData, poemPath, 'the pausable poem');
     await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
-    await win.getByRole('link', { name: 'Replay' }).click();
+    await win.getByRole('link', { name: 'Timeline' }).click();
     await expect(win.locator('.ReplayContainer')).toBeVisible({
       timeout: 25_000,
     });

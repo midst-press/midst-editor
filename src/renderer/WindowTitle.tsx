@@ -4,7 +4,7 @@ import { i18n } from '../shared/i18n';
 
 // The one place the window title is set (#125). Empty on the opening screen; otherwise the poem's file
 // name, or "Untitled" before it has one, followed by "(not saved)" while a failed save has left it unsaved
-// (off macOS only; main decides, #94). App holds both; the route says which screen is showing.
+// (on every platform, macOS included: Annelyse, GitHub #75; main decides, #94). App holds both; the route says which screen is showing.
 // The title bar library sets document.title with it, and the native window title follows that.
 export default function WindowTitle({
   filename,
