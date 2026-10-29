@@ -1991,6 +1991,14 @@ describe('the menu', () => {
       expect(win.webContents.send).toHaveBeenLastCalledWith('find-in-poem');
     });
 
+    it('View > Font… opens the font picker in the window (#240)', () => {
+      const win = makeWindow();
+      const item = sub(build(platform, win), viewTop, 'Font…');
+      expect(item.accelerator).toBeUndefined();
+      item.click!();
+      expect(win.webContents.send).toHaveBeenLastCalledWith('choose-font');
+    });
+
     it('Toggle Full Screen flips the window state', () => {
       const win = makeWindow();
       const item = sub(build(platform, win), viewTop, fullScreenLabel);
