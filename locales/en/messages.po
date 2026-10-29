@@ -343,7 +343,6 @@ msgstr "Draft Marker deleted."
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.mark"
 msgstr "Add a Draft Marker here"
@@ -1172,32 +1171,30 @@ msgid "replay.edit"
 msgstr "Edit"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow"
 msgstr "Follow the writing"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow.off"
 msgstr "Not following the writing: the page stays where you put it. Click to follow."
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow.on"
 msgstr "Following the writing as it plays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.pause"
 msgstr "Pause"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.play"
@@ -1306,8 +1303,7 @@ msgstr "Settings"
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.decrease"
 msgstr "Decrease text size"
@@ -1315,22 +1311,21 @@ msgstr "Decrease text size"
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.increase"
 msgstr "Increase text size"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.largest"
 msgstr "The text is already at its largest size."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.smallest"
 msgstr "The text is already at its smallest size."

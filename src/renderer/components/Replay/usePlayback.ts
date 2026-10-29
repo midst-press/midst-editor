@@ -24,6 +24,9 @@ export default function usePlayback(
   // The step as last set, for the interval and play to read without a state updater.
   const current = useRef(maxStep);
   const [playing, setPlaying] = useState(false);
+  // The last frame, for the timers and setStep to read as it is now: the history can change while the
+  // replay is open (#356).
+  const last = useRef(maxStep);
   const interval = useRef<ReturnType<typeof setInterval> | undefined>(
     undefined
   );
@@ -47,27 +50,37 @@ export default function usePlayback(
     (next: number) => {
       current.current = next;
       setStepState(next);
-      if (next >= maxStep) pause();
+      if (next >= last.current) pause();
     },
-    [maxStep, pause]
+    [pause]
   );
+
+  // When the history changes, a playhead that was at the end follows it to the new end, and one that was
+  // earlier stays where it is, unless the end is now before it (Cora, review of the #356 design).
+  useEffect(() => {
+    const before = last.current;
+    last.current = maxStep;
+    if (maxStep === before) return;
+    if (current.current === before || current.current > maxStep)
+      setStep(maxStep);
+  }, [maxStep, setStep]);
 
   const advance = () => {
     interval.current = setInterval(() => {
       // Never past the last frame: a step beyond it is no frame at all, and a draft cannot be
       // marked there, so the last frame was unmarkable once playback had ended.
       if (!gliding(glide.current))
-        setStep(Math.min(current.current + 1, maxStep));
+        setStep(Math.min(current.current + 1, last.current));
     }, FRAME_MS);
   };
 
   const play = () => {
     // One frame has nothing to play through. Starting would never stop: the step is already the
     // last, so nothing changes for the stop at the end to see (review of #118).
-    if (maxStep <= 0) return;
+    if (last.current <= 0) return;
     clearTimers();
     setPlaying(true);
-    if (current.current >= maxStep) {
+    if (current.current >= last.current) {
       setStep(0);
       rewind.current = setTimeout(() => {
         rewind.current = undefined;
