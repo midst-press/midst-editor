@@ -14,7 +14,7 @@ import useDraftMarkers, {
 const install = (meta: unknown) => {
   const values: Record<string, unknown> = {
     meta: meta === undefined ? '' : JSON.stringify(meta),
-    edited: 'false',
+    edited: false,
   };
   const listeners: Record<string, (() => void)[]> = {};
   const removed: string[] = [];
@@ -86,7 +86,7 @@ describe('useDraftMarkers', () => {
     expect(bridge.storedMeta().draftMarkers).toEqual([
       { index: 20, defaultName: 'Draft 1' },
     ]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(save).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -95,7 +95,7 @@ describe('useDraftMarkers', () => {
     expect(result.current.markers).toEqual([{ index: 20, label: 'zq' }]);
     expect(save).toHaveBeenCalledTimes(2);
 
-    bridge.values.edited = 'false';
+    bridge.values.edited = false;
     act(() => {
       result.current.remove(20);
     });
@@ -104,7 +104,7 @@ describe('useDraftMarkers', () => {
       draftMarkers: [],
       highestDraftNumber: 1,
     });
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(save).toHaveBeenCalledTimes(3);
   });
 
@@ -394,7 +394,7 @@ describe('useDraftMarkers: a refused change', () => {
         historyLength: length,
       });
       expect(bridge.values.meta).toBe(before);
-      expect(bridge.values.edited).toBe('false');
+      expect(bridge.values.edited).toBe(false);
       expect(save).not.toHaveBeenCalled();
     }
   );

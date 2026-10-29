@@ -216,21 +216,19 @@ describe('store', () => {
   it('get reads synchronously by key and returns the main-process value', () => {
     mockIpc.sendSync.mockReturnValue('zq-value');
     const api = loadPreload();
-    expect(api.store.get('xv-key')).toBe('zq-value');
-    expect(mockIpc.sendSync).toHaveBeenCalledWith(
-      'electron-store-get',
-      'xv-key'
-    );
+    expect(api.store.get('poem')).toBe('zq-value');
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('electron-store-get', 'poem');
   });
 
-  it('set sends property and value on the set channel', () => {
+  it('set sends the key and value on the set channel, without waiting', () => {
     const api = loadPreload();
-    api.store.set('xv-key', 'zq-value');
+    api.store.set('poem', 'zq-value');
     expect(mockIpc.send).toHaveBeenCalledWith(
       'electron-store-set',
-      'xv-key',
+      'poem',
       'zq-value'
     );
+    expect(mockIpc.sendSync).not.toHaveBeenCalled();
   });
 });
 

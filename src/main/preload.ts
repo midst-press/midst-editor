@@ -6,6 +6,7 @@ import {
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TITLEBAR_BACKGROUND } from './appearance';
+import { StoreKey, StoreSchema } from '../shared/storeSchema';
 
 export type Channels =
   | 'ipc-example'
@@ -110,12 +111,15 @@ const electronHandler = {
       };
     },
   },
+  // Typed by StoreSchema (#355). main checks both again, since nothing types what crosses IPC. `set` does
+  // not wait: a refused write is logged by main, which tells the poet when it is the poem, and waiting would
+  // hold up typing on every autosave while electron-store rewrites its file (Cora, review of #370).
   store: {
-    get(key: string) {
+    get<K extends StoreKey>(key: K): StoreSchema[K] | undefined {
       return ipcRenderer.sendSync('electron-store-get', key);
     },
-    set(property: string, val: string) {
-      ipcRenderer.send('electron-store-set', property, val);
+    set<K extends StoreKey>(key: K, value: StoreSchema[K]): void {
+      ipcRenderer.send('electron-store-set', key, value);
     },
   },
   titlebar: {

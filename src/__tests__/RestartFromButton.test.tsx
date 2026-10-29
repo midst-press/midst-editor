@@ -282,7 +282,7 @@ describe('Restart from here', () => {
       expect(at).toBeGreaterThan(-1);
       expect(at).toBeLessThan(arrival);
     });
-    expect(events).toContainEqual(['store.set', 'edited', 'true']);
+    expect(events).toContainEqual(['store.set', 'edited', true]);
     expect(events).toContainEqual([
       'editor-arrived',
       TEXTS[0],

@@ -41,7 +41,7 @@ export const loadDataIntoWorkspace = (
     mainWindow.setDocumentEdited(false);
     mainWindow.setRepresentedFilename(path.basename(filename));
   }
-  store.set('edited', JSON.stringify(false));
+  store.set('edited', false);
 };
 
 // An untitled poem recovered after a crash (#315): the document as its recovery copy holds it, with no file of its own,
@@ -60,5 +60,5 @@ export const loadRecoveredIntoWorkspace = (
   saveFailure.startAgain();
   mainWindow.webContents.send('open-file', text, history, '');
   if (darwin) mainWindow.setDocumentEdited(true);
-  store.set('edited', JSON.stringify(true));
+  store.set('edited', true);
 };

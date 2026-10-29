@@ -27,7 +27,7 @@ type Call = [string, ...unknown[]];
 
 // Stands in for the preload bridge. `calls` records every call in order.
 const installBridge = (seed: Record<string, unknown> = {}) => {
-  const values: Record<string, unknown> = { edited: 'false', ...seed };
+  const values: Record<string, unknown> = { edited: false, ...seed };
   const calls: Call[] = [];
   const listeners: Record<string, Listener[]> = {};
   const removed: string[] = [];
@@ -610,7 +610,7 @@ describe('Replay: marking a draft', () => {
     expect(bridge.meta().draftMarkers).toEqual([
       { index: 20, defaultName: 'Draft 1' },
     ]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     const keys = bridge.calls.map((c) => c[1]);
     expect(keys).toEqual(['meta', 'edited', 'poem', 'history', 'save-file']);
   });
@@ -995,7 +995,7 @@ describe('Replay: drafts list', () => {
       bridge.meta().draftMarkers.find((m: { index: number }) => m.index === 5)
         .name
     ).toBe('renamed');
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.calls.at(-1)).toEqual(['send', 'save-file', []]);
   });
 
@@ -1009,7 +1009,7 @@ describe('Replay: drafts list', () => {
     expect(
       bridge.meta().draftMarkers.map((m: { index: number }) => m.index)
     ).toEqual([5, 999]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.calls.at(-1)).toEqual(['send', 'save-file', []]);
   });
 

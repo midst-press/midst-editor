@@ -10,12 +10,12 @@ import {
 // A store that records every write in order, as the main process would receive them.
 const fakeStore = (initial: Record<string, unknown>) => {
   const values = { ...initial };
-  const writes: [string, string][] = [];
+  const writes: [string, unknown][] = [];
   return {
     values,
     writes,
     get: (key: string) => values[key],
-    set: (key: string, value: string) => {
+    set: (key: string, value: unknown) => {
       values[key] = value;
       writes.push([key, value]);
     },
@@ -53,7 +53,7 @@ describe('changeStoredMarkers', () => {
   it('stores the new meta, marks the document unsaved, then saves, in that order', () => {
     const store = fakeStore({
       meta: JSON.stringify({ fontSize: 12 }),
-      edited: 'false',
+      edited: false,
     });
     const order: string[] = [];
     const { set } = store;
@@ -73,7 +73,7 @@ describe('changeStoredMarkers', () => {
       draftMarkers: [{ index: 3, defaultName: 'Draft 1' }],
       highestDraftNumber: 1,
     });
-    expect(store.values.edited).toBe('true');
+    expect(store.values.edited).toBe(true);
   });
 
   it('counts a delete as an unsaved change too', () => {
@@ -81,12 +81,12 @@ describe('changeStoredMarkers', () => {
       draftMarkers: [{ index: 3, defaultName: 'Draft 1' }],
       highestDraftNumber: 1,
     };
-    const store = fakeStore({ meta: JSON.stringify(meta), edited: 'false' });
+    const store = fakeStore({ meta: JSON.stringify(meta), edited: false });
     const save = jest.fn();
     expect(changeStoredMarkers(store, (m) => deleteMarker(m, 3), save).ok).toBe(
       true
     );
-    expect(store.values.edited).toBe('true');
+    expect(store.values.edited).toBe(true);
     expect(save).toHaveBeenCalledTimes(1);
     expect(JSON.parse(store.values.meta as string).draftMarkers).toEqual([]);
   });
@@ -109,7 +109,7 @@ describe('changeStoredMarkers', () => {
   it('writes nothing and does not save when the change is refused', () => {
     const store = fakeStore({
       meta: JSON.stringify({ draftMarkers: [{ index: 3 }] }),
-      edited: 'false',
+      edited: false,
     });
     const save = jest.fn();
     const result = changeStoredMarkers(
@@ -123,7 +123,7 @@ describe('changeStoredMarkers', () => {
   });
 
   it('writes nothing and does not save when the stored meta cannot be read', () => {
-    const store = fakeStore({ meta: '{zq', edited: 'false' });
+    const store = fakeStore({ meta: '{zq', edited: false });
     const save = jest.fn();
     const change = jest.fn();
     expect(changeStoredMarkers(store, change, save)).toEqual({

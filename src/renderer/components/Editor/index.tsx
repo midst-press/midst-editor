@@ -134,7 +134,7 @@ export default function Editor() {
     setHtmlString(newHtml);
     if (!typedSinceStored.current) {
       typedSinceStored.current = true;
-      window.electron.store.set('edited', JSON.stringify(true));
+      window.electron.store.set('edited', true);
     }
 
     autosave.schedule();

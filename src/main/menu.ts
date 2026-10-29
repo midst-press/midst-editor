@@ -18,6 +18,7 @@ import {
   serializeDocument,
 } from '@midst-press/midst-format/convert';
 import store from './store';
+import { DOCUMENT_KEYS } from '../shared/storeSchema';
 import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
@@ -65,7 +66,7 @@ export const logIfRejected = (
 };
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
-  if (store.get('edited') === 'false') {
+  if (store.get('edited') === false) {
     return false;
   }
 
@@ -270,7 +271,7 @@ const recordSaved = (
   }
   // The renderer titles the window from this name, in one place (#125); main does not set the title.
   mainWindow.webContents.send('set-filename', path.basename(filename));
-  store.set('edited', JSON.stringify(false));
+  store.set('edited', false);
 };
 
 // The write failed: nothing is recorded, and the poet is told when the rules above say so.
@@ -296,7 +297,7 @@ const reportCouldNotSave = async (
     filename,
     byPoet,
     firstSave,
-    nothingUnsaved: store.get('edited') === 'false',
+    nothingUnsaved: store.get('edited') === false,
   });
   if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
   sayWhetherSaved(mainWindow, wasShown);
@@ -491,7 +492,7 @@ export const save = async (
   // An untitled poem is not asked a name until the poet saves on purpose (#315; Annelyse, GitHub #81): the editor's own
   // saves keep its recovery copy instead. Nothing is written for a poem nothing has been typed into.
   if (!stored && !byPoet) {
-    if (store.get('edited') !== 'true') return;
+    if (store.get('edited') !== true) return;
     try {
       writeRecovery(
         includeVersionInfo(
@@ -548,7 +549,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('meta', '');
   store.set('filename', '');
   store.set('baseFilename', '');
-  store.set('edited', JSON.stringify(false));
+  store.set('edited', false);
   forgetSaveFailures(mainWindow);
   mainWindow.webContents.send('open-file', '', history, '');
   if (darwin) {
@@ -1121,7 +1122,7 @@ export default class MenuBuilder {
               store.set('history', JSON.stringify([emptyFirstFrame()]));
               store.set('meta', '');
               store.set('filename', '');
-              store.set('edited', JSON.stringify(false));
+              store.set('edited', false);
               saveFailure.startAgain();
               app.emit('activate', false);
             } else {
@@ -1348,9 +1349,7 @@ export const offerRecovery = async (
   };
   await offer(orphans());
   if (declined > 0 && kept === 0 && !adopted && !store.get('filename')) {
-    ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
-      store.delete(key)
-    );
-    store.set('edited', 'false');
+    DOCUMENT_KEYS.forEach((key) => store.delete(key));
+    store.set('edited', false);
   }
 };

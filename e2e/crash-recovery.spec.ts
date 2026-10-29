@@ -121,7 +121,7 @@ test('after a crash, Yes brings the untitled poem back, still untitled', async (
     });
     const store = readStore(userData);
     expect(store.filename ?? '').toBe('');
-    expect(store.edited).toBe('true');
+    expect(store.edited).toBe(true);
     expect(`${store.recoveryId}.midst`).toBe(copy);
   } finally {
     await app.close();
