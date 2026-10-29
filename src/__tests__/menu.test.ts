@@ -1593,6 +1593,56 @@ describe('the menu', () => {
       expect(inc.accelerator).toBe('Ctrl+=');
       expect(dec.accelerator).toBe('Ctrl+-');
     });
+
+    // GitHub #94: on a Mac, Command+= and Command+- work too, without Shift, in every build.
+    (['development', 'production'] as const).forEach((env) => {
+      it(`on macOS (${env}), hidden Command+= and Command+- change the text size, and the menu still shows Command+Shift`, () => {
+        process.env.NODE_ENV = env;
+        delete process.env.DEBUG_PROD;
+        mockStore.set('font-size', '2');
+        const win = makeWindow();
+        const view = (
+          build('darwin', win).find((m) => m.label === 'View')!
+            .submenu as (Item & {
+            visible?: boolean;
+            acceleratorWorksWhenHidden?: boolean;
+          })[]
+        ).filter((item) => item.id?.startsWith('menu.view.textSize'));
+        expect(
+          view.map((item) => [
+            item.id,
+            item.accelerator,
+            item.visible ?? true,
+            item.acceleratorWorksWhenHidden,
+          ])
+        ).toEqual([
+          ['menu.view.textSizeIncrease', 'Command+Shift+=', true, undefined],
+          ['menu.view.textSizeDecrease', 'Command+Shift+-', true, undefined],
+          ['menu.view.textSizeIncrease', 'Command+=', false, true],
+          ['menu.view.textSizeDecrease', 'Command+-', false, true],
+        ]);
+        view[2].click!();
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-font-size',
+          '3'
+        );
+        view[3].click!();
+        expect(win.webContents.send).toHaveBeenLastCalledWith(
+          'set-font-size',
+          '2'
+        );
+      });
+    });
+
+    it('Windows and Linux have no extra text-size keys', () => {
+      const view = (
+        build('linux').find((m) => m.label === '&View')!.submenu as Item[]
+      ).filter((item) => item.id?.startsWith('menu.view.textSize'));
+      expect(view.map((item) => item.accelerator)).toEqual([
+        'Ctrl+=',
+        'Ctrl+-',
+      ]);
+    });
   });
 
   describe('buildMenu', () => {

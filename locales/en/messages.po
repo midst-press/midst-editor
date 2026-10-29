@@ -1086,6 +1086,7 @@ msgstr "&Reload"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "menu.view.textSizeDecrease"
 msgstr "Decrease text size"
@@ -1097,6 +1098,7 @@ msgid "menu.view.textSizeDecrease.description"
 msgstr "Make the text smaller"
 
 #. js-lingui-explicit-id
+#: src/main/menu.ts
 #: src/main/menu.ts
 #, fuzzy
 msgid "menu.view.textSizeIncrease"

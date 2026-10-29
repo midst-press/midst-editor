@@ -839,6 +839,29 @@ export default class MenuBuilder {
     ];
   }
 
+  // On a Mac, Command+= and Command+- work too, without Shift (GitHub #94). Hidden items with the
+  // same ids and labels, so the menu shows one shortcut each: Stuart's Command+Shift keys (#121).
+  private plainTextSizeItems(): MenuItemConstructorOptions[] {
+    return [
+      {
+        id: 'menu.view.textSizeIncrease',
+        label: this.label(i18n._('menu.view.textSizeIncrease')),
+        accelerator: 'Command+=',
+        visible: false,
+        acceleratorWorksWhenHidden: true,
+        click: () => increaseFontSize(this.mainWindow),
+      },
+      {
+        id: 'menu.view.textSizeDecrease',
+        label: this.label(i18n._('menu.view.textSizeDecrease')),
+        accelerator: 'Command+-',
+        visible: false,
+        acceleratorWorksWhenHidden: true,
+        click: () => decreaseFontSize(this.mainWindow),
+      },
+    ];
+  }
+
   private appearanceItem(): MenuItemConstructorOptions {
     const current = appearanceOrDefault(store.get('appearance'));
     return {
@@ -1144,12 +1167,14 @@ export default class MenuBuilder {
             fullScreen,
             this.devToolsItem('Alt+Command+I'),
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+            ...this.plainTextSizeItems(),
             this.appearanceItem(),
             this.languageItem(),
           ]
         : [
             fullScreen,
             ...this.textSizeItems('Command+Shift+=', 'Command+Shift+-'),
+            ...this.plainTextSizeItems(),
             this.appearanceItem(),
             this.languageItem(),
           ],

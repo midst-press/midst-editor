@@ -82,6 +82,38 @@ describe('the shortcut table', () => {
     );
   });
 
+  it('gives a second key for the same item in the same row, and names its place once', () => {
+    const table = shortcutTable(
+      [
+        {
+          label: 'View',
+          submenu: [
+            {
+              id: 'menu.view.textSizeIncrease',
+              label: 'Increase text size',
+              accelerator: 'Command+Shift+=',
+            },
+            {
+              id: 'menu.view.textSizeIncrease',
+              label: 'Increase text size',
+              accelerator: 'Command+=',
+            },
+          ],
+        },
+      ],
+      sample(
+        'menu.view.textSizeIncrease',
+        'Increase text size',
+        'Ctrl+=',
+        '&View'
+      )
+    );
+    expect(table.split('\n')).toHaveLength(3);
+    expect(table.split('\n')[2]).toMatch(
+      /\| Command\+Shift\+=, Command\+= +\| Ctrl\+= +\| View > Increase text size +\|$/
+    );
+  });
+
   it('leaves out items with no shortcut, and separators', () => {
     expect(
       shortcutRows(
