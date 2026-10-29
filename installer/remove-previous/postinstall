@@ -22,6 +22,12 @@ new_id=$(plutil -extract CFBundleIdentifier raw -o - "$apps/Midst.app/Contents/I
 [ ! -L "$apps/Midst.app" ] && [ "$new_id" = press.Midst.MidstApp ] \
   || fail "the new Midst is not in $apps/Midst.app, so the older version is kept"
 
+# An empty record deletes nothing, and says so: a silent success here is what hid #353.
+if ! grep -q . "$record"; then
+  say "no older Midst was kept in this install, so nothing was deleted"
+  exit 0
+fi
+
 while IFS= read -r path || [ -n "$path" ]; do
   [ -n "$path" ] || continue
   name=$(basename -- "$path")

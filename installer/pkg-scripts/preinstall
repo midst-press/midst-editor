@@ -26,8 +26,14 @@ record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
 
 # Create the record before anything moves, so a record we cannot write stops the install while
 # every app is still where it was.
+#
+# macOS Installer runs this script twice in one install, in the same sandbox and with the same
+# INSTALLER_TEMP (#353: the 0.9.0 candidate's install.log). The second run finds nothing left to
+# rename, so the record is only ever appended to, never emptied: emptying it lost what the first
+# run kept, and the ticked delete then deleted nothing. INSTALLER_TEMP is new for each install.
 [ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept could not be recorded"
-: > "$record" || fail "could not create $record"
+[ -e "$record" ] || : > "$record" || fail "could not create $record"
+[ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
 
 plist_value() { # <app> <key>: prints the value, or fails
   plutil -extract "$2" raw -o - "$1/Contents/Info.plist" 2> /dev/null

@@ -248,10 +248,12 @@ describeOnMac('preinstall failures stop the install with nothing moved', () => {
 
 describeOnMac('opt-in delete', () => {
   // The preinstall runs first, then the new app is installed, then (only if ticked) the delete.
-  function installed(before) {
+  function installed(before, preinstallRuns = 1) {
     const v = volume(before);
-    const pre = run(PREINSTALL, v);
-    if (pre.status !== 0) throw new Error(`preinstall failed: ${pre.stderr}`);
+    for (let n = 0; n < preinstallRuns; n += 1) {
+      const pre = run(PREINSTALL, v);
+      if (pre.status !== 0) throw new Error(`preinstall failed: ${pre.stderr}`);
+    }
     const contents = path.join(v.applications, 'Midst.app', 'Contents');
     fs.mkdirSync(contents, { recursive: true });
     fs.writeFileSync(
@@ -279,9 +281,22 @@ describeOnMac('opt-in delete', () => {
     ]);
   });
 
+  // macOS Installer runs the app's preinstall twice in one install, in the same sandbox (#353,
+  // install.log of the 0.9.0 candidate). The second run finds nothing left to rename; it must not
+  // wipe the record the first run wrote, or the ticked delete deletes nothing and reports success.
+  test('a preinstall run twice in one install still deletes what the first run kept', () => {
+    const v = installed({ 'Midst Beta.app': {}, 'Midst.app': ORIGINAL }, 2);
+    const r = run(REMOVE, v);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(listing(v.applications)).toEqual(['Midst.app']);
+  });
+
   test('nothing kept, nothing deleted', () => {
     const v = installed({ 'Midst.app': OURS });
-    expect(run(REMOVE, v).status).toBe(0);
+    const r = run(REMOVE, v);
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('nothing was deleted');
     expect(listing(v.applications)).toEqual(['Midst.app']);
   });
 
