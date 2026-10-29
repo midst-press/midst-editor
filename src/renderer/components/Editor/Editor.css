@@ -6,7 +6,10 @@
   padding-left: max(15%, 32px);
   padding-right: max(15%, 32px);
   width: 100%;
-  font-family:
+  /* The poem's font (#240), set on an ancestor by PoemFontContext; the fallback is the app's own font,
+     APP_FONT_STACK in poemFont.ts. */
+  font-family: var(
+    --poem-font,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -17,7 +20,8 @@
     Cantarell,
     'Open Sans',
     'Helvetica Neue',
-    sans-serif;
+    sans-serif
+  );
   /* font-size: 1rem;
   line-height: 1.5rem; */
   border: none;

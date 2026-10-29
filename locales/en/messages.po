@@ -535,6 +535,63 @@ msgid "focusMode.toggle"
 msgstr "Focus Mode"
 
 #. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.appFont"
+msgstr "The app's own font"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.close"
+msgstr "Close"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.loading"
+msgstr "Listing the fonts on this computer…"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.metaUnreadable"
+msgstr "This poem's settings could not be read, so its font was not changed."
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.noMatch"
+msgstr "No font matches."
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.notInstalled"
+msgstr "{family} (not installed here)"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.search"
+msgstr "Search fonts"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.title"
+msgstr "Font for this poem"
+
+#. js-lingui-explicit-id
+#: src/renderer/poemFont/FontPicker.tsx
+#, fuzzy
+msgid "fontPicker.unavailable"
+msgstr "The fonts on this computer could not be listed."
+
+#. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #, fuzzy
 msgid "format.bold"
@@ -996,6 +1053,12 @@ msgstr "Follow System"
 #, fuzzy
 msgid "menu.view.devTools"
 msgstr "Toggle &Developer Tools"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.view.font"
+msgstr "Font…"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts

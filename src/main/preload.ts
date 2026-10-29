@@ -21,6 +21,7 @@ export type Channels =
   | 'focus-mode-requested'
   | 'focus-mode-changed'
   | 'find-in-poem'
+  | 'choose-font'
   | 'new-file'
   | 'new-file-from-menu'
   | 'button-open-file'
