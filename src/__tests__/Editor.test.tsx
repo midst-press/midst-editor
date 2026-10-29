@@ -14,6 +14,10 @@ import {
   checkWholePoemSoon,
 } from '../renderer/spellcheck/checkWholePoem';
 
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
+
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
@@ -86,7 +90,9 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     activeListeners: (channel: string) => (listeners[channel] ?? []).length,
     emit: (channel: string, ...a: unknown[]) =>
       act(() => {
-        [...(listeners[channel] ?? [])].forEach((l) => l(...a));
+        [...(listeners[channel] ?? [])].forEach((l) =>
+          (l as AnyListener)(...a)
+        );
       }),
   };
 };

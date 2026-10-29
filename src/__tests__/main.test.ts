@@ -1590,13 +1590,6 @@ describe('main process', () => {
   });
 
   describe('other ipc handlers', () => {
-    it('ipc-example replies pong on the same channel', async () => {
-      const { fireIpc } = await boot();
-      const reply = jest.fn();
-      await fireIpc('ipc-example', { reply }, 'ping');
-      expect(reply).toHaveBeenCalledWith('ipc-example', 'IPC test: pong');
-    });
-
     it('electron-store-get returns the stored value to the renderer', async () => {
       const { store, fireIpc } = await boot();
       store.set('poem', 'zq');

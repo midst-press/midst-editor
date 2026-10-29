@@ -47,6 +47,7 @@ import {
   languageName,
   languageOrder,
 } from '../shared/i18n';
+import sendToWindow from './sendToWindow';
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
@@ -88,17 +89,17 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
 };
 
 const toggleEditMode = (mainWindow: BrowserWindow) => {
-  mainWindow.webContents.send('toggle-edit-mode');
+  sendToWindow(mainWindow, 'toggle-edit-mode');
 };
 const findInPoem = (mainWindow: BrowserWindow) => {
-  mainWindow.webContents.send('find-in-poem');
+  sendToWindow(mainWindow, 'find-in-poem');
 };
 // Check Spelling is a checkbox (GitHub #80, editor #320), and the menu owns the setting: Electron has already
 // flipped the item's mark when this runs, so the store follows the mark, and the window is told to apply it.
 // Whatever the window is showing, the mark and the setting agree; the writing screen reads the setting when it opens.
 const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
-  mainWindow.webContents.send('toggle-spellcheck');
+  sendToWindow(mainWindow, 'toggle-spellcheck');
 };
 // Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
 // one owner is main: menu.ts's memory, mirrored onto the live checkbox by id (getMenuItemById,
@@ -137,7 +138,7 @@ export const setFocusModeMark = (on: boolean) => {
 // The menu's click: Electron has already flipped the mark, and the screen follows it (one path
 // for both halves, so there is nothing left to hold a second copy of the state).
 export const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
-  mainWindow.webContents.send('set-focus-mode', on);
+  sendToWindow(mainWindow, 'set-focus-mode', on);
 };
 // The moon's request, from wherever the click happened: main turns the mark and answers.
 export const requestFocusMode = (mainWindow: BrowserWindow) => {
@@ -153,7 +154,7 @@ const increaseFontSize = (mainWindow: BrowserWindow) => {
     return;
   }
   store.set('font-size', String(fontSize + 1));
-  mainWindow.webContents.send('set-font-size', String(fontSize + 1));
+  sendToWindow(mainWindow, 'set-font-size', String(fontSize + 1));
 };
 // Light, dark or the OS's (GitHub #16). nativeTheme decides what prefers-color-scheme matches in the
 // renderer, so the stylesheet and the MUI theme follow it with no message of their own.
@@ -176,7 +177,7 @@ export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
   // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
   new MenuBuilder(mainWindow).applyMenu();
   BrowserWindow.getAllWindows().forEach((w) =>
-    w.webContents.send('set-locale', used)
+    sendToWindow(w, 'set-locale', used)
   );
 };
 
@@ -194,7 +195,7 @@ const decreaseFontSize = (mainWindow: BrowserWindow) => {
     return;
   }
   store.set('font-size', String(fontSize - 1));
-  mainWindow.webContents.send('set-font-size', String(fontSize - 1));
+  sendToWindow(mainWindow, 'set-font-size', String(fontSize - 1));
 };
 
 // A document that is not in the store is not an empty document. newFile stores '' and '[]' for a
@@ -245,7 +246,7 @@ const saveFilters = () => [
 // renderer sets it (#94). Sent only when that changes. On macOS the edited dot says it as well.
 const sayWhetherSaved = (mainWindow: BrowserWindow, wasShown: boolean) => {
   const shown = saveFailure.showsNotSaved();
-  if (shown !== wasShown) mainWindow.webContents.send('set-not-saved', shown);
+  if (shown !== wasShown) sendToWindow(mainWindow, 'set-not-saved', shown);
 };
 
 // The window now holds another document: nothing about the last one's failed saves applies to it.
@@ -270,7 +271,7 @@ const recordSaved = (
     mainWindow.setRepresentedFilename(filename);
   }
   // The renderer titles the window from this name, in one place (#125); main does not set the title.
-  mainWindow.webContents.send('set-filename', path.basename(filename));
+  sendToWindow(mainWindow, 'set-filename', path.basename(filename));
   store.set('edited', false);
 };
 
@@ -485,7 +486,7 @@ export const save = async (
   const document = storedDocument();
   if (document === null) {
     log.error('save: no document in the store; nothing written');
-    mainWindow.webContents.send('cancel-save');
+    sendToWindow(mainWindow, 'cancel-save');
     return;
   }
   const stored = store.get('filename') as string | undefined;
@@ -528,7 +529,7 @@ export const save = async (
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   } else {
-    mainWindow.webContents.send('cancel-save');
+    sendToWindow(mainWindow, 'cancel-save');
   }
 };
 
@@ -551,7 +552,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   store.set('baseFilename', '');
   store.set('edited', false);
   forgetSaveFailures(mainWindow);
-  mainWindow.webContents.send('open-file', '', history, '');
+  sendToWindow(mainWindow, 'open-file', '', history, '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
   }
@@ -835,7 +836,7 @@ export default class MenuBuilder {
         // The poem's font (#240): the picker is in the window, since a menu cannot show each font in its own face.
         id: 'menu.view.font',
         label: this.label(i18n._('menu.view.font')),
-        click: () => this.mainWindow.webContents.send('choose-font'),
+        click: () => sendToWindow(this.mainWindow, 'choose-font'),
       },
     ];
   }
