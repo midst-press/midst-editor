@@ -830,6 +830,12 @@ export default class MenuBuilder {
         accelerator: decrease,
         click: () => decreaseFontSize(this.mainWindow),
       },
+      {
+        // The poem's font (#240): the picker is in the window, since a menu cannot show each font in its own face.
+        id: 'menu.view.font',
+        label: this.label(i18n._('menu.view.font')),
+        click: () => this.mainWindow.webContents.send('choose-font'),
+      },
     ];
   }
 

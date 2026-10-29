@@ -13,6 +13,8 @@ import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
 import { LocaleContext, useMenuLocale } from './locale';
+import FontPicker from './poemFont/FontPicker';
+import { PoemFontContext, usePoemFontState } from './poemFont/PoemFontContext';
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);
@@ -32,6 +34,7 @@ export default function App() {
   // covers the degraded case so the hook order is identical either way.
   const theme = useSchemeTheme();
   const locale = useMenuLocale();
+  const poemFont = usePoemFontState();
   const restoreText = window.electron?.store.get('poem') || '';
   // After a reload the router would start at the opening screen again. If the editor asked to come
   // back (it does before reloading for the spellcheck toggle), start there instead, once.
@@ -111,12 +114,15 @@ export default function App() {
           <TextContext.Provider value={textContextValue}>
             <HistoryContext.Provider value={historyContextValue}>
               <Router initialEntries={[startAt]}>
-                <WindowTitle filename={filename} notSaved={notSaved} />
-                <Routes>
-                  <Route path="/editor" element={<Editor />} />
-                  <Route path="/replay" element={<Replay />} />
-                  <Route path="/" element={<LandingDialog />} />
-                </Routes>
+                <PoemFontContext.Provider value={poemFont}>
+                  <WindowTitle filename={filename} notSaved={notSaved} />
+                  <FontPicker />
+                  <Routes>
+                    <Route path="/editor" element={<Editor />} />
+                    <Route path="/replay" element={<Replay />} />
+                    <Route path="/" element={<LandingDialog />} />
+                  </Routes>
+                </PoemFontContext.Provider>
               </Router>
             </HistoryContext.Provider>
           </TextContext.Provider>
