@@ -41,10 +41,15 @@ test("View > Font… lists the installed fonts, and the one chosen is the poem's
 
     await options.nth(1).click();
     await expect(picker).toBeHidden();
-    const shown = await win
-      .locator('.ProseMirror')
-      .evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(shown.startsWith(JSON.stringify(family))).toBe(true);
+    // The first family of the computed value, unquoted: Chromium may or may not quote a name, so the
+    // comparison is of names, not of how one is serialised.
+    const first = await win.locator('.ProseMirror').evaluate((el) => {
+      const value = getComputedStyle(el).fontFamily.trim();
+      if (value.startsWith('"'))
+        return value.slice(1, value.indexOf('"', 1)).replace(/\\(.)/g, '$1');
+      return value.split(',')[0].trim();
+    });
+    expect(first).toBe(family);
 
     // The choice is saved into the poem's own file.
     expect(await waitUntil(() => savedFontFamily(p) === family, 10_000)).toBe(
