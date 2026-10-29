@@ -47,7 +47,8 @@ export default function Replay() {
 
   const { poemHistory, setPoemHistory } = useContext(HistoryContext);
   const { text: htmlString, setText: setHtmlString } = useContext(TextContext);
-  const [maxStep] = useState(poemHistory.length ? poemHistory.length - 1 : 0);
+  // The last frame, from the history as it is now (#356): once frozen at the first render.
+  const maxStep = Math.max(poemHistory.length - 1, 0);
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const draftsButton = useRef<HTMLButtonElement | null>(null);
   const refocusDrafts = useRef(false);
