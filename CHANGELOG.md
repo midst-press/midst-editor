@@ -1,3 +1,35 @@
+# 0.9.0
+
+- **Choose a font for a poem** with **View** > **Font…**: any font installed on your computer, one font for the
+  whole poem, saved with it. Poems from the original Midst open in the font they were written in, where that font
+  is installed.
+- **Underline and strikethrough**, with buttons and Command+U and Command+Shift+X (Ctrl on Windows and Linux).
+- **Focus Mode:** the moon icon at the upper right hides every control but itself. It is also in the Edit menu.
+- **A new poem stays Untitled** and asks for no name until you save it. If Midst stops unexpectedly, it offers
+  your unsaved poem back the next time it opens.
+- **"(not saved)" shows in the title** on every platform, macOS included.
+- **One copy of Midst at a time.** Opening a poem while Midst is running opens it in the running copy.
+- **A new poem's Timeline begins at an empty page.** Poems written before this version are unchanged.
+- **Timeline, Edit and Draft Markers** are the names everywhere, and the menu item is **Check Spelling**, with a
+  checkmark while it is on.
+- **Spellcheck marks every line**: when you switch it on, and after a line break. Switching it keeps your place.
+- **Draft Markers on the timeline:** a new marker is named in place on the timeline, the timeline jumps to its
+  exact moment, and markers can be renamed and deleted there. Escape on a marker made in Timeline mode keeps its
+  old name. Labels on neighbouring moments can overlap, the later one covering the earlier.
+- **A gear for Settings** in Timeline mode. It holds the Draft Markers list and **Show timestamp**.
+- **The drafts list sits beside the poem and the timeline**, never over them.
+- **The time on the timeline is black** (white in the dark appearance), not pink.
+- **A smaller logo**, clear of the window buttons on a Mac. This is a first attempt, for you to refine.
+- **Continue writing from here** is a magic wand that asks before it changes anything, with an X to go back to Edit.
+- **Find scrolls to the match it selects.**
+- **A click outside a long poem**, in the header or footer, no longer makes it jump.
+- **The writing column** has about 15% of the window as a margin on each side, with no character limit.
+- **On a Mac, Command+= and Command+-** change the text size, as Command+Shift+= and Command+Shift+- do.
+- **The Mac installer installs for all users.** An older Midst, such as Midst Beta, is kept; it is deleted only
+  if you ask.
+- Under the hood: security updates to the libraries the app ships with, and checks for the project's own tools.
+  Nothing a writer sees changes.
+
 # 0.8.0
 
 - **The user guide is under construction.** **Help** > **Documentation** and the **User Guide** button in About
