@@ -270,7 +270,6 @@ export function checkWholePoemSoon(view: EditorView, log: Log): () => void {
   return () => {
     clearTimeout(first);
     clearTimeout(again);
-    againWaiting = false;
     finishRunning();
   };
 }
