@@ -32,18 +32,26 @@ afterEach(() => {
 });
 
 describe('useReplayKeys: Space', () => {
-  it('plays or pauses from anywhere but text entry, and is cancelled', () => {
+  it('plays or pauses from the page or the slider, and is cancelled', () => {
     const { plays, el } = setUp();
-    ['page', 'follow', 'slider', 'switch'].forEach((id) => {
+    ['page', 'slider'].forEach((id) => {
       expect(press(el(id), { key: ' ' })).toBe(false); // false: the default was prevented
     });
-    expect(plays).toHaveBeenCalledTimes(4);
+    expect(plays).toHaveBeenCalledTimes(2);
+  });
+
+  it('belongs to a focused button or switch, which only the keyboard leaves focused', () => {
+    const { plays, el } = setUp();
+    ['follow', 'switch'].forEach((id) => {
+      expect(press(el(id), { key: ' ' })).toBe(true);
+    });
+    expect(plays).not.toHaveBeenCalled();
   });
 
   it('plays with the drafts list open too', () => {
     const { plays, el } = setUp();
     el('page').classList.add('DraftDrawer');
-    press(el('switch'), { key: ' ' });
+    press(el('page'), { key: ' ' });
     expect(plays).toHaveBeenCalledTimes(1);
   });
 

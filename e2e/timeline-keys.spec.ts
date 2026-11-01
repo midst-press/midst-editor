@@ -129,3 +129,38 @@ test('from the keyboard, Enter on a focused control works it, keeps the focus ri
     await close();
   }
 });
+
+test('a switch reached with Tab turns over on Space, keeps its ring, and does not play', async () => {
+  // cora-2f1e43dc, review of 36eb9b5: a native switch toggles on Space and ignores Enter, so Space must reach it.
+  const { win, close, failures } = await openTimeline('tab-switch');
+  try {
+    await win.getByRole('button', { name: 'Settings' }).click();
+    const timestamp = win.getByLabel('Show timestamp');
+    await expect(timestamp).toBeVisible();
+    const onSwitch = () =>
+      win.evaluate(
+        () =>
+          (document.activeElement as HTMLElement | null)?.closest(
+            '.ShowTimestamp'
+          ) !== null
+      );
+    // One Tab at a time, until the focus reaches the switch.
+    const tabToSwitch = async (left: number): Promise<void> => {
+      if (left === 0 || (await onSwitch())) return;
+      await win.keyboard.press('Tab');
+      await tabToSwitch(left - 1);
+    };
+    await tabToSwitch(40);
+    expect(await onSwitch(), 'Tab never reached Show timestamp').toBe(true);
+    const checked = await timestamp.isChecked();
+    await win.keyboard.press('Space');
+    await expect(timestamp).toBeChecked({ checked: !checked });
+    expect(await focusRing(win), 'a keyboard user lost the focus ring').toBe(
+      true
+    );
+    expect(await playing(win), 'Space on the switch also played').toBe(false);
+    expect(failures).toEqual([]);
+  } finally {
+    await close();
+  }
+});
