@@ -159,6 +159,12 @@ test('pausing playback stops it, and it stays stopped', async () => {
       { timeout: 30_000 }
     );
     await win.locator('[data-testid="PauseIcon"]').first().click();
+    // Read the length only once the pause has taken effect: the button says Play again. Read any earlier and a frame
+    // shown before the pause can arrive after the read (#378). After this wait, a later change can only be the app
+    // stepping after Pause, which is what the check below is for.
+    await expect(
+      win.getByRole('button', { name: /^(Play|Pause)$/ })
+    ).toHaveAttribute('aria-label', 'Play');
 
     const atPause = await len();
 

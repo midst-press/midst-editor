@@ -451,6 +451,23 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// A poem the OS hands over, by open-file or a second launch. Until a window has been shown it is held for
+// ready-to-show, which opens it once. It used to be sent on to app-open as well, and a window that existed but was not
+// yet shown then opened it a second time, before the recovery offer and into a page still loading (#381). A second
+// Finder open within a moment of a cold launch lands there. Once a window has been shown, app-open opens it (with
+// the unsaved-changes prompt) and nothing is held: a path left held was read straight into the next window, without
+// the prompt, after the poet closed this one and reopened from the Dock (#41).
+const requestOpen = (poem: string) => {
+  if (!windowShown) {
+    log.info('os requested open; held until the window shows', {
+      filename: poem,
+    });
+    earlyPath = poem;
+    return;
+  }
+  ipcMain.emit('app-open', [poem]);
+};
+
 // One Midst at a time (#336; Annelyse chose it on GitHub #91, 26 Oct). Two copies would share one store, the open poem in it, and
 // the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
 // Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
@@ -473,9 +490,7 @@ app.on('second-instance', (_event, argv, _cwd, data) => {
   else if (poem) channel = 'argv';
   log.info('second launch', { poem: channel, args: argv.length });
   if (poem === '') return;
-  // As open-file below: held for ready-to-show only while no window has been shown.
-  if (!windowShown) earlyPath = poem;
-  ipcMain.emit('app-open', [poem]);
+  requestOpen(poem);
 });
 
 // Responding to external requests to open a file
@@ -484,11 +499,7 @@ app.on('open-file', async (event, filename) => {
   // store the filename, so it can be used once the window is ready
   // on other operating systems, this will need to be handled differently
   event.preventDefault();
-  // Held for ready-to-show only while no window has been shown. Once one has, app-open opens the file (with
-  // the unsaved-changes prompt) and nothing is held: a path left here was read straight into the next
-  // window, without the prompt, after the poet closed this one and reopened from the Dock (#41).
-  if (!windowShown) earlyPath = filename;
-  ipcMain.emit('app-open', [filename]);
+  requestOpen(filename);
 });
 
 // A launch that lost the lock creates nothing: it is quitting.
