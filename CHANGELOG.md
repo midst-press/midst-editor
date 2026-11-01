@@ -1,3 +1,13 @@
+# 0.9.1
+
+- **Space on the Timeline only plays and pauses.** It no longer also presses the button you last clicked, so
+  Play no longer undoes it, and **Follow the writing** and **Show timestamp** no longer switch over by themselves.
+- **No red ring** around a button after you click it. A control you reach with the Tab key still shows it, and
+  Space operates that control; Enter operates a button.
+- **Enter** plays or pauses too, unless a control is selected with the keyboard or the drafts list is open.
+- **Deleting a Draft Marker on the timeline** no longer shows "Undo". Settings keeps its Undo.
+- Under the hood: tidier internal code for Replay, the settings store and the app's messages between its parts.
+
 # 0.9.0
 
 - **Choose a font for a poem** with **View** > **Font…**: any font installed on your computer, one font for the
