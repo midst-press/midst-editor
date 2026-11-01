@@ -238,20 +238,8 @@ export default function Replay() {
                 pause();
                 if (drafts.create(step)) setTimelineNaming(step);
               }}
-              after={
-                <>
-                  <RefusalAlert message={drafts.refusal} />
-                  {/* A delete from the timeline can be undone here, as in Settings (#277, GitHub #95). */}
-                  {drafts.canUndoDelete && !drawerOpen ? (
-                    <span role="status" className="DraftUndo TimelineUndo">
-                      {i18n._('drafts.deleted')}{' '}
-                      <button type="button" onClick={drafts.undoDelete}>
-                        {i18n._('drafts.undo')}
-                      </button>
-                    </span>
-                  ) : null}
-                </>
-              }
+              // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
+              after={<RefusalAlert message={drafts.refusal} />}
             >
               <BookmarkAddIcon fontSize="small" />
             </ReasonButton>

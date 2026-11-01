@@ -91,8 +91,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     const mark = win.getByRole('button', { name: MARK });
     await expect(mark).toBeDisabled();
 
-    // With Settings open and nothing in it touched yet, the keys still do not reach playback: Space
-    // and Enter used to start it behind the list, because focus sits on the panel, not inside it.
+    // With Settings open and nothing in it touched yet, Enter stays with the list and does not reach
+    // playback. Space plays and pauses, with the list open too (GitHub #98).
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
     await win.getByRole('button', { name: 'Settings' }).click();
@@ -109,13 +109,18 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       ];
     };
     expect(
-      await pressAndRead('Space'),
-      'Space started playback behind the open list'
-    ).toEqual([String(last), 0]);
-    expect(
       await pressAndRead('Enter'),
       'Enter started playback behind the open list'
     ).toEqual([String(last), 0]);
+    expect(
+      (await pressAndRead('Space'))[1],
+      'Space did not play with the list open'
+    ).toBe(1);
+    await win.keyboard.press('Space');
+    await expect(win.locator('[data-testid="PlayArrowIcon"]')).toHaveCount(1);
+    // Back to the last frame, where the next step starts from.
+    await thumb.press('End');
+    await expect(thumb).toHaveValue(String(last));
     await win.keyboard.press('Escape');
     await expect(win.locator('.DraftDrawer')).toBeHidden();
     await expect(win.locator('.ReplayContainer')).toBeVisible();
@@ -187,9 +192,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       draftMarkers: [{ index: second, name: 'qq', defaultName: 'Draft 2' }],
       highestDraftNumber: 2,
     });
-    await expect(win.getByRole('status')).toContainText(
-      'Draft Marker deleted.'
-    );
+    // No Undo is offered on the timeline (GitHub #98).
+    await expect(win.getByRole('button', { name: 'Undo' })).toHaveCount(0);
 
     // The poem itself is untouched by all of this.
     const saved = JSON.parse(

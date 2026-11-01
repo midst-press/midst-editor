@@ -334,7 +334,6 @@ msgstr "Delete Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.deleted"
 msgstr "Draft Marker deleted."
@@ -428,7 +427,6 @@ msgstr "Draft Markers"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.undo"
 msgstr "Undo"
