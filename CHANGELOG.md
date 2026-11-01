@@ -6,6 +6,9 @@
   Space operates that control; Enter operates a button.
 - **Enter** plays or pauses too, unless a control is selected with the keyboard or the drafts list is open.
 - **Deleting a Draft Marker on the timeline** no longer shows "Undo". Settings keeps its Undo.
+- **Spellcheck checks all of a long poem.** On a poem of about 40 lines or more, only the first part was checked
+  when it opened, and the poem was redrawn twice. Now every line is checked, and nothing is redrawn.
+- **A poem opened while Midst is starting** opens once, not twice.
 - Under the hood: tidier internal code for Replay, the settings store and the app's messages between its parts.
 
 # 0.9.0
