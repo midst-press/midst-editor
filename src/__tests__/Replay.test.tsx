@@ -869,7 +869,7 @@ describe('Replay: Draft Markers on the timeline', () => {
     ).toBeInTheDocument();
   });
 
-  it('right-click (Control-click on a Mac) offers Delete, which can be undone from the timeline', () => {
+  it('right-click (Control-click on a Mac) offers Delete, with no Undo on the timeline (GitHub #98)', () => {
     bridge = installBridge(seeded);
     mount();
     seek(20);
@@ -882,10 +882,8 @@ describe('Replay: Draft Markers on the timeline', () => {
       screen.getByRole('menuitem', { name: 'Delete Draft Marker' })
     );
     expect(names()).toEqual(['xv']);
-    const status = screen.getByRole('status');
-    expect(status).toHaveTextContent('Draft Marker deleted.');
-    fireEvent.click(within(status).getByRole('button', { name: 'Undo' }));
-    expect(names()).toEqual(['zq', 'xv']);
+    expect(screen.queryByText('Draft Marker deleted.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 });
 
@@ -1060,11 +1058,14 @@ describe('Replay: drafts list', () => {
     ).toBeInTheDocument();
   });
 
-  it('leaves playback keys alone while the list is open', () => {
+  // GitHub #98: Space only ever plays or pauses, with Settings open too. Enter stays with the list.
+  it('plays on Space while the list is open, and leaves Enter to the list', () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.keyDown(document.body, { key: ' ' });
+    fireEvent.keyDown(document.body, { key: 'Enter' });
     expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: ' ' });
+    expect(screen.getByTestId('PauseIcon')).toBeInTheDocument();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 
