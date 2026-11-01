@@ -1218,14 +1218,32 @@ describe('main process', () => {
       reads.restore();
     });
 
-    it('open-file after the window exists asks the open handler to open it', async () => {
-      const { menu, win, fireApp } = await boot();
+    it('open-file after the window has been shown asks the open handler to open it', async () => {
+      const { menu, win, fireApp, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
       const event = { preventDefault: jest.fn() };
       await fireApp('open-file', event, '/a/zq.midst');
       expect(event.preventDefault).toHaveBeenCalled();
       expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
         '/a/zq.midst',
       ]);
+    });
+
+    // #381: a window that exists but is not yet shown. Measured on a packaged build, a second Finder open within
+    // about 0.1 s of a cold launch arrives here. It was opened by the open handler at once and again at ready-to-show.
+    it('open-file while the window exists but is not yet shown is opened once, at ready-to-show', async () => {
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(file, currentFile('<p>zq</p>'));
+      const reads = trackReadFile();
+      const { menu, store, fireApp, fireWindow } = await boot();
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      expect(menu.openFile).not.toHaveBeenCalled();
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(reads.calls()).toBe(1);
+      expect(menu.openFile).not.toHaveBeenCalled();
+      expect(store.get('filename')).toBe(file);
+      reads.restore();
     });
 
     it('tells the poet when a current-version file is corrupt and loads nothing', async () => {
@@ -1715,7 +1733,8 @@ describe('single instance', () => {
   });
 
   it('the running copy comes to the front and opens the poem the second launch was given', async () => {
-    const { menu, win, fireApp } = await boot();
+    const { menu, win, fireApp, fireWindow } = await boot();
+    await fireWindow('ready-to-show');
     win().isMinimized.mockReturnValue(true);
     await fireApp('second-instance', {}, [
       '/zq/Midst',
@@ -1730,13 +1749,34 @@ describe('single instance', () => {
   });
 
   it('the running copy takes the poem the second launch sent, whatever its argv holds (#336)', async () => {
-    const { menu, win, fireApp } = await boot();
+    const { menu, win, fireApp, fireWindow } = await boot();
+    await fireWindow('ready-to-show');
     await fireApp('second-instance', {}, ['/zq/Midst', '--zq-switch'], '/zq', {
       poem: '/b/qv.midst',
     });
     expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
       '/b/qv.midst',
     ]);
+  });
+
+  // #381, as open-file: a second launch while the first copy's window is not yet shown.
+  it('a poem from a second launch before the window is shown is opened once, at ready-to-show', async () => {
+    const { menu, state, win, fireApp, fireWindow } = await boot();
+    // The poem does not exist, so the real openPath reports it: an error box with no buttons.
+    state.dialogResponse = 0;
+    await fireApp('second-instance', {}, ['/zq/Midst'], '/zq', {
+      poem: '/b/qv.midst',
+    });
+    expect(win().focus).toHaveBeenCalled();
+    expect(menu.openFile).not.toHaveBeenCalled();
+    await fireWindow('ready-to-show');
+    expect(menu.openFile).not.toHaveBeenCalled();
+    expect(menu.openPath).toHaveBeenCalledTimes(1);
+    expect(menu.openPath).toHaveBeenCalledWith(
+      win(),
+      expect.any(Boolean),
+      '/b/qv.midst'
+    );
   });
 
   it('a second copy sends the poem from its own command line with its lock request', async () => {
