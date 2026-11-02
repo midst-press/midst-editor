@@ -1788,6 +1788,41 @@ describe('single instance', () => {
     ).toHaveBeenCalledWith({ poem: expect.any(String) });
   });
 
+  // #384: on Windows and Linux a double-clicked poem is on the first copy's own command line.
+  describe("the first copy's own poem", () => {
+    const { argv } = process;
+    afterEach(() => {
+      process.argv = argv;
+    });
+
+    it('is opened once, when the window is ready to show', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-384-'));
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(
+        file,
+        `midstVersion: 1\n${JSON.stringify({ text: '<p>zq</p>', history: [] })}`
+      );
+      process.argv = ['/zq/Midst.exe', file];
+      const { menu, store, fireWindow } = await boot();
+      expect(menu.openPath).not.toHaveBeenCalled();
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).toHaveBeenCalledTimes(1);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 50);
+      });
+      expect(store.get('filename')).toBe(file);
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).toHaveBeenCalledTimes(1);
+    });
+
+    it('a launch with no poem on its command line opens nothing', async () => {
+      process.argv = ['/zq/Midst.exe', '--zq-switch'];
+      const { menu, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).not.toHaveBeenCalled();
+    });
+  });
+
   it('a second launch with no poem only brings the running copy to the front', async () => {
     const { menu, win, fireApp } = await boot();
     await fireApp('second-instance', {}, ['/zq/Midst']);
