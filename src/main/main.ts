@@ -477,6 +477,13 @@ if (!firstCopy) {
   log.info('another Midst is running; this launch hands over and quits');
   app.quit();
 }
+// The first copy's own poem (#384). On Windows and Linux a double-clicked poem arrives on the command line of the launch
+// it starts, and nothing read it there: Midst opened without it (measured on 0.9.1, Windows). It is held for
+// ready-to-show like any poem handed over before the window is shown. macOS hands a poem over by open-file instead.
+if (firstCopy) {
+  const launchPoem = poemIn(process.argv);
+  if (launchPoem !== '') requestOpen(launchPoem);
+}
 app.on('second-instance', (_event, argv, _cwd, data) => {
   if (mainWindow !== null) {
     if (mainWindow.isMinimized()) mainWindow.restore();
