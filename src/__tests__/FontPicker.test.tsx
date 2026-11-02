@@ -55,8 +55,8 @@ const installBridge = (fonts: { family: string }[] | Error | 'absent') => {
   return { sent, errors, emit };
 };
 
-const makeStore = (initial: Record<string, string>) => {
-  const values: Record<string, string> = { ...initial };
+const makeStore = (initial: Record<string, unknown>) => {
+  const values: Record<string, unknown> = { ...initial };
   const store: MetaStore = {
     get: (key) => values[key],
     set: (key, value) => {
@@ -145,7 +145,7 @@ it('chooses with the arrow keys and Enter: writes meta, keeps the rest, marks it
   const bridge = installBridge(FONTS);
   const { store, values } = makeStore({
     meta: JSON.stringify({ draftMarkers: [{ index: 1 }] }),
-    edited: 'false',
+    edited: false,
   });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
@@ -155,11 +155,11 @@ it('chooses with the arrow keys and Enter: writes meta, keeps the rest, marks it
   fireEvent.keyDown(field(), { key: 'ArrowUp' });
   fireEvent.keyDown(field(), { key: 'ArrowDown' });
   fireEvent.keyDown(field(), { key: 'Enter' });
-  expect(JSON.parse(values.meta)).toEqual({
+  expect(JSON.parse(String(values.meta))).toEqual({
     draftMarkers: [{ index: 1 }],
     fontFamily: 'Zqbeta',
   });
-  expect(values.edited).toBe('true');
+  expect(values.edited).toBe(true);
   expect(bridge.sent).toEqual(['save-file']);
   expect(screen.getByTestId('family')).toHaveTextContent('Zqbeta');
   expect(document.documentElement.style.getPropertyValue('--poem-font')).toBe(
@@ -182,7 +182,7 @@ it("chooses with a click, and the app's own font takes the poem's font away", as
   expect(option('Zqalpha')).toHaveAttribute('data-current', 'true');
   fireEvent.mouseEnter(option(i18n._('fontPicker.appFont')));
   fireEvent.click(option(i18n._('fontPicker.appFont')));
-  expect(JSON.parse(values.meta)).toEqual({ other: 1 });
+  expect(JSON.parse(String(values.meta))).toEqual({ other: 1 });
   expect(document.documentElement.style.getPropertyValue('--poem-font')).toBe(
     APP_FONT_STACK
   );
@@ -192,13 +192,13 @@ it('choosing the font the poem already has changes nothing', async () => {
   const bridge = installBridge(FONTS);
   const { store, values } = makeStore({
     meta: JSON.stringify({ fontFamily: 'Zqalpha' }),
-    edited: 'false',
+    edited: false,
   });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
   await waitFor(() => expect(optionNames()).toHaveLength(4));
   fireEvent.click(option('Zqalpha'));
-  expect(values.edited).toBe('false');
+  expect(values.edited).toBe(false);
   expect(bridge.sent).toEqual([]);
   expect(screen.queryByRole('dialog')).toBeNull();
 });

@@ -14,6 +14,10 @@ import {
   checkWholePoemSoon,
 } from '../renderer/spellcheck/checkWholePoem';
 
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
+
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
 jest.mock('../renderer/spellcheck/checkWholePoem', () => ({
@@ -86,7 +90,9 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     activeListeners: (channel: string) => (listeners[channel] ?? []).length,
     emit: (channel: string, ...a: unknown[]) =>
       act(() => {
-        [...(listeners[channel] ?? [])].forEach((l) => l(...a));
+        [...(listeners[channel] ?? [])].forEach((l) =>
+          (l as AnyListener)(...a)
+        );
       }),
   };
 };
@@ -455,7 +461,7 @@ describe('Editor: recording an edit', () => {
     expect(newHistory[1].t).toBeInstanceOf(Date);
     expect(typeof newHistory[1].pos).toBe('number');
     expect(bridge.sets('edited')).toEqual([
-      { kind: 'store.set', args: ['edited', 'true'] },
+      { kind: 'store.set', args: ['edited', true] },
     ]);
   });
 
@@ -541,11 +547,11 @@ describe('Editor: autosave', () => {
     typeText('xv');
     // File > Save: the menu takes the poem through the flush, and the save marks the document saved.
     bridge.emit('flush-editor', 2);
-    bridge.values.edited = 'false';
+    bridge.values.edited = false;
     bridge.clear();
     typeText('qj');
     // At once, with no flush and no autosave: New, Open, closing the window and Quit all read it.
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.sets('edited')).toHaveLength(1);
   });
 
@@ -822,7 +828,7 @@ describe('Editor: draft marker button', () => {
 
     const meta = JSON.parse(bridge.values.meta as string);
     expect(meta.draftMarkers).toEqual([{ index: 59, defaultName: 'Draft 1' }]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.sends('save-file').length).toBeGreaterThanOrEqual(1);
     expect(bridge.index('store.set', 'meta')).toBeLessThan(
       bridge.index('send', 'save-file')

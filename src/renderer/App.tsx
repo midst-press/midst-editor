@@ -69,16 +69,15 @@ export default function App() {
     const removeOpenFileHandler = window.electron.ipcRenderer.on(
       'open-file',
       (_savedText, savedHistory, savedFilename) => {
-        const strHistory = savedHistory as ChangeObj[];
-        setPoemHistory(strHistory);
-        setFilename(savedFilename as string);
+        setPoemHistory(savedHistory);
+        setFilename(savedFilename);
         setNotSaved(false);
       }
     );
     const removeSetFilenameHandler = window.electron.ipcRenderer.on(
       'set-filename',
       (filepath) => {
-        setFilename(filepath as string);
+        setFilename(filepath);
       }
     );
 

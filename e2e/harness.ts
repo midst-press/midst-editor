@@ -30,18 +30,18 @@ export function readStore(userData: string): Record<string, string> {
   }
 }
 
-// `handleUnsavedChanges` (menu.ts:21) returns early ONLY when store.edited is the string 'false'. On
+// `handleUnsavedChanges` (menu.ts) returns early ONLY when store.edited is false (a boolean since #355). On
 // a brand-new profile it is undefined, so the first open puts up a modal `showMessageBoxSync`, which
 // blocks Electron's main process with nobody to click it -- the app hangs rather than opening
-// anything. Seeding 'false' puts the app in the state a returning user is actually in.
-// The app now defaults `edited` to 'false' itself (src/main/store.ts), and fresh-profile.spec.ts
+// anything. Seeding false puts the app in the state a returning user is actually in.
+// The app now defaults `edited` to false itself (src/main/store.ts), and fresh-profile.spec.ts
 // launches with no seed to hold it to that. The seed stays for the other specs, so that what they
 // start from is written down here and does not depend on that default.
 export function seedStore(userData: string) {
   mkdirSync(userData, { recursive: true });
   writeFileSync(
     join(userData, 'config.json'),
-    JSON.stringify({ edited: 'false' })
+    JSON.stringify({ edited: false })
   );
 }
 

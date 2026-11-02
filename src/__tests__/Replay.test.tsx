@@ -9,6 +9,10 @@ import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
 import { HistoryContext, TextContext } from '../renderer/context';
 
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
+
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
 // Synthetic data only. Step N of the history below shows N + 1 letters 'a'.
@@ -27,7 +31,7 @@ type Call = [string, ...unknown[]];
 
 // Stands in for the preload bridge. `calls` records every call in order.
 const installBridge = (seed: Record<string, unknown> = {}) => {
-  const values: Record<string, unknown> = { edited: 'false', ...seed };
+  const values: Record<string, unknown> = { edited: false, ...seed };
   const calls: Call[] = [];
   const listeners: Record<string, Listener[]> = {};
   const removed: string[] = [];
@@ -67,7 +71,7 @@ const installBridge = (seed: Record<string, unknown> = {}) => {
     listeners,
     emit: (channel: string, ...args: unknown[]) =>
       act(() => {
-        (listeners[channel] ?? []).forEach((l) => l(...args));
+        (listeners[channel] ?? []).forEach((l) => (l as AnyListener)(...args));
       }),
     meta: () => JSON.parse(values.meta as string),
   };
@@ -610,7 +614,7 @@ describe('Replay: marking a draft', () => {
     expect(bridge.meta().draftMarkers).toEqual([
       { index: 20, defaultName: 'Draft 1' },
     ]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     const keys = bridge.calls.map((c) => c[1]);
     expect(keys).toEqual(['meta', 'edited', 'poem', 'history', 'save-file']);
   });
@@ -865,7 +869,7 @@ describe('Replay: Draft Markers on the timeline', () => {
     ).toBeInTheDocument();
   });
 
-  it('right-click (Control-click on a Mac) offers Delete, which can be undone from the timeline', () => {
+  it('right-click (Control-click on a Mac) offers Delete, with no Undo on the timeline (GitHub #98)', () => {
     bridge = installBridge(seeded);
     mount();
     seek(20);
@@ -878,10 +882,8 @@ describe('Replay: Draft Markers on the timeline', () => {
       screen.getByRole('menuitem', { name: 'Delete Draft Marker' })
     );
     expect(names()).toEqual(['xv']);
-    const status = screen.getByRole('status');
-    expect(status).toHaveTextContent('Draft Marker deleted.');
-    fireEvent.click(within(status).getByRole('button', { name: 'Undo' }));
-    expect(names()).toEqual(['zq', 'xv']);
+    expect(screen.queryByText('Draft Marker deleted.')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
   });
 });
 
@@ -995,7 +997,7 @@ describe('Replay: drafts list', () => {
       bridge.meta().draftMarkers.find((m: { index: number }) => m.index === 5)
         .name
     ).toBe('renamed');
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.calls.at(-1)).toEqual(['send', 'save-file', []]);
   });
 
@@ -1009,7 +1011,7 @@ describe('Replay: drafts list', () => {
     expect(
       bridge.meta().draftMarkers.map((m: { index: number }) => m.index)
     ).toEqual([5, 999]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.calls.at(-1)).toEqual(['send', 'save-file', []]);
   });
 
@@ -1056,11 +1058,14 @@ describe('Replay: drafts list', () => {
     ).toBeInTheDocument();
   });
 
-  it('leaves playback keys alone while the list is open', () => {
+  // GitHub #98: Space only ever plays or pauses, with Settings open too. Enter stays with the list.
+  it('plays on Space while the list is open, and leaves Enter to the list', () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.keyDown(document.body, { key: ' ' });
+    fireEvent.keyDown(document.body, { key: 'Enter' });
     expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: ' ' });
+    expect(screen.getByTestId('PauseIcon')).toBeInTheDocument();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 

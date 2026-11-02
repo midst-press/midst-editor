@@ -112,9 +112,9 @@ describe('exposure', () => {
 describe('ipcRenderer.sendMessage', () => {
   it('sends the channel and the args array as one argument', () => {
     const api = loadPreload();
-    api.ipcRenderer.sendMessage('set-filename', ['zq', 'xv']);
+    api.ipcRenderer.sendMessage('set-language', ['zq']);
     expect(mockIpc.send).toHaveBeenCalledTimes(1);
-    expect(mockIpc.send).toHaveBeenCalledWith('set-filename', ['zq', 'xv']);
+    expect(mockIpc.send).toHaveBeenCalledWith('set-language', ['zq']);
   });
 });
 
@@ -134,30 +134,33 @@ describe('ipcRenderer.on', () => {
 
   it('returns an unsubscribe that removes the very listener it added', () => {
     const api = loadPreload();
-    const unsubscribe = api.ipcRenderer.on('save-file', jest.fn());
+    const unsubscribe = api.ipcRenderer.on('cancel-save', jest.fn());
     const addedListener = mockIpc.on.mock.calls[0][1];
     expect(mockIpc.removeListener).not.toHaveBeenCalled();
 
     unsubscribe();
     expect(mockIpc.removeListener).toHaveBeenCalledTimes(1);
     expect(mockIpc.removeListener).toHaveBeenCalledWith(
-      'save-file',
+      'cancel-save',
       addedListener
     );
   });
 
   it('gives each subscription its own listener', () => {
     const api = loadPreload();
-    const first = api.ipcRenderer.on('new-file', jest.fn());
-    api.ipcRenderer.on('new-file', jest.fn());
+    const first = api.ipcRenderer.on('find-in-poem', jest.fn());
+    api.ipcRenderer.on('find-in-poem', jest.fn());
     const [, listenerA] = mockIpc.on.mock.calls[0];
     const [, listenerB] = mockIpc.on.mock.calls[1];
     expect(listenerA).not.toBe(listenerB);
 
     first();
-    expect(mockIpc.removeListener).toHaveBeenCalledWith('new-file', listenerA);
+    expect(mockIpc.removeListener).toHaveBeenCalledWith(
+      'find-in-poem',
+      listenerA
+    );
     expect(mockIpc.removeListener).not.toHaveBeenCalledWith(
-      'new-file',
+      'find-in-poem',
       listenerB
     );
   });
@@ -167,10 +170,10 @@ describe('ipcRenderer.once', () => {
   it('registers once on the channel and forwards args without the event', () => {
     const api = loadPreload();
     const func = jest.fn();
-    api.ipcRenderer.once('app-open', func);
+    api.ipcRenderer.once('set-filename', func);
     expect(mockIpc.once).toHaveBeenCalledTimes(1);
     const [channel, listener] = mockIpc.once.mock.calls[0];
-    expect(channel).toBe('app-open');
+    expect(channel).toBe('set-filename');
     expect(mockIpc.on).not.toHaveBeenCalled();
 
     listener({ sender: 'event-zq' }, 'xv', 'zq');
@@ -179,13 +182,16 @@ describe('ipcRenderer.once', () => {
 
   it('returns an unsubscribe that removes the very listener it added', () => {
     const api = loadPreload();
-    const unsubscribe = api.ipcRenderer.once('app-open', jest.fn());
+    const unsubscribe = api.ipcRenderer.once('set-filename', jest.fn());
     const [, listener] = mockIpc.once.mock.calls[0];
     expect(mockIpc.removeListener).not.toHaveBeenCalled();
 
     unsubscribe();
     expect(mockIpc.removeListener).toHaveBeenCalledTimes(1);
-    expect(mockIpc.removeListener).toHaveBeenCalledWith('app-open', listener);
+    expect(mockIpc.removeListener).toHaveBeenCalledWith(
+      'set-filename',
+      listener
+    );
   });
 });
 
@@ -216,21 +222,19 @@ describe('store', () => {
   it('get reads synchronously by key and returns the main-process value', () => {
     mockIpc.sendSync.mockReturnValue('zq-value');
     const api = loadPreload();
-    expect(api.store.get('xv-key')).toBe('zq-value');
-    expect(mockIpc.sendSync).toHaveBeenCalledWith(
-      'electron-store-get',
-      'xv-key'
-    );
+    expect(api.store.get('poem')).toBe('zq-value');
+    expect(mockIpc.sendSync).toHaveBeenCalledWith('electron-store-get', 'poem');
   });
 
-  it('set sends property and value on the set channel', () => {
+  it('set sends the key and value on the set channel, without waiting', () => {
     const api = loadPreload();
-    api.store.set('xv-key', 'zq-value');
+    api.store.set('poem', 'zq-value');
     expect(mockIpc.send).toHaveBeenCalledWith(
       'electron-store-set',
-      'xv-key',
+      'poem',
       'zq-value'
     );
+    expect(mockIpc.sendSync).not.toHaveBeenCalled();
   });
 });
 

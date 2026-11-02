@@ -308,6 +308,24 @@ msgid "dialog.unsavedChanges.title"
 msgstr "Unsaved changes"
 
 #. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.detail"
+msgstr "Copy what you have written somewhere safe before you close Midst. This has been recorded in the log, {logFile}, which Help > Show Log File shows."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.message"
+msgstr "Midst could not keep your latest changes to this poem, so they may not be saved or recovered."
+
+#. js-lingui-explicit-id
+#: src/main/main.ts
+#, fuzzy
+msgid "dialog.workNotKept.title"
+msgstr "Your latest changes are not being kept"
+
+#. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #: src/renderer/components/DraftMarkers/MarkerLabel.tsx
 #, fuzzy
@@ -316,7 +334,6 @@ msgstr "Delete Draft Marker"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.deleted"
 msgstr "Draft Marker deleted."
@@ -324,7 +341,6 @@ msgstr "Draft Marker deleted."
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/index.tsx
 #: src/renderer/components/Editor/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.mark"
@@ -411,7 +427,6 @@ msgstr "Draft Markers"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "drafts.undo"
 msgstr "Undo"
@@ -1154,32 +1169,30 @@ msgid "replay.edit"
 msgstr "Edit"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow"
 msgstr "Follow the writing"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow.off"
 msgstr "Not following the writing: the page stays where you put it. Click to follow."
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow.on"
 msgstr "Following the writing as it plays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.pause"
 msgstr "Pause"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/index.tsx
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.play"
@@ -1288,8 +1301,7 @@ msgstr "Settings"
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.decrease"
 msgstr "Decrease text size"
@@ -1297,22 +1309,21 @@ msgstr "Decrease text size"
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.increase"
 msgstr "Increase text size"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.largest"
 msgstr "The text is already at its largest size."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Editor/MenuBar.tsx
-#: src/renderer/components/Replay/index.tsx
+#: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "textSize.smallest"
 msgstr "The text is already at its smallest size."
