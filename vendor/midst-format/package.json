@@ -1,13 +1,13 @@
 {
   "name": "@midst-press/midst-format",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "peerDependencies": {
-    "@tiptap/core": "3.32.0",
-    "@tiptap/extension-hard-break": "3.32.0",
-    "@tiptap/pm": "3.32.0",
-    "@tiptap/starter-kit": "3.32.0",
-    "happy-dom": "20.14.6"
+    "@tiptap/core": "3.32.2",
+    "@tiptap/extension-hard-break": "3.32.2",
+    "@tiptap/pm": "3.32.2",
+    "@tiptap/starter-kit": "3.32.2",
+    "happy-dom": "21.0.4"
   },
   "peerDependenciesMeta": {
     "happy-dom": {
