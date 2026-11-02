@@ -1,7 +1,7 @@
 # Vendored: midst-format
 
-- Tag: `v0.7.0`
-- Commit: `dafd9c3c8b98bcc40007227fd98735d83b4a615b`
+- Tag: `v0.7.1`
+- Commit: `48bf46fa4473490dbf743b88ea941ba724fd836b`
 - Repository: `The_Kindled/midst-format` on Gitea, `midst-press/midst-format` on GitHub
 
 SHA-256 of every vendored file except this one, sorted by path. `tools/check-vendored-format.mjs` parses this block.
@@ -28,7 +28,7 @@ ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  follow/package
 14fd1e9c7334e83157fc1fe0cbb1dacf99b76a8ab8619ce4af78558dca952e33  history/index.d.ts
 f8d34584761b047a462220a4b156b3db1866454ef3fc2d880042deba43316ba1  history/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  history/package.json
-51623178bb764e1df2dabf7ce26849aaf25805a2f217d2ed9602f08e6ffe9040  package.json
+0a02a5bcd3728fbeaaa8467116e9aae551e6faac6df9516218e28ed152fe6a51  package.json
 ```
 
 Do not edit these files. To take a new version, rebuild the tag and replace this directory in its own PR: `node tools/check-vendored-format.mjs --rebuild <midst-format checkout>` rebuilds the tag named above and compares it with this directory.
