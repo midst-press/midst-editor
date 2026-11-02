@@ -1,3 +1,10 @@
+# 0.9.2
+
+- **On Windows and Linux, opening a poem when Midst is closed** (for example by double-clicking it) opens the poem.
+  Before, Midst started with an empty window.
+- Under the hood: a security update to the library Midst uses to read a poem's formatting, and the editor library
+  that goes with it.
+
 # 0.9.1
 
 - **Space on the Timeline only plays and pauses.** It no longer also presses the button you last clicked, so
