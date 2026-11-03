@@ -1,40 +1,22 @@
 // Installer JavaScript (issue 16). tools/installer_distribution.cjs puts this file, unchanged,
-// into the package's Distribution, after a line defining MIDST_INSTALLING_VERSION (the version
-// this package installs). There macOS Installer runs it with its own `system` and `my` objects.
-// It is not part of the app.
+// into the package's Distribution, where macOS Installer runs it with its own `system` and `my`
+// objects. It is not part of the app.
 //
 // It decides "is there an older Midst?" by the same rule as installer/pkg-scripts/preinstall,
-// which is what actually renames it: "Midst Beta.app", or a "Midst.app" that is not this very
-// release (bundle id press.Midst.MidstApp at exactly MIDST_INSTALLING_VERSION). Any other release
-// of ours, lower or higher, counts as older. The tests hold the two to the same answers.
+// which is what actually renames it: any "Midst Beta.app" or "Midst.app" in Applications,
+// whatever is inside it, including our own releases at any version, even the one being installed.
+// The tests hold the two to the same answers.
 
-/* global system, my, MIDST_INSTALLING_VERSION */
+/* global system, my */
 
 const MIDST_APPLICATIONS = '/Applications';
-
-function midstInstallingVersion() {
-  return typeof MIDST_INSTALLING_VERSION === 'string' &&
-    /^[0-9A-Za-z.+-]+$/.test(MIDST_INSTALLING_VERSION)
-    ? MIDST_INSTALLING_VERSION
-    : null;
-}
-
-function midstIsThisRelease(path) {
-  const installing = midstInstallingVersion();
-  if (!installing) return false;
-  const info = system.files.bundleAtPath(path);
-  if (!info) return false;
-  if (info.CFBundleIdentifier !== 'press.Midst.MidstApp') return false;
-  return String(info.CFBundleShortVersionString) === installing;
-}
 
 function midstPreviousApps() {
   const beta = `${MIDST_APPLICATIONS}/Midst Beta.app`;
   const current = `${MIDST_APPLICATIONS}/Midst.app`;
   const found = [];
   if (system.files.fileExistsAtPath(beta)) found.push(beta);
-  if (system.files.fileExistsAtPath(current) && !midstIsThisRelease(current))
-    found.push(current);
+  if (system.files.fileExistsAtPath(current)) found.push(current);
   return found;
 }
 

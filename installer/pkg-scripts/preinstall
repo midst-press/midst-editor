@@ -1,18 +1,12 @@
 #!/bin/bash
 # Runs as root before the new Midst is written to /Applications (issue 16).
 #
-# An older Midst in /Applications is kept, renamed "Midst (previous version).app", so the new one
-# can be installed as "Midst" without writing over it. An older Midst is:
-#   - "Midst Beta.app", whatever is inside it, or
-#   - a "Midst.app" that is not this very release: this release carries the bundle id
-#     press.Midst.MidstApp and exactly the version being installed. So the original app (that id at
-#     0.0.x) and every other release of ours, lower or higher, is kept. Only reinstalling the same
-#     version writes over it. Anything we cannot read counts as older, because keeping an app is
-#     recoverable and writing over it is not.
-#
-# The version being installed is in midst-installing-version beside this script, written there by
-# tools/finish_pkg.sh from the package's Distribution. If it is missing or unreadable, every
-# Midst.app is kept. MIDST_INSTALLING_VERSION overrides it for the tests.
+# Any Midst already in /Applications is kept, renamed "Midst (previous version).app", so the new
+# one can be installed as "Midst" without writing over it: "Midst Beta.app" and "Midst.app",
+# whatever is inside them, including our own releases at any version, even the one being
+# installed. Nothing is ever written over without the poet's say: keeping an app is recoverable
+# and writing over it is not (Stuart, 4 Nov: the most conservative reading wherever data safety
+# is a judgement call).
 #
 # Each app renamed is written, one path per line, to $INSTALLER_TEMP/press.Midst.previous-apps.
 # The opt-in "Delete the older version of Midst" choice deletes exactly those paths, and nothing
@@ -41,36 +35,6 @@ record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
 [ -e "$record" ] || : > "$record" || fail "could not create $record"
 [ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
 
-plist_value() { # <app> <key>: prints the value, or fails
-  plutil -extract "$2" raw -o - "$1/Contents/Info.plist" 2> /dev/null
-}
-
-installing_version() { # prints the version being installed, or fails
-  local v file
-  if [ -n "${MIDST_INSTALLING_VERSION:-}" ]; then
-    v=$MIDST_INSTALLING_VERSION
-  else
-    file="$(dirname "$0")/midst-installing-version"
-    [ -f "$file" ] && [ -r "$file" ] || return 1
-    v=$(tr -d '[:space:]' < "$file") || return 1
-  fi
-  [[ "$v" =~ ^[0-9A-Za-z.+-]+$ ]] || return 1
-  echo "$v"
-}
-
-installing=$(installing_version) || installing=
-[ -n "$installing" ] || say "the version being installed is unknown, so any Midst.app found will be kept"
-
-this_release() { # <app>: succeeds only for this very release of Midst
-  local id version
-  [ -n "$installing" ] || return 1
-  [ ! -L "$1" ] || return 1
-  id=$(plist_value "$1" CFBundleIdentifier) || return 1
-  [ "$id" = press.Midst.MidstApp ] || return 1
-  version=$(plist_value "$1" CFBundleShortVersionString) || return 1
-  [ "$version" = "$installing" ]
-}
-
 free_name() { # prints the first unused "Midst (previous version[ N]).app"
   local n=1 name="$apps/Midst (previous version).app"
   while [ -e "$name" ] || [ -L "$name" ]; do
@@ -96,11 +60,5 @@ beta="$apps/Midst Beta.app"
 if [ -e "$beta" ] || [ -L "$beta" ]; then keep "$beta"; fi
 
 current="$apps/Midst.app"
-if [ -e "$current" ] || [ -L "$current" ]; then
-  if this_release "$current"; then
-    say "reinstalling $current (version $installing) in place"
-  else
-    keep "$current"
-  fi
-fi
+if [ -e "$current" ] || [ -L "$current" ]; then keep "$current"; fi
 exit 0
