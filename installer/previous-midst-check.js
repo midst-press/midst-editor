@@ -5,9 +5,10 @@
 // It decides "is there an older Midst?" by the same rule as installer/pkg-scripts/preinstall,
 // which is what actually renames it: any "Midst Beta.app" or "Midst.app" in Applications,
 // whatever is inside it, including our own releases at any version, even the one being installed.
-// The warning says only that it is kept "renamed with its version number": the preinstall alone
-// decides the name, so the two cannot disagree about it.
-// The tests hold the two to the same answers.
+// The warning names each app by the version it has, read by the same rule the preinstall uses to
+// name the kept copy (^[0-9][0-9A-Za-z.+-]*$, else "version unknown"), so the poet sees exactly
+// which version would be deleted. The file name it is kept under, including any " (2)", is the
+// preinstall's alone. The tests hold the two to the same answers.
 
 /* global system, my */
 
@@ -22,7 +23,23 @@ function midstPreviousApps() {
   return found;
 }
 
+// The version an installed app reports, if it is one the preinstall would put in a name.
+function midstVersionOf(path) {
+  const info = system.files.bundleAtPath(path);
+  const version = info ? String(info.CFBundleShortVersionString || '') : '';
+  return /^[0-9][0-9A-Za-z.+-]*$/.test(version) ? version : null;
+}
+
+// How the warning names an installed app: "Midst 0.9.3", "Midst Beta 0.0.3",
+// "Midst (version unknown)".
+function midstLabel(path) {
+  const name = /Midst Beta\.app$/.test(path) ? 'Midst Beta' : 'Midst';
+  const version = midstVersionOf(path);
+  return version ? `${name} ${version}` : `${name} (version unknown)`;
+}
+
 // Named in the Distribution: the delete choice's visible="midstHasPrevious()".
+// eslint-disable-next-line no-unused-vars
 function midstHasPrevious() {
   return midstPreviousApps().length > 0;
 }
@@ -30,13 +47,16 @@ function midstHasPrevious() {
 // Named in the Distribution: <installation-check script="midstPreviousCheck()"/>.
 // eslint-disable-next-line no-unused-vars
 function midstPreviousCheck() {
-  if (!midstHasPrevious()) return true;
+  const found = midstPreviousApps();
+  if (found.length === 0) return true;
+  const names = found.map(midstLabel).join(' and ');
+  const are = found.length > 1 ? 'are' : 'is';
   my.result.type = 'Warning';
-  my.result.title = 'Another version of Midst is in your Applications folder';
+  my.result.title = `${names} ${are} already in your Applications folder`;
   my.result.message =
-    'The new Midst will be installed as “Midst”. The version already there will be kept and ' +
-    'renamed with its version number.\n\n' +
-    'To delete it instead, click Customize at the Installation Type step and tick ' +
+    `The new Midst will be installed as “Midst”. ${names} will be kept, renamed to show ` +
+    `${found.length > 1 ? 'their versions' : 'its version'}.\n\n` +
+    `To delete ${names} instead, click Customize at the Installation Type step and tick ` +
     '“Delete the Midst that’s already installed”.';
   return false;
 }

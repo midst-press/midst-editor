@@ -24,7 +24,7 @@ const REMOVE_TITLE = 'Delete the Midst that’s already installed';
 const REMOVE_DESCRIPTION =
   'PERMANENTLY deletes the Midst that was already in Applications after the new one is installed. ' +
   'It does not go to the Trash and cannot be undone. ' +
-  'Leave this unticked to keep it, renamed with its version number.';
+  'Leave this unticked to keep it, renamed to show its version.';
 
 function once(xml, pattern, what) {
   const hits = xml.match(new RegExp(pattern.source, 'g')) || [];
