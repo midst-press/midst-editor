@@ -31,15 +31,22 @@ record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
 # INSTALLER_TEMP (#353: the 0.9.0 candidate's install.log). INSTALLER_TEMP is new for each install.
 # Nothing documents whether the second run comes before or after the new app is written. If it
 # came after, it would find the new Midst.app, rename it aside as "previous version", and a ticked
-# delete would then delete the new install (#397). So only the first run in an install acts: it
-# creates the record, and a run that finds the record already there does nothing at all. The
-# record is never emptied: emptying it lost what the first run kept, and the ticked delete then
-# deleted nothing (#353).
+# delete would then delete the new install (#397). So only the first run in an install acts. When
+# it has kept everything it writes a completion marker beside the record; a run that finds the
+# marker does nothing at all. A record WITHOUT the marker means an earlier run in this install
+# stopped part-way, so this run refuses rather than treat it as done: an app it did not get to
+# would otherwise be written over (alden-ec2221c7, #397). The record is never emptied: emptying it
+# lost what the first run kept, and the ticked delete then deleted nothing (#353).
 [ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept could not be recorded"
+done_marker="$record.done"
+if [ -e "$done_marker" ] || [ -L "$done_marker" ]; then
+  [ -f "$done_marker" ] && [ ! -L "$done_marker" ] || fail "$done_marker exists but is not a plain file"
+  say "already ran to completion in this install ($done_marker exists); renaming nothing"
+  exit 0
+fi
 if [ -e "$record" ] || [ -L "$record" ]; then
   [ -f "$record" ] && [ ! -L "$record" ] || fail "$record exists but is not a plain file"
-  say "already ran in this install ($record exists); renaming nothing"
-  exit 0
+  fail "$record exists but an earlier run in this install did not finish; refusing to continue"
 fi
 : > "$record" || fail "could not create $record"
 [ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
@@ -70,4 +77,7 @@ if [ -e "$beta" ] || [ -L "$beta" ]; then keep "$beta"; fi
 
 current="$apps/Midst.app"
 if [ -e "$current" ] || [ -L "$current" ]; then keep "$current"; fi
+
+# Only now is this install's preservation complete.
+: > "$done_marker" || fail "kept everything, but could not write $done_marker"
 exit 0
