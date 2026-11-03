@@ -37,6 +37,11 @@ const ORIGINAL = {
   CFBundleShortVersionString: '0.0.5',
 };
 
+// The version being installed (#16, GitHub #47). Ours is replaced only when its version is exactly this;
+// anything else is kept as "Midst (previous version)". A case's `installing: null` means there is no version
+// to compare against (no Scripts/midst-installing-version, no MIDST_INSTALLING_VERSION): ours counts as older.
+const INSTALLING = OURS.CFBundleShortVersionString;
+
 function plist(info) {
   const entries = Object.entries(info)
     .map(([k, v]) => `<key>${k}</key><string>${v}</string>`)
@@ -67,7 +72,7 @@ function listing(dir) {
 
 // The installer script in a context shaped like macOS Installer's, with /Applications mapped onto
 // the fixture. bundleAtPath returns the Info.plist's strings, or null when there is none.
-function installerCheck(applications) {
+function installerCheck(applications, installing = INSTALLING) {
   const at = (p) => p.replace(/^\/Applications/, applications);
   const result = {};
   const context = {
@@ -90,6 +95,8 @@ function installerCheck(applications) {
       },
     },
   };
+  // installer_distribution.cjs prepends the constant to the script in the Distribution; here it is a global.
+  if (installing !== null) context.MIDST_INSTALLING_VERSION = installing;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(CHECK_JS, 'utf8'), context);
   const passed = vm.runInContext('midstPreviousCheck()', context);
@@ -100,7 +107,7 @@ function installerCheck(applications) {
   };
 }
 
-function run(script, v, extraEnv = {}) {
+function run(script, v, extraEnv = {}, installing = INSTALLING) {
   return spawnSync(
     '/bin/bash',
     [script, '/x/Midst.pkg', '/Applications', v.root],
@@ -109,6 +116,9 @@ function run(script, v, extraEnv = {}) {
       env: {
         PATH: process.env.PATH,
         MIDST_PREVIOUS_RECORD: v.record,
+        ...(installing === null
+          ? {}
+          : { MIDST_INSTALLING_VERSION: installing }),
         ...extraEnv,
       },
     }
@@ -127,7 +137,32 @@ const CASES = [
   {
     name: 'our own Midst at 1.0',
     before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '1.0' } },
+    installing: '1.0',
     after: ['Midst.app'],
+  },
+  {
+    name: 'ours, the same version as the one being installed, is replaced',
+    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '0.9.3' } },
+    installing: '0.9.3',
+    after: ['Midst.app'],
+  },
+  {
+    name: 'ours, older than the one being installed (0.9.2 under 0.9.3), is kept',
+    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '0.9.2' } },
+    installing: '0.9.3',
+    after: ['Midst (previous version).app'],
+  },
+  {
+    name: 'ours, newer than the one being installed (1.0.0 under 0.9.3), is kept',
+    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '1.0.0' } },
+    installing: '0.9.3',
+    after: ['Midst (previous version).app'],
+  },
+  {
+    name: 'ours, with no version being installed to compare against, is kept',
+    before: { 'Midst.app': OURS },
+    installing: null,
+    after: ['Midst (previous version).app'],
   },
   {
     name: 'the original app (our id, 0.0.x) is kept',
@@ -184,38 +219,47 @@ const CASES = [
 ];
 
 describe('older Midst: installer warning and rename agree', () => {
-  test.each(CASES)('$name: installer warning', ({ before, after }) => {
-    const v = volume(before);
-    const keeps = after.filter((n) => !(n in before)).length > 0;
-    const { passed, result, visible } = installerCheck(v.applications);
-    expect(passed).toBe(!keeps);
-    expect(visible).toBe(keeps);
-    expect(result.type).toBe(keeps ? 'Warning' : undefined);
-    expect(String(result.message)).toMatch(
-      keeps ? /Midst \(previous version\)/ : /^undefined$/
-    );
-  });
+  test.each(CASES)(
+    '$name: installer warning',
+    ({ before, after, installing = INSTALLING }) => {
+      const v = volume(before);
+      const keeps = after.filter((n) => !(n in before)).length > 0;
+      const { passed, result, visible } = installerCheck(
+        v.applications,
+        installing
+      );
+      expect(passed).toBe(!keeps);
+      expect(visible).toBe(keeps);
+      expect(result.type).toBe(keeps ? 'Warning' : undefined);
+      expect(String(result.message)).toMatch(
+        keeps ? /Midst \(previous version\)/ : /^undefined$/
+      );
+    }
+  );
 });
 
 describeOnMac(
   'older Midst: the preinstall renames what the warning names',
   () => {
-    test.each(CASES)('$name: preinstall', ({ before, after }) => {
-      const v = volume(before);
-      const r = run(PREINSTALL, v);
-      expect(r.stderr).toBe('');
-      expect(r.status).toBe(0);
-      expect(listing(v.applications)).toEqual(after);
-      // The record names exactly the apps this run renamed.
-      const added = after
-        .filter((n) => !(n in before))
-        .map((n) => path.join(v.applications, n));
-      const recorded = fs
-        .readFileSync(v.record, 'utf8')
-        .split('\n')
-        .filter(Boolean);
-      expect(recorded.sort()).toEqual(added.sort());
-    });
+    test.each(CASES)(
+      '$name: preinstall',
+      ({ before, after, installing = INSTALLING }) => {
+        const v = volume(before);
+        const r = run(PREINSTALL, v, {}, installing);
+        expect(r.stderr).toBe('');
+        expect(r.status).toBe(0);
+        expect(listing(v.applications)).toEqual(after);
+        // The record names exactly the apps this run renamed.
+        const added = after
+          .filter((n) => !(n in before))
+          .map((n) => path.join(v.applications, n));
+        const recorded = fs
+          .readFileSync(v.record, 'utf8')
+          .split('\n')
+          .filter(Boolean);
+        expect(recorded.sort()).toEqual(added.sort());
+      }
+    );
   }
 );
 
@@ -381,6 +425,10 @@ describe('Distribution edit', () => {
     );
     expect(out.querySelector('script').textContent).toContain(
       'function midstPreviousCheck'
+    );
+    // The version being installed reaches the check as a constant (#16).
+    expect(out.querySelector('script').textContent).toMatch(
+      /MIDST_INSTALLING_VERSION\s*=\s*["']0\.3\.0["']/
     );
 
     const outline = [...out.querySelectorAll('choices-outline > line')].map(
