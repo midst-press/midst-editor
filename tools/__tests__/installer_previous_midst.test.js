@@ -224,6 +224,8 @@ describeOnMac(
         .split('\n')
         .filter(Boolean);
       expect(recorded.sort()).toEqual(added.sort());
+      // A run that kept everything says so, beside the record (#397).
+      expect(fs.existsSync(`${v.record}.done`)).toBe(true);
     });
   }
 );
@@ -264,6 +266,15 @@ describeOnMac('preinstall: a record that is not a plain file', () => {
     expect(r.stderr).toContain('not a plain file');
     expect(listing(v.applications)).toEqual(['Midst.app']);
   });
+
+  test('a directory where the completion marker goes stops the install with nothing moved', () => {
+    const v = volume({ 'Midst.app': OURS });
+    fs.mkdirSync(`${v.record}.done`);
+    const r = run(PREINSTALL, v);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not a plain file');
+    expect(listing(v.applications)).toEqual(['Midst.app']);
+  });
 });
 
 // "Midst (previous version).app" and "Midst (previous version 2..N).app".
@@ -285,6 +296,7 @@ describeOnMac('preinstall: the 99 kept names run out', () => {
     const r = run(PREINSTALL, v);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('no free name for');
+    expect(fs.existsSync(`${v.record}.done`)).toBe(false);
     const now = listing(v.applications);
     expect(now).toContain('Midst.app');
     expect(now).not.toContain('Midst Beta.app');
@@ -295,12 +307,30 @@ describeOnMac('preinstall: the 99 kept names run out', () => {
     );
   });
 
+  // A first run that stopped part-way, then another run in the same install (the same record):
+  // it refuses, moves nothing more, and still leaves no marker (alden-ec2221c7, #397).
+  test('after a run that stopped part-way, the next run refuses and moves nothing more', () => {
+    const taken = Object.fromEntries(previousNames(98).map((n) => [n, {}]));
+    const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': OURS });
+    expect(run(PREINSTALL, v).status).toBe(1);
+    const afterFirst = listing(v.applications);
+    const recordAfterFirst = fs.readFileSync(v.record, 'utf8');
+    const r = run(PREINSTALL, v);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('did not finish');
+    expect(listing(v.applications)).toEqual(afterFirst);
+    expect(afterFirst).toContain('Midst.app');
+    expect(fs.readFileSync(v.record, 'utf8')).toBe(recordAfterFirst);
+    expect(fs.existsSync(`${v.record}.done`)).toBe(false);
+  });
+
   test('99 taken: nothing moves and the install stops', () => {
     const taken = Object.fromEntries(previousNames(99).map((n) => [n, {}]));
     const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': OURS });
     const r = run(PREINSTALL, v);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('no free name for');
+    expect(fs.existsSync(`${v.record}.done`)).toBe(false);
     expect(listing(v.applications)).toEqual(
       [...previousNames(99), 'Midst Beta.app', 'Midst.app'].sort()
     );
@@ -326,7 +356,10 @@ describeOnMac('opt-in delete', () => {
       path.join(contents, 'Info.plist'),
       plist({ ...OURS, CFBundleShortVersionString: '0.3.0' })
     );
-    if (lateRun) v.late = preinstall();
+    if (lateRun) {
+      v.doneBeforeLate = fs.existsSync(`${v.record}.done`);
+      v.late = preinstall();
+    }
     return v;
   }
 
@@ -359,6 +392,7 @@ describeOnMac('opt-in delete', () => {
   // wipe the record the first run wrote, or the ticked delete deletes nothing and reports success.
   test('a preinstall run after the new app is written leaves it alone, and the delete takes only what the first run kept', () => {
     const v = installed({ 'Midst Beta.app': {}, 'Midst.app': OURS }, 1, true);
+    expect(v.doneBeforeLate).toBe(true);
     expect(v.late.stdout).toContain('renaming nothing');
     expect(listing(v.applications)).toEqual([
       'Midst (previous version 2).app',
