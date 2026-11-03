@@ -59,9 +59,10 @@ installed="/Applications/$APP_NAME"
 beta="/Applications/Midst Beta.app"
 kept="/Applications/Midst (previous version).app"
 kept2="/Applications/Midst (previous version 2).app"
+kept3="/Applications/Midst (previous version 3).app"
 REMOVE_ID=$BUNDLE_ID.remove-previous
 sudo -n true 2> /dev/null || cannot "it installs for all users, so it needs passwordless sudo (an admin account in a throwaway VM)"
-for existing in "$installed" "$user_apps/$APP_NAME" "$beta" "$kept" "$kept2"; do
+for existing in "$installed" "$user_apps/$APP_NAME" "$beta" "$kept" "$kept2" "$kept3"; do
   [ ! -e "$existing" ] || cannot "a Midst is already installed at $existing; this test will not touch it. Run it on a Mac (or account) without Midst."
 done
 [ -z "$(pgrep -x Midst)" ] || cannot "a Midst is running; quit it first"
@@ -105,9 +106,10 @@ cleanup() {
   local left=0 path
   if [ -n "$app_pid" ] && kill -0 "$app_pid" 2> /dev/null; then kill -KILL "$app_pid" 2> /dev/null; fi
   if [ "$installed_by_test" = yes ]; then
-    for path in "$installed" "$beta" "$kept" "$kept2"; do "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
+    for path in "$installed" "$beta" "$kept" "$kept2" "$kept3"; do "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
     sudo -n rm -rf "/Applications/Midst.app" "/Applications/Midst Beta.app" \
-      "/Applications/Midst (previous version).app" "/Applications/Midst (previous version 2).app"
+      "/Applications/Midst (previous version).app" "/Applications/Midst (previous version 2).app" \
+      "/Applications/Midst (previous version 3).app"
     [ "$had_receipt" = yes ] || sudo -n pkgutil --forget "$BUNDLE_ID" > /dev/null 2>&1
     [ "$had_remove_receipt" = yes ] || sudo -n pkgutil --forget "$REMOVE_ID" > /dev/null 2>&1
   fi
@@ -286,6 +288,43 @@ else
   fail "3 after the ticked delete: Midst Beta $(version_of "$beta"), previous version $(version_of "$kept"), previous version 2 $(version_of "$kept2"), Midst $(version_of "$installed") (expected absent, 0.0.3, absent, $want)"
 fi
 
+# --- 3b-3d. ours at another version is kept; ours at the same version is replaced (#16) ---------
+# GitHub #47: a new install must never write over another version of Midst. In /Applications now: Midst
+# $want (installed above) and "Midst (previous version)" (the 0.0.3 stand-in). Each step puts a
+# stand-in of OUR OWN Midst (our identifier) where the real one is, then installs again.
+# ours_at <version>: replace /Applications/Midst.app with an empty Midst of ours at <version>.
+ours_at() {
+  stub "$work/ours-$1" "$APP_NAME" "$BUNDLE_ID" "$1" \
+    && sudo -n rm -rf "$installed" \
+    && sudo -n ditto "$work/ours-$1/$APP_NAME" "$installed"
+}
+# install_again <log name>: the plain install, as a poet runs it.
+install_again() {
+  # The log is ours to write, not root's.
+  # shellcheck disable=SC2024
+  sudo -n installer -pkg "$pkg" -target / > "$work/$1.txt" 2>&1
+}
+ours_at 0.1.0 || give_up "could not put a lower-version Midst of ours in /Applications"
+if install_again install-lower; then pass "3b installer over our own Midst 0.1.0 reported success"; else fail "3b installer over our own Midst 0.1.0 failed: $(tr '\n' ' ' < "$work/install-lower.txt")"; fi
+if [ "$(version_of "$kept2")" = 0.1.0 ] && [ "$(version_of "$installed")" = "$want" ]; then
+  pass "3b our own Midst at a lower version (0.1.0) was kept as \"Midst (previous version 2)\""
+else
+  fail "3b our own Midst 0.1.0 was not kept (previous version 2: $(version_of "$kept2"); Midst: $(version_of "$installed"); expected 0.1.0 and $want)"
+fi
+ours_at 99.0.0 || give_up "could not put a higher-version Midst of ours in /Applications"
+if install_again install-higher; then pass "3c installer over our own Midst 99.0.0 reported success"; else fail "3c installer over our own Midst 99.0.0 failed: $(tr '\n' ' ' < "$work/install-higher.txt")"; fi
+if [ "$(version_of "$kept3")" = 99.0.0 ] && [ "$(version_of "$installed")" = "$want" ]; then
+  pass "3c our own Midst at a higher version (99.0.0) was kept as \"Midst (previous version 3)\""
+else
+  fail "3c our own Midst 99.0.0 was not kept (previous version 3: $(version_of "$kept3"); Midst: $(version_of "$installed"); expected 99.0.0 and $want)"
+fi
+if install_again install-same; then pass "3d installer over Midst $want (the same version) reported success"; else fail "3d installer over Midst $want failed: $(tr '\n' ' ' < "$work/install-same.txt")"; fi
+if [ "$(version_of "$installed")" = "$want" ] && [ ! -e "/Applications/Midst (previous version 4).app" ] \
+  && [ "$(version_of "$kept")" = 0.0.3 ] && [ "$(version_of "$kept2")" = 0.1.0 ] && [ "$(version_of "$kept3")" = 99.0.0 ]; then
+  pass "3d a same-version reinstall replaced Midst $want and kept nothing new"
+else
+  fail "3d after a same-version reinstall: Midst $(version_of "$installed"), previous version 4 $(version_of "/Applications/Midst (previous version 4).app") (expected $want and absent; earlier kept copies 0.0.3, 0.1.0, 99.0.0: $(version_of "$kept"), $(version_of "$kept2"), $(version_of "$kept3"))"
+fi
 # --- 4. launch, open a synthetic poem, quit ---------------------------------------------------
 if [ "$got" != "$want" ]; then
   skip "4 launch: the app is not installed where expected"
