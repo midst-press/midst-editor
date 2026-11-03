@@ -37,11 +37,6 @@ const ORIGINAL = {
   CFBundleShortVersionString: '0.0.5',
 };
 
-// The version being installed (#16, GitHub #47). Ours is replaced only when its version is exactly this;
-// anything else is kept as "Midst (previous version)". A case's `installing: null` means there is no version
-// to compare against (no Scripts/midst-installing-version, no MIDST_INSTALLING_VERSION): ours counts as older.
-const INSTALLING = OURS.CFBundleShortVersionString;
-
 function plist(info) {
   const entries = Object.entries(info)
     .map(([k, v]) => `<key>${k}</key><string>${v}</string>`)
@@ -72,7 +67,7 @@ function listing(dir) {
 
 // The installer script in a context shaped like macOS Installer's, with /Applications mapped onto
 // the fixture. bundleAtPath returns the Info.plist's strings, or null when there is none.
-function installerCheck(applications, installing = INSTALLING) {
+function installerCheck(applications) {
   const at = (p) => p.replace(/^\/Applications/, applications);
   const result = {};
   const context = {
@@ -95,8 +90,6 @@ function installerCheck(applications, installing = INSTALLING) {
       },
     },
   };
-  // installer_distribution.cjs prepends the constant to the script in the Distribution; here it is a global.
-  if (installing !== null) context.MIDST_INSTALLING_VERSION = installing;
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(CHECK_JS, 'utf8'), context);
   const passed = vm.runInContext('midstPreviousCheck()', context);
@@ -107,7 +100,7 @@ function installerCheck(applications, installing = INSTALLING) {
   };
 }
 
-function run(script, v, extraEnv = {}, installing = INSTALLING) {
+function run(script, v, extraEnv = {}) {
   return spawnSync(
     '/bin/bash',
     [script, '/x/Midst.pkg', '/Applications', v.root],
@@ -116,9 +109,6 @@ function run(script, v, extraEnv = {}, installing = INSTALLING) {
       env: {
         PATH: process.env.PATH,
         MIDST_PREVIOUS_RECORD: v.record,
-        ...(installing === null
-          ? {}
-          : { MIDST_INSTALLING_VERSION: installing }),
         ...extraEnv,
       },
     }
@@ -127,47 +117,31 @@ function run(script, v, extraEnv = {}, installing = INSTALLING) {
 
 // What is in Applications before, and what the preinstall should leave there. "warn" is the
 // installer check's answer, which must agree with whether anything is kept.
+// Every Midst already in Applications is kept, whatever its id or version, ours included and the
+// same version as the one being installed included: nothing is written over without the poet's say
+// (#16, GitHub #47; Stuart, 4 Nov: the most conservative reading wherever data safety is a judgement call).
+const KEPT = ['Midst (previous version).app'];
 const CASES = [
   { name: 'nothing installed', before: {}, after: [] },
   {
-    name: 'our own Midst is updated in place',
+    name: 'our own Midst, an earlier release, is kept',
     before: { 'Midst.app': OURS },
-    after: ['Midst.app'],
+    after: KEPT,
   },
   {
-    name: 'our own Midst at 1.0',
-    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '1.0' } },
-    installing: '1.0',
-    after: ['Midst.app'],
+    name: 'our own Midst at the version being installed (0.3.0) is kept',
+    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '0.3.0' } },
+    after: KEPT,
   },
   {
-    name: 'ours, the same version as the one being installed, is replaced',
-    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '0.9.3' } },
-    installing: '0.9.3',
-    after: ['Midst.app'],
-  },
-  {
-    name: 'ours, older than the one being installed (0.9.2 under 0.9.3), is kept',
-    before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '0.9.2' } },
-    installing: '0.9.3',
-    after: ['Midst (previous version).app'],
-  },
-  {
-    name: 'ours, newer than the one being installed (1.0.0 under 0.9.3), is kept',
+    name: 'our own Midst at a later release (1.0.0) is kept',
     before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: '1.0.0' } },
-    installing: '0.9.3',
-    after: ['Midst (previous version).app'],
-  },
-  {
-    name: 'ours, with no version being installed to compare against, is kept',
-    before: { 'Midst.app': OURS },
-    installing: null,
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'the original app (our id, 0.0.x) is kept',
     before: { 'Midst.app': ORIGINAL },
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'Midst Beta is kept, whatever is inside it',
@@ -177,24 +151,24 @@ const CASES = [
         CFBundleShortVersionString: '9.9',
       },
     },
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'a Midst.app with another id is kept',
     before: {
       'Midst.app': { ...OURS, CFBundleIdentifier: 'com.example.other' },
     },
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'a Midst.app with no Info.plist is kept, not written over',
     before: { 'Midst.app': null },
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'a version that is not a version is kept',
     before: { 'Midst.app': { ...OURS, CFBundleShortVersionString: 'beta' } },
-    after: ['Midst (previous version).app'],
+    after: KEPT,
   },
   {
     name: 'Midst Beta and the original are both kept, with distinct names',
@@ -202,64 +176,55 @@ const CASES = [
     after: ['Midst (previous version 2).app', 'Midst (previous version).app'],
   },
   {
-    name: 'Midst Beta beside our own Midst: only Beta is kept',
+    name: 'Midst Beta beside our own Midst: both are kept, with distinct names',
     before: { 'Midst Beta.app': {}, 'Midst.app': OURS },
-    after: ['Midst (previous version).app', 'Midst.app'],
+    after: ['Midst (previous version 2).app', 'Midst (previous version).app'],
   },
   {
     name: 'an existing "previous version" is never written over',
-    before: { 'Midst (previous version).app': {}, 'Midst.app': ORIGINAL },
+    before: { 'Midst (previous version).app': {}, 'Midst.app': OURS },
     after: ['Midst (previous version 2).app', 'Midst (previous version).app'],
   },
   {
     name: 'unrelated apps are left alone',
     before: { 'Other.app': ORIGINAL, 'Midst.app': OURS },
-    after: ['Midst.app', 'Other.app'],
+    after: ['Midst (previous version).app', 'Other.app'],
   },
 ];
 
 describe('older Midst: installer warning and rename agree', () => {
-  test.each(CASES)(
-    '$name: installer warning',
-    ({ before, after, installing = INSTALLING }) => {
-      const v = volume(before);
-      const keeps = after.filter((n) => !(n in before)).length > 0;
-      const { passed, result, visible } = installerCheck(
-        v.applications,
-        installing
-      );
-      expect(passed).toBe(!keeps);
-      expect(visible).toBe(keeps);
-      expect(result.type).toBe(keeps ? 'Warning' : undefined);
-      expect(String(result.message)).toMatch(
-        keeps ? /Midst \(previous version\)/ : /^undefined$/
-      );
-    }
-  );
+  test.each(CASES)('$name: installer warning', ({ before, after }) => {
+    const v = volume(before);
+    const keeps = after.filter((n) => !(n in before)).length > 0;
+    const { passed, result, visible } = installerCheck(v.applications);
+    expect(passed).toBe(!keeps);
+    expect(visible).toBe(keeps);
+    expect(result.type).toBe(keeps ? 'Warning' : undefined);
+    expect(String(result.message)).toMatch(
+      keeps ? /Midst \(previous version\)/ : /^undefined$/
+    );
+  });
 });
 
 describeOnMac(
   'older Midst: the preinstall renames what the warning names',
   () => {
-    test.each(CASES)(
-      '$name: preinstall',
-      ({ before, after, installing = INSTALLING }) => {
-        const v = volume(before);
-        const r = run(PREINSTALL, v, {}, installing);
-        expect(r.stderr).toBe('');
-        expect(r.status).toBe(0);
-        expect(listing(v.applications)).toEqual(after);
-        // The record names exactly the apps this run renamed.
-        const added = after
-          .filter((n) => !(n in before))
-          .map((n) => path.join(v.applications, n));
-        const recorded = fs
-          .readFileSync(v.record, 'utf8')
-          .split('\n')
-          .filter(Boolean);
-        expect(recorded.sort()).toEqual(added.sort());
-      }
-    );
+    test.each(CASES)('$name: preinstall', ({ before, after }) => {
+      const v = volume(before);
+      const r = run(PREINSTALL, v);
+      expect(r.stderr).toBe('');
+      expect(r.status).toBe(0);
+      expect(listing(v.applications)).toEqual(after);
+      // The record names exactly the apps this run renamed.
+      const added = after
+        .filter((n) => !(n in before))
+        .map((n) => path.join(v.applications, n));
+      const recorded = fs
+        .readFileSync(v.record, 'utf8')
+        .split('\n')
+        .filter(Boolean);
+      expect(recorded.sort()).toEqual(added.sort());
+    });
   }
 );
 
@@ -336,12 +301,27 @@ describeOnMac('opt-in delete', () => {
     expect(listing(v.applications)).toEqual(['Midst.app']);
   });
 
-  test('nothing kept, nothing deleted', () => {
+  test('ticked, it deletes our own earlier release too', () => {
     const v = installed({ 'Midst.app': OURS });
+    const r = run(REMOVE, v);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain('deleted Midst (previous version).app');
+    expect(listing(v.applications)).toEqual(['Midst.app']);
+    const info = fs.readFileSync(
+      path.join(v.applications, 'Midst.app', 'Contents', 'Info.plist'),
+      'utf8'
+    );
+    expect(info).toContain('<string>0.3.0</string>');
+  });
+
+  // With every Midst kept, nothing is kept only when there was no Midst.
+  test('nothing kept, nothing deleted', () => {
+    const v = installed({ 'Other.app': {} });
     const r = run(REMOVE, v);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('nothing was deleted');
-    expect(listing(v.applications)).toEqual(['Midst.app']);
+    expect(listing(v.applications)).toEqual(['Midst.app', 'Other.app']);
   });
 
   test('refuses when the new Midst is not in place', () => {
@@ -425,10 +405,6 @@ describe('Distribution edit', () => {
     );
     expect(out.querySelector('script').textContent).toContain(
       'function midstPreviousCheck'
-    );
-    // The version being installed reaches the check as a constant (#16).
-    expect(out.querySelector('script').textContent).toMatch(
-      /MIDST_INSTALLING_VERSION\s*=\s*["']0\.3\.0["']/
     );
 
     const outline = [...out.querySelectorAll('choices-outline > line')].map(
