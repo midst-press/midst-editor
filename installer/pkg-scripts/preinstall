@@ -28,11 +28,20 @@ record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
 # every app is still where it was.
 #
 # macOS Installer runs this script twice in one install, in the same sandbox and with the same
-# INSTALLER_TEMP (#353: the 0.9.0 candidate's install.log). The second run finds nothing left to
-# rename, so the record is only ever appended to, never emptied: emptying it lost what the first
-# run kept, and the ticked delete then deleted nothing. INSTALLER_TEMP is new for each install.
+# INSTALLER_TEMP (#353: the 0.9.0 candidate's install.log). INSTALLER_TEMP is new for each install.
+# Nothing documents whether the second run comes before or after the new app is written. If it
+# came after, it would find the new Midst.app, rename it aside as "previous version", and a ticked
+# delete would then delete the new install (#397). So only the first run in an install acts: it
+# creates the record, and a run that finds the record already there does nothing at all. The
+# record is never emptied: emptying it lost what the first run kept, and the ticked delete then
+# deleted nothing (#353).
 [ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept could not be recorded"
-[ -e "$record" ] || : > "$record" || fail "could not create $record"
+if [ -e "$record" ] || [ -L "$record" ]; then
+  [ -f "$record" ] && [ ! -L "$record" ] || fail "$record exists but is not a plain file"
+  say "already ran in this install ($record exists); renaming nothing"
+  exit 0
+fi
+: > "$record" || fail "could not create $record"
 [ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
 
 free_name() { # prints the first unused "Midst (previous version[ N]).app"
