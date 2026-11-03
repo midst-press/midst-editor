@@ -250,6 +250,22 @@ describe('Editor: content and appearance', () => {
     expect(proseMirror()).toHaveClass('size-2');
   });
 
+  it('keeps a size changed from its buttons when the poet types (#390, GitHub #105)', () => {
+    // The size class is in the editor's props, which @tiptap/react re-applies on every render; typing re-renders the
+    // Editor, and the class used to go back to the size the editor opened at.
+    bridge = installBridge({ 'font-size': '2' });
+    mount();
+    fireEvent.click(screen.getByRole('button', { name: 'Increase text size' }));
+    expect(proseMirror()).toHaveClass('size-3');
+    typeText('x');
+    expect(proseMirror()).toHaveClass('size-3');
+    expect(proseMirror()).not.toHaveClass('size-2');
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
+    typeText('y');
+    expect(proseMirror()).toHaveClass('size-1');
+  });
+
   it('uses the default size when none is stored, and the smallest when 0 is stored', () => {
     bridge = installBridge({});
     const { unmount } = mount();
