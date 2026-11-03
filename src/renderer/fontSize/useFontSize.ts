@@ -31,3 +31,5 @@ export default function useFontSize() {
     canDecrease: size > MIN_FONT_SIZE,
   };
 }
+
+export type FontSize = ReturnType<typeof useFontSize>;

@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import type { ElectronHandler } from 'main/preload';
 import MenuBar from '../renderer/components/Editor/MenuBar';
+import useFontSize from '../renderer/fontSize/useFontSize';
 
 // A listener of any channel, called as the window would call it.
 // eslint-disable-next-line no-unused-vars
@@ -91,6 +92,41 @@ function Capture() {
   return null;
 }
 
+// As the Editor does (#390): the size is owned above the provider and its class is in the editor's props. `cls` is
+// the rest of the class, with any size-N in it replaced by the current size.
+function Host({
+  extensions,
+  content,
+  cls,
+  focused,
+}: {
+  extensions: any[];
+  content: string;
+  cls: string;
+  focused: boolean;
+}) {
+  const fontSize = useFontSize();
+  const rest = cls.split(' ').filter((c) => c !== '' && !c.startsWith('size-'));
+  const at = cls.split(' ').findIndex((c) => c.startsWith('size-'));
+  const classes = [...rest];
+  classes.splice(at < 0 ? classes.length : at, 0, `size-${fontSize.size}`);
+  return (
+    <EditorProvider
+      extensions={extensions}
+      content={content}
+      editorProps={{ attributes: { class: classes.join(' ') } }}
+      slotBefore={
+        <MenuBar
+          focused={focused}
+          onToggleFocus={jest.fn()}
+          fontSize={fontSize}
+        />
+      }
+      slotAfter={<Capture />}
+    />
+  );
+}
+
 const mount = ({
   extensions = [StarterKit] as any[],
   content = '<p>synthetic line</p>',
@@ -98,12 +134,11 @@ const mount = ({
   focused = false,
 } = {}) =>
   render(
-    <EditorProvider
+    <Host
       extensions={extensions}
       content={content}
-      editorProps={{ attributes: { class: cls } }}
-      slotBefore={<MenuBar focused={focused} onToggleFocus={jest.fn()} />}
-      slotAfter={<Capture />}
+      cls={cls}
+      focused={focused}
     />
   );
 
@@ -528,7 +563,19 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       <EditorProvider
         extensions={[StarterKit] as any[]}
         content="<p>synthetic line</p>"
-        slotBefore={<MenuBar focused={false} onToggleFocus={onToggleFocus} />}
+        slotBefore={
+          <MenuBar
+            focused={false}
+            onToggleFocus={onToggleFocus}
+            fontSize={{
+              size: 2,
+              increase: jest.fn(),
+              decrease: jest.fn(),
+              canIncrease: true,
+              canDecrease: true,
+            }}
+          />
+        }
       />
     );
     fireEvent.click(button('Focus Mode'));

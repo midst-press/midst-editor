@@ -15,9 +15,8 @@ import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
 
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import { useEffect, useId } from 'react';
-import useFontSize from '../../fontSize/useFontSize';
-import setEditorSizeClass from '../../fontSize/setEditorSizeClass';
+import { useId } from 'react';
+import type { FontSize } from '../../fontSize/useFontSize';
 import { i18n } from '../../../shared/i18n';
 import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
 
@@ -71,9 +70,11 @@ interface MenuBarProps {
   // Focus Mode (GitHub #25): the poet's screen, with everything but the moon hidden.
   focused: boolean;
   onToggleFocus: () => void;
+  // The text size, owned by the Editor: its class is on the editor surface, which the Editor's props set (#390).
+  fontSize: FontSize;
 }
 
-function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
+function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
   const { editor } = useCurrentEditor();
   // TipTap 3 does not re-render a component on each transaction (TipTap 2 did), so the buttons subscribe to the
   // state they show: each mark's active state, and whether it can be applied here.
@@ -96,12 +97,6 @@ function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
   // the editor exists and MenuBar is its slotBefore, so in practice the guard never fires -- but
   // placing it above the hooks made the hook count conditional, which a tiptap change that renders
   // slotBefore eagerly would turn into a hard "Rendered more hooks than during the previous render".
-  const fontSize = useFontSize();
-  // The size class lives on the editor surface, which tiptap owns.
-  useEffect(() => {
-    if (editor) setEditorSizeClass(editor, fontSize.size);
-  }, [editor, fontSize.size]);
-
   if (!editor || !marks) {
     return null;
   }
