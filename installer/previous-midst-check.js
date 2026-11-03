@@ -5,6 +5,8 @@
 // It decides "is there an older Midst?" by the same rule as installer/pkg-scripts/preinstall,
 // which is what actually renames it: any "Midst Beta.app" or "Midst.app" in Applications,
 // whatever is inside it, including our own releases at any version, even the one being installed.
+// The warning says only that it is kept "renamed with its version number": the preinstall alone
+// decides the name, so the two cannot disagree about it.
 // The tests hold the two to the same answers.
 
 /* global system, my */
@@ -30,11 +32,11 @@ function midstHasPrevious() {
 function midstPreviousCheck() {
   if (!midstHasPrevious()) return true;
   my.result.type = 'Warning';
-  my.result.title = 'An older version of Midst is in your Applications folder';
+  my.result.title = 'Another version of Midst is in your Applications folder';
   my.result.message =
-    'The new Midst will be installed as “Midst”. The older version will be kept and ' +
-    'renamed “Midst (previous version)”.\n\n' +
-    'To delete the older version instead, click Customize at the Installation Type step and tick ' +
-    '“Delete the older version of Midst”.';
+    'The new Midst will be installed as “Midst”. The version already there will be kept and ' +
+    'renamed with its version number.\n\n' +
+    'To delete it instead, click Customize at the Installation Type step and tick ' +
+    '“Delete the Midst that’s already installed”.';
   return false;
 }

@@ -20,11 +20,11 @@ const CHECK_JS = path.join(
   'previous-midst-check.js'
 );
 
-const REMOVE_TITLE = 'Delete the older version of Midst';
+const REMOVE_TITLE = 'Delete the Midst that’s already installed';
 const REMOVE_DESCRIPTION =
-  'PERMANENTLY deletes the older version of Midst after the new one is installed. ' +
+  'PERMANENTLY deletes the Midst that was already in Applications after the new one is installed. ' +
   'It does not go to the Trash and cannot be undone. ' +
-  'Leave this unticked to keep it as “Midst (previous version)”.';
+  'Leave this unticked to keep it, renamed with its version number.';
 
 function once(xml, pattern, what) {
   const hits = xml.match(new RegExp(pattern.source, 'g')) || [];

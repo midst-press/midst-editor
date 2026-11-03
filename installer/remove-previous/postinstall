@@ -1,8 +1,11 @@
 #!/bin/bash
-# Runs as root only when the poet ticks "Delete the older version of Midst" (issue 16), after the
+# Runs as root only when the poet ticks "Delete the Midst that's already installed" (issue 16), after the
 # new Midst has been installed. It PERMANENTLY deletes the older apps that the preinstall script
 # renamed in this same install, and nothing else: every path must come from that record, sit
-# directly in Applications and be named "Midst (previous version[ N]).app".
+# directly in Applications and carry a name the preinstall gives a kept app: "Midst <version>.app",
+# "Midst Beta <version>.app" or "Midst (version unknown).app", each optionally followed by " (N)"
+# for N from 2 to 99, where <version> matches ^[0-9][0-9A-Za-z.+-]*$. "Midst.app" and
+# "Midst Beta.app" are refused in any case, whatever the record says.
 #
 # It deletes nothing unless the new Midst is in place. Anything unexpected exits 1, which the
 # installer reports as a failure; the new Midst stays installed and the older app stays where it is.
@@ -12,6 +15,18 @@ set -u
 
 say() { echo "Midst remove-previous: $*"; }
 fail() { echo "Midst remove-previous: FAILED: $*" >&2; exit 1; }
+
+UNKNOWN_VERSION_NAME="Midst (version unknown)"
+
+kept_name() { # <file name>: succeeds only for a name the preinstall gives a kept app
+  local stem=${1%.app} lower
+  [ "$stem.app" = "$1" ] || return 1
+  lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  [ "$lower" != midst.app ] && [ "$lower" != "midst beta.app" ] || return 1
+  if [[ "$stem" =~ ^(.*)\ \(([2-9]|[1-9][0-9])\)$ ]]; then stem=${BASH_REMATCH[1]}; fi
+  [ "$stem" = "$UNKNOWN_VERSION_NAME" ] && return 0
+  [[ "$stem" =~ ^Midst(\ Beta)?\ [0-9][0-9A-Za-z.+-]*$ ]]
+}
 
 apps="${3%/}/Applications"
 record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
@@ -32,7 +47,7 @@ while IFS= read -r path || [ -n "$path" ]; do
   [ -n "$path" ] || continue
   name=$(basename -- "$path")
   [ "$(dirname -- "$path")" = "$apps" ] || fail "refusing to delete $path: it is not directly in $apps"
-  [[ "$name" =~ ^Midst\ \(previous\ version(\ [0-9]+)?\)\.app$ ]] || fail "refusing to delete $path: not a kept older Midst"
+  kept_name "$name" || fail "refusing to delete $path: not a kept older Midst"
   if [ -L "$path" ]; then
     rm -f -- "$path" || fail "could not delete $path"
   elif [ -d "$path" ]; then
