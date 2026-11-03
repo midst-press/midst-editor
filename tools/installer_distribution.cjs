@@ -44,13 +44,21 @@ function escapeXml(text) {
     .replace(/"/g, '&quot;');
 }
 
+// The installer script as it goes into the Distribution: the version this package installs, then
+// installer/previous-midst-check.js unchanged. The check keeps an installed Midst.app unless it is
+// exactly this version.
+function installerScript(checkJs, version) {
+  if (!/^[0-9A-Za-z.+-]+$/.test(version))
+    throw new Error(`unexpected version "${version}"`);
+  return `const MIDST_INSTALLING_VERSION = '${version}';\n${checkJs}`;
+}
+
 function editDistribution(xml, checkJs, version) {
   if (xml.includes(REMOVE_ID))
     throw new Error('Distribution: already has the older-Midst choice');
   if (checkJs.includes(']]>'))
     throw new Error('installer script cannot contain "]]>"');
-  if (!/^[0-9A-Za-z.+-]+$/.test(version))
-    throw new Error(`unexpected version "${version}"`);
+  const script = installerScript(checkJs, version);
 
   // Customize must be offered, or the opt-in choice can never be ticked.
   const options = once(xml, /<options [^>]*\/>/, '<options>');
@@ -82,7 +90,7 @@ function editDistribution(xml, checkJs, version) {
 
   const added = [
     `    <installation-check script="midstPreviousCheck()"/>`,
-    `    <script><![CDATA[\n${checkJs}\n]]></script>`,
+    `    <script><![CDATA[\n${script}\n]]></script>`,
     `    <choice id="${REMOVE_ID}" title="${escapeXml(REMOVE_TITLE)}" description="${escapeXml(REMOVE_DESCRIPTION)}"` +
       ` start_selected="false" visible="midstHasPrevious()">`,
     `        <pkg-ref id="${REMOVE_ID}"/>`,
@@ -111,6 +119,7 @@ function main(argv) {
 
 module.exports = {
   editDistribution,
+  installerScript,
   APP_ID,
   REMOVE_ID,
   REMOVE_TITLE,

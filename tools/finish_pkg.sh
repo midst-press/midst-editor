@@ -9,7 +9,11 @@
 # With an identity it signs the rebuilt package; notarise it AFTER this, never before, because a
 # rebuilt package is a new file. Without one the result is unsigned, as electron-builder's was.
 #
-# Exit 0: rebuilt, and the result was read back and holds both packages, the check and the choice.
+# It also tells both the warning and the rename which version this package installs (the
+# Distribution's product version): a Midst.app at any other version is kept, not written over.
+#
+# Exit 0: rebuilt, and the result was read back and holds both packages, the check, the choice and
+# the version in both places.
 # 1: failed; the original package is left as it was. 2: usage.
 set -uo pipefail
 
@@ -34,6 +38,11 @@ pkgutil --expand "$pkg" "$work/x" || fail "pkgutil --expand $pkg"
 
 version=$(sed -n 's/.*<product id="press.Midst.MidstApp" version="\([^"]*\)".*/\1/p' "$work/x/Distribution")
 [ -n "$version" ] || fail "no product version in the Distribution"
+[[ "$version" =~ ^[0-9A-Za-z.+-]+$ ]] || fail "unexpected product version \"$version\" in the Distribution"
+
+# The preinstall keeps any Midst.app that is not exactly this version, so it has to know it.
+printf '%s\n' "$version" > "$work/x/press.Midst.MidstApp.pkg/Scripts/midst-installing-version" \
+  || fail "could not write the version for the preinstall"
 
 mkdir "$work/pkgs" || fail "mkdir"
 pkgutil --flatten "$work/x/press.Midst.MidstApp.pkg" "$work/pkgs/press.Midst.MidstApp.pkg" \
@@ -56,10 +65,14 @@ productbuild --distribution "$work/Distribution" --package-path "$work/pkgs" "${
 # Read the result back rather than trusting the steps above.
 pkgutil --expand "$work/out.pkg" "$work/check" || fail "the rebuilt package does not expand"
 for want in 'installation-check script="midstPreviousCheck()"' 'customize="allow"' \
-  'choice id="press.Midst.MidstApp.remove-previous"' 'start_selected="false"'; do
+  'choice id="press.Midst.MidstApp.remove-previous"' 'start_selected="false"' \
+  "const MIDST_INSTALLING_VERSION = '$version';"; do
   grep -qF "$want" "$work/check/Distribution" || fail "the rebuilt Distribution lacks: $want"
 done
 [ -f "$work/check/press.Midst.MidstApp.pkg/Scripts/preinstall" ] || fail "the rebuilt package lost the rename script"
+read_back=$(tr -d '[:space:]' < "$work/check/press.Midst.MidstApp.pkg/Scripts/midst-installing-version" 2> /dev/null)
+[ "$read_back" = "$version" ] \
+  || fail "the rebuilt package's preinstall would read version \"$read_back\", not $version"
 [ -f "$work/check/press.Midst.MidstApp.remove-previous.pkg/Scripts/postinstall" ] \
   || fail "the rebuilt package lacks the remove-previous script"
 if [ $# -eq 3 ]; then

@@ -1,24 +1,31 @@
 // Installer JavaScript (issue 16). tools/installer_distribution.cjs puts this file, unchanged,
-// into the package's Distribution, where macOS Installer runs it with its own `system` and `my`
-// objects. It is not part of the app.
+// into the package's Distribution, after a line defining MIDST_INSTALLING_VERSION (the version
+// this package installs). There macOS Installer runs it with its own `system` and `my` objects.
+// It is not part of the app.
 //
 // It decides "is there an older Midst?" by the same rule as installer/pkg-scripts/preinstall,
-// which is what actually renames it: "Midst Beta.app", or a "Midst.app" that is not ours (bundle
-// id press.Midst.MidstApp at 0.1.0 or later). The tests hold the two to the same answers.
+// which is what actually renames it: "Midst Beta.app", or a "Midst.app" that is not this very
+// release (bundle id press.Midst.MidstApp at exactly MIDST_INSTALLING_VERSION). Any other release
+// of ours, lower or higher, counts as older. The tests hold the two to the same answers.
 
-/* global system, my */
+/* global system, my, MIDST_INSTALLING_VERSION */
 
 const MIDST_APPLICATIONS = '/Applications';
 
-function midstIsOurs(path) {
+function midstInstallingVersion() {
+  return typeof MIDST_INSTALLING_VERSION === 'string' &&
+    /^[0-9A-Za-z.+-]+$/.test(MIDST_INSTALLING_VERSION)
+    ? MIDST_INSTALLING_VERSION
+    : null;
+}
+
+function midstIsThisRelease(path) {
+  const installing = midstInstallingVersion();
+  if (!installing) return false;
   const info = system.files.bundleAtPath(path);
   if (!info) return false;
   if (info.CFBundleIdentifier !== 'press.Midst.MidstApp') return false;
-  const match = /^([0-9]+)\.([0-9]+)(\.|$)/.exec(
-    String(info.CFBundleShortVersionString || '')
-  );
-  if (!match) return false;
-  return match[1] !== '0' || match[2] !== '0';
+  return String(info.CFBundleShortVersionString) === installing;
 }
 
 function midstPreviousApps() {
@@ -26,7 +33,7 @@ function midstPreviousApps() {
   const current = `${MIDST_APPLICATIONS}/Midst.app`;
   const found = [];
   if (system.files.fileExistsAtPath(beta)) found.push(beta);
-  if (system.files.fileExistsAtPath(current) && !midstIsOurs(current))
+  if (system.files.fileExistsAtPath(current) && !midstIsThisRelease(current))
     found.push(current);
   return found;
 }
