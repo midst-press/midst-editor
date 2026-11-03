@@ -97,6 +97,7 @@ function installerCheck(applications) {
     passed,
     result,
     visible: vm.runInContext('midstHasPrevious()', context),
+    labels: vm.runInContext('midstPreviousApps().map(midstLabel)', context),
   };
 }
 
@@ -127,6 +128,20 @@ function run(script, v, extraEnv = {}) {
 const FALLBACK = 'Midst (version unknown)';
 const fallback = (n) => (n ? `${FALLBACK} (${n}).app` : `${FALLBACK}.app`);
 const ours = (version) => ({ ...OURS, CFBundleShortVersionString: version });
+
+// How the warning names an app it will keep (Stuart, 4 Nov: the exact version that would be
+// deleted): by the same version rule as the kept file's name, else "(version unknown)".
+const READABLE = /^[0-9][0-9A-Za-z.+-]*$/;
+function label(app, info) {
+  const base = app === 'Midst Beta.app' ? 'Midst Beta' : 'Midst';
+  const version = info && info.CFBundleShortVersionString;
+  return typeof version === 'string' && READABLE.test(version)
+    ? `${base} ${version}`
+    : `${base} (version unknown)`;
+}
+// The apps the installer finds, in the order it handles them: Beta first.
+const found = (before) =>
+  ['Midst Beta.app', 'Midst.app'].filter((n) => n in before);
 
 const CASES = [
   { name: 'nothing installed', before: {}, after: [] },
@@ -254,27 +269,32 @@ const CASES = [
   },
 ];
 
-const GENERIC_MESSAGE = expect.stringMatching(
-  /renamed with its version number/
-);
-
 describe('older Midst: installer warning and rename agree', () => {
   test.each(CASES)('$name: installer warning', ({ before, after }) => {
     const v = volume(before);
-    const kept = after.filter((n) => !(n in before));
-    const keeps = kept.length > 0;
-    const { passed, result, visible } = installerCheck(v.applications);
+    const keeps = after.filter((n) => !(n in before)).length > 0;
+    const { passed, result, visible, labels } = installerCheck(v.applications);
     expect(passed).toBe(!keeps);
     expect(visible).toBe(keeps);
     expect(result.type).toBe(keeps ? 'Warning' : undefined);
-    // Generic: it says how a kept app is named, and names none (Violet, 4 Nov), so the
-    // warning and the preinstall cannot disagree about a name.
-    expect(result.message).toEqual(keeps ? GENERIC_MESSAGE : undefined);
-    const message = String(result.message);
-    expect(message).not.toMatch(/previous version/i);
-    kept.forEach((n) => {
-      expect(message).not.toContain(n.replace(/\.app$/, ''));
-    });
+    const expected = found(before).map((n) => label(n, before[n]));
+    expect(labels).toEqual(expected);
+    const names = expected.join(' and ');
+    const many = expected.length > 1;
+    expect(result.title).toBe(
+      keeps
+        ? `${names} ${many ? 'are' : 'is'} already in your Applications folder`
+        : undefined
+    );
+    expect(result.message).toBe(
+      keeps
+        ? `The new Midst will be installed as “Midst”. ${names} will be kept, renamed to show ` +
+            `${many ? 'their versions' : 'its version'}.\n\n` +
+            `To delete ${names} instead, click Customize at the Installation Type step and tick ` +
+            '“Delete the Midst that’s already installed”.'
+        : undefined
+    );
+    expect(String(result.message)).not.toMatch(/previous version/i);
   });
 });
 
@@ -295,7 +315,19 @@ describeOnMac(
         .readFileSync(v.record, 'utf8')
         .split('\n')
         .filter(Boolean);
-      expect(recorded.sort()).toEqual(added.sort());
+      expect([...recorded].sort()).toEqual([...added].sort());
+      // The warning's label for each app names the version its kept copy carries: the copy is
+      // "<label>.app" or "<label> (N).app", or under the fallback name exactly where the label
+      // says "(version unknown)". The record is in the order the apps were handled, as the labels are.
+      const { labels } = installerCheck(volume(before).applications);
+      expect(recorded).toHaveLength(labels.length);
+      labels.forEach((l, i) => {
+        const stem = l.endsWith('(version unknown)') ? FALLBACK : l;
+        const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        expect(path.basename(recorded[i])).toMatch(
+          new RegExp(`^${escaped}( \\(([2-9]|[1-9][0-9])\\))?\\.app$`)
+        );
+      });
       // A run that kept everything says so, beside the record (#397).
       expect(fs.existsSync(`${v.record}.done`)).toBe(true);
     });
@@ -658,7 +690,7 @@ describe('Distribution edit', () => {
     expect(remove.getAttribute('description')).toMatch(/PERMANENTLY deletes/);
     expect(remove.getAttribute('description')).toMatch(/cannot be undone/);
     expect(remove.getAttribute('description')).toMatch(
-      /renamed with its version number/
+      /renamed to show its version/
     );
     // Stuart (4 Nov): not the words "previous version" where the poet reads (the warning: above).
     expect(remove.getAttribute('description')).not.toMatch(/previous version/i);
