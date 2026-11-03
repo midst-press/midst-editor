@@ -9,9 +9,9 @@
 # conservative reading wherever data safety is a judgement call).
 #
 # The version (CFBundleShortVersionString) goes into a file name, so it is used only if it matches
-# ^[0-9][0-9A-Za-z.+-]*$. Otherwise, or if it cannot be read, the app is kept under
-# UNKNOWN_VERSION_NAME ("Midst (version unknown).app"). A name already taken gets " (2)",
-# " (3)" ... " (99)"; with none of those free the script fails.
+# ^[0-9][0-9A-Za-z.+-]*$. Otherwise, or if it cannot be read, the app keeps its own stem with
+# " (version unknown)": "Midst (version unknown).app" or "Midst Beta (version unknown).app". A name
+# already taken gets " (2)", " (3)" ... " (99)"; with none of those free the script fails.
 #
 # Each app renamed is written, one path per line, to $INSTALLER_TEMP/press.Midst.previous-apps.
 # The opt-in "Delete the Midst that's already installed" choice deletes exactly those paths, and nothing
@@ -56,8 +56,6 @@ fi
 : > "$record" || fail "could not create $record"
 [ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
 
-UNKNOWN_VERSION_NAME="Midst (version unknown)"
-
 version_of() { # <app>: prints its version if it is safe in a file name, or fails
   local v
   v=$(plutil -extract CFBundleShortVersionString raw -o - "$1/Contents/Info.plist" 2> /dev/null) || return 1
@@ -67,7 +65,7 @@ version_of() { # <app>: prints its version if it is safe in a file name, or fail
 
 kept_stem() { # <app> <"Midst" or "Midst Beta">: prints the name it is kept under, without ".app"
   local v
-  if v=$(version_of "$1"); then echo "$2 $v"; else echo "$UNKNOWN_VERSION_NAME"; fi
+  if v=$(version_of "$1"); then echo "$2 $v"; else echo "$2 (version unknown)"; fi
 }
 
 free_name() { # <stem>: prints the first unused "<stem>.app", "<stem> (2).app" ... "<stem> (99).app"

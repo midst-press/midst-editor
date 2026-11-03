@@ -6,7 +6,7 @@
 // which is what actually renames it: any "Midst Beta.app" or "Midst.app" in Applications,
 // whatever is inside it, including our own releases at any version, even the one being installed.
 // The warning names each app by the version it has, read by the same rule the preinstall uses to
-// name the kept copy (^[0-9][0-9A-Za-z.+-]*$, else "version unknown"), so the poet sees exactly
+// name the kept copy (^[0-9][0-9A-Za-z.+-]*$, else "<stem> (version unknown)"), so the poet sees exactly
 // which version would be deleted. The file name it is kept under, including any " (2)", is the
 // preinstall's alone. The tests hold the two to the same answers.
 
@@ -49,13 +49,21 @@ function midstHasPrevious() {
 function midstPreviousCheck() {
   const found = midstPreviousApps();
   if (found.length === 0) return true;
-  const names = found.map(midstLabel).join(' and ');
-  const are = found.length > 1 ? 'are' : 'is';
+  const labels = found.map(midstLabel);
+  const names = labels.join(' and ');
+  // One sentence per app. Only an app whose version could be read is "renamed to show its
+  // version"; the label of one that could not already says "(version unknown)".
+  const kept = found
+    .map((path, i) =>
+      midstVersionOf(path)
+        ? `${labels[i]} will be kept, renamed to show its version.`
+        : `${labels[i]} will be kept under that name, because its version could not be read.`
+    )
+    .join(' ');
   my.result.type = 'Warning';
-  my.result.title = `${names} ${are} already in your Applications folder`;
+  my.result.title = `${names} ${found.length > 1 ? 'are' : 'is'} already in your Applications folder`;
   my.result.message =
-    `The new Midst will be installed as “Midst”. ${names} will be kept, renamed to show ` +
-    `${found.length > 1 ? 'their versions' : 'its version'}.\n\n` +
+    `The new Midst will be installed as “Midst”. ${kept}\n\n` +
     `To delete ${names} instead, click Customize at the Installation Type step and tick ` +
     '“Delete the Midst that’s already installed”.';
   return false;

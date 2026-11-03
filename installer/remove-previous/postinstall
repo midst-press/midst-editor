@@ -3,7 +3,8 @@
 # new Midst has been installed. It PERMANENTLY deletes the older apps that the preinstall script
 # renamed in this same install, and nothing else: every path must come from that record, sit
 # directly in Applications and carry a name the preinstall gives a kept app: "Midst <version>.app",
-# "Midst Beta <version>.app" or "Midst (version unknown).app", each optionally followed by " (N)"
+# "Midst Beta <version>.app", "Midst (version unknown).app" or "Midst Beta (version unknown).app",
+# each optionally followed by " (N)"
 # for N from 2 to 99, where <version> matches ^[0-9][0-9A-Za-z.+-]*$. "Midst.app" and
 # "Midst Beta.app" are refused in any case, whatever the record says.
 #
@@ -16,15 +17,13 @@ set -u
 say() { echo "Midst remove-previous: $*"; }
 fail() { echo "Midst remove-previous: FAILED: $*" >&2; exit 1; }
 
-UNKNOWN_VERSION_NAME="Midst (version unknown)"
-
 kept_name() { # <file name>: succeeds only for a name the preinstall gives a kept app
   local stem=${1%.app} lower
   [ "$stem.app" = "$1" ] || return 1
   lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
   [ "$lower" != midst.app ] && [ "$lower" != "midst beta.app" ] || return 1
   if [[ "$stem" =~ ^(.*)\ \(([2-9]|[1-9][0-9])\)$ ]]; then stem=${BASH_REMATCH[1]}; fi
-  [ "$stem" = "$UNKNOWN_VERSION_NAME" ] && return 0
+  [[ "$stem" =~ ^Midst(\ Beta)?\ \(version\ unknown\)$ ]] && return 0
   [[ "$stem" =~ ^Midst(\ Beta)?\ [0-9][0-9A-Za-z.+-]*$ ]]
 }
 
