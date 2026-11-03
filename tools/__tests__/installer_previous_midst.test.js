@@ -255,22 +255,86 @@ describeOnMac('preinstall failures stop the install with nothing moved', () => {
   });
 });
 
+describeOnMac('preinstall: a record that is not a plain file', () => {
+  test('a directory where the record goes stops the install with nothing moved', () => {
+    const v = volume({ 'Midst.app': OURS });
+    fs.mkdirSync(v.record);
+    const r = run(PREINSTALL, v);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('not a plain file');
+    expect(listing(v.applications)).toEqual(['Midst.app']);
+  });
+});
+
+// "Midst (previous version).app" and "Midst (previous version 2..N).app".
+function previousNames(n) {
+  return ['Midst (previous version).app'].concat(
+    Array.from(
+      { length: n - 1 },
+      (_, i) => `Midst (previous version ${i + 2}).app`
+    )
+  );
+}
+
+describeOnMac('preinstall: the 99 kept names run out', () => {
+  // 98 taken, one free: Midst Beta takes the last name and has moved when Midst.app finds none.
+  // The install still stops before the new app is written, so Midst.app is never written over.
+  test('98 taken: Beta takes the 99th name, then Midst.app stops the install', () => {
+    const taken = Object.fromEntries(previousNames(98).map((n) => [n, {}]));
+    const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': OURS });
+    const r = run(PREINSTALL, v);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no free name for');
+    const now = listing(v.applications);
+    expect(now).toContain('Midst.app');
+    expect(now).not.toContain('Midst Beta.app');
+    expect(now).toContain('Midst (previous version 99).app');
+    expect(now).toHaveLength(100);
+    expect(fs.readFileSync(v.record, 'utf8')).toBe(
+      `${path.join(v.applications, 'Midst (previous version 99).app')}\n`
+    );
+  });
+
+  test('99 taken: nothing moves and the install stops', () => {
+    const taken = Object.fromEntries(previousNames(99).map((n) => [n, {}]));
+    const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': OURS });
+    const r = run(PREINSTALL, v);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('no free name for');
+    expect(listing(v.applications)).toEqual(
+      [...previousNames(99), 'Midst Beta.app', 'Midst.app'].sort()
+    );
+    expect(fs.readFileSync(v.record, 'utf8')).toBe('');
+  });
+});
+
 describeOnMac('opt-in delete', () => {
   // The preinstall runs first, then the new app is installed, then (only if ticked) the delete.
-  function installed(before, preinstallRuns = 1) {
+  // `lateRun`: one more preinstall run after the new app is written, which nothing documents
+  // the installer never does (#397).
+  function installed(before, preinstallRuns = 1, lateRun = false) {
     const v = volume(before);
-    for (let n = 0; n < preinstallRuns; n += 1) {
+    const preinstall = () => {
       const pre = run(PREINSTALL, v);
       if (pre.status !== 0) throw new Error(`preinstall failed: ${pre.stderr}`);
-    }
+      return pre;
+    };
+    for (let n = 0; n < preinstallRuns; n += 1) preinstall();
     const contents = path.join(v.applications, 'Midst.app', 'Contents');
     fs.mkdirSync(contents, { recursive: true });
     fs.writeFileSync(
       path.join(contents, 'Info.plist'),
       plist({ ...OURS, CFBundleShortVersionString: '0.3.0' })
     );
+    if (lateRun) v.late = preinstall();
     return v;
   }
+
+  const newVersion = (v) =>
+    fs.readFileSync(
+      path.join(v.applications, 'Midst.app', 'Contents', 'Info.plist'),
+      'utf8'
+    );
 
   test('deletes exactly the apps this install kept', () => {
     const v = installed({
@@ -293,6 +357,32 @@ describeOnMac('opt-in delete', () => {
   // macOS Installer runs the app's preinstall twice in one install, in the same sandbox (#353,
   // install.log of the 0.9.0 candidate). The second run finds nothing left to rename; it must not
   // wipe the record the first run wrote, or the ticked delete deletes nothing and reports success.
+  test('a preinstall run after the new app is written leaves it alone, and the delete takes only what the first run kept', () => {
+    const v = installed({ 'Midst Beta.app': {}, 'Midst.app': OURS }, 1, true);
+    expect(v.late.stdout).toContain('renaming nothing');
+    expect(listing(v.applications)).toEqual([
+      'Midst (previous version 2).app',
+      'Midst (previous version).app',
+      'Midst.app',
+    ]);
+    expect(newVersion(v)).toContain('<string>0.3.0</string>');
+    const recorded = fs
+      .readFileSync(v.record, 'utf8')
+      .split('\n')
+      .filter(Boolean);
+    expect(recorded.sort()).toEqual(
+      [
+        path.join(v.applications, 'Midst (previous version 2).app'),
+        path.join(v.applications, 'Midst (previous version).app'),
+      ].sort()
+    );
+    const r = run(REMOVE, v);
+    expect(r.stderr).toBe('');
+    expect(r.status).toBe(0);
+    expect(listing(v.applications)).toEqual(['Midst.app']);
+    expect(newVersion(v)).toContain('<string>0.3.0</string>');
+  });
+
   test('a preinstall run twice in one install still deletes what the first run kept', () => {
     const v = installed({ 'Midst Beta.app': {}, 'Midst.app': ORIGINAL }, 2);
     const r = run(REMOVE, v);
