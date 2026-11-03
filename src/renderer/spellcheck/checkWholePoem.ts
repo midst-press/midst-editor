@@ -37,6 +37,11 @@ import type { EditorView } from '@tiptap/pm/view';
 // its state instead, which drops the space wherever it is, and the fixed MISMATCH_LOG is logged. No check starts
 // during a composition, and a later whole-poem check does not start once the poem has changed.
 //
+// The caret is hidden while the check runs (GitHub #107, editor #393). Each paragraph's edit puts the native caret
+// after its last word, so the poet saw it run down the end of every line, twice, as a poem opened. It is made
+// transparent on the editor element and the editor's own value is put back when the check ends, however it ends.
+// The element's attributes are not ProseMirror's document and are not in innerHTML, so nothing above sees the change.
+//
 // Undo cannot replay the spaces: the native undo stack holds them, but prosemirror-history takes every
 // historyUndo/historyRedo beforeinput and prevents its default, so the native one never runs.
 
@@ -144,6 +149,7 @@ export function checkParagraphs(
     selection.getRangeAt(i).cloneRange()
   );
   const before = dom.innerHTML;
+  const { caretColor } = dom.style;
   // Moving the caret to each paragraph scrolls it into view; the poet's page is put back (editor #238, case 5).
   const { scrollTop } = dom;
 
@@ -177,6 +183,7 @@ export function checkParagraphs(
     const completed = how === true;
     clearTimeout(timer);
     INPUT_EVENTS.forEach((type) => dom.removeEventListener(type, finish, true));
+    dom.style.caretColor = caretColor;
     if (takeSpaceOut()) {
       selection.removeAllRanges();
       kept.forEach((range) => selection.addRange(range));
@@ -220,6 +227,8 @@ export function checkParagraphs(
   };
 
   observer.stop();
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- a CSS value, not text for the poet
+  dom.style.caretColor = 'transparent';
   INPUT_EVENTS.forEach((type) => dom.addEventListener(type, finish, true));
   step(0);
   // The editor going away: the check ends before every paragraph is reached.
