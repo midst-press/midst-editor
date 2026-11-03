@@ -1,9 +1,9 @@
 # 0.9.4
 
 - **Installing Midst never writes over the Midst you already have.** Any Midst already in Applications, including
-  an earlier release or the same one, is kept as "Midst (previous version)", and the installer says so before it
-  starts. To delete it instead, tick "Delete the older version of Midst" under Customize. Before, installing a
-  new release replaced the old one without a word (GitHub #47).
+  an earlier release or the same one, is kept and renamed with its version number (for example "Midst 0.9.3"),
+  and the installer says so before it starts. To delete it instead, tick "Delete the Midst that’s already
+  installed" under Customize. Before, installing a new release replaced the old one without a word (GitHub #47).
 
 # 0.9.3
 
