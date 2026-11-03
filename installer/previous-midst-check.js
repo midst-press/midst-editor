@@ -3,31 +3,20 @@
 // objects. It is not part of the app.
 //
 // It decides "is there an older Midst?" by the same rule as installer/pkg-scripts/preinstall,
-// which is what actually renames it: "Midst Beta.app", or a "Midst.app" that is not ours (bundle
-// id press.Midst.MidstApp at 0.1.0 or later). The tests hold the two to the same answers.
+// which is what actually renames it: any "Midst Beta.app" or "Midst.app" in Applications,
+// whatever is inside it, including our own releases at any version, even the one being installed.
+// The tests hold the two to the same answers.
 
 /* global system, my */
 
 const MIDST_APPLICATIONS = '/Applications';
-
-function midstIsOurs(path) {
-  const info = system.files.bundleAtPath(path);
-  if (!info) return false;
-  if (info.CFBundleIdentifier !== 'press.Midst.MidstApp') return false;
-  const match = /^([0-9]+)\.([0-9]+)(\.|$)/.exec(
-    String(info.CFBundleShortVersionString || '')
-  );
-  if (!match) return false;
-  return match[1] !== '0' || match[2] !== '0';
-}
 
 function midstPreviousApps() {
   const beta = `${MIDST_APPLICATIONS}/Midst Beta.app`;
   const current = `${MIDST_APPLICATIONS}/Midst.app`;
   const found = [];
   if (system.files.fileExistsAtPath(beta)) found.push(beta);
-  if (system.files.fileExistsAtPath(current) && !midstIsOurs(current))
-    found.push(current);
+  if (system.files.fileExistsAtPath(current)) found.push(current);
   return found;
 }
 
