@@ -5,10 +5,10 @@ import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
   checkWholePoemSoon,
@@ -275,10 +275,10 @@ export default function Editor() {
     };
   }, [myEditor, spellcheckOn]);
 
-  // The size the editor opens at. MenuBar changes the class on the editor itself after that.
-  const [sizeClass] = useState(() =>
-    fontSizeOrDefault(window.electron.store.get('font-size'))
-  );
+  // The text size. Its class goes in the editor's props, which @tiptap/react re-applies on every render whenever they
+  // differ from the editor's own: a size set on the editor directly went back to this one at the next keystroke
+  // (#390, GitHub #105). So the props carry the current size, and MenuBar's buttons change it here.
+  const fontSize = useFontSize();
 
   return (
     <div
@@ -291,6 +291,7 @@ export default function Editor() {
           <MenuBar
             focused={focusMode.focused}
             onToggleFocus={focusMode.toggle}
+            fontSize={fontSize}
           />
         }
         extensions={extensions}
@@ -299,7 +300,7 @@ export default function Editor() {
         onBlur={onBlur}
         editorProps={{
           attributes: {
-            class: `TextEditor ${heightClass} size-${sizeClass}`,
+            class: `TextEditor ${heightClass} size-${fontSize.size}`,
             spellcheck: spellcheckOn.toString(),
           },
         }}
