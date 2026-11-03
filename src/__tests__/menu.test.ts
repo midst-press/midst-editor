@@ -353,7 +353,8 @@ describe('save', () => {
     expect(everythingLogged()).not.toContain('POEM-SENTINEL');
   });
 
-  it('when the poet cancels the dialog, writes nothing, keeps the edited state and says so', async () => {
+  // GitHub #106 (editor #392): cancel-save took the editor Home, where an untitled poem cannot be reached again.
+  it('when the poet cancels the dialog, writes nothing, keeps the edited state, and leaves the poem open', async () => {
     seedDocument({ filename: '' });
     showSaveDialog.mockReturnValue(undefined);
     const win = makeWindow();
@@ -361,7 +362,13 @@ describe('save', () => {
     expect(dirListing()).toEqual([]);
     expect(mockStore.get('edited')).toBe(true);
     expect(mockStore.get('filename')).toBe('');
-    expect(win.webContents.send).toHaveBeenCalledWith('cancel-save');
+    expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+    expect(win.webContents.send).not.toHaveBeenCalledWith(
+      'open-file',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
     expect(win.webContents.send).not.toHaveBeenCalledWith(
       'set-filename',
       expect.anything()

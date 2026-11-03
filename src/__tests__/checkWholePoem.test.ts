@@ -103,6 +103,41 @@ describe('checkWholePoem', () => {
     expect(dom.scrollTop).toBe(40);
   });
 
+  // GitHub #107, editor #393: the caret it moves is not seen, and the editor's own caret colour comes back.
+  it("hides the caret while it runs and puts the editor's own caret colour back when it finishes", () => {
+    dom.style.caretColor = 'red';
+    checkWholePoem(view(), jest.fn());
+    expect(dom.style.caretColor).toBe('transparent');
+    jest.advanceTimersByTime(PAUSE_MS);
+    expect(dom.style.caretColor).toBe('transparent');
+    jest.advanceTimersByTime(PAUSE_MS);
+    expect(calls).toEqual(BOTH);
+    expect(dom.style.caretColor).toBe('red');
+  });
+
+  it("puts the caret colour back, and the selection, before the poet's key reaches the page", () => {
+    const second = dom.querySelectorAll('p')[1].firstChild as Text;
+    selectIn(second, 1);
+    checkWholePoem(view(), jest.fn());
+    let seen: [string, Node | null, number] | undefined;
+    dom.addEventListener('keydown', () => {
+      const sel = document.getSelection()!;
+      seen = [dom.style.caretColor, sel.anchorNode, sel.anchorOffset];
+    });
+    dom.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'a', bubbles: true })
+    );
+    expect(seen).toEqual(['', second, 1]);
+    expect(texts()).toEqual(['Zq wrd', 'xq']);
+  });
+
+  it('puts the caret colour back when it is cancelled', () => {
+    const cancel = checkWholePoem(view(), jest.fn());
+    expect(dom.style.caretColor).toBe('transparent');
+    cancel();
+    expect(dom.style.caretColor).toBe('');
+  });
+
   it('puts the space just after the last word, before any spaces that end the line', () => {
     dom.innerHTML = '<p>zq wd  </p>';
     checkWholePoem(view(), jest.fn());

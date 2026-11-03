@@ -1,3 +1,12 @@
+# 0.9.3
+
+- **Cancelling the Save dialog keeps your poem open.** Before, a new poem you had not saved yet disappeared behind
+  the Home screen and could not be reached again (GitHub #106).
+- **The text size stays where you set it.** Before, it went back to the size Midst opened at as soon as you typed
+  (GitHub #105).
+- **A saved poem opens still**, with the cursor at the top. Before, with Check Spelling on, the cursor ran down the
+  end of every line, twice, as the poem opened (GitHub #107).
+
 # 0.9.2
 
 - **On Windows and Linux, opening a poem when Midst is closed** (for example by double-clicking it) opens the poem.

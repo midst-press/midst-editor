@@ -529,7 +529,9 @@ export const save = async (
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   } else {
-    sendToWindow(mainWindow, 'cancel-save');
+    // The poet cancelled the save dialog: the poem stays open, as it was (Annelyse, GitHub #106; editor #392). This
+    // used to send cancel-save, and the editor went Home, where an untitled poem cannot be reached again.
+    log.info('save: the poet cancelled the save dialog; the poem stays open');
   }
 };
 
