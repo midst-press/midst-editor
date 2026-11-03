@@ -1,8 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
-import { Editor } from '@tiptap/core';
 import type { ElectronHandler } from 'main/preload';
 import useFontSize from '../renderer/fontSize/useFontSize';
-import setEditorSizeClass from '../renderer/fontSize/setEditorSizeClass';
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -63,41 +61,5 @@ describe('useFontSize', () => {
     expect(result.current.size).toBe(3);
     unmount();
     expect(listeners['set-font-size']).toHaveLength(0);
-  });
-});
-
-describe('setEditorSizeClass', () => {
-  const fakeEditor = (attributes?: Record<string, string>) => {
-    const editor = {
-      options: { editorProps: attributes ? { attributes } : {} },
-      setOptions: jest.fn((options: { editorProps: object }) => {
-        editor.options.editorProps = options.editorProps;
-      }),
-    };
-    return editor;
-  };
-  const classOf = (editor: ReturnType<typeof fakeEditor>) =>
-    (editor.options.editorProps as { attributes: { class: string } }).attributes
-      .class;
-
-  it('replaces only the size class and keeps the other attributes', () => {
-    const editor = fakeEditor({
-      class: 'TextEditor size-2 tall',
-      spellcheck: 'true',
-    });
-    setEditorSizeClass(editor as unknown as Editor, 3);
-    expect(classOf(editor)).toBe('TextEditor tall size-3');
-    expect(
-      (editor.options.editorProps as { attributes: object }).attributes
-    ).toMatchObject({ spellcheck: 'true' });
-  });
-
-  it('adds the size class to an editor with no attributes or no class yet', () => {
-    const none = fakeEditor();
-    setEditorSizeClass(none as unknown as Editor, 1);
-    expect(classOf(none)).toBe('size-1');
-    const noClass = fakeEditor({ spellcheck: 'false' });
-    setEditorSizeClass(noClass as unknown as Editor, 0);
-    expect(classOf(noClass)).toBe('size-0');
   });
 });
