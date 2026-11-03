@@ -123,10 +123,14 @@ function run(script, v, extraEnv = {}) {
 // (#16, GitHub #47; Stuart, 4 Nov: the most conservative reading wherever data safety is a judgement call).
 // A kept app is named with its version: "Midst <v>.app", "Midst Beta <v>.app". A version is
 // readable only if it matches ^[0-9][0-9A-Za-z.+-]*$ (Violet, 4 Nov); otherwise the fallback name
-// is used. A taken name gets " (2)" ... " (99)".
-// The fallback name is waiting on Stuart (4 Nov): change it here, and only here.
-const FALLBACK = 'Midst (version unknown)';
-const fallback = (n) => (n ? `${FALLBACK} (${n}).app` : `${FALLBACK}.app`);
+// is used, per app: "Midst (version unknown).app", "Midst Beta (version unknown).app"
+// (cyril-9137f1ee, #402: Beta is never dropped from the name). A taken name gets " (2)" ... " (99)".
+// The fallback wording is waiting on Stuart (4 Nov): change it here, and only here.
+const UNKNOWN = '(version unknown)';
+const unknownStem = (stem = 'Midst') => `${stem} ${UNKNOWN}`;
+const fallback = (n, stem = 'Midst') =>
+  n ? `${unknownStem(stem)} (${n}).app` : `${unknownStem(stem)}.app`;
+const betaFallback = (n) => fallback(n, 'Midst Beta');
 const ours = (version) => ({ ...OURS, CFBundleShortVersionString: version });
 
 // How the warning names an app it will keep (Stuart, 4 Nov: the exact version that would be
@@ -219,14 +223,14 @@ const CASES = [
     after: [fallback()],
   })),
   {
-    name: 'Midst Beta with no version: the fallback name',
+    name: 'Midst Beta with no version: its own fallback name, Beta kept in it',
     before: { 'Midst Beta.app': {} },
-    after: [fallback()],
+    after: [betaFallback()],
   },
   {
     name: 'Midst Beta and the original are both kept, each with its own name',
     before: { 'Midst Beta.app': {}, 'Midst.app': ORIGINAL },
-    after: [fallback(), 'Midst 0.0.5.app'],
+    after: [betaFallback(), 'Midst 0.0.5.app'],
   },
   {
     name: 'Midst Beta and our Midst at the same version get distinct names',
@@ -234,9 +238,9 @@ const CASES = [
     after: ['Midst 0.2.1.app', 'Midst Beta 0.2.1.app'],
   },
   {
-    name: 'both unreadable: Beta takes the fallback name, Midst.app takes " (2)"',
+    name: 'both unreadable: each takes its own fallback name',
     before: { 'Midst Beta.app': {}, 'Midst.app': null },
-    after: [fallback(), fallback(2)],
+    after: [betaFallback(), fallback()],
   },
   {
     name: 'a kept "Midst 0.2.1" already there is never written over: " (2)"',
@@ -256,6 +260,11 @@ const CASES = [
     name: 'the fallback name already there is never written over: " (2)"',
     before: { [fallback()]: {}, 'Midst.app': null },
     after: [fallback(), fallback(2)],
+  },
+  {
+    name: 'Beta\'s fallback name already there is never written over: " (2)"',
+    before: { [betaFallback()]: {}, 'Midst Beta.app': {} },
+    after: [betaFallback(), betaFallback(2)],
   },
   {
     name: 'an app kept by an earlier release, under its old name, is left alone',
@@ -286,10 +295,18 @@ describe('older Midst: installer warning and rename agree', () => {
         ? `${names} ${many ? 'are' : 'is'} already in your Applications folder`
         : undefined
     );
+    // One sentence per app, in the same order: a version is promised only where there is one
+    // (cyril-9137f1ee, #402).
+    const sentences = expected
+      .map((l) =>
+        l.endsWith(UNKNOWN)
+          ? `${l} will be kept under that name, because its version could not be read.`
+          : `${l} will be kept, renamed to show its version.`
+      )
+      .join(' ');
     expect(result.message).toBe(
       keeps
-        ? `The new Midst will be installed as “Midst”. ${names} will be kept, renamed to show ` +
-            `${many ? 'their versions' : 'its version'}.\n\n` +
+        ? `The new Midst will be installed as “Midst”. ${sentences}\n\n` +
             `To delete ${names} instead, click Customize at the Installation Type step and tick ` +
             '“Delete the Midst that’s already installed”.'
         : undefined
@@ -322,8 +339,7 @@ describeOnMac(
       const { labels } = installerCheck(volume(before).applications);
       expect(recorded).toHaveLength(labels.length);
       labels.forEach((l, i) => {
-        const stem = l.endsWith('(version unknown)') ? FALLBACK : l;
-        const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const escaped = l.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         expect(path.basename(recorded[i])).toMatch(
           new RegExp(`^${escaped}( \\(([2-9]|[1-9][0-9])\\))?\\.app$`)
         );
@@ -404,12 +420,15 @@ describeOnMac('preinstall: the 99 names for one kept app run out', () => {
     expect(fs.readFileSync(v.record, 'utf8')).toBe('');
   });
 
-  // 98 fallback names taken, one free: Midst Beta (no version) takes the last one and has moved
-  // when Midst.app (no version) finds none. The install still stops before the new app is written,
-  // so Midst.app is never written over.
-  test('98 fallback names taken: Beta takes " (99)", then Midst.app stops the install', () => {
+  // Midst.app's 99 names taken, Beta's free: Midst Beta (no version) has moved when Midst.app
+  // (no version) finds no name. The install still stops before the new app is written, so
+  // Midst.app is never written over. Beta's own names: " (99)" is still its last.
+  test("Midst.app's names all taken: Beta moves, then Midst.app stops the install", () => {
     const taken = Object.fromEntries(
-      namesFor(FALLBACK, 98).map((n) => [n, {}])
+      [
+        ...namesFor(unknownStem(), 99),
+        ...namesFor(unknownStem('Midst Beta'), 98),
+      ].map((n) => [n, {}])
     );
     const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': null });
     const r = run(PREINSTALL, v);
@@ -419,10 +438,10 @@ describeOnMac('preinstall: the 99 names for one kept app run out', () => {
     const now = listing(v.applications);
     expect(now).toContain('Midst.app');
     expect(now).not.toContain('Midst Beta.app');
-    expect(now).toContain(fallback(99));
-    expect(now).toHaveLength(100);
+    expect(now).toContain(betaFallback(99));
+    expect(now).toHaveLength(99 + 99 + 1);
     expect(fs.readFileSync(v.record, 'utf8')).toBe(
-      `${path.join(v.applications, fallback(99))}\n`
+      `${path.join(v.applications, betaFallback(99))}\n`
     );
   });
 
@@ -430,7 +449,7 @@ describeOnMac('preinstall: the 99 names for one kept app run out', () => {
   // it refuses, moves nothing more, and still leaves no marker (alden-ec2221c7, #397).
   test('after a run that stopped part-way, the next run refuses and moves nothing more', () => {
     const taken = Object.fromEntries(
-      namesFor(FALLBACK, 98).map((n) => [n, {}])
+      namesFor(unknownStem(), 99).map((n) => [n, {}])
     );
     const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': null });
     expect(run(PREINSTALL, v).status).toBe(1);
@@ -481,7 +500,7 @@ describeOnMac('opt-in delete', () => {
     const v = installed({
       'Midst Beta.app': {},
       'Midst.app': ORIGINAL,
-      [fallback()]: {},
+      [betaFallback()]: {},
       'Midst 0.0.5.app': {},
       'Other.app': {},
     });
@@ -490,7 +509,7 @@ describeOnMac('opt-in delete', () => {
     expect(r.status).toBe(0);
     // The kept apps that were already there are not this install's to delete.
     expect(listing(v.applications)).toEqual(
-      [fallback(), 'Midst 0.0.5.app', 'Midst.app', 'Other.app'].sort()
+      [betaFallback(), 'Midst 0.0.5.app', 'Midst.app', 'Other.app'].sort()
     );
     expect(newVersion(v)).toContain('<string>0.3.0</string>');
   });
@@ -502,7 +521,7 @@ describeOnMac('opt-in delete', () => {
     expect(v.doneBeforeLate).toBe(true);
     expect(v.late.stdout).toContain('renaming nothing');
     expect(listing(v.applications)).toEqual(
-      [fallback(), 'Midst 0.2.1.app', 'Midst.app'].sort()
+      [betaFallback(), 'Midst 0.2.1.app', 'Midst.app'].sort()
     );
     expect(newVersion(v)).toContain('<string>0.3.0</string>');
     const recorded = fs
@@ -511,7 +530,7 @@ describeOnMac('opt-in delete', () => {
       .filter(Boolean);
     expect(recorded.sort()).toEqual(
       [
-        path.join(v.applications, fallback()),
+        path.join(v.applications, betaFallback()),
         path.join(v.applications, 'Midst 0.2.1.app'),
       ].sort()
     );
@@ -575,6 +594,9 @@ describeOnMac('opt-in delete', () => {
     fallback(),
     fallback(2),
     fallback(99),
+    betaFallback(),
+    betaFallback(2),
+    betaFallback(99),
   ])('deletes a recorded "%s"', (name) => {
     const v = volume({ 'Midst.app': ours('0.3.0'), [name]: {} });
     fs.writeFileSync(v.record, `${path.join(v.applications, name)}\n`);
@@ -602,7 +624,12 @@ describeOnMac('opt-in delete', () => {
     ['Midst 0.9.3 (100).app', 'Midst 0.9.3 (100).app'],
     ['Midst 0.9.3 (02).app', 'Midst 0.9.3 (02).app'],
     ['Midst 0.9.3(2).app', 'Midst 0.9.3(2).app'],
-    ['Midst Beta (version unknown).app', 'Midst Beta (version unknown).app'],
+    ['Midst Alpha (version unknown).app', 'Midst Alpha (version unknown).app'],
+    ['Midst (version unknown) (1).app', 'Midst (version unknown) (1).app'],
+    [
+      'Midst Beta (version unknown) (100).app',
+      'Midst Beta (version unknown) (100).app',
+    ],
     ['Midst (previous version).app', 'Midst (previous version).app'],
     ['Midst (previous version 2).app', 'Midst (previous version 2).app'],
     ['Midst 0.9.3', 'Midst 0.9.3'],
