@@ -47,15 +47,22 @@ changes only when the format does, never with a release.
      installer's file name.
    - The installers are under the run's **Artifacts**.
 4. **Test the candidate.** Download the artifacts, install them, and try them. For macOS, do the
-   three checks in [The macOS install test](#the-macos-install-test) below; **step 5 does not happen
-   until all three have passed on this candidate's package**. If something is wrong, fix it on a
+   three checks in [The macOS install test](#the-macos-install-test) below; **steps 5 and 6 do not happen
+   until all of them have passed on this candidate's package**. If something is wrong, fix it on a
    branch and merge it. Then build a new candidate from `main` at the same version, because nothing
    has been released yet, and test that one from the start.
-5. **Release the candidate that passed**: **Actions → release → Run workflow**, giving it that
-   package run's number (the number at the end of the run's URL). The field can be left blank: it
-   then takes the latest successful package run on `main`, and refuses if another package run on
-   `main` at the same version still has artifacts, since only you know which one you tested. Either
-   way, the run's summary starts with the run it chose, its commit, version and build time. It:
+5. **Attach the macOS install test to the Gitea release PR**, as in
+   [Recording the evidence](#recording-the-evidence).
+6. **Release the candidate that passed**, from a clone of this repository:
+
+   ```bash
+   tools/release/release.sh <package run number> <Gitea release PR number>
+   ```
+
+   This is the only way to release. It refuses to start the release unless the release PR carries
+   the install test for that exact package, and says what is missing. Then it starts the `release`
+   workflow with that package run's number (the number at the end of the run's URL). The run's
+   summary starts with the run, its commit, version and build time. The workflow:
    - checks the candidate;
    - tags its commit `v<version>`;
    - publishes a GitHub Release named `Midst <version>`, with the three installers, a
@@ -80,8 +87,8 @@ Every macOS package gets these three checks before it is released. They exist be
 candidate reported "The installation was successful" and put nothing in Applications.
 
 **No `v<version>` tag is made until the script has passed and every manual step is ticked, all on
-the package being released.** The release workflow enforces it: it refuses unless the evidence below
-is on the `release-evidence` branch (issue 414).
+the package being released.** `tools/release/release.sh` enforces it: it refuses to start the release
+unless the evidence below is attached to the Gitea release PR (issue 414).
 
 Use a Mac, or an account on one, that has no Midst installed.
 
@@ -150,7 +157,7 @@ Use a Mac, or an account on one, that has no Midst installed.
 
 ### Recording the evidence
 
-On the `release-evidence` branch, add a folder `v<version>/` holding:
+Attach these files to the Gitea release PR itself (not to a comment), under exactly these names:
 
 - `install-test.log`: the script's whole output, run with the previous release's package as well, so
   it includes the previous-release case. Its `PASSED` line names the package's sha256;
@@ -158,9 +165,9 @@ On the `release-evidence` branch, add a folder `v<version>/` holding:
   ticked (`- [x] **...**`);
 - every screenshot named above, as a PNG under exactly that name.
 
-Push it before running the release workflow. The workflow checks that each file is there, that the
-log passed for the package being released, and that every item is ticked. It cannot check what a
-screenshot shows; whoever ticks the item has looked.
+`tools/release/release.sh` checks that each file is there and not empty, that each screenshot is a
+PNG, that the log passed for the package being released, and that every item is ticked. It cannot
+check what a screenshot shows; whoever ticks the item has looked.
 
 Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and the kept
 `/Applications/Midst Beta <version>.app`), so the next candidate's test starts clean.

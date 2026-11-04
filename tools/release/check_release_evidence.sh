@@ -3,9 +3,10 @@
 # forgotten step, not a forged one (Stuart, 4 Nov). Whether a screenshot shows the right thing is for
 # a person to look at; the ticked checklist item is that person's word.
 #
-#     tools/check_release_evidence.sh <evidence dir> <pkg sha256> <releasing.md>
+#     tools/release/check_release_evidence.sh <evidence dir> <pkg sha256> <releasing.md>
 #
-# The evidence dir is v<version>/ from the release-evidence branch. It must hold:
+# The evidence dir holds the attachments of the Gitea release PR (tools/release/release.sh fetches
+# them). It must hold:
 #   - install-test.log: tools/check_installed_package.sh's whole output, with
 #     "check_installed_package: PASSED <pkg> sha256 <the pkg's sha256>" and
 #     "check_installed_package: previous release <version>: PASSED";
@@ -21,7 +22,7 @@ say() { echo "check_release_evidence: $*" >&2; }
 dir=${1%/} sha=$2 doc=$3
 [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || { say "not a sha256: $sha"; exit 2; }
 [ -r "$doc" ] || { say "cannot read $doc"; exit 2; }
-[ -d "$dir" ] || { say "REFUSED: no evidence directory $dir on the release-evidence branch"; exit 1; }
+[ -d "$dir" ] || { say "REFUSED: no evidence directory $dir"; exit 1; }
 
 # What releasing.md requires, from its install-test section only.
 section=$(awk '/^## The macOS install test/ { on = 1; next } /^## / { on = 0 } on' "$doc") \
@@ -65,6 +66,6 @@ if [ ${#missing[@]} -eq 0 ]; then
   echo "check_release_evidence: $dir holds a passing install test of sha256 $sha, the ticked checklist and every screenshot"
   exit 0
 fi
-say "REFUSED. Missing from $dir on the release-evidence branch (see docs/releasing.md):"
+say "REFUSED. Missing from the release PR's attachments (see docs/releasing.md):"
 for m in "${missing[@]}"; do say "  - $m"; done
 exit 1
