@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom';
 import { useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import App from '../renderer/App';
+import WindowTitle from '../renderer/WindowTitle';
 import { RETURN_TO, TextContext } from '../renderer/context';
 
 // #125: the window title is set in one place, from App's file name and the route. These drive App as the
@@ -197,5 +198,18 @@ describe('the window title (#125)', () => {
     fireEvent.click(screen.getByText('type'));
     emit('set-filename', 'xv.midst');
     expect(titles).toHaveLength(count);
+  });
+});
+
+// GitHub #113: "(unsaved changes)" is for a saved poem with edits not yet saved. Nothing in App shows it yet, so the
+// component is given the flag directly.
+describe('the unsaved-changes flag (#421)', () => {
+  it('says a named poem has unsaved changes, apart from its name', () => {
+    render(
+      <MemoryRouter initialEntries={['/editor']}>
+        <WindowTitle filename="zq.midst" flag="unsavedChanges" />
+      </MemoryRouter>
+    );
+    expect(last()).toBe('zq.midst* (unsaved changes)');
   });
 });
