@@ -94,7 +94,7 @@ describe('showAbout', () => {
   it('opens the guide on midst.press when User Guide is chosen, and copies nothing (#102, #111)', async () => {
     showMessageBox.mockResolvedValue({ response: 2 });
     await showAbout(fakeWindow);
-    expect(openExternal).toHaveBeenCalledWith('https://www.midst.press/app');
+    expect(openExternal).toHaveBeenCalledWith('https://midst.press/app');
     expect(writeText).not.toHaveBeenCalled();
   });
 
@@ -102,6 +102,6 @@ describe('showAbout', () => {
     setPackaged(false);
     showMessageBox.mockResolvedValue({ response: 2 });
     await showAbout(fakeWindow);
-    expect(openExternal).toHaveBeenCalledWith('https://www.midst.press/app');
+    expect(openExternal).toHaveBeenCalledWith('https://midst.press/app');
   });
 });

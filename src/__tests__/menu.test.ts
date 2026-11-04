@@ -2037,7 +2037,7 @@ describe('the menu', () => {
       );
       sub(template, helpTop, 'Documentation').click!();
       expect(shell.openExternal).toHaveBeenLastCalledWith(
-        'https://www.midst.press/app'
+        'https://midst.press/app'
       );
     });
 
@@ -2051,7 +2051,7 @@ describe('the menu', () => {
       try {
         sub(build(platform), helpTop, 'Documentation').click!();
         expect(shell.openExternal).toHaveBeenLastCalledWith(
-          'https://www.midst.press/app'
+          'https://midst.press/app'
         );
       } finally {
         delete packaged.isPackaged;
