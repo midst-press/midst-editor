@@ -217,7 +217,7 @@ export default function Replay() {
           following={follow.on}
           toggleFollowing={follow.toggle}
         />
-        <div className={`ReplayContainer size-${fontSize.size}`}>
+        <div className="ReplayContainer">
           <EditorContent editor={editor} />
         </div>
         <Grow mountOnEnter in>
