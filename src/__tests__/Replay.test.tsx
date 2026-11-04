@@ -1404,6 +1404,22 @@ describe('Replay: listeners', () => {
 // A pace control opened with the mouse stays open (vivian-1a61bc9a, #437): useReplayKeys blurs a button clicked
 // with the mouse, and that blur must not close the slider the same click opened.
 describe('Replay: the pace controls (GitHub #49, editor #427)', () => {
+  it('Escape after a mouse click closes the slider and stays on the Timeline (#437)', () => {
+    mount();
+    const button = screen.getByRole('button', { name: 'Frame rate' });
+    button.focus();
+    fireEvent.click(button, { detail: 1 });
+    expect(
+      screen.getByRole('slider', { name: 'Frame rate', hidden: true })
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(
+      screen.queryByRole('slider', { name: 'Frame rate', hidden: true })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('EDITOR PAGE')).not.toBeInTheDocument();
+    expect(playButton()).toBeInTheDocument();
+  });
+
   it.each(['Frame rate', 'Scroll speed'])(
     '%s opens on a mouse click, stays open, and a click outside closes it',
     (label) => {
