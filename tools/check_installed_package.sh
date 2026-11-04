@@ -11,8 +11,8 @@
 # installer's windows) is a manual step in docs/releasing.md.
 #
 # What it checks, one line per step:
-#   1  the package: signed, accepted by Gatekeeper, NOT relocatable, and holding the expected
-#      version and bundle identifier. If any of these fails, nothing is installed.
+#   1  the package: signed, accepted by Gatekeeper, NOT relocatable, NOT version-checked, and holding
+#      the expected version and bundle identifier. If any of these fails, nothing is installed.
 #   2  control: on this Mac, today, a relocatable package really does update a copy elsewhere and
 #      a fixed one really does not. Done with an empty app under an invalid.example identifier.
 #      Without it, step 3's "the old copy was left alone" could pass only because the installer
@@ -164,6 +164,12 @@ case $? in
   0) pass "1 not relocatable" ;;
   1) fail "1 the package is RELOCATABLE: it would update a copy of Midst found anywhere and put nothing in Applications" ;;
   *) give_up "the relocation check could not run: $(tr '\n' ' ' < "$work/relocatable.txt")" ;;
+esac
+"$here/check_pkg_not_version_checked.sh" "$pkg" > "$work/version-checked.txt" 2>&1
+case $? in
+  0) pass "1 not version-checked" ;;
+  1) fail "1 the package is VERSION-CHECKED: over a newer Midst it keeps that one and writes nothing, leaving no Midst in Applications" ;;
+  *) give_up "the version-check check could not run: $(tr '\n' ' ' < "$work/version-checked.txt")" ;;
 esac
 pkgutil --expand "$pkg" "$work/expanded" > /dev/null 2>&1 || give_up "could not expand $pkg"
 bundle_line=$(grep -h '<bundle path=' "$work"/expanded/*/PackageInfo 2> /dev/null)
