@@ -700,6 +700,11 @@ describe('Distribution edit', () => {
     expect(out.querySelector('options').getAttribute('customize')).toBe(
       'allow'
     );
+    // The Distribution uses JavaScript (the installation check, the delete choice's visible=), which
+    // Apple's <options> require-scripts says it must declare (#404).
+    expect(out.querySelector('options').getAttribute('require-scripts')).toBe(
+      'true'
+    );
     expect(
       out.querySelector('choice[id="default"]').getAttribute('enabled')
     ).toBe('false');
@@ -745,6 +750,18 @@ describe('Distribution edit', () => {
         '0.3.0'
       )
     ).toThrow(/customize="never"/);
+    // Anything but the "false" electron-builder writes means the generated file changed shape.
+    ['require-scripts="true"', 'require-scripts="yes"', ''].forEach(
+      (replacement) => {
+        expect(() =>
+          editDistribution(
+            GENERATED.replace('require-scripts="false"', replacement),
+            checkJs,
+            '0.3.0'
+          )
+        ).toThrow(/require-scripts="false"/);
+      }
+    );
     expect(() =>
       editDistribution(
         GENERATED.replace('</choices-outline>', ''),
