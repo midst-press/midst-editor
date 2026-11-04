@@ -38,6 +38,8 @@
   width: 100%;
   display: flex;
   flex-direction: column;
+  /* The poem's size (#390), set on an ancestor by PoemSizeContext, as in Editor.css. */
+  font-size: var(--poem-size, 16px);
 }
 
 .ControlBar {
@@ -128,23 +130,6 @@
   margin: 0;
 }
 
-.size-0 {
-  font-size: 10px;
-  /* line-height: 15; */
-}
-.size-1 {
-  font-size: 12px;
-}
-.size-2 {
-  font-size: 16px;
-}
-.size-3 {
-  font-size: 24px;
-}
-.size-4 {
-  font-size: 32px;
-}
-
 /* The drafts list beside the poem and the timeline, never over them (#313, GitHub #85): the poem and the control
    bar take the width that is left. */
 .ReplayLayout {
@@ -221,16 +206,62 @@
   white-space: nowrap;
 }
 
-/* A Draft Marker's name on the timeline (GitHub #95): pale yellow, a little padding, a pale pink outline. Dark text
-   in either appearance, on the yellow. */
+/* A Draft Marker's name on the timeline (GitHub #95): in the timestamp's colours, a little padding, a pink outline. */
 .draft-mark-label,
 .draft-mark-name {
-  background-color: var(--midst-draft-marker);
+  background-color: var(--midst-surface);
   border: 1px solid var(--midst-primary-dark);
   border-radius: 4px;
-  padding: 1px 6px;
-  color: var(--midst-on-draft-marker);
+  /* Room above and below the name for the bubble's point, which covers the middle of the outline. */
+  padding: 3px 6px;
+  color: var(--midst-text-primary);
   font: inherit;
+}
+
+/* The name is typed in the middle of its field, as it shows once named (GitHub #95). */
+.draft-mark-name {
+  text-align: center;
+}
+
+/* The point that makes the name a speech bubble, on the side facing the line, drawn as the timestamp's is (MUI's
+   value label, a square turned on its corner). It covers the outline where it meets it, as the timestamp's does. */
+.names-above .MuiSlider-markLabel::after,
+.names-below .MuiSlider-markLabel::after {
+  position: absolute;
+  content: '';
+  width: 8px;
+  height: 8px;
+  left: 50%;
+  background-color: var(--midst-surface);
+  pointer-events: none;
+}
+
+.names-above .MuiSlider-markLabel::after {
+  bottom: 0;
+  transform: translate(-50%, 50%) rotate(45deg);
+}
+
+.names-below .MuiSlider-markLabel::after {
+  top: 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* With the names below the line, the timeline moves up by as much as they reach below it, so the space under
+   the bottom of the page stays as it was (GitHub #95), and back down when they go. Animated only for that move,
+   never for a window being resized. */
+.timeline-moving .HistoryDisplay {
+  transition: height 0.2s ease;
+}
+
+.names-below-lift .history-height-tall,
+.names-below-lift .history-height-short {
+  height: calc(100vh - 182px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-moving .HistoryDisplay {
+    transition: none;
+  }
 }
 
 .draft-mark-label {

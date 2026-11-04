@@ -10,6 +10,8 @@ interface Props {
   label: string;
   // This marker's name is open for typing on the timeline.
   naming: boolean;
+  // It was made just now, and is being named for the first time.
+  isNew: boolean;
   onJump: (index: number) => void;
   onStartNaming: (index: number) => void;
   // Enter, or leaving the field: keep what was typed. Only Enter is a choice to be done (GitHub #95).
@@ -17,6 +19,8 @@ interface Props {
   // Escape: keep the name it had.
   onCancel: (index: number) => void;
   onDelete: (index: number) => void;
+  // Undo before anything was typed: take back the new marker (GitHub #95).
+  onUndoNew: (index: number) => void;
 }
 /* eslint-enable no-unused-vars */
 
@@ -30,11 +34,13 @@ export default function MarkerLabel({
   index,
   label,
   naming,
+  isNew,
   onJump,
   onStartNaming,
   onFinish,
   onCancel,
   onDelete,
+  onUndoNew,
 }: Props) {
   const [typed, setTyped] = useState(label);
   const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(
@@ -43,6 +49,8 @@ export default function MarkerLabel({
   // Enter and Escape both end the typing; a blur after them must not count a second time. A ref, not state, so a
   // blur handled in the same render still sees it (vivian-1a61bc9a, review of #348).
   const done = useRef(false);
+  // Something has been typed since the field opened: from then on Undo is the field's own (GitHub #95).
+  const edited = useRef(false);
   const [typingFor, setTypingFor] = useState(naming);
   if (naming !== typingFor) {
     setTypingFor(naming);
@@ -62,10 +70,14 @@ export default function MarkerLabel({
         value={typed}
         size={Math.max(typed.length, 4)}
         onMouseDown={keepFromSlider}
-        onChange={(e) => setTyped(e.target.value)}
+        onChange={(e) => {
+          edited.current = true;
+          setTyped(e.target.value);
+        }}
         onFocus={(e) => {
-          // A field opening for a new round of typing: nothing has ended it yet.
+          // A field opening for a new round of typing: nothing has ended it yet, or been typed.
           done.current = false;
+          edited.current = false;
           e.target.select();
         }}
         onBlur={() => {
@@ -83,6 +95,24 @@ export default function MarkerLabel({
           if (e.key === 'Escape') {
             done.current = true;
             onCancel(index);
+          }
+          // Undo on a new marker's name, before anything is typed: undo the making of it, as though the button had
+          // not been pressed (GitHub #95). Once something is typed, Undo is the field's own, for the typing, even
+          // typed back to the name it was given.
+          const undoKey = window.electron.versions.isMac
+            ? e.metaKey && !e.ctrlKey
+            : e.ctrlKey && !e.metaKey;
+          if (
+            isNew &&
+            undoKey &&
+            !e.shiftKey &&
+            !e.altKey &&
+            e.key.toLowerCase() === 'z' &&
+            !edited.current
+          ) {
+            e.preventDefault();
+            done.current = true;
+            onUndoNew(index);
           }
         }}
       />
