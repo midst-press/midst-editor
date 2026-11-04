@@ -66,11 +66,16 @@ export default function useReplayKeys(
       }
     }
 
-    // After the control's own handler, so focus it moved elsewhere (a name field opening) is left alone.
+    // After the control's own handler, so focus it moved elsewhere (a name field opening) is left alone. The control
+    // is found on the event's path, fixed when the click was dispatched: Play's icon is swapped for Pause's by then,
+    // so the clicked icon is no longer inside the button and closest() from it finds nothing (GitHub #98, 4 Nov).
     function handleClick(e: MouseEvent) {
       if (e.detail === 0) return;
-      const control = (e.target as HTMLElement | null)?.closest?.(
-        'button, input[type="checkbox"]'
+      const control = e.composedPath().find(
+        (node): node is HTMLElement =>
+          node instanceof HTMLElement &&
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- a CSS selector, not text for the poet
+          node.matches('button, input[type="checkbox"]')
       );
       if (control instanceof HTMLElement && document.activeElement === control)
         control.blur();
