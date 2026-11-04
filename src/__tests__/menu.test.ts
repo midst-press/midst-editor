@@ -1630,13 +1630,13 @@ describe('the menu', () => {
         ]);
         view[2].click!();
         expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-font-size',
-          '3'
+          'step-font-size',
+          'up'
         );
         view[3].click!();
         expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-font-size',
-          '2'
+          'step-font-size',
+          'down'
         );
       });
     });
@@ -2016,24 +2016,24 @@ describe('the menu', () => {
       expect(win.setFullScreen).toHaveBeenLastCalledWith(false);
     });
 
-    it('text size buttons step the stored size and tell the renderer', () => {
+    // The size belongs to the open poem (#390): the window takes the step, and the menu stores nothing.
+    it('text size buttons tell the window which way to step, and store nothing', () => {
+      mockStore.set('font-size', '20');
       const win = makeWindow();
       const template = build(platform, win);
       const inc = sub(template, viewTop, 'Increase text size');
       const dec = sub(template, viewTop, 'Decrease text size');
       inc.click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '3'
+        'step-font-size',
+        'up'
       );
-      expect(Number(mockStore.get('font-size'))).toBe(3);
-      dec.click!();
       dec.click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '1'
+        'step-font-size',
+        'down'
       );
-      expect(Number(mockStore.get('font-size'))).toBe(1);
+      expect(mockStore.get('font-size')).toBe('20');
     });
 
     it('Help links open the project pages in the browser', () => {
@@ -2126,80 +2126,26 @@ describe('the menu', () => {
       expect(win.setFullScreen).toHaveBeenCalledWith(true);
       sub(template, viewTop, 'Increase text size').click!();
       sub(template, viewTop, 'Decrease text size').click!();
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '3');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '2');
+      expect(win.webContents.send).toHaveBeenCalledWith('step-font-size', 'up');
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        'step-font-size',
+        'down'
+      );
     });
   });
 
   describe('font size limits', () => {
-    it('Increase stops at 4', () => {
-      mockStore.set('font-size', '4');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Increase text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      expect(mockStore.get('font-size')).toBe('4');
-    });
-
-    it('a stored size that is not a size is read as the default, not stepped into NaN', () => {
-      mockStore.set('font-size', 'abc');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Increase text size').click!();
-      expect(mockStore.get('font-size')).toBe('3');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '3');
-    });
-
-    it('Decrease stops at 0', () => {
-      mockStore.set('font-size', '0');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Decrease text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      expect(mockStore.get('font-size')).toBe('0');
-    });
-
-    it('Increase and Decrease both store the size as a string, as the renderer does', () => {
-      const win = makeWindow();
-      const template = build('linux', win);
-      sub(template, '&View', 'Increase text size').click!();
-      expect(mockStore.get('font-size')).toBe('3');
-      sub(template, '&View', 'Decrease text size').click!();
-      expect(mockStore.get('font-size')).toBe('2');
-    });
-
-    it('reads a stored number 0 as size 0, not as unset', () => {
-      mockStore.set('font-size', 0);
-      const win = makeWindow();
-      const template = build('linux', win);
-      sub(template, '&View', 'Decrease text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      sub(template, '&View', 'Increase text size').click!();
-      expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '1'
-      );
-      expect(mockStore.get('font-size')).toBe('1');
-    });
-
-    it('reads an empty stored size as unset, so the default of 2 applies', () => {
-      mockStore.set('font-size', '');
+    // The limits are the window's since #390 (fontSize.test.ts, PoemSizeContext.test.tsx): at the
+    // largest size the menu still sends the step, and the window ignores it.
+    it('sends the step whatever size is stored', () => {
+      mockStore.set('font-size', '36');
       const win = makeWindow();
       sub(build('linux', win), '&View', 'Increase text size').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '3'
+        'step-font-size',
+        'up'
       );
-    });
-
-    it('Increase reaches 4 from the default of 2 and then stops', () => {
-      const win = makeWindow();
-      const inc = sub(build('linux', win), '&View', 'Increase text size');
-      inc.click!();
-      inc.click!();
-      inc.click!();
-      expect(win.webContents.send).toHaveBeenCalledTimes(2);
-      expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '4'
-      );
+      expect(mockStore.get('font-size')).toBe('36');
     });
     // Focus Mode (GitHub #25): a checkbox that hides every interface option except the moon.
     // It is never stored (a poem must not save its focus mode status); the mark in the built

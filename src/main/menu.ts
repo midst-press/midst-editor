@@ -19,7 +19,6 @@ import {
 } from '@midst-press/midst-format/convert';
 import store from './store';
 import { DOCUMENT_KEYS } from '../shared/storeSchema';
-import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
 import replaceFile from './replaceFile';
@@ -147,14 +146,9 @@ export const requestFocusMode = (mainWindow: BrowserWindow) => {
   setFocusMode(mainWindow, on);
 };
 
-const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
+// The size belongs to the open poem (#390), which the window holds, so the window takes the step.
 const increaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = storedFontSize();
-  if (fontSize >= MAX_FONT_SIZE) {
-    return;
-  }
-  store.set('font-size', String(fontSize + 1));
-  sendToWindow(mainWindow, 'set-font-size', String(fontSize + 1));
+  sendToWindow(mainWindow, 'step-font-size', 'up');
 };
 // Light, dark or the OS's (GitHub #16). nativeTheme decides what prefers-color-scheme matches in the
 // renderer, so the stylesheet and the MUI theme follow it with no message of their own.
@@ -189,13 +183,7 @@ const APPEARANCE_LABELS: Record<Appearance, () => string> = {
 };
 
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = storedFontSize();
-
-  if (fontSize <= MIN_FONT_SIZE) {
-    return;
-  }
-  store.set('font-size', String(fontSize - 1));
-  sendToWindow(mainWindow, 'set-font-size', String(fontSize - 1));
+  sendToWindow(mainWindow, 'step-font-size', 'down');
 };
 
 // A document that is not in the store is not an empty document. newFile stores '' and '[]' for a
