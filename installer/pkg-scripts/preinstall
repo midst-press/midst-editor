@@ -58,7 +58,12 @@ fi
 
 version_of() { # <app>: prints its version if it is safe in a file name, or fails
   local v
-  v=$(plutil -extract CFBundleShortVersionString raw -o - "$1/Contents/Info.plist" 2> /dev/null) || return 1
+  # $(...) strips every trailing newline, which would turn a version such as "1\n" into a valid "1"
+  # (alden-ec2221c7, #402). The "x" keeps them; then exactly the one newline plutil adds is removed,
+  # and the value is checked as the plist holds it, as the installer warning checks it.
+  v=$(plutil -extract CFBundleShortVersionString raw -o - "$1/Contents/Info.plist" 2> /dev/null && printf x) || return 1
+  v=${v%x}
+  v=${v%$'\n'}
   [[ "$v" =~ ^[0-9][0-9A-Za-z.+-]*$ ]] || return 1
   echo "$v"
 }
