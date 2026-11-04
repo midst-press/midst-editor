@@ -240,7 +240,8 @@
 
 /* The point that makes the name a speech bubble, on the side facing the line, drawn as the timestamp's is (MUI's
    value label, a square turned on its corner). It covers the outline where it meets it, as the timestamp's does. */
-.MuiSlider-markLabel::after {
+.names-above .MuiSlider-markLabel::after,
+.names-below .MuiSlider-markLabel::after {
   position: absolute;
   content: '';
   width: 8px;
