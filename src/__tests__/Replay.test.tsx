@@ -1,12 +1,17 @@
 import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import type { ReactNode } from 'react';
 import type { ElectronHandler } from 'main/preload';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { emptyFirstFrame } from '../shared/firstFrame';
 import { findInReplay } from '../renderer/search/FindNotHere';
 import Replay from '../renderer/components/Replay';
+import {
+  PoemSizeContext,
+  usePoemSizeState,
+} from '../renderer/fontSize/PoemSizeContext';
 import { HistoryContext, TextContext } from '../renderer/context';
 
 // A listener of any channel, called as the window would call it.
@@ -115,23 +120,34 @@ let bridge: ReturnType<typeof installBridge>;
 let setText: jest.Mock;
 let setPoemHistory: jest.Mock;
 
+// The size belongs to the poem, held above the screens as App holds it (#390).
+function WithPoemSize({ children }: { children: ReactNode }) {
+  return (
+    <PoemSizeContext.Provider value={usePoemSizeState()}>
+      {children}
+    </PoemSizeContext.Provider>
+  );
+}
+
 const mount = (
   history: ChangeObj[] = makeHistory(LONG),
   state: unknown = undefined
 ) =>
   render(
-    <MemoryRouter initialEntries={[{ pathname: '/replay', state }]}>
-      <TextContext.Provider value={{ text: '<p>POEM</p>', setText }}>
-        <HistoryContext.Provider
-          value={{ poemHistory: history, setPoemHistory }}
-        >
-          <Routes>
-            <Route path="/replay" element={<Replay />} />
-            <Route path="/editor" element={<div>EDITOR PAGE</div>} />
-          </Routes>
-        </HistoryContext.Provider>
-      </TextContext.Provider>
-    </MemoryRouter>
+    <WithPoemSize>
+      <MemoryRouter initialEntries={[{ pathname: '/replay', state }]}>
+        <TextContext.Provider value={{ text: '<p>POEM</p>', setText }}>
+          <HistoryContext.Provider
+            value={{ poemHistory: history, setPoemHistory }}
+          >
+            <Routes>
+              <Route path="/replay" element={<Replay />} />
+              <Route path="/editor" element={<div>EDITOR PAGE</div>} />
+            </Routes>
+          </HistoryContext.Provider>
+        </TextContext.Provider>
+      </MemoryRouter>
+    </WithPoemSize>
   );
 
 // The Settings panel, for its own list of drafts: the timeline names them too (GitHub #95).
@@ -464,87 +480,69 @@ describe('Replay: playback', () => {
   });
 });
 
+// The stepping itself, and what it writes, is PoemSizeContext.test.tsx's (#390).
 describe('Replay: text size', () => {
-  it('starts at the stored size', () => {
-    bridge = installBridge({ 'font-size': '4', meta: '' });
-    const { container } = mount();
-    expect(container.querySelector('.ReplayContainer')).toHaveClass('size-4');
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeDisabled();
+  const poemSize = () =>
+    document.documentElement.style.getPropertyValue('--poem-size');
+  const up = () => screen.getByRole('button', { name: 'Increase text size' });
+  const down = () => screen.getByRole('button', { name: 'Decrease text size' });
+
+  afterEach(() => {
+    document.documentElement.style.removeProperty('--poem-size');
   });
 
-  it.each([[undefined], [''], ['9'], ['abc']])(
-    'uses the default size 2 when the stored size is %p',
-    (stored) => {
-      bridge = installBridge({ 'font-size': stored, meta: '' });
-      const { container } = mount();
-      expect(container.querySelector('.ReplayContainer')).toHaveClass('size-2');
-    }
-  );
-
-  it('accepts a stored 0 as the smallest size', () => {
-    bridge = installBridge({ 'font-size': 0, meta: '' });
+  it('shows the poem at its own size, and leaves the container without a size class', () => {
+    bridge = installBridge({
+      'font-size': '11',
+      meta: JSON.stringify({ fontSize: 28 }),
+    });
     const { container } = mount();
-    expect(container.querySelector('.ReplayContainer')).toHaveClass('size-0');
-    expect(
-      screen.getByRole('button', { name: 'Decrease text size' })
-    ).toBeDisabled();
+    expect(poemSize()).toBe('28px');
+    expect(container.querySelector('.ReplayContainer')?.className).toBe(
+      'ReplayContainer'
+    );
   });
 
-  it('stores each step up and down as a string', () => {
-    const { container } = mount();
-    fireEvent.click(screen.getByRole('button', { name: 'Increase text size' }));
-    expect(container.querySelector('.ReplayContainer')).toHaveClass('size-3');
-    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
-    expect(container.querySelector('.ReplayContainer')).toHaveClass('size-1');
-    expect(bridge.calls).toEqual([
-      ['store.set', 'font-size', '3'],
-      ['store.set', 'font-size', '2'],
-      ['store.set', 'font-size', '1'],
-    ]);
+  it("steps the poem's size from its buttons", () => {
+    bridge = installBridge({ 'font-size': '20', meta: '' });
+    mount();
+    fireEvent.click(up());
+    expect(poemSize()).toBe('24px');
+    fireEvent.click(down());
+    fireEvent.click(down());
+    expect(poemSize()).toBe('16px');
   });
 
   // #273, GitHub #66: at a limit the button says why it cannot be used.
   it('at the largest size, the increase button says so and looks unavailable', () => {
-    bridge = installBridge({ 'font-size': '4', meta: '' });
+    bridge = installBridge({ 'font-size': '36', meta: '' });
     mount();
-    const up = screen.getByRole('button', { name: 'Increase text size' });
-    const down = screen.getByRole('button', { name: 'Decrease text size' });
-    expect(up).toHaveAccessibleDescription(
+    expect(up()).toBeDisabled();
+    expect(up()).toHaveAccessibleDescription(
       'The text is already at its largest size.'
     );
-    expect(up).toHaveStyle({ opacity: '0.38' });
-    expect(down).toHaveAccessibleDescription('');
-    expect(down).not.toHaveStyle({ opacity: '0.38' });
+    expect(up()).toHaveStyle({ opacity: '0.38' });
+    expect(down()).toHaveAccessibleDescription('');
+    expect(down()).not.toHaveStyle({ opacity: '0.38' });
   });
 
   it('at the smallest size, the decrease button says so and looks unavailable', () => {
-    bridge = installBridge({ 'font-size': '0', meta: '' });
+    bridge = installBridge({ 'font-size': '10', meta: '' });
     mount();
-    const down = screen.getByRole('button', { name: 'Decrease text size' });
-    expect(down).toHaveAccessibleDescription(
+    expect(down()).toBeDisabled();
+    expect(down()).toHaveAccessibleDescription(
       'The text is already at its smallest size.'
     );
-    expect(down).toHaveStyle({ opacity: '0.38' });
+    expect(down()).toHaveStyle({ opacity: '0.38' });
   });
 
   it('MUI no longer warns about a disabled button inside a tooltip (#273)', () => {
     const errors = jest.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      bridge = installBridge({ 'font-size': '4', meta: '' });
+      bridge = installBridge({ 'font-size': '12', meta: '' });
       mount([]);
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Decrease text size' })
-      );
-      for (let i = 0; i < 4; i += 1)
-        fireEvent.click(
-          screen.getByRole('button', { name: 'Decrease text size' })
-        );
-      expect(
-        screen.getByRole('button', { name: 'Decrease text size' })
-      ).toBeDisabled();
+      for (let i = 0; i < 3; i += 1) fireEvent.click(down());
+      expect(down()).toBeDisabled();
       const warned = errors.mock.calls.filter((c) =>
         String(c[0]).includes('disabled `button` child')
       );
@@ -554,23 +552,11 @@ describe('Replay: text size', () => {
     }
   });
 
-  it('stops at 4 and at 0 without storing anything past the limit', () => {
-    bridge = installBridge({ 'font-size': '3', meta: '' });
+  it('follows a step chosen from the application menu', () => {
+    bridge = installBridge({ 'font-size': '20', meta: '' });
     mount();
-    const up = screen.getByRole('button', { name: 'Increase text size' });
-    const down = screen.getByRole('button', { name: 'Decrease text size' });
-    fireEvent.click(up);
-    expect(up).toBeDisabled();
-    fireEvent.click(up);
-    for (let i = 0; i < 6; i += 1) fireEvent.click(down);
-    expect(down).toBeDisabled();
-    expect(bridge.calls.map((c) => c[2])).toEqual(['4', '3', '2', '1', '0']);
-  });
-
-  it('follows a size chosen from the application menu', () => {
-    const { container } = mount();
-    bridge.emit('set-font-size', 4);
-    expect(container.querySelector('.ReplayContainer')).toHaveClass('size-4');
+    bridge.emit('step-font-size', 'up');
+    expect(poemSize()).toBe('24px');
   });
 });
 
@@ -1213,14 +1199,22 @@ describe('Replay: listeners', () => {
       (c) => bridge.listeners[c].length > 0
     );
     expect(registered).toEqual(
-      expect.arrayContaining(['open-file', 'toggle-edit-mode', 'set-font-size'])
+      expect.arrayContaining([
+        'open-file',
+        'toggle-edit-mode',
+        'step-font-size',
+      ])
     );
     view.unmount();
     Object.keys(bridge.listeners).forEach((channel) =>
       expect(bridge.listeners[channel]).toHaveLength(0)
     );
     expect(bridge.removed).toEqual(
-      expect.arrayContaining(['open-file', 'toggle-edit-mode', 'set-font-size'])
+      expect.arrayContaining([
+        'open-file',
+        'toggle-edit-mode',
+        'step-font-size',
+      ])
     );
   });
 
