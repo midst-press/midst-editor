@@ -11,6 +11,7 @@ import {
   MetaStore,
   readStoredMeta,
 } from '../tracking/markerStore';
+import { StoreSchema } from '../../shared/storeSchema';
 import { fontFamilyOf, poemFontStack, withFontFamily } from './poemFont';
 
 // The open poem's font, shared by the editor, Replay and the font picker. The main process holds the
@@ -18,6 +19,18 @@ import { fontFamilyOf, poemFontStack, withFontFamily } from './poemFont';
 // counted as an unsaved change and saved, as a draft-marker change is (markerStore.ts).
 
 export type ChooseResult = 'saved' | 'meta-unreadable';
+
+// The document's meta, and 'font-family': the last font the poet chose, which a new poem starts in
+// (GitHub #48, editor #390). '' is the app's own font.
+/* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
+export interface FontStore {
+  get(key: 'meta'): unknown;
+  set<K extends 'meta' | 'edited' | 'font-family'>(
+    key: K,
+    value: StoreSchema[K]
+  ): unknown;
+}
+/* eslint-enable no-unused-vars */
 
 export interface PoemFont {
   family: string | null;
@@ -45,7 +58,7 @@ const saveDocument = () =>
 
 // App calls this before it checks that the preload ran, so it must work without window.electron.
 export function usePoemFontState(
-  store: MetaStore | undefined = window.electron?.store
+  store: FontStore | undefined = window.electron?.store
 ): PoemFont {
   const [family, setFamily] = useState(() => storedFamily(store));
 
@@ -77,6 +90,7 @@ export function usePoemFontState(
         saveDocument
       );
       if (!result.ok) return 'meta-unreadable';
+      store.set('font-family', next ?? '');
       setFamily(next);
       return 'saved';
     },
