@@ -347,6 +347,40 @@ async function caretAt(win: Win, where: 'start' | 'end') {
     .toBe(true);
 }
 
+// The caret to the end of `line` (0-based), as a poet puts it there: a click on the line, then the end of the line,
+// which on macOS is Cmd+Right (End goes to the end of the poem). Waited out until ProseMirror's own selection is there.
+async function caretToEndOfLine(win: Win, line: number) {
+  await win.locator('.ProseMirror p').nth(line).click();
+  await win.keyboard.press(
+    process.platform === 'darwin' ? 'Meta+ArrowRight' : 'End'
+  );
+  await expect
+    .poll(
+      () =>
+        win.evaluate((n) => {
+          const { state } = (
+            document.querySelector('.ProseMirror') as unknown as {
+              editor: {
+                state: {
+                  selection: { head: number };
+                  // eslint-disable-next-line no-unused-vars -- a type's parameter name, not a variable
+                  doc: { child(i: number): { nodeSize: number } };
+                };
+              };
+            }
+          ).editor;
+          let end = 0;
+          for (let i = 0; i <= n; i += 1) end += state.doc.child(i).nodeSize;
+          return state.selection.head === end - 1;
+        }, line),
+      {
+        message: `the caret never reached the end of line ${line}`,
+        timeout: 5_000,
+      }
+    )
+    .toBe(true);
+}
+
 // The poem's lines as the page shows them, for a failure message.
 const linesShown = (win: Win) =>
   win.evaluate(() =>
@@ -497,6 +531,58 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     } finally {
       await app.close();
     }
+  });
+
+  // Her text exactly (GitHub #71, 4 Nov): two misspelled words, each the whole line, no space after either; the
+  // caret put at the end of the first, then Return. Run with and without the trailing space, which is the one
+  // difference from case 4 above. The moved line is sampled until well after checkLinesAfterBreaks has run (its
+  // BREAK_PAUSE_MS is 500 ms), because a poll that passes on the first marked sample cannot see a mark that goes.
+  ['', ' '].forEach((after) => {
+    test(`case 4 as she typed it${after ? ', with a trailing space' : ''}: the moved line keeps its mark`, async () => {
+      const { app, win, userData } = await openPoem(
+        `split-exact${after ? '-space' : ''}`
+      );
+      try {
+        await turnSpellcheckOn(app, win, userData);
+        await markingHasBegun(app, win);
+        await win.locator('.ProseMirror').click();
+        await win.keyboard.press(
+          process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
+        );
+        await caretAt(win, 'end');
+        // At a poet's pace, not all at once.
+        await win.keyboard.press('Enter');
+        await win.keyboard.type(`dlskfaj${after}`, { delay: 120 });
+        await win.keyboard.press('Enter');
+        await win.keyboard.type(`sdfa${after}`, { delay: 120 });
+        await caretToEndOfLine(win, 1);
+        await hideText(win);
+        // CONTROL: sdfa is marked before the break. If it never is, her case cannot be set up this way.
+        await expect
+          .poll(async () => (await redPerLine(app, win))[2], {
+            message: `sdfa was never marked before the break; lines: ${await linesShown(win)}`,
+            timeout: 5_000,
+          })
+          .toBeGreaterThan(0);
+        await win.keyboard.press('Enter');
+        const samples: number[] = [];
+        const until = Date.now() + 2_500;
+        while (Date.now() < until) {
+          // eslint-disable-next-line no-await-in-loop -- samples in time order
+          samples.push((await redPerLine(app, win))[3] ?? 0);
+        }
+        expect(
+          samples.length,
+          'too few samples to see a mark go'
+        ).toBeGreaterThan(5);
+        expect(
+          samples.filter((n) => n === 0),
+          `sdfa's red pixels after Return: ${samples.join(',')}`
+        ).toEqual([]);
+      } finally {
+        await app.close();
+      }
+    });
   });
 
   test('case 1: switching spellcheck on marks a many-line poem without typing', async () => {
