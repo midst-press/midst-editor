@@ -40,9 +40,18 @@ export const lastUsedFontSize = (stored: unknown): number | null => {
   return isSize(n) ? nearestFontSize(n) : null;
 };
 
-// The meta a new poem starts with: the last size used, or 14 when none has been.
-export const newPoemMeta = (stored: unknown): string =>
-  JSON.stringify({ fontSize: lastUsedFontSize(stored) ?? NEW_POEM_FONT_SIZE });
+// The meta a new poem starts with: the last size used, or 14 when none has been, and the last font the
+// poet chose, if it was not the app's own (GitHub #48). `storedFamily` is the store's 'font-family'.
+export const newPoemMeta = (
+  storedSize: unknown,
+  storedFamily: unknown = undefined
+): string =>
+  JSON.stringify({
+    fontSize: lastUsedFontSize(storedSize) ?? NEW_POEM_FONT_SIZE,
+    ...(typeof storedFamily === 'string' && storedFamily.trim() !== ''
+      ? { fontFamily: storedFamily }
+      : {}),
+  });
 
 // The size a poem is drawn at. A poem keeps whatever size its file holds, and a save writes it back
 // (META.md); it is drawn at that size within the steps' range, and at the nearest end outside it.

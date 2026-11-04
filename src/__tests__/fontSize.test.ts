@@ -95,6 +95,17 @@ describe('newPoemMeta', () => {
     expect(JSON.parse(newPoemMeta('2'))).toEqual({ fontSize: 16 });
   });
 
+  // GitHub #48: and in the last font the poet chose, unless it was the app's own ('').
+  it('starts it in the last font chosen, and in none for the app font', () => {
+    expect(JSON.parse(newPoemMeta('20', 'Zqalpha'))).toEqual({
+      fontSize: 20,
+      fontFamily: 'Zqalpha',
+    });
+    [undefined, '', ' ', 7].forEach((family) =>
+      expect(JSON.parse(newPoemMeta('20', family))).toEqual({ fontSize: 20 })
+    );
+  });
+
   it('starts it at 14 when no size has been used', () => {
     [undefined, '', 'zq'].forEach((stored) =>
       expect(JSON.parse(newPoemMeta(stored))).toEqual({ fontSize: 14 })
