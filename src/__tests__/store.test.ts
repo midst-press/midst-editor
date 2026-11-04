@@ -147,6 +147,19 @@ describe('store reads and writes (#355)', () => {
     expect(disk.values.get('history')).toEqual([{ front: 0 }]);
   });
 
+  // #421: main follows `edited` and `baseFilename` through this, whoever wrote them.
+  it('tells each listener the key after a write and after a delete, once the disk holds it', () => {
+    const { store, disk } = loadStore();
+    const heard: [string, unknown][] = [];
+    store.onChange((key) => heard.push([key, disk.values.get(key)]));
+    store.set('edited', true);
+    store.delete('baseFilename');
+    expect(heard).toEqual([
+      ['edited', true],
+      ['baseFilename', undefined],
+    ]);
+  });
+
   it('writes and deletes on disk', () => {
     const { store, disk } = loadStore();
     store.set('poem', '<p>xv</p>');

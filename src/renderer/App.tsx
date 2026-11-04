@@ -62,6 +62,13 @@ export default function App() {
   );
   // After a save failed, the title says the poem is not saved until a save works, on every platform (#94; GitHub #75).
   const [notSaved, setNotSaved] = useState(false);
+  // An untitled poem with edits is not saved either (#421; GitHub #113). Main says when that changes; the store says
+  // where it stands at launch or after a reload.
+  const [untitledEdited, setUntitledEdited] = useState(
+    () =>
+      window.electron?.store.get('edited') === true &&
+      !window.electron?.store.get('baseFilename')
+  );
   useEffect(() => {
     if (!window.electron) {
       return undefined;
@@ -88,10 +95,18 @@ export default function App() {
       }
     );
 
+    const removeSetUntitledEditedHandler = window.electron.ipcRenderer.on(
+      'set-untitled-edited',
+      (shown) => {
+        setUntitledEdited(shown === true);
+      }
+    );
+
     return () => {
       removeOpenFileHandler();
       removeSetFilenameHandler();
       removeSetNotSavedHandler();
+      removeSetUntitledEditedHandler();
     };
   }, []);
 
@@ -114,7 +129,11 @@ export default function App() {
             <HistoryContext.Provider value={historyContextValue}>
               <Router initialEntries={[startAt]}>
                 <PoemFontContext.Provider value={poemFont}>
-                  <WindowTitle filename={filename} notSaved={notSaved} />
+                  <WindowTitle
+                    filename={filename}
+                    // eslint-disable-next-line lingui/no-unlocalized-strings -- a flag's name, not text for the poet
+                    flag={notSaved || untitledEdited ? 'notSaved' : null}
+                  />
                   <FontPicker />
                   <Routes>
                     <Route path="/editor" element={<Editor />} />

@@ -46,7 +46,15 @@ settleEdited(disk);
 // compiler checks for every call in this process. What is on disk is not checked by anything, so a read
 // whose value is of the wrong type is logged and comes back as undefined, as a missing value does; every
 // caller already handles undefined.
+// Told the key after each write or delete, wherever it came from: the renderer's messages, the menu, or main itself.
+/* eslint-disable-next-line no-unused-vars -- the name says what the argument is */
+type Changed = (key: StoreKey) => void;
+const listeners: Changed[] = [];
+
 const store = {
+  onChange(listener: Changed): void {
+    listeners.push(listener);
+  },
   get<K extends StoreKey>(key: K): StoreSchema[K] | undefined {
     const value = disk.get(key);
     if (value === undefined || fitsSchema(key, value)) return value;
@@ -59,9 +67,11 @@ const store = {
   },
   set<K extends StoreKey>(key: K, value: StoreSchema[K]): void {
     disk.set(key, value);
+    listeners.forEach((listener) => listener(key));
   },
   delete(key: StoreKey): void {
     disk.delete(key);
+    listeners.forEach((listener) => listener(key));
   },
 };
 

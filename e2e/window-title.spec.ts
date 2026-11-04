@@ -107,6 +107,21 @@ test('the window title at launch, New, Save, Open, Save As and New again', async
       'New'
     );
 
+    // Typing into it: autosave keeps only a recovery copy of an untitled poem, so the title says it is not saved,
+    // apart from the name (#421; GitHub #113). The crash-recovery spec checks the recovery dialog keeps "Untitled".
+    await win.locator('.ProseMirror').click();
+    await win.keyboard.type('zq');
+    await settled(
+      app,
+      win,
+      {
+        drawn: 'Untitled* (not saved)',
+        doc: 'Untitled* (not saved)',
+        native: 'Untitled* (not saved)',
+      },
+      'New, typed'
+    );
+
     // Save, under a name.
     await nextSaveAnswer(app, pathNew);
     await clickMenuItem(app, 'menu.file.save');
@@ -124,6 +139,16 @@ test('the window title at launch, New, Save, Open, Save As and New again', async
       },
       'New, saved'
     );
+
+    // Typing into the named poem: autosave saves it within seconds, so the title stays the name, with no flag
+    // between a keystroke and its autosave (#421).
+    await win.locator('.ProseMirror').click();
+    await win.keyboard.type('xv');
+    expect(await titles(app, win), 'named, just typed').toEqual({
+      drawn: 'title-new.midst',
+      doc: 'title-new.midst',
+      native: 'title-new.midst',
+    });
 
     // Open another poem.
     await openDocument(app, userData, pathB, 'poem B');
