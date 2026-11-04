@@ -36,10 +36,17 @@ test("View > Font… lists the installed fonts, and the one chosen is the poem's
     await expect
       .poll(() => options.count(), { timeout: 15_000 })
       .toBeGreaterThan(1);
-    const family = (await options.nth(1).textContent()) ?? '';
-    expect(family).not.toBe('');
-
+    // It stays open after a choice, so the poet can try several fonts; Escape closes it (GitHub #112, editor
+    // #417). A second installed family is tried after the first when this computer has one.
+    const count = await options.count();
     await options.nth(1).click();
+    await expect(picker).toBeVisible();
+    const last = count > 2 ? 2 : 1;
+    if (last === 2) await options.nth(2).click();
+    await expect(picker).toBeVisible();
+    const family = (await options.nth(last).textContent()) ?? '';
+    expect(family).not.toBe('');
+    await win.keyboard.press('Escape');
     await expect(picker).toBeHidden();
     // The first family of the computed value, unquoted: Chromium may or may not quote a name, so the
     // comparison is of names, not of how one is serialised.

@@ -124,15 +124,12 @@ export default function FontPicker() {
     document.querySelector<HTMLElement>('.ProseMirror')?.focus();
   };
 
+  // The picker stays open after a choice, so the poet can try one font after another; only Escape or the X
+  // closes it (Annelyse, GitHub #112; editor #417). Choosing the poem's own font again changes nothing.
   const pick = (row: Row | undefined) => {
-    if (!row) return;
-    if (row.family === current) {
-      close();
-      return;
-    }
+    if (!row || row.family === current) return;
     const result = choose(row.family);
-    if (result === 'saved') close();
-    else setProblem(result);
+    setProblem(result === 'saved' ? null : result);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -219,6 +216,8 @@ export default function FontPicker() {
             data-current={row.family === current ? 'true' : undefined}
             style={{ fontFamily: poemFontStack(row.family) }}
             onMouseEnter={() => setActive(index)}
+            // The search field keeps the focus through a click, so Escape still closes the picker after one.
+            onMouseDown={(event) => event.preventDefault()}
             onClick={() => pick(row)}
           >
             {row.label}

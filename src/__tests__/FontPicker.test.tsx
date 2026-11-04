@@ -165,7 +165,8 @@ it('chooses with the arrow keys and Enter: writes meta, keeps the rest, marks it
   expect(document.documentElement.style.getPropertyValue('--poem-font')).toBe(
     `"Zqbeta", ${APP_FONT_STACK}`
   );
-  expect(screen.queryByRole('dialog')).toBeNull();
+  // It stays open after a choice, so the poet can try another (GitHub #112, editor #417).
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
 });
 
 it("chooses with a click, and the app's own font takes the poem's font away", async () => {
@@ -200,7 +201,38 @@ it('choosing the font the poem already has changes nothing', async () => {
   fireEvent.click(option('Zqalpha'));
   expect(values.edited).toBe(false);
   expect(bridge.sent).toEqual([]);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
+
+// GitHub #112 (editor #417): the poet tries one font after another, and only Escape or the X closes the picker.
+it('stays open through several choices, each saved, until Escape; the last one chosen is kept', async () => {
+  const bridge = installBridge(FONTS);
+  const { store, values } = makeStore({ meta: '' });
+  render(<Harness store={store} />);
+  bridge.emit('choose-font');
+  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  fireEvent.click(option('Zqalpha'));
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  fireEvent.click(option('Zqgamma'));
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+  expect(option('Zqgamma')).toHaveAttribute('data-current', 'true');
+  expect(bridge.sent).toEqual(['save-file', 'save-file']);
+  fireEvent.keyDown(field(), { key: 'Escape' });
   expect(screen.queryByRole('dialog')).toBeNull();
+  expect(JSON.parse(String(values.meta))).toEqual({ fontFamily: 'Zqgamma' });
+  expect(screen.getByTestId('family')).toHaveTextContent('Zqgamma');
+});
+
+it('a click on a font leaves the focus in the search field, so Escape still closes the picker', async () => {
+  const bridge = installBridge(FONTS);
+  render(<Harness store={makeStore({ meta: '' }).store} />);
+  bridge.emit('choose-font');
+  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  const row = option('Zqbeta');
+  // fireEvent.mouseDown returns false when the default (moving the focus) was prevented.
+  expect(fireEvent.mouseDown(row)).toBe(false);
+  fireEvent.click(row);
+  expect(document.activeElement).toBe(field());
 });
 
 it('Escape closes it without a change; the close button does too', async () => {
@@ -275,6 +307,23 @@ it("keeps the font and says so when the poem's settings cannot be read", async (
   );
   expect(values.meta).toBe('not json');
   expect(bridge.sent).toEqual([]);
+  expect(screen.getByRole('dialog')).toBeInTheDocument();
+});
+
+it('a later choice that saves takes the problem message away', async () => {
+  const bridge = installBridge(FONTS);
+  const { store, values } = makeStore({ meta: 'not json' });
+  render(<Harness store={store} />);
+  bridge.emit('choose-font');
+  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  fireEvent.click(option('Zqgamma'));
+  expect(screen.getByRole('alert')).toHaveTextContent(
+    i18n._('fontPicker.metaUnreadable')
+  );
+  values.meta = '';
+  fireEvent.click(option('Zqbeta'));
+  expect(screen.queryByRole('alert')).toBeNull();
+  expect(bridge.sent).toEqual(['save-file']);
 });
 
 it('follows the poem that is opened', () => {
