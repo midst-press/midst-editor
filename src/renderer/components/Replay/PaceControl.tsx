@@ -1,0 +1,112 @@
+import { FocusEvent, KeyboardEvent, ReactNode, useRef, useState } from 'react';
+import { cssVar } from '../../cssVars';
+import { PaceSetting } from './usePace';
+
+// A pace button for the Timeline's control bar (GitHub #49, editor #427), after the website's speedometer
+// (midst-web SpeedControl): the button opens a narrow slider above it, which shows its value as it moves.
+// Escape, or the focus leaving the control, closes it.
+export default function PaceControl({
+  setting,
+  value,
+  onChange,
+  label,
+  valueText,
+  icon,
+}: {
+  setting: PaceSetting;
+  value: number;
+  onChange: (next: number) => void; // eslint-disable-line no-unused-vars
+  label: string;
+  valueText: string;
+  icon: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+  const control = useRef<HTMLDivElement>(null);
+  // On the button and the slider, not the wrapper: the focus leaving the control closes it, and so does
+  // Escape, which goes no further, so it does not also leave the Timeline.
+  const onBlur = (event: FocusEvent) => {
+    if (!control.current?.contains(event.relatedTarget as Node)) setOpen(false);
+  };
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== 'Escape' || !open) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setOpen(false);
+    button.current?.focus();
+  };
+  return (
+    <div className="pace-control" ref={control}>
+      <button
+        ref={button}
+        type="button"
+        className="control-bar-icon"
+        aria-label={label}
+        aria-expanded={open}
+        style={{ color: cssVar('onControlBar') }}
+        onClick={() => setOpen((current) => !current)}
+        onBlur={onBlur}
+        onKeyDown={onKeyDown}
+      >
+        {icon}
+      </button>
+      {open && (
+        <div
+          className="pace-popup"
+          role="group"
+          aria-label={label}
+          style={{ backgroundColor: cssVar('controlBar') }}
+        >
+          <input
+            type="range"
+            className="pace-slider"
+            aria-label={label}
+            aria-valuetext={valueText}
+            min={setting.min}
+            max={setting.max}
+            step={setting.step}
+            value={value}
+            onChange={(event) => onChange(Number(event.target.value))}
+            onBlur={onBlur}
+            onKeyDown={onKeyDown}
+          />
+          <output
+            className="pace-value"
+            style={{ color: cssVar('onControlBar') }}
+          >
+            {valueText}
+          </output>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The website's speedometer, drawn the same way (midst-web SpeedControl).
+export function SpeedometerIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M3 19a10 10 0 1 1 18 0Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m12 13 4-4M6 13H5m3-6L7 6m5-1V4m6 9h1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="13" r="2" fill="currentColor" />
+    </svg>
+  );
+}

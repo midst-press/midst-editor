@@ -24,6 +24,8 @@ export interface StoreSchema {
   logLevel: string;
   'replay-show-timestamp': string;
   'replay-autoscroll': string;
+  'replay-fps': string;
+  'replay-scroll-speed': string;
 }
 
 export type StoreKey = keyof StoreSchema;
@@ -50,6 +52,8 @@ export const STORE_TYPES: {
   logLevel: 'string',
   'replay-show-timestamp': 'string',
   'replay-autoscroll': 'string',
+  'replay-fps': 'string',
+  'replay-scroll-speed': 'string',
 };
 
 export const isStoreKey = (key: unknown): key is StoreKey =>

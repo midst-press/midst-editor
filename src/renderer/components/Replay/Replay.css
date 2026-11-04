@@ -241,3 +241,30 @@
   white-space: nowrap;
   cursor: pointer;
 }
+
+/* The pace buttons' sliders (GitHub #49, editor #427): narrow, above their button. */
+.pace-control {
+  position: relative;
+  display: flex;
+}
+.pace-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  z-index: 10;
+}
+.pace-slider {
+  width: 110px;
+}
+.pace-value {
+  min-width: 5.5em;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

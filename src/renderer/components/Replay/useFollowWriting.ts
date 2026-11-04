@@ -7,6 +7,7 @@ import {
   glideTo,
   Glide,
   gliding,
+  PEAK_VIEWPORTS_PER_S,
 } from '@midst-press/midst-format/follow';
 import useAutoscroll from './useAutoscroll';
 
@@ -17,7 +18,9 @@ export default function useFollowWriting(
   editor: Editor | null,
   poemHistory: ChangeObj[],
   step: number,
-  glideRef: MutableRefObject<Glide | null>
+  glideRef: MutableRefObject<Glide | null>,
+  // Peak glide speed in viewports per second, from the scroll-speed slider (GitHub #49, editor #427).
+  peak: number = PEAK_VIEWPORTS_PER_S
 ) {
   const autoscroll = useAutoscroll();
   // Read by the follow effect without re-running it: turning the setting over changes no frame.
@@ -26,6 +29,11 @@ export default function useFollowWriting(
   useEffect(() => {
     following.current = autoscroll.on;
   }, [autoscroll.on]);
+  // The speed for the next glide; one under way keeps the speed it started at.
+  const speed = useRef(peak);
+  useEffect(() => {
+    speed.current = peak;
+  }, [peak]);
   const toggle = () => {
     // Turned off mid-glide: stop where it is, so playback does not wait on a scroll the poet turned off.
     if (!autoscroll.toggle() && glideRef.current && gliding(glideRef.current)) {
@@ -57,7 +65,12 @@ export default function useFollowWriting(
         scroller.scrollHeight
       );
       if (to != null)
-        glideRef.current = glideTo(scroller, to, glideRef.current);
+        glideRef.current = glideTo(
+          scroller,
+          to,
+          glideRef.current,
+          speed.current
+        );
     }
   }, [step, poemHistory, editor, glideRef]);
 
