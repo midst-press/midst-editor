@@ -956,6 +956,17 @@ describe('newFile', () => {
     });
   });
 
+  // GitHub #48: and in the last font the poet chose.
+  it('starts the new poem in the last font chosen', async () => {
+    seedDocument({ edited: false });
+    mockStore.set('font-family', 'Zqalpha');
+    await newFile(asWindow(makeWindow()), false);
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 14,
+      fontFamily: 'Zqalpha',
+    });
+  });
+
   it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
       edited: true,
