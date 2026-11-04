@@ -131,7 +131,11 @@ function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
         aria-pressed={focused}
         type="button"
         onClick={onToggleFocus}
-        className="icon-button focus-mode-icon"
+        className={
+          focused
+            ? 'is-active icon-button focus-mode-icon'
+            : 'icon-button focus-mode-icon'
+        }
       >
         <MoonOutlinedIcon fontSize="small" />
       </button>
@@ -139,7 +143,8 @@ function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
   );
 
   // The font options, wrapped so focus mode can return just the moon and leave these out (GitHub #25).
-  const fontControls = (
+  // Three groups (GitHub #25, #432): size (2), styling (4), focus (1) with equal spacers.
+  const sizeControls = (
     <>
       <Tooltip
         title={largestReason ?? i18n._('textSize.increase')}
@@ -195,6 +200,10 @@ function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
           )}
         </span>
       </Tooltip>
+    </>
+  );
+  const stylingControls = (
+    <>
       <MarkButton
         label={i18n._('format.bold')}
         unavailable={marks.canBold ? null : i18n._('format.bold.unavailable')}
@@ -238,7 +247,9 @@ function MenuBar({ focused, onToggleFocus }: MenuBarProps) {
         moon
       ) : (
         <>
-          {fontControls}
+          {sizeControls}
+          <span className="focus-mode-gap" aria-hidden="true" />
+          {stylingControls}
           <span className="focus-mode-gap" aria-hidden="true" />
           {moon}
         </>

@@ -483,20 +483,24 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       'Strikethrough',
       'Focus Mode',
     ]);
-    // The gap sits between the font options and the moon, and says nothing.
-    const gap = bar.querySelector('.focus-mode-gap') as Element;
-    expect(gap).not.toBeNull();
+    // Two gaps: one between size and styling, one between styling and the moon (GitHub #25, #432).
+    const gaps = bar.querySelectorAll('.focus-mode-gap');
+    expect(gaps).toHaveLength(2);
+    gaps.forEach((gap) => {
+      expect(gap.textContent).toBe('');
+    });
     const label = (n: Element) =>
-      n === gap ? 'gap' : (n.getAttribute('aria-label') ?? 'other');
+      n.classList.contains('focus-mode-gap')
+        ? 'gap'
+        : (n.getAttribute('aria-label') ?? 'other');
     const inOrder = Array.from(
       bar.querySelectorAll(
-        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Bold"]'
+        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Increase text size"], button[aria-label="Bold"]'
       )
     )
       .map(label)
       .join(',');
-    expect(inOrder).toBe('Bold,gap,Focus Mode');
-    expect(gap.textContent).toBe('');
+    expect(inOrder).toBe('Increase text size,gap,Bold,gap,Focus Mode');
   });
 
   it('in focus mode the moon is the only control, and its tooltip says what it restores', async () => {
