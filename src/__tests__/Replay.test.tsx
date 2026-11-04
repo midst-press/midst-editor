@@ -899,6 +899,34 @@ describe('Replay: Draft Markers on the timeline', () => {
       expect(field()).toBeInTheDocument();
     });
 
+    it('typed back to the name it was given, is still the field’s own', () => {
+      mount();
+      seek(20);
+      markDraft();
+      fireEvent.change(field(), { target: { value: 'Draft 1x' } });
+      fireEvent.change(field(), { target: { value: 'Draft 1' } });
+      undo();
+      expect(markers()).toHaveLength(1);
+    });
+
+    it('refused, leaves the marker and its name open, and does not go back to Edit', () => {
+      bridge = installBridge(seeded);
+      mount(makeHistory(LONG), { nameDraftAt: 40 });
+      bridge.values.meta = '[1,2]';
+      undo();
+      expect(field()).toBeInTheDocument();
+      expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+      expect(bridge.logError).toHaveBeenCalledWith(REFUSED_LOG, {
+        reason: 'meta-unreadable',
+        action: 'undo-create',
+        index: 40,
+        historyLength: expect.any(Number),
+      });
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'The Draft Markers of this poem could not be read, so nothing was changed.'
+      );
+    });
+
     it('takes nothing away from a marker being renamed', () => {
       bridge = installBridge(seeded);
       mount();

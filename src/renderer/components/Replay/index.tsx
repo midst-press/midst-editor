@@ -172,10 +172,9 @@ export default function Replay() {
   }, []);
   const goToEdit = useCallback(() => navigate('/editor'), [navigate]);
   // Undo straight after the button: as though it had not been pressed, so a marker made while writing goes back
-  // to writing.
+  // to writing. Refused, the marker is still there: the name stays open, with the refusal beside the button.
   const undoNewMarker = (index: number) => {
-    drafts.unmake(index);
-    leaveTimelineNaming(true);
+    if (drafts.unmake(index)) leaveTimelineNaming(true);
   };
   // Names on the timeline sit above the line, unless the timestamp is always shown: then the timestamp has the
   // space above, the names go below, and the timeline moves up to make room for them (GitHub #95).

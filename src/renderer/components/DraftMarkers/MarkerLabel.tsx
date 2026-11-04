@@ -49,6 +49,8 @@ export default function MarkerLabel({
   // Enter and Escape both end the typing; a blur after them must not count a second time. A ref, not state, so a
   // blur handled in the same render still sees it (vivian-1a61bc9a, review of #348).
   const done = useRef(false);
+  // Something has been typed since the field opened: from then on Undo is the field's own (GitHub #95).
+  const edited = useRef(false);
   const [typingFor, setTypingFor] = useState(naming);
   if (naming !== typingFor) {
     setTypingFor(naming);
@@ -68,10 +70,14 @@ export default function MarkerLabel({
         value={typed}
         size={Math.max(typed.length, 4)}
         onMouseDown={keepFromSlider}
-        onChange={(e) => setTyped(e.target.value)}
+        onChange={(e) => {
+          edited.current = true;
+          setTyped(e.target.value);
+        }}
         onFocus={(e) => {
-          // A field opening for a new round of typing: nothing has ended it yet.
+          // A field opening for a new round of typing: nothing has ended it yet, or been typed.
           done.current = false;
+          edited.current = false;
           e.target.select();
         }}
         onBlur={() => {
@@ -90,8 +96,9 @@ export default function MarkerLabel({
             done.current = true;
             onCancel(index);
           }
-          // Undo on a new marker's name, still as it was given: undo the making of it, as though the button had
-          // not been pressed (GitHub #95). Once something is typed, Undo is the field's own, for the typing.
+          // Undo on a new marker's name, before anything is typed: undo the making of it, as though the button had
+          // not been pressed (GitHub #95). Once something is typed, Undo is the field's own, for the typing, even
+          // typed back to the name it was given.
           const undoKey = window.electron.versions.isMac
             ? e.metaKey && !e.ctrlKey
             : e.ctrlKey && !e.metaKey;
@@ -101,7 +108,7 @@ export default function MarkerLabel({
             !e.shiftKey &&
             !e.altKey &&
             e.key.toLowerCase() === 'z' &&
-            typed === label
+            !edited.current
           ) {
             e.preventDefault();
             done.current = true;
