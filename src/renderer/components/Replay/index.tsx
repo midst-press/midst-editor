@@ -77,6 +77,10 @@ export default function Replay() {
     nameOnArrival ?? null
   );
   const backToEdit = useRef(nameOnArrival !== undefined);
+  // The marker made just now, until its naming ends: Undo before anything is typed takes it back (GitHub #95).
+  const [newMarker, setNewMarker] = useState<number | null>(
+    nameOnArrival ?? null
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
   useEffect(() => {
@@ -131,6 +135,7 @@ export default function Replay() {
   };
   const leaveTimelineNaming = (goBack: boolean) => {
     setTimelineNaming(null);
+    setNewMarker(null);
     if (backToEdit.current) {
       backToEdit.current = false;
       if (goBack) navigate('/editor');
@@ -166,6 +171,30 @@ export default function Replay() {
     refocusDrafts.current = fromList;
   }, []);
   const goToEdit = useCallback(() => navigate('/editor'), [navigate]);
+  // Undo straight after the button: as though it had not been pressed, so a marker made while writing goes back
+  // to writing. Refused, the marker is still there: the name stays open, with the refusal beside the button.
+  const undoNewMarker = (index: number) => {
+    if (drafts.unmake(index)) leaveTimelineNaming(true);
+  };
+  // Names on the timeline sit above the line, unless the timestamp is always shown: then the timestamp has the
+  // space above, the names go below, and the timeline moves up to make room for them (GitHub #95).
+  const namesShown =
+    timelineNaming !== null ||
+    (showMarkers && showLabels && drafts.markers.length > 0);
+  const namesBelow = showTimestamp.on && namesShown;
+  // The timeline's move is animated only while it moves for the names: a window being resized must not slide it
+  // (clement-7074f29f, review of #424). Set in the same render as the move, so the transition is in place for it.
+  const [movedFor, setMovedFor] = useState(namesBelow);
+  const [moving, setMoving] = useState(false);
+  if (movedFor !== namesBelow) {
+    setMovedFor(namesBelow);
+    setMoving(true);
+  }
+  useEffect(() => {
+    if (!moving) return undefined;
+    const settle = setTimeout(() => setMoving(false), 400);
+    return () => clearTimeout(settle);
+  }, [moving, namesBelow]);
   useReplayKeys(playPauseButton, closeDrafts, goToEdit);
 
   return (
@@ -174,7 +203,15 @@ export default function Replay() {
       className="ReplayLayout"
       style={{ backgroundColor: cssVar('background') }}
     >
-      <div className="ReplayMain">
+      <div
+        className={[
+          'ReplayMain',
+          namesBelow && 'names-below-lift',
+          moving && 'timeline-moving',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
         <ReplayTopButtons
           fontSize={fontSize}
           following={follow.on}
@@ -218,11 +255,14 @@ export default function Replay() {
               showMarkers={showMarkers}
               showLabels={showLabels}
               naming={timelineNaming}
+              newMarker={newMarker}
+              namesBelow={namesBelow}
               setNaming={setTimelineNaming}
               onJump={jumpTo}
               onLeaveNaming={leaveTimelineNaming}
               onRename={drafts.rename}
               onDelete={drafts.remove}
+              onUndoNew={undoNewMarker}
             />
             {/* Continue writing from here first, then the two Draft Marker buttons, then X (GitHub #90). */}
             <RestartFromButton step={step} pause={pause} />
@@ -236,7 +276,10 @@ export default function Replay() {
               style={{ color: cssVar('onControlBar') }}
               onClick={() => {
                 pause();
-                if (drafts.create(step)) setTimelineNaming(step);
+                if (drafts.create(step)) {
+                  setTimelineNaming(step);
+                  setNewMarker(step);
+                }
               }}
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
