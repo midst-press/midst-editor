@@ -184,7 +184,10 @@ It checks all of this before it tags or publishes anything:
 | has an installer whose SHA-256 differs from what its build recorded                | what is released must be what was tested |
 | is for a version already tagged or released from a different commit                | one version, one build                   |
 | has no `CHANGELOG.md` entry for its version                                        | every release says what changed          |
-| has no install-test evidence for its macOS package on `release-evidence`           | a release is only what was installed     |
+
+The workflow itself does not check the install test: it cannot reach Gitea. `tools/release/release.sh`
+refuses to start it unless the install test for that package is attached to the Gitea release PR, so
+start a release only that way. A release started by hand from Actions is not checked.
 
 The package workflow also refuses to build a candidate from `main` once that version has been
 released from different code. Bump the version first.
