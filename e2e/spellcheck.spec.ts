@@ -473,6 +473,47 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     }
   });
 
+  // Gap 4 on editor #238: a poem opened while another is open replaces every text node (setContent in the open-file
+  // handler) in the same editor, so the whole-poem check that runs when the editor is created does not run for it.
+  test('a poem opened while another is open is marked without typing', async () => {
+    const { app, win, userData } = await openPoem('first');
+    try {
+      await turnSpellcheckOn(app, win, userData);
+      // CONTROL: the first poem is marked, so the count can see marks with spellcheck on.
+      await markingHasBegun(app, win);
+      const work = mkdtempSync(join(tmpdir(), 'midst-spellcheck-second-'));
+      const second = join(work, 'second.midst');
+      writeFileSync(second, makeMidst('wqzvtk', 0).file);
+      await openDocument(app, userData, second, 'the second poem');
+      await expect(win.locator('.ProseMirror p').first()).toHaveText('wqzvtk', {
+        timeout: 25_000,
+      });
+      await hideText(win);
+      // What the second poem shows without typing, well past the whole-poem check's FIRST_MS and AGAIN_MS.
+      let untyped = 0;
+      const until = Date.now() + 5_000;
+      while (untyped === 0 && Date.now() < until) {
+        // eslint-disable-next-line no-await-in-loop -- samples in time order
+        [untyped] = await redPerLine(app, win, 1);
+      }
+      // CONTROL: typing in the second poem marks it, so the count can see a mark there.
+      await typeAtEnd(win, [' ']);
+      await hideText(win);
+      await expect
+        .poll(async () => (await redPerLine(app, win, 1))[0], {
+          message: 'the second poem was not marked even after typing',
+          timeout: 5_000,
+        })
+        .toBeGreaterThan(0);
+      expect(
+        untyped,
+        'the second poem was left unmarked until typing'
+      ).toBeGreaterThan(0);
+    } finally {
+      await app.close();
+    }
+  });
+
   test('case 1: switching spellcheck on marks a many-line poem without typing', async () => {
     const { app, win, userData } = await openPoem('many');
     try {

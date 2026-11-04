@@ -49,6 +49,9 @@ export default function Editor() {
   const [spellcheckOn] = useState<boolean>(
     () => window.electron.store.get('spellcheck') === 'true'
   );
+  // Counts the poems opened into this editor. Opening one replaces every text node, which loses every spelling mark,
+  // and the editor is the same, so the whole-poem check runs again on this (editor #238, gap 4).
+  const [opened, setOpened] = useState(0);
   const heightClass = window.electron.versions.isMac
     ? 'editor-height-tall'
     : 'editor-height-short';
@@ -182,6 +185,7 @@ export default function Editor() {
           myEditor.commands.setContent(savedPoem, {
             emitUpdate: false,
           });
+          setOpened((n) => n + 1);
         }
         saveFileAndUpdateStore(savedPoem, savedHistory);
         navigate('/editor');
@@ -260,13 +264,14 @@ export default function Editor() {
     []
   );
   // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
-  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
+  // editor is in the page, and again when a poem is opened into it (see checkWholePoem.ts for why soon, and not at
+  // once). Cancelled if the editor goes, or another poem is opened first.
   useEffect(() => {
     if (!myEditor || !spellcheckOn) return undefined;
     return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
-  }, [myEditor, spellcheckOn]);
+  }, [myEditor, spellcheckOn, opened]);
   // A line break is not an edit Chromium sees (editor #238): the lines around it are checked once the poet pauses.
   useEffect(() => {
     const editor = myEditor;
