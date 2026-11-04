@@ -1,6 +1,13 @@
 #!/bin/bash
 # Runs as root before the new Midst is written to /Applications (issue 16).
 #
+# This script is the ONLY thing that keeps an existing Midst from being written over. The package
+# is built with isVersionChecked false (package.json build.pkg): with macOS Installer's version
+# check on, Installer decides to skip the payload when a newer Midst.app is in place BEFORE this
+# script runs, so after this script moves it aside nothing is installed and Installer still reports
+# success (0.9.4 candidate, Tart run 4 Nov: "Midst 99.0.0" kept, no Midst.app). Reproduced with a
+# stub app: version-checked, the new app is never written; not version-checked, it is.
+#
 # Any Midst already in /Applications is kept, renamed with its own version number, so the new one
 # can be installed as "Midst" without writing over it: "Midst.app" becomes "Midst <version>.app"
 # and "Midst Beta.app" becomes "Midst Beta <version>.app", whatever is inside them, including our

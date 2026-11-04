@@ -466,6 +466,7 @@
     },
     "pkg": {
       "isRelocatable": false,
+      "isVersionChecked": false,
       "allowAnywhere": false,
       "allowCurrentUserHome": false,
       "allowRootDirectory": true,
