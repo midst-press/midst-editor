@@ -94,8 +94,8 @@ Use a Mac, or an account on one, that has no Midst installed.
 
   It checks the package (signed, accepted by Gatekeeper, not relocatable, the right version),
   installs it for all users, confirms an older copy elsewhere on the Mac was left alone, that a
-  stand-in "Midst Beta" is kept as "Midst (previous version)", and that ticking "Delete the older
-  version of Midst" deletes only that stand-in, then launches the
+  stand-in "Midst Beta" is kept, renamed with its version number, and that ticking "Delete the
+  Midst that's already installed" deletes only that stand-in, then launches the
   app, opens a made-up poem, quits, and removes everything it installed. It prints one line per step
   and ends `PASSED` (exit 0). `FAILED` (exit 1) means do not release. `CANNOT RUN` (exit 2) means it
   proved nothing, most often because a Midst is already installed there; it will not touch one.
@@ -128,13 +128,14 @@ Use a Mac, or an account on one, that has no Midst installed.
   sudo ditto /System/Applications/Chess.app "/Applications/Midst Beta.app"
   ```
 
-  - before anything installs, a warning says an older version of Midst is in Applications, and that
-    it will be kept as **Midst (previous version)**;
-  - **Customize** at the Installation Type step shows **Delete the older version of Midst**,
+  - before anything installs, a warning says another version of Midst is in Applications, and that
+    it will be kept, renamed with its version number (the Chess stand-in becomes
+    **Midst Beta <Chess's version>**);
+  - **Customize** at the Installation Type step shows **Delete the Midst that's already installed**,
     unticked, and its description says it permanently deletes it and cannot be undone.
 
-Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and any
-`/Applications/Midst (previous version).app`), so the next candidate's test starts clean.
+Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and the kept
+`/Applications/Midst Beta <version>.app`), so the next candidate's test starts clean.
 
 ## What the release workflow refuses
 
