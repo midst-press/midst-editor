@@ -226,6 +226,12 @@ jobs:
         if: matrix.want == 'macos'
         shell: bash
         run: tools/check_pkg_scripts_listed_once.sh release/build/*.pkg
+      # The app's postinstall rolls the install back unless Midst.app's version is the one in
+      # expected-version beside it, which finish_pkg writes from the Distribution (#16 rollback).
+      - name: check the app's expected-version is the version it installs
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_expected_version.sh release/build/*.pkg
       - name: check what Gatekeeper will say
         if: steps.signing.outputs.signed == 'yes'
         shell: bash
