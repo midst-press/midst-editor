@@ -490,6 +490,9 @@ describeOnMac('opt-in delete', () => {
       path.join(contents, 'Info.plist'),
       plist({ ...OURS, CFBundleShortVersionString: '0.3.0' })
     );
+    // What the app's postinstall writes once it has checked the new app (rollback contract, #16);
+    // its own tests are in installer_rollback.test.js. remove-previous deletes nothing without it.
+    fs.writeFileSync(`${v.record}.installed`, '0.3.0');
     if (lateRun) {
       v.doneBeforeLate = fs.existsSync(`${v.record}.done`);
       v.late = preinstall();
@@ -607,6 +610,7 @@ describeOnMac('opt-in delete', () => {
   ])('deletes a recorded "%s"', (name) => {
     const v = volume({ 'Midst.app': ours('0.3.0'), [name]: {} });
     fs.writeFileSync(v.record, `${path.join(v.applications, name)}\n`);
+    fs.writeFileSync(`${v.record}.installed`, '0.3.0');
     const r = run(REMOVE, v);
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0);
@@ -645,6 +649,7 @@ describeOnMac('opt-in delete', () => {
     const v = volume({ 'Midst.app': ours('0.3.0') });
     if (onDisk) fs.mkdirSync(path.join(v.applications, onDisk));
     fs.writeFileSync(v.record, `${path.join(v.applications, name)}\n`);
+    fs.writeFileSync(`${v.record}.installed`, '0.3.0');
     const r = run(REMOVE, v);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('refusing');
@@ -659,6 +664,8 @@ describeOnMac('opt-in delete', () => {
     ['climbing out', (v) => path.join(v.applications, '..', 'Midst 0.9.3.app')],
   ])('refuses a recorded path %s', (_label, target) => {
     const v = volume({ 'Midst.app': OURS, 'Other.app': {} });
+    // A passed check, so the refusal tested here is the path rule's.
+    fs.writeFileSync(`${v.record}.installed`, OURS.CFBundleShortVersionString);
     fs.mkdirSync(path.join(v.root, 'Midst 0.9.3.app'));
     fs.writeFileSync(v.record, `${target(v)}\n`);
     const r = run(REMOVE, v);

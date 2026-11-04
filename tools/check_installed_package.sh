@@ -12,7 +12,8 @@
 #
 # What it checks, one line per step:
 #   1  the package: signed, accepted by Gatekeeper, NOT relocatable, NOT version-checked, each install
-#      script listed once, and holding the expected version and bundle identifier. If any of these fails, nothing is installed.
+#      script listed once, the app's expected-version equal to the version it installs, and holding the
+#      expected version and bundle identifier. If any of these fails, nothing is installed.
 #   2  control: on this Mac, today, a relocatable package really does update a copy elsewhere and
 #      a fixed one really does not. Done with an empty app under an invalid.example identifier.
 #      Without it, step 3's "the old copy was left alone" could pass only because the installer
@@ -176,6 +177,12 @@ case $? in
   0) pass "1 each install script is listed once" ;;
   1) fail "1 an install script is LISTED MORE THAN ONCE, so the installer runs it more than once: $(tr '\n' ' ' < "$work/scripts-once.txt")" ;;
   *) give_up "the script-listing check could not run: $(tr '\n' ' ' < "$work/scripts-once.txt")" ;;
+esac
+"$here/check_pkg_expected_version.sh" "$pkg" > "$work/expected-version.txt" 2>&1
+case $? in
+  0) pass "1 the app's expected-version is the version it installs" ;;
+  1) fail "1 the app's expected-version is WRONG, so its postinstall would roll back a good install or pass a wrong one: $(tr '\n' ' ' < "$work/expected-version.txt")" ;;
+  *) give_up "the expected-version check could not run: $(tr '\n' ' ' < "$work/expected-version.txt")" ;;
 esac
 pkgutil --expand "$pkg" "$work/expanded" > /dev/null 2>&1 || give_up "could not expand $pkg"
 bundle_line=$(grep -h '<bundle path=' "$work"/expanded/*/PackageInfo 2> /dev/null)
