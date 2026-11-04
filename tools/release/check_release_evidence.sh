@@ -43,7 +43,7 @@ else
   final=$(tail -n 1 <<< "$results")
   before=$(tail -n 2 <<< "$results" | sed -n 1p)
   [[ "$final" =~ ^check_installed_package:\ PASSED\ .*\ sha256\ $sha$ ]] \
-    || missing+=("in install-test.log, a last line \"check_installed_package: PASSED ... sha256 $sha\" (it is FAILED, or for another package)")
+    || missing+=("in install-test.log, as the last run's result, a PASSED line for sha256 $sha (it is FAILED, or for another package)")
   [[ "$before" =~ ^check_installed_package:\ previous\ release\ [^\ ]+:\ PASSED$ ]] \
     || missing+=("in install-test.log, the same run passing over the previous release: run it with --previous <previous release's pkg>")
 fi
