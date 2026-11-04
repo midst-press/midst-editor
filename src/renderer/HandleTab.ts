@@ -32,7 +32,7 @@ function lineStartAt(doc: PMNode, pos: number): number | null {
 
 /** The start of every line the selection touches, in document order. */
 export function selectedLineStarts(state: EditorState): number[] {
-  const { from, to, empty } = state.selection;
+  const { from, to } = state.selection;
   const first = lineStartAt(state.doc, from);
   const starts = first === null ? [] : [first];
   state.doc.nodesBetween(from, to, (node, pos) => {
@@ -40,12 +40,7 @@ export function selectedLineStarts(state: EditorState): number[] {
     if (node.isTextblock) start = pos + 1;
     else if (node.type.name === 'hardBreak') start = pos + node.nodeSize;
     // A line counts only if the selection reaches into it: not one it ends exactly at the start of.
-    if (
-      start !== null &&
-      start > from &&
-      (start < to || (empty && start === to))
-    )
-      starts.push(start);
+    if (start !== null && start > from && start < to) starts.push(start);
     return true;
   });
   return Array.from(new Set(starts)).sort((a, b) => a - b);

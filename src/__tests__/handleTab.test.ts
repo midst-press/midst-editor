@@ -119,6 +119,22 @@ describe('Tab over several lines, and Shift-Tab', () => {
     expect(editor.getText()).toBe('\tzq');
   });
 
+  it('Shift-Tab finds the start of the line even with a line break after the cursor', () => {
+    const editor = makeEditor(true, '<p>\tzq<br>xv</p>');
+    // The tab is 1-2, z at 2, q at 3: the cursor between z and q, the break after it.
+    editor.commands.setTextSelection(3);
+    editor.commands.keyboardShortcut('Shift-Tab');
+    expect(editor.getText()).toBe('zq\nxv');
+  });
+
+  it('Shift-Tab on the line after a line break takes the tab from the start of that line', () => {
+    const editor = makeEditor(true, '<p>zq<br>\txv</p>');
+    // z at 1, q at 2, the break at 3, the tab at 4, x at 5: the cursor between x and v.
+    editor.commands.setTextSelection(6);
+    editor.commands.keyboardShortcut('Shift-Tab');
+    expect(editor.getText()).toBe('zq\nxv');
+  });
+
   it('Shift-Tab over several lines takes one tab from the start of each line that has one', () => {
     const editor = makeEditor(true, '<p>\tzq</p><p>xv</p><p>\t\tqz</p>');
     editor.commands.selectAll();
