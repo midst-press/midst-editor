@@ -3,7 +3,13 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst, MIDST_VERSION_HEADER } from './fixtures';
-import { clickMenuItem, launch, openDocument, waitUntil } from './harness';
+import {
+  clickMenuItem,
+  launch,
+  openDocument,
+  readStore,
+  waitUntil,
+} from './harness';
 
 // View > Font… (#240; Annelyse, GitHub #73): any installed font, one per poem, kept in the file. Invented
 // text only.
@@ -122,6 +128,68 @@ test("in the poem's font, other alphabets still draw real characters, not the mi
     });
     expect(missing.controlIsTheBox).toBe(true);
     expect(missing.scripts).toEqual([]);
+  } finally {
+    await app.close();
+  }
+});
+
+// GitHub #48 (editor #390): a new poem starts in the last font chosen, and no other poem changes (Cyril, 4 Nov:
+// the main road in the built app).
+const firstFamily = (win: import('@playwright/test').Page) =>
+  win.locator('.ProseMirror').evaluate((el) => {
+    const value = getComputedStyle(el).fontFamily.trim();
+    if (value.startsWith('"'))
+      return value.slice(1, value.indexOf('"', 1)).replace(/\\(.)/g, '$1');
+    return value.split(',')[0].trim();
+  });
+
+test('a new poem starts in the last font chosen; the poem it was chosen on, and another with its own, keep theirs', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-e2e-font-new-'));
+  const first = join(work, 'first.midst');
+  writeFileSync(first, makeMidst('ZQFIRST', 0).file);
+  const other = join(work, 'other.midst');
+  const doc = makeMidst('ZQOTHER', 0);
+  const body = JSON.parse(doc.file.slice(doc.file.indexOf('\n') + 1));
+  writeFileSync(
+    other,
+    `${MIDST_VERSION_HEADER}\n${JSON.stringify({ ...body, meta: { fontFamily: 'Zqownfont' } })}`
+  );
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, first, 'the first poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+
+    await clickMenuItem(app, 'menu.view.font');
+    const options = win.getByRole('option');
+    await expect
+      .poll(() => options.count(), { timeout: 15_000 })
+      .toBeGreaterThan(1);
+    const family = (await options.nth(1).textContent()) ?? '';
+    expect(family).not.toBe('');
+    await options.nth(1).click();
+    expect(
+      await waitUntil(() => savedFontFamily(first) === family, 10_000)
+    ).toBe(true);
+    // Saved, so starting a new poem asks nothing.
+    expect(
+      await waitUntil(
+        () => (readStore(userData) as Record<string, unknown>).edited === false,
+        10_000
+      )
+    ).toBe(true);
+
+    await clickMenuItem(app, 'menu.file.new');
+    await expect.poll(() => readStore(userData).filename).toBe('');
+    await expect.poll(() => firstFamily(win)).toBe(family);
+
+    await openDocument(app, userData, other, 'the poem with its own font');
+    await expect.poll(() => firstFamily(win)).toBe('Zqownfont');
+    expect(savedFontFamily(other)).toBe('Zqownfont');
+
+    await openDocument(app, userData, first, 'the first poem again');
+    await expect.poll(() => firstFamily(win)).toBe(family);
   } finally {
     await app.close();
   }
