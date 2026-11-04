@@ -36,15 +36,19 @@ listing_twice() {
   local out="$work/expanded.$RANDOM$RANDOM"
   pkgutil --expand "$1" "$out" > /dev/null || { echo "$0: could not expand $1" >&2; return 2; }
   local infos
-  infos=$(find "$out" -name PackageInfo -type f)
+  # Fails closed: a find that fails part-way has listed only some of the tree, so its silence about
+  # the rest is not a clean result.
+  infos=$(find "$out" -name PackageInfo -type f) || { echo "$0: find failed under the expanded $1" >&2; return 2; }
   [ -n "$infos" ] || { echo "$0: no PackageInfo inside $1" >&2; return 2; }
   local n=0 info dups
   while IFS= read -r info; do
     # Script entries are elements named after their kind, inside <scripts>: <preinstall .../>.
+    # Fails closed: an awk that fails prints nothing, which must not read as "no duplicates".
     dups=$(awk '/<scripts>/ { inside = 1 } /<\/scripts>/ { inside = 0 }
                inside && match($0, /<(pre|post)install[ \/>]/) {
                  kind = substr($0, RSTART + 1, RLENGTH - 2); count[kind]++ }
-               END { for (k in count) if (count[k] > 1) print k, count[k] }' "$info")
+               END { for (k in count) if (count[k] > 1) print k, count[k] }' "$info") \
+      || { echo "$0: awk failed (exit $?) reading $info" >&2; return 2; }
     if [ -n "$dups" ]; then
       n=$((n + 1))
       while IFS= read -r line; do
@@ -82,8 +86,10 @@ for mode in once twice; do
     --component-plist "$work/component_$mode.plist" --install-location /Applications \
     "$work/control_$mode.pkg" > /dev/null
 done
-seen_twice=$(listing_twice "$work/control_twice.pkg" 2> /dev/null)
-seen_once=$(listing_twice "$work/control_once.pkg" 2> /dev/null)
+# The control's "listed twice" detail is expected and kept quiet; if the inspection itself fails,
+# its error is shown before the exit 2.
+seen_twice=$(listing_twice "$work/control_twice.pkg" 2> "$work/control.err") || { cat "$work/control.err" >&2; exit 2; }
+seen_once=$(listing_twice "$work/control_once.pkg" 2> "$work/control.err") || { cat "$work/control.err" >&2; exit 2; }
 if [ "$seen_twice" != 1 ] || [ "$seen_once" != 0 ]; then
   echo "$0: CONTROL FAILED. A package listing preinstall twice read as $seen_twice and one listing it" \
     "once as $seen_once (expected 1 and 0), so nothing can be concluded about the real package." >&2
