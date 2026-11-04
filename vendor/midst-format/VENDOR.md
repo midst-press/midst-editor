@@ -1,7 +1,7 @@
 # Vendored: midst-format
 
-- Tag: `v0.7.1`
-- Commit: `48bf46fa4473490dbf743b88ea941ba724fd836b`
+- Tag: `v0.7.2`
+- Commit: `eccbb5397e3abfc9709d6cea7f4a390f4d151f98`
 - Repository: `The_Kindled/midst-format` on Gitea, `midst-press/midst-format` on GitHub
 
 SHA-256 of every vendored file except this one, sorted by path. `tools/check-vendored-format.mjs` parses this block.
@@ -20,15 +20,15 @@ ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  convert/packag
 4c740427e02791f2319eeba039af1f80ef6097ac891495c3d8b5dca5617dbafe  extensions/index.d.ts
 448f23ba09250393a135c4c18e742490c2679121fa0f7c6645d1d3ca0113f2de  extensions/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  extensions/package.json
-f829b83d5b3d5cb2846be3b721af8d124eccaf7b7fb931e602d8d24e2ad30133  follow/index.cjs
-d42ea794cab5e9d327bc36b147a078cd5f978b38a6b7241c0ca42c544cfa9f03  follow/index.d.ts
-26351b53a72040bb72cdd43dd659dcfc467e81b3bce4c9dcec21a131685e9e9c  follow/index.mjs
+1a937e920c5cf5f687e1ecc52976e8a003afa43f7ab9b503e78a05ebfa59de6d  follow/index.cjs
+7d838b5b70b5a639d8f4d6767cdc92d7c396c765e97bb12314754d80ac1a4820  follow/index.d.ts
+18f2113ab92619e5d2b56feae2bbb5ad86020944658674ab64207c9f351f61ad  follow/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  follow/package.json
 2ae1a518d24f12063617442f30ed1c9fb711d29d93c4598bc6b8812063f22236  history/index.cjs
 14fd1e9c7334e83157fc1fe0cbb1dacf99b76a8ab8619ce4af78558dca952e33  history/index.d.ts
 f8d34584761b047a462220a4b156b3db1866454ef3fc2d880042deba43316ba1  history/index.mjs
 ee658ac8f5c95de1ff69e2fe5bc733f053f5de5ab831420a39937194054f4bb2  history/package.json
-0a02a5bcd3728fbeaaa8467116e9aae551e6faac6df9516218e28ed152fe6a51  package.json
+fda63d03b5ba3ae4850f75d516a2b9f70453099b3ffdab5bf00dd7a9e0bf772a  package.json
 ```
 
 Do not edit these files. To take a new version, rebuild the tag and replace this directory in its own PR: `node tools/check-vendored-format.mjs --rebuild <midst-format checkout>` rebuilds the tag named above and compares it with this directory.
