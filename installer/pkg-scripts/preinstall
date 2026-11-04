@@ -1,6 +1,13 @@
 #!/bin/bash
 # Runs as root before the new Midst is written to /Applications (issue 16).
 #
+# This script is the ONLY thing that keeps an existing Midst from being written over. The package
+# is built with isVersionChecked false (package.json build.pkg): with macOS Installer's version
+# check on, Installer decides to skip the payload when a newer Midst.app is in place BEFORE this
+# script runs, so after this script moves it aside nothing is installed and Installer still reports
+# success (0.9.4 candidate, Tart run 4 Nov: "Midst 99.0.0" kept, no Midst.app). Reproduced with a
+# stub app: version-checked, the new app is never written; not version-checked, it is.
+#
 # Any Midst already in /Applications is kept, renamed with its own version number, so the new one
 # can be installed as "Midst" without writing over it: "Midst.app" becomes "Midst <version>.app"
 # and "Midst Beta.app" becomes "Midst Beta <version>.app", whatever is inside them, including our
@@ -15,7 +22,10 @@
 #
 # Each app renamed is written, one path per line, to $INSTALLER_TEMP/press.Midst.previous-apps.
 # The opt-in "Delete the Midst that's already installed" choice deletes exactly those paths, and nothing
-# else, after the new app is installed.
+# else, after the new app is installed and the app's postinstall has checked it.
+#
+# Each rename is also written to $record.restore as "<original name><TAB><kept path>", so the
+# postinstall can move every kept app back if the new Midst is not in place (Stuart, 4 Nov).
 #
 # If anything here fails, the script exits 1 and the installer stops before the new app is
 # written. It never deletes anything, and never moves an app onto an existing name.
@@ -24,10 +34,12 @@
 set -u
 
 say() { echo "Midst preinstall: $*"; }
+
 fail() { echo "Midst preinstall: FAILED: $*" >&2; exit 1; }
 
 apps="${3%/}/Applications"
 record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
+restore="$record.restore"
 
 # Create the record before anything moves, so a record we cannot write stops the install while
 # every app is still where it was.
@@ -55,6 +67,9 @@ if [ -e "$record" ] || [ -L "$record" ]; then
 fi
 : > "$record" || fail "could not create $record"
 [ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
+if [ -e "$restore" ] || [ -L "$restore" ]; then fail "$restore exists, but $record did not"; fi
+: > "$restore" || fail "could not create $restore"
+[ -f "$restore" ] && [ -w "$restore" ] || fail "cannot write $restore"
 
 version_of() { # <app>: prints its version if it is safe in a file name, or fails
   local v
@@ -92,6 +107,7 @@ keep() { # <app> <"Midst" or "Midst Beta">: renames it aside and records the new
     fail "renaming $1 to $to did not take effect"
   fi
   printf '%s\n' "$to" >> "$record" || fail "renamed $1 to $to, but could not record it"
+  printf '%s\t%s\n' "$(basename "$1")" "$to" >> "$restore" || fail "renamed $1 to $to, but could not record how to restore it"
   say "kept the older $(basename "$1") as $(basename "$to")"
 }
 
