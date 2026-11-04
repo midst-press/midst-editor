@@ -1188,11 +1188,13 @@ msgstr "Following the writing as it plays. Click to stop scrolling."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "replay.fps"
 msgstr "Frame rate"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "replay.fps.value"
 msgstr "{fps} fps"
 
@@ -1216,11 +1218,13 @@ msgstr "There is nothing to play yet: this poem has no history."
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "replay.scrollSpeed"
 msgstr "Scroll speed"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
+#, fuzzy
 msgid "replay.scrollSpeed.value"
 msgstr "{speed} views/s"
 
