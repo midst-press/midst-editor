@@ -211,6 +211,14 @@ jobs:
         if: matrix.want == 'macos'
         shell: bash
         run: tools/check_pkg_not_relocatable.sh release/build/*.pkg
+      # pkgbuild's default also version-checks the app: over a newer copy in Applications it writes
+      # nothing. The preinstall keeps that copy by renaming it aside, so the poet is left with no
+      # Midst at all, while the installer reports success (#16, the 0.9.4 Tart run).
+      # build.pkg.isVersionChecked turns that off; this reads the built package to see that it did.
+      - name: check the installer writes the app over any version
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_not_version_checked.sh release/build/*.pkg
       - name: check what Gatekeeper will say
         if: steps.signing.outputs.signed == 'yes'
         shell: bash
