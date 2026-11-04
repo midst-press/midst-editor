@@ -1255,3 +1255,25 @@ describe('Replay: listeners', () => {
     ).not.toThrow();
   });
 });
+
+// A pace control opened with the mouse stays open (vivian-1a61bc9a, #437): useReplayKeys blurs a button clicked
+// with the mouse, and that blur must not close the slider the same click opened.
+describe('Replay: the pace controls (GitHub #49, editor #427)', () => {
+  it.each(['Frame rate', 'Scroll speed'])(
+    '%s opens on a mouse click, stays open, and a click outside closes it',
+    (label) => {
+      mount();
+      const button = screen.getByRole('button', { name: label });
+      button.focus();
+      fireEvent.click(button, { detail: 1 });
+      expect(document.activeElement).not.toBe(button);
+      expect(
+        screen.getByRole('slider', { name: label, hidden: true })
+      ).toBeInTheDocument();
+      fireEvent.pointerDown(document.body);
+      expect(
+        screen.queryByRole('slider', { name: label, hidden: true })
+      ).not.toBeInTheDocument();
+    }
+  );
+});
