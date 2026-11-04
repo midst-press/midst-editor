@@ -1,6 +1,6 @@
 #!/bin/bash
 # Adds the older-Midst handling (issue 16) to a macOS package built by `npm run package`, in place:
-# the installer warning, and the opt-in "Delete the older version of Midst" choice with its
+# the installer warning, and the opt-in "Delete the Midst that's already installed" choice with its
 # payload-free package (installer/remove-previous). The rename itself is already in the app's own
 # package, from installer/pkg-scripts (package.json build.pkg.scripts).
 #
