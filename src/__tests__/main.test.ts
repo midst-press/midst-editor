@@ -218,12 +218,23 @@ jest.mock('@jshafto/custom-electron-titlebar-update/main', () => ({
 
 jest.mock('../main/store', () => {
   const values = new Map<string, unknown>();
+  /* eslint-disable-next-line no-unused-vars -- the name says what the argument is */
+  const listeners: ((key: string) => void)[] = [];
   return {
     __esModule: true,
     default: {
+      onChange: (listener: (typeof listeners)[number]) => {
+        listeners.push(listener);
+      },
       get: (k: string) => values.get(k),
-      set: (k: string, v: unknown) => values.set(k, v),
-      delete: (k: string) => values.delete(k),
+      set: (k: string, v: unknown) => {
+        values.set(k, v);
+        listeners.forEach((listener) => listener(k));
+      },
+      delete: (k: string) => {
+        values.delete(k);
+        listeners.forEach((listener) => listener(k));
+      },
       has: (k: string) => values.has(k),
     },
   };
@@ -443,6 +454,38 @@ describe('main process', () => {
       expect(store.get('edited')).toBe(true);
       expect(await get(fireIpc, 'poem')).toBe('<p>zq</p>');
       expect(electron.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    // #421 (GitHub #113): the window is told when an untitled poem gains or loses edits, and only then.
+    it('tells the window when the poem becomes untitled with edits, and when it stops', async () => {
+      const { fireIpc, store, win } = await boot();
+      const untitledSends = () =>
+        win().webContents.send.mock.calls.filter(
+          ([c]) => c === 'set-untitled-edited'
+        );
+      store.set('baseFilename', '');
+      await set(fireIpc, 'edited', true);
+      await set(fireIpc, 'edited', true);
+      expect(untitledSends()).toEqual([['set-untitled-edited', true]]);
+      store.set('baseFilename', 'zq.midst');
+      await set(fireIpc, 'edited', true);
+      expect(untitledSends()).toEqual([
+        ['set-untitled-edited', true],
+        ['set-untitled-edited', false],
+      ]);
+    });
+
+    it('tells no window that is gone, and the write still stands', async () => {
+      const { fireIpc, store, win } = await boot();
+      store.set('baseFilename', '');
+      win().isDestroyed.mockReturnValue(true);
+      await set(fireIpc, 'edited', true);
+      expect(store.get('edited')).toBe(true);
+      expect(
+        win().webContents.send.mock.calls.filter(
+          ([c]) => c === 'set-untitled-edited'
+        )
+      ).toEqual([]);
     });
 
     it.each([
