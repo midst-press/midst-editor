@@ -51,8 +51,13 @@ test('after Play is clicked with the mouse, Space pauses, and Space again plays'
   try {
     await playButton(win).click();
     await expect(playButton(win)).toHaveAttribute('aria-label', 'Pause');
+    expect(await focusRing(win), 'a mouse click drew a focus ring').toBe(false);
     await win.keyboard.press('Space');
     await expect(playButton(win)).toHaveAttribute('aria-label', 'Play');
+    // GitHub #98 (2026-11-04): a ring on Play/Pause after a click and then Space.
+    expect(await focusRing(win), 'Space after a click drew a focus ring').toBe(
+      false
+    );
     // Held for a moment, it is still one press: nothing toggles on the way back up.
     await win.waitForTimeout(300);
     expect(await playing(win), 'Space was undone when the key came up').toBe(
@@ -60,6 +65,9 @@ test('after Play is clicked with the mouse, Space pauses, and Space again plays'
     );
     await win.keyboard.press('Space');
     await expect(playButton(win)).toHaveAttribute('aria-label', 'Pause');
+    expect(await focusRing(win), 'a second Space drew a focus ring').toBe(
+      false
+    );
     expect(failures).toEqual([]);
   } finally {
     await close();
