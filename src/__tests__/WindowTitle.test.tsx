@@ -133,7 +133,8 @@ describe('the window title (#125)', () => {
     render(<App />);
     emit('open-file', '<p>xv</p>', [], 'xv.midst');
     emit('set-not-saved', true);
-    expect(last()).toBe('xv.midst (not saved)');
+    // It has a file whose changes are not saved (Annelyse's rule, GitHub #113).
+    expect(last()).toBe('xv.midst* (unsaved changes)');
     emit('set-not-saved', false);
     expect(last()).toBe('xv.midst');
     emit('set-not-saved', true);
@@ -145,9 +146,48 @@ describe('the window title (#125)', () => {
     render(<App />);
     emit('open-file', '', [], '');
     emit('set-not-saved', true);
-    expect(last()).toBe('Untitled (not saved)');
+    expect(last()).toBe('Untitled* (not saved)');
     fireEvent.click(screen.getByText('leave'));
     expect(last()).toBe('');
+  });
+
+  // #421 (GitHub #113): an untitled poem with edits has changes autosave will not save. Main says when that changes.
+  it('says an untitled poem with edits is not saved, apart from its name, until main says otherwise', () => {
+    render(<App />);
+    emit('open-file', '', [], '');
+    expect(last()).toBe('Untitled');
+    emit('set-untitled-edited', true);
+    expect(last()).toBe('Untitled* (not saved)');
+    emit('set-filename', 'qj.midst');
+    emit('set-untitled-edited', false);
+    expect(last()).toBe('qj.midst');
+  });
+
+  it('after a reload into an untitled poem with edits, says it is not saved from the store; a named one, nothing', () => {
+    stored.edited = true as unknown as string;
+    stored.baseFilename = '';
+    window.sessionStorage.setItem(RETURN_TO, '/editor');
+    const { unmount } = render(<App />);
+    expect(titles).toEqual(['Untitled* (not saved)']);
+    unmount();
+
+    titles = [];
+    stored.baseFilename = 'zq.midst';
+    window.sessionStorage.setItem(RETURN_TO, '/editor');
+    render(<App />);
+    expect(titles).toEqual(['zq.midst']);
+  });
+
+  it('keeps the failed-save flag when main clears the untitled one, and the reverse', () => {
+    render(<App />);
+    emit('open-file', '', [], '');
+    emit('set-untitled-edited', true);
+    emit('set-not-saved', true);
+    emit('set-untitled-edited', false);
+    expect(last()).toBe('Untitled* (not saved)');
+    emit('set-untitled-edited', true);
+    emit('set-not-saved', false);
+    expect(last()).toBe('Untitled* (not saved)');
   });
 
   it('is set once per change, not on every render', () => {

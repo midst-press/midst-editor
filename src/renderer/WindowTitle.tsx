@@ -3,19 +3,28 @@ import { useLocation } from 'react-router-dom';
 import { i18n } from '../shared/i18n';
 
 // The one place the window title is set (#125). Empty on the opening screen; otherwise the poem's file
-// name, or "Untitled" before it has one, followed by "(not saved)" while a failed save has left it unsaved
-// (on every platform, macOS included: Annelyse, GitHub #75; main decides, #94). App holds both; the route says which screen is showing.
+// name, or "Untitled" before it has one, and then a flag when the poem has changes that are not saved (on every
+// platform, macOS included: Annelyse, GitHub #75 and #113). The flag is apart from the name, so the name stays the
+// poem's own everywhere else, the recovery dialog included (#421). Annelyse's rule (GitHub #113): "(not saved)" for
+// a poem never saved, which is an untitled poem with edits or whose save failed; "(unsaved changes)" for a poem with
+// a file whose changes are not saved, which is a named poem whose save failed (main decides, #94). App holds the
+// facts; the route says which screen is showing.
 // The title bar library sets document.title with it, and the native window title follows that.
 export default function WindowTitle({
   filename,
   notSaved,
+  untitledEdited,
 }: {
   filename: string;
   notSaved: boolean;
+  untitledEdited: boolean;
 }) {
   const { pathname } = useLocation();
   const name = filename || i18n._('file.untitled');
-  let title = notSaved ? i18n._('window.notSaved', { name }) : name;
+  let title = name;
+  if (untitledEdited || (notSaved && !filename))
+    title = i18n._('window.notSaved', { name });
+  else if (notSaved) title = i18n._('window.unsavedChanges', { name });
   if (pathname === '/') title = '';
   useEffect(() => {
     window.electron.titlebar.updateTitle(title);
