@@ -308,6 +308,10 @@ installed_by_test=yes
 # 3a, the plain path: a Mac with no Midst at all (Cyril, 4 Nov: the main road first). The app must be
 # in Applications at the expected version and open a poem. Then it is removed again, so step 3 starts
 # from no Midst in Applications, as it always has.
+# A clean install only if there really is no Midst: anything named Midst*.app makes it an upgrade.
+for existing in /Applications/Midst*.app; do
+  if [ -e "$existing" ] || [ -L "$existing" ]; then give_up "3a needs a Mac with no Midst, but $existing is in /Applications"; fi
+done
 # The log is ours to write, not root's.
 # shellcheck disable=SC2024
 if sudo -n installer -pkg "$pkg" -target / > "$work/install-clean.txt" 2>&1; then
