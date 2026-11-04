@@ -1,11 +1,4 @@
-import {
-  FocusEvent,
-  KeyboardEvent,
-  ReactNode,
-  useEffect,
-  useRef,
-  useState,
-} from 'react';
+import { FocusEvent, ReactNode, useEffect, useRef, useState } from 'react';
 import { cssVar } from '../../cssVars';
 import { PaceSetting } from './usePace';
 
@@ -30,6 +23,7 @@ export default function PaceControl({
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const control = useRef<HTMLDivElement>(null);
+  const slider = useRef<HTMLInputElement>(null);
   // On the button and the slider, not the wrapper. Only focus moving to something else closes it: after a
   // mouse click the Timeline blurs the clicked button with nowhere to go (useReplayKeys), and that must not
   // close the slider the same click opened (vivian-1a61bc9a, #437). A click outside closes it instead.
@@ -42,16 +36,25 @@ export default function PaceControl({
     const outside = (event: PointerEvent) => {
       if (!control.current?.contains(event.target as Node)) setOpen(false);
     };
+    // Escape closes an open slider wherever the focus is, and goes no further: after a mouse click the Timeline has
+    // taken the focus off the button, and its own Escape would leave for Edit (e2e pace-controls, #437). Caught on
+    // the way down, so it runs before the Timeline's listener.
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+      button.current?.focus();
+    };
     document.addEventListener('pointerdown', outside);
-    return () => document.removeEventListener('pointerdown', outside);
+    document.addEventListener('keydown', escape, true);
+    // Into the slider, so the arrow keys move it at once.
+    slider.current?.focus();
+    return () => {
+      document.removeEventListener('pointerdown', outside);
+      document.removeEventListener('keydown', escape, true);
+    };
   }, [open]);
-  const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || !open) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setOpen(false);
-    button.current?.focus();
-  };
   return (
     <div className="pace-control" ref={control}>
       <button
@@ -63,7 +66,6 @@ export default function PaceControl({
         style={{ color: cssVar('onControlBar') }}
         onClick={() => setOpen((current) => !current)}
         onBlur={onBlur}
-        onKeyDown={onKeyDown}
       >
         {icon}
       </button>
@@ -75,6 +77,7 @@ export default function PaceControl({
           style={{ backgroundColor: cssVar('controlBar') }}
         >
           <input
+            ref={slider}
             type="range"
             className="pace-slider"
             aria-label={label}
@@ -85,7 +88,6 @@ export default function PaceControl({
             value={value}
             onChange={(event) => onChange(Number(event.target.value))}
             onBlur={onBlur}
-            onKeyDown={onKeyDown}
           />
           <output
             className="pace-value"
