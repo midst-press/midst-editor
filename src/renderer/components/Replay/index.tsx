@@ -77,6 +77,10 @@ export default function Replay() {
     nameOnArrival ?? null
   );
   const backToEdit = useRef(nameOnArrival !== undefined);
+  // The marker made just now, until its naming ends: Undo before anything is typed takes it back (GitHub #95).
+  const [newMarker, setNewMarker] = useState<number | null>(
+    nameOnArrival ?? null
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Closing the list from inside it hands the focus back to the Drafts button once the list has gone.
   useEffect(() => {
@@ -131,6 +135,7 @@ export default function Replay() {
   };
   const leaveTimelineNaming = (goBack: boolean) => {
     setTimelineNaming(null);
+    setNewMarker(null);
     if (backToEdit.current) {
       backToEdit.current = false;
       if (goBack) navigate('/editor');
@@ -166,6 +171,18 @@ export default function Replay() {
     refocusDrafts.current = fromList;
   }, []);
   const goToEdit = useCallback(() => navigate('/editor'), [navigate]);
+  // Undo straight after the button: as though it had not been pressed, so a marker made while writing goes back
+  // to writing.
+  const undoNewMarker = (index: number) => {
+    drafts.unmake(index);
+    leaveTimelineNaming(true);
+  };
+  // Names on the timeline sit above the line, unless the timestamp is always shown: then the timestamp has the
+  // space above, the names go below, and the timeline moves up to make room for them (GitHub #95).
+  const namesShown =
+    timelineNaming !== null ||
+    (showMarkers && showLabels && drafts.markers.length > 0);
+  const namesBelow = showTimestamp.on && namesShown;
   useReplayKeys(playPauseButton, closeDrafts, goToEdit);
 
   return (
@@ -174,7 +191,9 @@ export default function Replay() {
       className="ReplayLayout"
       style={{ backgroundColor: cssVar('background') }}
     >
-      <div className="ReplayMain">
+      <div
+        className={namesBelow ? 'ReplayMain names-below-lift' : 'ReplayMain'}
+      >
         <ReplayTopButtons
           fontSize={fontSize}
           following={follow.on}
@@ -218,11 +237,14 @@ export default function Replay() {
               showMarkers={showMarkers}
               showLabels={showLabels}
               naming={timelineNaming}
+              newMarker={newMarker}
+              namesBelow={namesBelow}
               setNaming={setTimelineNaming}
               onJump={jumpTo}
               onLeaveNaming={leaveTimelineNaming}
               onRename={drafts.rename}
               onDelete={drafts.remove}
+              onUndoNew={undoNewMarker}
             />
             {/* Continue writing from here first, then the two Draft Marker buttons, then X (GitHub #90). */}
             <RestartFromButton step={step} pause={pause} />
@@ -236,7 +258,10 @@ export default function Replay() {
               style={{ color: cssVar('onControlBar') }}
               onClick={() => {
                 pause();
-                if (drafts.create(step)) setTimelineNaming(step);
+                if (drafts.create(step)) {
+                  setTimelineNaming(step);
+                  setNewMarker(step);
+                }
               }}
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}

@@ -404,3 +404,124 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
     await app.close();
   }
 });
+
+// GitHub #95, round 2: measured in the real window, because jsdom has no layout. Undo straight after the button takes
+// the marker back, in the file. The name is typed centred, on the timestamp's white. The line stays in the middle of
+// the bar with a marker on it. The names sit above the line, or below it when the timestamp is always shown, and then
+// the timeline moves up so the space under them stays.
+test('round 2: Undo takes back a new marker, and the names sit clear of the line and the timestamp', async () => {
+  const doc = makePlayableMidst(LONG);
+  const work = mkdtempSync(join(tmpdir(), 'midst-drafts-round2-'));
+  const poemPath = join(work, 'round2.midst');
+  writeFileSync(poemPath, doc.file);
+  const { app, userData } = await launch(work);
+  const undo = process.platform === 'darwin' ? 'Meta+z' : 'Control+z';
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, poemPath, 'the long poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    await win.getByRole('link', { name: 'Timeline' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+    const geometry = () =>
+      win.evaluate(() => {
+        const box = (sel: string) => {
+          const el = document.querySelector(sel);
+          if (!el) return null;
+          const r = el.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, mid: (r.top + r.bottom) / 2 };
+        };
+        return {
+          bar: box('.ControlBar')!,
+          rail: box('.ControlBar .MuiSlider-rail')!,
+          name: box('.MuiSlider-markLabel'),
+          height: window.innerHeight,
+        };
+      });
+    const before = await geometry();
+
+    // 1. Undo before anything is typed: no marker, in the file too, and the field gone.
+    await win.getByRole('button', { name: MARK }).click();
+    const nameField = win.getByLabel('Draft Marker name');
+    await expect(nameField).toHaveValue('Draft 1', { timeout: 25_000 });
+    expect(
+      await waitUntil(
+        () => metaOnDisk(poemPath)?.draftMarkers?.length === 1,
+        10_000
+      ),
+      'the new marker never reached the file'
+    ).toBe(true);
+    // The name is typed in the middle of its field, on the timestamp's colour, not the old yellow.
+    const look = await nameField.evaluate((el) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--midst-surface)';
+      document.body.appendChild(probe);
+      const surface = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const style = getComputedStyle(el);
+      return {
+        align: style.textAlign,
+        background: style.backgroundColor,
+        surface,
+      };
+    });
+    expect(look.align).toBe('center');
+    expect(look.background).toBe(look.surface);
+    await nameField.press(undo);
+    await expect(nameField, 'Undo left the name field open').toBeHidden();
+    expect(
+      await waitUntil(
+        () => metaOnDisk(poemPath)?.draftMarkers?.length === 0,
+        10_000
+      ),
+      'Undo did not take the marker out of the file'
+    ).toBe(true);
+
+    // 2. A marker, named: above the line, and the line still in the middle of the bar, where it was.
+    await win.getByRole('button', { name: MARK }).click();
+    await expect(nameField).toBeVisible({ timeout: 25_000 });
+    await nameField.fill('zq');
+    await nameField.press('Enter');
+    await expect(win.locator('.draft-mark-label')).toHaveText('zq');
+    const above = await geometry();
+    expect(
+      Math.abs(above.rail.mid - above.bar.mid),
+      'the line is off the middle of the bar with a marker on it'
+    ).toBeLessThanOrEqual(1);
+    expect(Math.abs(above.rail.mid - before.rail.mid)).toBeLessThanOrEqual(1);
+    expect(above.name!.bottom).toBeLessThan(above.rail.top);
+
+    // 3. The timestamp always shown: the names go below the line, and the timeline moves up so the space under them
+    // is at least what was under the bar.
+    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('checkbox', { name: 'Show timestamp' }).click();
+    await win.getByRole('button', { name: 'Settings' }).click();
+    await expect(win.locator('.DraftDrawer')).toBeHidden();
+    await win.waitForTimeout(600); // the move is animated
+    const below = await geometry();
+    expect(below.name!.top).toBeGreaterThan(below.rail.bottom);
+    expect(below.bar.top).toBeLessThan(above.bar.top);
+    expect(
+      below.height - below.name!.bottom,
+      'the names reach further down the page than the bar did'
+    ).toBeGreaterThanOrEqual(above.height - above.bar.bottom - 2);
+    expect(Math.abs(below.rail.mid - below.bar.mid)).toBeLessThanOrEqual(1);
+    await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
+    const time = (await win
+      .locator('.MuiSlider-valueLabelOpen')
+      .boundingBox())!;
+    expect(time.y + time.height).toBeLessThan(below.rail.top);
+
+    // 4. Deleted: the timeline moves back down.
+    await win.locator('.draft-mark-label').click({ button: 'right' });
+    await win.getByRole('menuitem', { name: 'Delete Draft Marker' }).click();
+    await expect(win.locator('.draft-mark-label')).toHaveCount(0);
+    await win.waitForTimeout(600);
+    const after = await geometry();
+    expect(Math.abs(after.bar.top - before.bar.top)).toBeLessThanOrEqual(1);
+  } finally {
+    await app.close();
+  }
+});

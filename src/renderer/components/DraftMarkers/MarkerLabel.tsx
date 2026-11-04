@@ -10,6 +10,8 @@ interface Props {
   label: string;
   // This marker's name is open for typing on the timeline.
   naming: boolean;
+  // It was made just now, and is being named for the first time.
+  isNew: boolean;
   onJump: (index: number) => void;
   onStartNaming: (index: number) => void;
   // Enter, or leaving the field: keep what was typed. Only Enter is a choice to be done (GitHub #95).
@@ -17,6 +19,8 @@ interface Props {
   // Escape: keep the name it had.
   onCancel: (index: number) => void;
   onDelete: (index: number) => void;
+  // Undo before anything was typed: take back the new marker (GitHub #95).
+  onUndoNew: (index: number) => void;
 }
 /* eslint-enable no-unused-vars */
 
@@ -30,11 +34,13 @@ export default function MarkerLabel({
   index,
   label,
   naming,
+  isNew,
   onJump,
   onStartNaming,
   onFinish,
   onCancel,
   onDelete,
+  onUndoNew,
 }: Props) {
   const [typed, setTyped] = useState(label);
   const [menuAt, setMenuAt] = useState<{ top: number; left: number } | null>(
@@ -83,6 +89,23 @@ export default function MarkerLabel({
           if (e.key === 'Escape') {
             done.current = true;
             onCancel(index);
+          }
+          // Undo on a new marker's name, still as it was given: undo the making of it, as though the button had
+          // not been pressed (GitHub #95). Once something is typed, Undo is the field's own, for the typing.
+          const undoKey = window.electron.versions.isMac
+            ? e.metaKey && !e.ctrlKey
+            : e.ctrlKey && !e.metaKey;
+          if (
+            isNew &&
+            undoKey &&
+            !e.shiftKey &&
+            !e.altKey &&
+            e.key.toLowerCase() === 'z' &&
+            typed === label
+          ) {
+            e.preventDefault();
+            done.current = true;
+            onUndoNew(index);
           }
         }}
       />
