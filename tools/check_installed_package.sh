@@ -272,6 +272,7 @@ PY
 open -n -a "$installed" "$poem" --args "--user-data-dir=$userdata" > "$work/open.txt" 2>&1 \
   || fail "$1 open could not start the app: $(tr '\n' ' ' < "$work/open.txt")"
 opened=no
+app_pid=
 for _ in $(seq 1 60); do
   [ -n "$app_pid" ] || app_pid=$(pgrep -f -- "$installed/Contents/MacOS/Midst --user-data-dir=$userdata" | head -1)
   if [ -f "$userdata/config.json" ] && python3 - "$userdata/config.json" "$poem" << 'PY'
@@ -291,7 +292,11 @@ if [ -n "$app_pid" ]; then
   kill -TERM "$app_pid" 2> /dev/null
   gone=no
   for _ in $(seq 1 20); do kill -0 "$app_pid" 2> /dev/null || { gone=yes; break; }; sleep 1; done
-  if [ "$gone" = yes ]; then pass "$1 it quit when asked"; app_pid=; else fail "$1 it was still running 20 seconds after being asked to quit"; fi
+  if [ "$gone" = yes ]; then pass "$1 it quit when asked"; else
+    fail "$1 it was still running 20 seconds after being asked to quit"
+    kill -KILL "$app_pid" 2> /dev/null
+  fi
+  app_pid=
 fi
 }
 
