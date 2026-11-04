@@ -1,14 +1,11 @@
 // Where the user guide (docs/user-guide.md) can be read. The About box and Help > Documentation
 // open it in the poet's browser.
 //
-// The guide as it was for the installed version (#102): a packaged app links to its release tag,
-// v<version>, which the release workflow pushes for every build it hands out (see aboutLine). The guide
-// on main can describe buttons an older version doesn't have. A development build, which has no
-// release tag, links to main.
-const GUIDE_AT = 'https://github.com/midst-press/midst-editor/blob';
+// Points to midst.press/app (GitHub #111): the app must not link to GitHub. The guide on the site
+// is kept current; a packaged app's release tag no longer needs to appear in the URL.
+const GUIDE_AT = 'https://midst.press/app';
 
-/** The guide for an app of `version`, or the guide on main when there is no release version. */
-export const userGuideUrl = (version: string | null): string =>
-  `${GUIDE_AT}/${version ? `v${version}` : 'main'}/docs/user-guide.md`;
+/** The user guide on midst.press. */
+export const userGuideUrl = (): string => GUIDE_AT;
 
 export default userGuideUrl;
