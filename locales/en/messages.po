@@ -1356,4 +1356,10 @@ msgstr "The text is already at its smallest size."
 #: src/renderer/WindowTitle.tsx
 #, fuzzy
 msgid "window.notSaved"
-msgstr "{name} (not saved)"
+msgstr "{name}* (not saved)"
+
+#. js-lingui-explicit-id
+#: src/renderer/WindowTitle.tsx
+#, fuzzy
+msgid "window.unsavedChanges"
+msgstr "{name}* (unsaved changes)"
