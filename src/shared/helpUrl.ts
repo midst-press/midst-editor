@@ -4,7 +4,7 @@ import { isPreRelease } from '@midst-press/midst-format/build-label';
 // editor goes to the beta site, a release to the public one. Decided from the app's own version
 // (app.getVersion(), which is release/app/package.json), not from a build variable a packager could
 // forget to set. A version the rule cannot read counts as a beta, as isPreRelease does for tags.
-export const RELEASE_HELP_URL = 'https://www.midst.press/app#help';
+export const RELEASE_HELP_URL = 'https://midst.press/app#help';
 export const BETA_HELP_URL = 'https://d1zn50pi7kgz7t.cloudfront.net/app#help';
 
 /** The help page for an app of `version`: the beta site below 1.0.0 or for a pre-release. */

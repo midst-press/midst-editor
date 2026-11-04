@@ -72,8 +72,8 @@
 }
 
 .focus-mode-gap {
-  /* The small empty space that separates the moon slightly from the font options (GitHub #25). */
-  width: 12px;
+  /* The empty space between groups of toolbar icons (GitHub #25, #432). Equal spacers, 30% wider than the original 12px. */
+  width: 16px;
 }
 
 .icon-button {
@@ -111,9 +111,9 @@
 
 .is-active {
   transition: background-color 0.1s ease;
-  stroke: rgb(255, 145, 175);
+  stroke: #b57edc;
   stroke-width: 1px;
-  color: rgb(255, 145, 175);
+  color: #b57edc;
 }
 
 .MuiTooltip-tooltip {
