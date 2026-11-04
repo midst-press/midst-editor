@@ -407,7 +407,8 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
 
 // GitHub #95, round 2. What Annelyse is troubled by is a name colliding with the timestamp, so these tests look for
 // collisions and for names the poet cannot see, in the real window (jsdom has no layout), rather than for positions.
-// Each problem found is said in words: which name, and what it is on or under.
+// Each problem found is said in words: which name, and what it is on or under. The checks poll: while the timeline
+// is still moving a name can pass anywhere, and only what stays is a problem.
 async function problems(win: Page): Promise<string[]> {
   return win.evaluate(() => {
     const box = (el: Element) => el.getBoundingClientRect();
@@ -558,16 +559,22 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
       Math.abs(marked.line - bare.line),
       'adding a marker moved the line'
     ).toBeLessThanOrEqual(0.5);
-    expect(await problems(win), 'names above the line').toEqual([]);
+    await expect
+      .poll(() => problems(win), { message: 'names above the line' })
+      .toEqual([]);
 
     // Item 3: with the timestamp always shown, the names move out of its way, and the room under the timeline stays.
     await showTimestamp(win);
     await settled(win);
     await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
-    expect(await problems(win), 'timestamp shown, dot on xv').toEqual([]);
+    await expect
+      .poll(() => problems(win), { message: 'timestamp shown, dot on xv' })
+      .toEqual([]);
     await win.locator('.MuiSlider-thumb input').focus();
     await win.keyboard.press('End');
-    expect(await problems(win), 'timestamp shown, dot on zq').toEqual([]);
+    await expect
+      .poll(() => problems(win), { message: 'timestamp shown, dot on zq' })
+      .toEqual([]);
     const lifted = await lineAndRoom(win);
     expect(
       lifted.room,
@@ -593,7 +600,9 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
       BrowserWindow.getAllWindows()[0].setContentSize(900, 600);
     });
     await win.waitForFunction(() => window.innerWidth === 900);
-    expect(await problems(win), 'at 900 by 600').toEqual([]);
+    await expect
+      .poll(() => problems(win), { message: 'at 900 by 600' })
+      .toEqual([]);
   } finally {
     await app.close();
   }
