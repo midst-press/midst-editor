@@ -1,10 +1,17 @@
-import { FocusEvent, KeyboardEvent, ReactNode, useRef, useState } from 'react';
+import {
+  FocusEvent,
+  KeyboardEvent,
+  ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { cssVar } from '../../cssVars';
 import { PaceSetting } from './usePace';
 
 // A pace button for the Timeline's control bar (GitHub #49, editor #427), after the website's speedometer
 // (midst-web SpeedControl): the button opens a narrow slider above it, which shows its value as it moves.
-// Escape, or the focus leaving the control, closes it.
+// Escape, a click outside it, or the focus moving to something else closes it.
 export default function PaceControl({
   setting,
   value,
@@ -23,11 +30,21 @@ export default function PaceControl({
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const control = useRef<HTMLDivElement>(null);
-  // On the button and the slider, not the wrapper: the focus leaving the control closes it, and so does
-  // Escape, which goes no further, so it does not also leave the Timeline.
+  // On the button and the slider, not the wrapper. Only focus moving to something else closes it: after a
+  // mouse click the Timeline blurs the clicked button with nowhere to go (useReplayKeys), and that must not
+  // close the slider the same click opened (vivian-1a61bc9a, #437). A click outside closes it instead.
   const onBlur = (event: FocusEvent) => {
-    if (!control.current?.contains(event.relatedTarget as Node)) setOpen(false);
+    const to = event.relatedTarget as Node | null;
+    if (to && !control.current?.contains(to)) setOpen(false);
   };
+  useEffect(() => {
+    if (!open) return undefined;
+    const outside = (event: PointerEvent) => {
+      if (!control.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', outside);
+    return () => document.removeEventListener('pointerdown', outside);
+  }, [open]);
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape' || !open) return;
     event.preventDefault();
