@@ -17,8 +17,9 @@ function targetScrollTop(point, box, scrollTop, scrollHeight) {
   return Math.max(0, Math.min(scrollHeight - box.height, Math.round(centre)));
 }
 var PEAK_VIEWPORTS_PER_S = 5;
-function glideMs(distance, viewport) {
-  const ms = 2 * distance * 1e3 / (PEAK_VIEWPORTS_PER_S * Math.max(1, viewport));
+function glideMs(distance, viewport, peak = PEAK_VIEWPORTS_PER_S) {
+  const speed = Number.isFinite(peak) && peak > 0 ? peak : PEAK_VIEWPORTS_PER_S;
+  const ms = 2 * distance * 1e3 / (speed * Math.max(1, viewport));
   return Math.max(250, ms);
 }
 var ease = (t) => t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
@@ -34,7 +35,7 @@ function gliding(g) {
 }
 var MIN_GLIDE_VIEWPORT = 50;
 var MAX_FRAME_MS = 2 * (1e3 / 60);
-function glideTo(el, to, current) {
+function glideTo(el, to, current, peak = PEAK_VIEWPORTS_PER_S) {
   if (current && !current.done && Math.abs(current.to - to) < 2) return current;
   if (current && !current.done) cancelAnimationFrame(current.frame);
   const from = el.scrollTop;
@@ -44,7 +45,7 @@ function glideTo(el, to, current) {
     el.scrollTop = to;
     return null;
   }
-  const ms = glideMs(distance, el.clientHeight);
+  const ms = glideMs(distance, el.clientHeight, peak);
   let last = performance.now();
   let progress = 0;
   const glide = { to, frame: 0, done: false, el };
