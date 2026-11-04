@@ -525,10 +525,22 @@ test('round 2: Undo straight after the button takes the new marker back, in the 
       ),
       'the new marker never reached the file'
     ).toBe(true);
-    // Typed in the middle of the field (item 1).
-    expect(await field.evaluate((el) => getComputedStyle(el).textAlign)).toBe(
-      'center'
-    );
+    // Typed in the middle of the field (item 1), on the timestamp's white, not the old yellow (item 1.3).
+    const look = await field.evaluate((el) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--midst-surface)';
+      document.body.appendChild(probe);
+      const surface = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const style = getComputedStyle(el);
+      return {
+        align: style.textAlign,
+        background: style.backgroundColor,
+        surface,
+      };
+    });
+    expect(look.align).toBe('center');
+    expect(look.background).toBe(look.surface);
     await field.press(undo);
     await expect(field, 'Undo left the name field open').toBeHidden();
     expect(
@@ -610,15 +622,16 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
 
 // With Show timestamp off (the default), the timestamp still appears while the poet points at or drags the dot, and
 // the names are above the line, where it appears. Round 2 does not solve that; it is a question for Annelyse on
-// #424. Expected to fail until it is solved, so that the day it is, this says so.
-test('round 2: with the timestamp off, pointing at the dot on a marker still puts the timestamp on its name', async () => {
-  test.fail();
+// GitHub #95. This asserts the collision as it stands, so it turns red the day it is solved, and for no other reason
+// (silas-397300f6, review of #424).
+test('round 2, known: with the timestamp off, pointing at the dot on a marker puts the timestamp on its name', async () => {
   const { app, win } = await openTimeline('pointing');
   try {
     await markHere(win, 'zq');
     await win.locator('.MuiSlider-thumb').hover();
+    // The control: the timestamp is open.
     await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
-    expect(await problems(win)).toEqual([]);
+    await expect.poll(() => problems(win)).toContain('zq: on the timestamp');
   } finally {
     await app.close();
   }
