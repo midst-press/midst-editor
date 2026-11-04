@@ -300,7 +300,7 @@ export default function Editor() {
         onBlur={onBlur}
         editorProps={{
           attributes: {
-            class: `TextEditor ${heightClass} size-${fontSize.size}`,
+            class: `TextEditor ${heightClass}`,
             spellcheck: spellcheckOn.toString(),
           },
         }}
