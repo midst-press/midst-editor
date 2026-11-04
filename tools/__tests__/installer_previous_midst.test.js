@@ -430,7 +430,10 @@ describeOnMac('preinstall: the 99 names for one kept app run out', () => {
   // Midst.app's 99 names taken, Beta's free: Midst Beta (no version) has moved when Midst.app
   // (no version) finds no name. The install still stops before the new app is written, so
   // Midst.app is never written over. Beta's own names: " (99)" is still its last.
-  test("Midst.app's names all taken: Beta moves, then Midst.app stops the install", () => {
+  // Beta moves, then Midst.app finds all 99 of its names taken. The install stops before the new app
+  // is written, and the preinstall puts Beta back itself, because no postinstall runs after a
+  // preinstall that fails (rollback contract, #16). Nothing is written over, and nothing deleted.
+  test("Midst.app's names all taken: the install stops, and Beta goes back to its own name", () => {
     const taken = Object.fromEntries(
       [
         ...namesFor(unknownStem(), 99),
@@ -438,18 +441,12 @@ describeOnMac('preinstall: the 99 names for one kept app run out', () => {
       ].map((n) => [n, {}])
     );
     const v = volume({ ...taken, 'Midst Beta.app': {}, 'Midst.app': null });
+    const before = listing(v.applications);
     const r = run(PREINSTALL, v);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('no free name for');
     expect(fs.existsSync(`${v.record}.done`)).toBe(false);
-    const now = listing(v.applications);
-    expect(now).toContain('Midst.app');
-    expect(now).not.toContain('Midst Beta.app');
-    expect(now).toContain(betaFallback(99));
-    expect(now).toHaveLength(99 + 99 + 1);
-    expect(fs.readFileSync(v.record, 'utf8')).toBe(
-      `${path.join(v.applications, betaFallback(99))}\n`
-    );
+    expect(listing(v.applications)).toEqual(before);
   });
 
   // A first run that stopped part-way, then another run in the same install (the same record):
@@ -664,6 +661,8 @@ describeOnMac('opt-in delete', () => {
     ['climbing out', (v) => path.join(v.applications, '..', 'Midst 0.9.3.app')],
   ])('refuses a recorded path %s', (_label, target) => {
     const v = volume({ 'Midst.app': OURS, 'Other.app': {} });
+    // A passed check, so the refusal tested here is the path rule's.
+    fs.writeFileSync(`${v.record}.installed`, OURS.CFBundleShortVersionString);
     fs.mkdirSync(path.join(v.root, 'Midst 0.9.3.app'));
     fs.writeFileSync(v.record, `${target(v)}\n`);
     const r = run(REMOVE, v);
