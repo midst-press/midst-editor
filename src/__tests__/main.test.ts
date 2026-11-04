@@ -53,7 +53,11 @@ interface FakeElectron {
     addRecentDocument: jest.Mock;
     applicationMenu: { getMenuItemById: jest.Mock } | undefined;
   };
-  dialog: { showMessageBoxSync: jest.Mock; showErrorBox: jest.Mock };
+  dialog: {
+    showMessageBoxSync: jest.Mock;
+    showMessageBox: jest.Mock;
+    showErrorBox: jest.Mock;
+  };
   shell: { openExternal: jest.Mock };
 }
 
@@ -79,6 +83,9 @@ jest.mock('electron', () => {
     map.set(key, [...(map.get(key) ?? []), fn]);
   };
   class BrowserWindow {
+    // The window an IPC event came from: tests below have one window.
+    static fromWebContents = jest.fn(() => (state.windows as unknown[]).at(-1));
+
     options: Record<string, unknown>;
 
     handlers: Record<string, Handler[]> = {};
@@ -147,6 +154,7 @@ jest.mock('electron', () => {
         }
         return state.dialogResponse;
       }),
+      showMessageBox: jest.fn(() => Promise.resolve({ response: 0 })),
       showErrorBox: jest.fn(),
     },
     shell: { openExternal: jest.fn() },
@@ -415,6 +423,86 @@ describe('main process', () => {
     );
   });
 
+  // #355: what the renderer sends is untyped whatever the preload says, so main checks it.
+  describe("the renderer's store calls", () => {
+    type FireIpc = Awaited<ReturnType<typeof boot>>['fireIpc'];
+    const get = async (fireIpc: FireIpc, key: unknown) => {
+      const event = { returnValue: 'unset' as unknown };
+      await fireIpc('electron-store-get', event, key);
+      return event.returnValue;
+    };
+    const set = async (fireIpc: FireIpc, key: unknown, value: unknown) => {
+      await fireIpc('electron-store-set', { sender: {} }, key, value);
+    };
+
+    it('stores a value of its type', async () => {
+      const { fireIpc, store, electron } = await boot();
+      await set(fireIpc, 'poem', '<p>zq</p>');
+      await set(fireIpc, 'edited', true);
+      expect(store.get('poem')).toBe('<p>zq</p>');
+      expect(store.get('edited')).toBe(true);
+      expect(await get(fireIpc, 'poem')).toBe('<p>zq</p>');
+      expect(electron.dialog.showMessageBox).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['font-size', 3],
+      ['zq-not-a-key', 'xv'],
+    ])(
+      'refuses %p written as %p, stores nothing and logs it',
+      async (key, value) => {
+        const { fireIpc, store, log, electron } = await boot();
+        await set(fireIpc, key, value);
+        expect(store.get(key as 'edited')).toBeUndefined();
+        expect(log.error).toHaveBeenCalledWith(
+          'the renderer wrote a store key or value the app does not have',
+          { key, found: typeof value }
+        );
+        // Not the poem: logged only.
+        expect(electron.dialog.showMessageBox).not.toHaveBeenCalled();
+      }
+    );
+
+    it.each([['true'], ['false'], [0], [null]])(
+      'stores edited as unsaved when it is written as %p, and logs it',
+      async (value) => {
+        const { fireIpc, store, log } = await boot();
+        store.set('edited', false);
+        await set(fireIpc, 'edited', value);
+        expect(store.get('edited')).toBe(true);
+        expect(log.error).toHaveBeenCalledWith(
+          'the renderer wrote a store key or value the app does not have',
+          { key: 'edited', found: typeof value }
+        );
+      }
+    );
+
+    it('answers undefined for a key the app does not have, and logs it', async () => {
+      const { fireIpc, log } = await boot();
+      expect(await get(fireIpc, 'zq-not-a-key')).toBeUndefined();
+      expect(log.error).toHaveBeenCalledWith(
+        'the renderer asked for a store key the app does not have',
+        { key: 'zq-not-a-key' }
+      );
+    });
+
+    // Cora, review of the design: a refused write of the poem means the recovery copy stops following
+    // what the poet types, so they are told, once until the poem is stored again.
+    it('tells the poet once when the poem is refused, and again only after it has been stored', async () => {
+      const { fireIpc, electron, win } = await boot();
+      await set(fireIpc, 'poem', 7);
+      await set(fireIpc, 'history', null);
+      expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(1);
+      expect(electron.dialog.showMessageBox).toHaveBeenCalledWith(
+        win(),
+        expect.objectContaining({ type: 'error' })
+      );
+      await set(fireIpc, 'poem', '<p>zq</p>');
+      await set(fireIpc, 'meta', false);
+      expect(electron.dialog.showMessageBox).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('the languages on the opening screen (editor #265)', () => {
     it("answers their order: English, then the system's own, then the rest", async () => {
       const { fireIpc } = await boot();
@@ -474,12 +562,12 @@ describe('main process', () => {
 
     it('closes a saved document and clears it from the store', async () => {
       const { store, state, fireWindow } = await boot();
-      store.set('edited', 'false');
+      store.set('edited', false);
       store.set('filename', '/a/zq.midst');
       store.set('baseFilename', 'zq.midst');
       store.set('poem', 'zq');
       store.set('history', '[]');
-      store.set('theme', 'dark');
+      store.set('appearance', 'dark');
       const event = closeEvent();
 
       await fireWindow('close', event);
@@ -488,20 +576,22 @@ describe('main process', () => {
       expect(event.preventDefault).toHaveBeenCalledTimes(1);
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
       expect(
-        ['filename', 'baseFilename', 'poem', 'history'].map((k) => store.get(k))
+        (['filename', 'baseFilename', 'poem', 'history'] as const).map((k) =>
+          store.get(k)
+        )
       ).toEqual([undefined, undefined, undefined, undefined]);
-      expect(store.get('edited')).toBe('false');
-      expect(store.get('theme')).toBe('dark');
+      expect(store.get('edited')).toBe(false);
+      expect(store.get('appearance')).toBe('dark');
     });
 
     it('does not warn when the document is saved', async () => {
       const { store, electron, fireWindow } = await boot();
-      store.set('edited', 'false');
+      store.set('edited', false);
       await fireWindow('close', closeEvent());
       expect(electron.dialog.showMessageBoxSync).not.toHaveBeenCalled();
     });
 
-    it.each([['true'], [undefined], ['']])(
+    it.each([[true], [undefined]])(
       'holds the window and warns when edited is %p',
       async (edited) => {
         const { store, electron, state, fireWindow } = await boot();
@@ -533,19 +623,19 @@ describe('main process', () => {
 
     it('keeps the unsaved document in the store when the poet cancels', async () => {
       const { store, state, fireWindow } = await boot();
-      store.set('edited', 'true');
+      store.set('edited', true);
       store.set('poem', 'zq');
       store.set('history', '["xv"]');
       state.dialogResponse = 1;
       await fireWindow('close', closeEvent());
       expect(store.get('poem')).toBe('zq');
       expect(store.get('history')).toBe('["xv"]');
-      expect(store.get('edited')).toBe('true');
+      expect(store.get('edited')).toBe(true);
     });
 
     it('clears the document meta too, so it cannot reach the next document', async () => {
       const { store, fireWindow } = await boot();
-      store.set('edited', 'false');
+      store.set('edited', false);
       store.set('meta', '{"fontSize":3}');
 
       await fireWindow('close', closeEvent());
@@ -555,7 +645,7 @@ describe('main process', () => {
 
     it('clears the document meta on Quit Anyway as well', async () => {
       const { store, state, fireWindow } = await boot();
-      store.set('edited', 'true');
+      store.set('edited', true);
       store.set('meta', '{"fontSize":3}');
       state.dialogResponse = 0;
 
@@ -566,7 +656,7 @@ describe('main process', () => {
 
     it('keeps the meta of an unsaved document when the poet cancels', async () => {
       const { store, state, fireWindow } = await boot();
-      store.set('edited', 'true');
+      store.set('edited', true);
       store.set('meta', '{"fontSize":3}');
       state.dialogResponse = 1;
 
@@ -577,7 +667,7 @@ describe('main process', () => {
 
     it('discards the document and destroys the window only on Quit Anyway', async () => {
       const { store, state, fireWindow } = await boot();
-      store.set('edited', 'true');
+      store.set('edited', true);
       store.set('filename', '/a/zq.midst');
       store.set('baseFilename', 'zq.midst');
       store.set('poem', 'zq');
@@ -587,9 +677,11 @@ describe('main process', () => {
       await fireWindow('close', closeEvent());
 
       expect(
-        ['filename', 'baseFilename', 'poem', 'history'].map((k) => store.get(k))
+        (['filename', 'baseFilename', 'poem', 'history'] as const).map((k) =>
+          store.get(k)
+        )
       ).toEqual([undefined, undefined, undefined, undefined]);
-      expect(store.get('edited')).toBe('false');
+      expect(store.get('edited')).toBe(false);
       expect(state.windows[0].destroy).toHaveBeenCalledTimes(1);
     });
 
@@ -597,7 +689,7 @@ describe('main process', () => {
     it("forgets an untitled poem's recovery copy on Quit Anyway, and keeps it on Cancel", async () => {
       const id = '11111111-1111-4111-8111-111111111111';
       const kept = await boot();
-      kept.store.set('edited', 'true');
+      kept.store.set('edited', true);
       kept.store.set('recoveryId', id);
       kept.state.dialogResponse = 1;
       await kept.fireWindow('close', closeEvent());
@@ -613,11 +705,11 @@ describe('main process', () => {
       const flushId = (w: { webContents: { send: jest.Mock } }) =>
         w.webContents.send.mock.calls.find(([c]) => c === 'flush-editor')?.[1];
 
-      it('warns about keystrokes the editor reports before it answers, though edited was "false"', async () => {
+      it('warns about keystrokes the editor reports before it answers, though edited was false', async () => {
         const { store, electron, state, fireIpc, fireWindow, flush } =
           await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'false');
+        store.set('edited', false);
         store.set('poem', 'zq');
         state.dialogResponse = 1;
         const event = closeEvent();
@@ -633,7 +725,7 @@ describe('main process', () => {
         expect(store.get('poem')).toBe('zq');
 
         // The editor's messages, in their order: the keystrokes, then the answer.
-        store.set('edited', 'true');
+        store.set('edited', true);
         store.set('poem', 'zq xv');
         await fireIpc('editor-flushed', {}, [id]);
         await flush();
@@ -647,7 +739,7 @@ describe('main process', () => {
         const { store, electron, state, fireIpc, fireWindow, flush } =
           await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'false');
+        store.set('edited', false);
         store.set('poem', 'zq');
 
         await fireWindow('close', closeEvent());
@@ -666,7 +758,7 @@ describe('main process', () => {
         const { store, electron, state, fireIpc, fireWindow, flush } =
           await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'true');
+        store.set('edited', true);
         state.dialogResponse = 1;
         const second = closeEvent();
 
@@ -694,7 +786,7 @@ describe('main process', () => {
       it('with no answer from the editor, decides on edited as it stands, after the timeout', async () => {
         const { store, electron, state, fireIpc, fireWindow } = await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'true');
+        store.set('edited', true);
         state.dialogResponse = 1;
         // setImmediate stays real: the test's own settling uses it.
         jest.useFakeTimers({ doNotFake: ['setImmediate'] });
@@ -714,7 +806,7 @@ describe('main process', () => {
         const { store, electron, state, log, fireIpc, fireWindow, flush } =
           await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'true');
+        store.set('edited', true);
         electron.dialog.showMessageBoxSync.mockImplementationOnce(() => {
           throw new TypeError('zq secret');
         });
@@ -744,7 +836,7 @@ describe('main process', () => {
         const { store, electron, state, fireIpc, fireWindow, flush } =
           await boot();
         await fireIpc('enable-save');
-        store.set('edited', 'true');
+        store.set('edited', true);
         store.set('poem', 'zq');
 
         await fireWindow('close', closeEvent());
@@ -760,7 +852,7 @@ describe('main process', () => {
 
     it('does not show a dialog for a window that has already closed', async () => {
       const { store, electron, fireWindow } = await boot();
-      store.set('edited', 'true');
+      store.set('edited', true);
       store.set('poem', 'zq');
       await fireWindow('closed');
       const event = closeEvent();
@@ -895,7 +987,7 @@ describe('main process', () => {
         // it alone. The house's close, as the close tests above do it: a real close event
         // (preventDefaults is counted), 'edited' says saved, the flusher answers, the window
         // is destroyed — and 'closed' follows, where the mark leaves with the window.
-        store.set('edited', 'false');
+        store.set('edited', false);
         const event = { preventDefault: jest.fn() };
         await fireWindow('close', event);
         expect(event.preventDefault).toHaveBeenCalled();
@@ -966,7 +1058,7 @@ describe('main process', () => {
       // is the cost of ordering ever changing — and the throw names the window for the log.
       it('ready-to-show after closed says so by name, not by silence', async () => {
         const { store, fireIpc, fireWindow, win } = await boot();
-        store.set('edited', 'false');
+        store.set('edited', false);
         await fireWindow('close', { preventDefault: jest.fn() });
         await fireIpc('enable-save');
         const { flushEditor } = await import('../main/editorFlush');
@@ -1126,14 +1218,32 @@ describe('main process', () => {
       reads.restore();
     });
 
-    it('open-file after the window exists asks the open handler to open it', async () => {
-      const { menu, win, fireApp } = await boot();
+    it('open-file after the window has been shown asks the open handler to open it', async () => {
+      const { menu, win, fireApp, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
       const event = { preventDefault: jest.fn() };
       await fireApp('open-file', event, '/a/zq.midst');
       expect(event.preventDefault).toHaveBeenCalled();
       expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
         '/a/zq.midst',
       ]);
+    });
+
+    // #381: a window that exists but is not yet shown. Measured on a packaged build, a second Finder open within
+    // about 0.1 s of a cold launch arrives here. It was opened by the open handler at once and again at ready-to-show.
+    it('open-file while the window exists but is not yet shown is opened once, at ready-to-show', async () => {
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(file, currentFile('<p>zq</p>'));
+      const reads = trackReadFile();
+      const { menu, store, fireApp, fireWindow } = await boot();
+      await fireApp('open-file', { preventDefault: jest.fn() }, file);
+      expect(menu.openFile).not.toHaveBeenCalled();
+      await fireWindow('ready-to-show');
+      await reads.settled();
+      expect(reads.calls()).toBe(1);
+      expect(menu.openFile).not.toHaveBeenCalled();
+      expect(store.get('filename')).toBe(file);
+      reads.restore();
     });
 
     it('tells the poet when a current-version file is corrupt and loads nothing', async () => {
@@ -1498,13 +1608,6 @@ describe('main process', () => {
   });
 
   describe('other ipc handlers', () => {
-    it('ipc-example replies pong on the same channel', async () => {
-      const { fireIpc } = await boot();
-      const reply = jest.fn();
-      await fireIpc('ipc-example', { reply }, 'ping');
-      expect(reply).toHaveBeenCalledWith('ipc-example', 'IPC test: pong');
-    });
-
     it('electron-store-get returns the stored value to the renderer', async () => {
       const { store, fireIpc } = await boot();
       store.set('poem', 'zq');
@@ -1630,7 +1733,8 @@ describe('single instance', () => {
   });
 
   it('the running copy comes to the front and opens the poem the second launch was given', async () => {
-    const { menu, win, fireApp } = await boot();
+    const { menu, win, fireApp, fireWindow } = await boot();
+    await fireWindow('ready-to-show');
     win().isMinimized.mockReturnValue(true);
     await fireApp('second-instance', {}, [
       '/zq/Midst',
@@ -1645,13 +1749,34 @@ describe('single instance', () => {
   });
 
   it('the running copy takes the poem the second launch sent, whatever its argv holds (#336)', async () => {
-    const { menu, win, fireApp } = await boot();
+    const { menu, win, fireApp, fireWindow } = await boot();
+    await fireWindow('ready-to-show');
     await fireApp('second-instance', {}, ['/zq/Midst', '--zq-switch'], '/zq', {
       poem: '/b/qv.midst',
     });
     expect(menu.openFile).toHaveBeenCalledWith(win(), expect.any(Boolean), [
       '/b/qv.midst',
     ]);
+  });
+
+  // #381, as open-file: a second launch while the first copy's window is not yet shown.
+  it('a poem from a second launch before the window is shown is opened once, at ready-to-show', async () => {
+    const { menu, state, win, fireApp, fireWindow } = await boot();
+    // The poem does not exist, so the real openPath reports it: an error box with no buttons.
+    state.dialogResponse = 0;
+    await fireApp('second-instance', {}, ['/zq/Midst'], '/zq', {
+      poem: '/b/qv.midst',
+    });
+    expect(win().focus).toHaveBeenCalled();
+    expect(menu.openFile).not.toHaveBeenCalled();
+    await fireWindow('ready-to-show');
+    expect(menu.openFile).not.toHaveBeenCalled();
+    expect(menu.openPath).toHaveBeenCalledTimes(1);
+    expect(menu.openPath).toHaveBeenCalledWith(
+      win(),
+      expect.any(Boolean),
+      '/b/qv.midst'
+    );
   });
 
   it('a second copy sends the poem from its own command line with its lock request', async () => {
@@ -1661,6 +1786,41 @@ describe('single instance', () => {
       (electron.app as unknown as { requestSingleInstanceLock: jest.Mock })
         .requestSingleInstanceLock
     ).toHaveBeenCalledWith({ poem: expect.any(String) });
+  });
+
+  // #384: on Windows and Linux a double-clicked poem is on the first copy's own command line.
+  describe("the first copy's own poem", () => {
+    const { argv } = process;
+    afterEach(() => {
+      process.argv = argv;
+    });
+
+    it('is opened once, when the window is ready to show', async () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-384-'));
+      const file = path.join(dir, 'zq.midst');
+      fs.writeFileSync(
+        file,
+        `midstVersion: 1\n${JSON.stringify({ text: '<p>zq</p>', history: [] })}`
+      );
+      process.argv = ['/zq/Midst.exe', file];
+      const { menu, store, fireWindow } = await boot();
+      expect(menu.openPath).not.toHaveBeenCalled();
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).toHaveBeenCalledTimes(1);
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, 50);
+      });
+      expect(store.get('filename')).toBe(file);
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).toHaveBeenCalledTimes(1);
+    });
+
+    it('a launch with no poem on its command line opens nothing', async () => {
+      process.argv = ['/zq/Midst.exe', '--zq-switch'];
+      const { menu, fireWindow } = await boot();
+      await fireWindow('ready-to-show');
+      expect(menu.openPath).not.toHaveBeenCalled();
+    });
   });
 
   it('a second launch with no poem only brings the running copy to the front', async () => {

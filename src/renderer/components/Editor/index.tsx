@@ -5,10 +5,10 @@ import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
 import { EditorProvider } from '@tiptap/react';
 import { useState, useEffect, useContext, useRef, useCallback } from 'react';
-import { fontSizeOrDefault } from 'main/fontSize';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
   checkWholePoemSoon,
@@ -134,7 +134,7 @@ export default function Editor() {
     setHtmlString(newHtml);
     if (!typedSinceStored.current) {
       typedSinceStored.current = true;
-      window.electron.store.set('edited', JSON.stringify(true));
+      window.electron.store.set('edited', true);
     }
 
     autosave.schedule();
@@ -165,22 +165,19 @@ export default function Editor() {
         // ref at the new document immediately rather than waiting for the re-render.
         latest.current = {
           gen: latest.current.gen + 1,
-          htmlString: savedPoem as string,
-          poemHistory: savedHistory as ChangeObj[],
+          htmlString: savedPoem,
+          poemHistory: savedHistory,
         };
-        setHtmlString(savedPoem as string);
+        setHtmlString(savedPoem);
 
-        setPoemHistory(savedHistory as ChangeObj[]);
+        setPoemHistory(savedHistory);
         if (myEditor) {
           // TipTap 3 emits an update by default; opening a file is not an edit.
-          myEditor.commands.setContent(savedPoem as string, {
+          myEditor.commands.setContent(savedPoem, {
             emitUpdate: false,
           });
         }
-        saveFileAndUpdateStore(
-          savedPoem as string,
-          savedHistory as ChangeObj[]
-        );
+        saveFileAndUpdateStore(savedPoem, savedHistory);
         navigate('/editor');
       }
     );
@@ -278,10 +275,10 @@ export default function Editor() {
     };
   }, [myEditor, spellcheckOn]);
 
-  // The size the editor opens at. MenuBar changes the class on the editor itself after that.
-  const [sizeClass] = useState(() =>
-    fontSizeOrDefault(window.electron.store.get('font-size'))
-  );
+  // The text size. Its class goes in the editor's props, which @tiptap/react re-applies on every render whenever they
+  // differ from the editor's own: a size set on the editor directly went back to this one at the next keystroke
+  // (#390, GitHub #105). So the props carry the current size, and MenuBar's buttons change it here.
+  const fontSize = useFontSize();
 
   return (
     <div
@@ -294,6 +291,7 @@ export default function Editor() {
           <MenuBar
             focused={focusMode.focused}
             onToggleFocus={focusMode.toggle}
+            fontSize={fontSize}
           />
         }
         extensions={extensions}
@@ -302,7 +300,7 @@ export default function Editor() {
         onBlur={onBlur}
         editorProps={{
           attributes: {
-            class: `TextEditor ${heightClass} size-${sizeClass}`,
+            class: `TextEditor ${heightClass}`,
             spellcheck: spellcheckOn.toString(),
           },
         }}

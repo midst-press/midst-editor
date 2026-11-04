@@ -4,6 +4,7 @@ import { URL } from 'url';
 import { stripVersionInfo } from '@midst-press/midst-format/convert';
 import store from './store';
 import * as saveFailure from './saveFailurePolicy';
+import sendToWindow from './sendToWindow';
 
 export function resolveHtmlPath(htmlFileName: string) {
   if (process.env.NODE_ENV === 'development') {
@@ -31,17 +32,12 @@ export const loadDataIntoWorkspace = (
   // Another document: the last one's failed saves no longer apply (#94). The renderer clears its "not saved" on
   // 'open-file'.
   saveFailure.startAgain();
-  mainWindow.webContents.send(
-    'open-file',
-    text,
-    history,
-    path.basename(filename)
-  );
+  sendToWindow(mainWindow, 'open-file', text, history, path.basename(filename));
   if (darwin) {
     mainWindow.setDocumentEdited(false);
     mainWindow.setRepresentedFilename(path.basename(filename));
   }
-  store.set('edited', JSON.stringify(false));
+  store.set('edited', false);
 };
 
 // An untitled poem recovered after a crash (#315): the document as its recovery copy holds it, with no file of its own,
@@ -58,7 +54,7 @@ export const loadRecoveredIntoWorkspace = (
   store.set('filename', '');
   store.set('baseFilename', '');
   saveFailure.startAgain();
-  mainWindow.webContents.send('open-file', text, history, '');
+  sendToWindow(mainWindow, 'open-file', text, history, '');
   if (darwin) mainWindow.setDocumentEdited(true);
-  store.set('edited', JSON.stringify(true));
+  store.set('edited', true);
 };

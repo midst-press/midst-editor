@@ -1,17 +1,34 @@
 #!/bin/bash
-# Runs as root only when the poet ticks "Delete the older version of Midst" (issue 16), after the
+# Runs as root only when the poet ticks "Delete the Midst that's already installed" (issue 16), after the
 # new Midst has been installed. It PERMANENTLY deletes the older apps that the preinstall script
 # renamed in this same install, and nothing else: every path must come from that record, sit
-# directly in Applications and be named "Midst (previous version[ N]).app".
+# directly in Applications and carry a name the preinstall gives a kept app: "Midst <version>.app",
+# "Midst Beta <version>.app", "Midst (version unknown).app" or "Midst Beta (version unknown).app",
+# each optionally followed by " (N)"
+# for N from 2 to 99, where <version> matches ^[0-9][0-9A-Za-z.+-]*$. "Midst.app" and
+# "Midst Beta.app" are refused in any case, whatever the record says.
 #
-# It deletes nothing unless the new Midst is in place. Anything unexpected exits 1, which the
-# installer reports as a failure; the new Midst stays installed and the older app stays where it is.
+# It deletes nothing unless the new Midst is in place AND the app's postinstall checked it there:
+# $record.installed must exist and name exactly the version of the Midst.app now in place. That
+# does not depend on the order Installer runs the two packages in; run first, this refuses
+# (Stuart, 4 Nov: delete only after a successful new install). Anything unexpected exits 1, which
+# the installer reports as a failure; the new Midst stays installed and the older app stays where it is.
 #
 # $3 is the target volume. MIDST_PREVIOUS_RECORD overrides the record path for the tests.
 set -u
 
 say() { echo "Midst remove-previous: $*"; }
 fail() { echo "Midst remove-previous: FAILED: $*" >&2; exit 1; }
+
+kept_name() { # <file name>: succeeds only for a name the preinstall gives a kept app
+  local stem=${1%.app} lower
+  [ "$stem.app" = "$1" ] || return 1
+  lower=$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')
+  [ "$lower" != midst.app ] && [ "$lower" != "midst beta.app" ] || return 1
+  if [[ "$stem" =~ ^(.*)\ \(([2-9]|[1-9][0-9])\)$ ]]; then stem=${BASH_REMATCH[1]}; fi
+  [[ "$stem" =~ ^Midst(\ Beta)?\ \(version\ unknown\)$ ]] && return 0
+  [[ "$stem" =~ ^Midst(\ Beta)?\ [0-9][0-9A-Za-z.+-]*$ ]]
+}
 
 apps="${3%/}/Applications"
 record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
@@ -22,11 +39,30 @@ new_id=$(plutil -extract CFBundleIdentifier raw -o - "$apps/Midst.app/Contents/I
 [ ! -L "$apps/Midst.app" ] && [ "$new_id" = press.Midst.MidstApp ] \
   || fail "the new Midst is not in $apps/Midst.app, so the older version is kept"
 
+# The version the app's postinstall checked, and the version in place, both read byte for byte.
+installed="$record.installed"
+[ -f "$installed" ] && [ ! -L "$installed" ] \
+  || fail "the new Midst was not checked in this install ($installed is missing), so the older version is kept"
+checked=$(cat -- "$installed" 2> /dev/null && printf x) || fail "cannot read $installed, so the older version is kept"
+checked=${checked%x}
+new_version=$(plutil -extract CFBundleShortVersionString raw -o - "$apps/Midst.app/Contents/Info.plist" 2> /dev/null && printf x) \
+  || fail "cannot read the version of $apps/Midst.app, so the older version is kept"
+new_version=${new_version%x}
+new_version=${new_version%$'\n'}
+[ -n "$checked" ] && [ "$checked" = "$new_version" ] \
+  || fail "$installed says ${checked:-nothing}, but $apps/Midst.app is ${new_version:-unversioned}, so the older version is kept"
+
+# An empty record deletes nothing, and says so: a silent success here is what hid #353.
+if ! grep -q . "$record"; then
+  say "no older Midst was kept in this install, so nothing was deleted"
+  exit 0
+fi
+
 while IFS= read -r path || [ -n "$path" ]; do
   [ -n "$path" ] || continue
   name=$(basename -- "$path")
   [ "$(dirname -- "$path")" = "$apps" ] || fail "refusing to delete $path: it is not directly in $apps"
-  [[ "$name" =~ ^Midst\ \(previous\ version(\ [0-9]+)?\)\.app$ ]] || fail "refusing to delete $path: not a kept older Midst"
+  kept_name "$name" || fail "refusing to delete $path: not a kept older Midst"
   if [ -L "$path" ]; then
     rm -f -- "$path" || fail "could not delete $path"
   elif [ -d "$path" ]; then

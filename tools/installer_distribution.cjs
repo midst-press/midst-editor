@@ -20,11 +20,11 @@ const CHECK_JS = path.join(
   'previous-midst-check.js'
 );
 
-const REMOVE_TITLE = 'Delete the older version of Midst';
+const REMOVE_TITLE = 'Delete the Midst that’s already installed';
 const REMOVE_DESCRIPTION =
-  'PERMANENTLY deletes the older version of Midst after the new one is installed. ' +
+  'PERMANENTLY deletes the Midst that was already in Applications after the new one is installed. ' +
   'It does not go to the Trash and cannot be undone. ' +
-  'Leave this unticked to keep it as “Midst (previous version)”.';
+  'Leave this unticked to keep it, renamed to show its version, or “version unknown” if its version cannot be read.';
 
 function once(xml, pattern, what) {
   const hits = xml.match(new RegExp(pattern.source, 'g')) || [];
@@ -59,8 +59,19 @@ function editDistribution(xml, checkJs, version) {
       `Distribution: <options> no longer says customize="never": ${options}`
     );
   }
+  // This Distribution uses JavaScript (the installation check and the delete choice's visible=).
+  // Apple's Distribution XML Reference, <options>: require-scripts "Indicates whether the
+  // distribution uses JavaScript code ... If this value is false, all attributes whose value may be
+  // a JavaScript expression must be set to either true or false." electron-builder writes "false".
+  if (!/require-scripts="false"/.test(options)) {
+    throw new Error(
+      `Distribution: <options> no longer says require-scripts="false": ${options}`
+    );
+  }
   let out = xml.replace(options, () =>
-    options.replace('customize="never"', 'customize="allow"')
+    options
+      .replace('customize="never"', 'customize="allow"')
+      .replace('require-scripts="false"', 'require-scripts="true"')
   );
 
   // The new app is always installed: its choice is shown ticked and cannot be unticked.

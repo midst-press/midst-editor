@@ -107,7 +107,7 @@ export default function RestartFromButton({
       // onUpdate would append a second change.
       setPoemHistory(next);
       setHtmlString(chosen);
-      window.electron.store.set('edited', JSON.stringify(true));
+      window.electron.store.set('edited', true);
       navigate('/editor');
     } catch (e) {
       // Only our own errors have messages known not to quote the poem; any other is logged by name.

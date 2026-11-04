@@ -15,6 +15,7 @@ import { TextContext, HistoryContext, RETURN_TO } from './context';
 import { LocaleContext, useMenuLocale } from './locale';
 import FontPicker from './poemFont/FontPicker';
 import { PoemFontContext, usePoemFontState } from './poemFont/PoemFontContext';
+import { PoemSizeContext, usePoemSizeState } from './fontSize/PoemSizeContext';
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);
@@ -35,6 +36,7 @@ export default function App() {
   const theme = useSchemeTheme();
   const locale = useMenuLocale();
   const poemFont = usePoemFontState();
+  const poemSize = usePoemSizeState();
   const restoreText = window.electron?.store.get('poem') || '';
   // After a reload the router would start at the opening screen again. If the editor asked to come
   // back (it does before reloading for the spellcheck toggle), start there instead, once.
@@ -69,16 +71,15 @@ export default function App() {
     const removeOpenFileHandler = window.electron.ipcRenderer.on(
       'open-file',
       (_savedText, savedHistory, savedFilename) => {
-        const strHistory = savedHistory as ChangeObj[];
-        setPoemHistory(strHistory);
-        setFilename(savedFilename as string);
+        setPoemHistory(savedHistory);
+        setFilename(savedFilename);
         setNotSaved(false);
       }
     );
     const removeSetFilenameHandler = window.electron.ipcRenderer.on(
       'set-filename',
       (filepath) => {
-        setFilename(filepath as string);
+        setFilename(filepath);
       }
     );
 
@@ -115,13 +116,15 @@ export default function App() {
             <HistoryContext.Provider value={historyContextValue}>
               <Router initialEntries={[startAt]}>
                 <PoemFontContext.Provider value={poemFont}>
-                  <WindowTitle filename={filename} notSaved={notSaved} />
-                  <FontPicker />
-                  <Routes>
-                    <Route path="/editor" element={<Editor />} />
-                    <Route path="/replay" element={<Replay />} />
-                    <Route path="/" element={<LandingDialog />} />
-                  </Routes>
+                  <PoemSizeContext.Provider value={poemSize}>
+                    <WindowTitle filename={filename} notSaved={notSaved} />
+                    <FontPicker />
+                    <Routes>
+                      <Route path="/editor" element={<Editor />} />
+                      <Route path="/replay" element={<Replay />} />
+                      <Route path="/" element={<LandingDialog />} />
+                    </Routes>
+                  </PoemSizeContext.Provider>
                 </PoemFontContext.Provider>
               </Router>
             </HistoryContext.Provider>

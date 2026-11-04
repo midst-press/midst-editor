@@ -202,7 +202,7 @@ const seedDocument = (over: Record<string, unknown> = {}) => {
     poem: '<p>xv</p>',
     history: JSON.stringify(history),
     meta: '',
-    edited: 'true',
+    edited: true,
     ...over,
   };
   Object.entries(values).forEach(([k, v]) => mockStore.set(k, v));
@@ -241,7 +241,7 @@ describe('save', () => {
     const win = makeWindow();
     await save(asWindow(win), false);
     await ioDone();
-    expect(mockStore.get('edited')).toBe('false');
+    expect(mockStore.get('edited')).toBe(false);
     expect(mockStore.get('filename')).toBe(target);
     expect(mockStore.get('baseFilename')).toBe('zq.midst');
     expect(win.setTitle).not.toHaveBeenCalled();
@@ -327,7 +327,7 @@ describe('save', () => {
       await save(asWindow(makeWindow()), false);
       await ioDone();
       expect(readBack(target)).toBe('earlier work');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
     }
   );
 
@@ -353,15 +353,22 @@ describe('save', () => {
     expect(everythingLogged()).not.toContain('POEM-SENTINEL');
   });
 
-  it('when the poet cancels the dialog, writes nothing, keeps the edited state and says so', async () => {
+  // GitHub #106 (editor #392): cancel-save took the editor Home, where an untitled poem cannot be reached again.
+  it('when the poet cancels the dialog, writes nothing, keeps the edited state, and leaves the poem open', async () => {
     seedDocument({ filename: '' });
     showSaveDialog.mockReturnValue(undefined);
     const win = makeWindow();
     await save(asWindow(win), false);
     expect(dirListing()).toEqual([]);
-    expect(mockStore.get('edited')).toBe('true');
+    expect(mockStore.get('edited')).toBe(true);
     expect(mockStore.get('filename')).toBe('');
-    expect(win.webContents.send).toHaveBeenCalledWith('cancel-save');
+    expect(win.webContents.send).not.toHaveBeenCalledWith('cancel-save');
+    expect(win.webContents.send).not.toHaveBeenCalledWith(
+      'open-file',
+      expect.anything(),
+      expect.anything(),
+      expect.anything()
+    );
     expect(win.webContents.send).not.toHaveBeenCalledWith(
       'set-filename',
       expect.anything()
@@ -375,7 +382,7 @@ describe('save', () => {
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
       await save(asWindow(win), true);
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
       expect(win.setRepresentedFilename).not.toHaveBeenCalled();
@@ -408,7 +415,7 @@ describe('save', () => {
       const win = makeWindow();
       await save(asWindow(win), false);
       expect(win.setDocumentEdited).not.toHaveBeenCalled();
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
     });
 
     it('does not move the folder the next dialog opens in', async () => {
@@ -429,7 +436,7 @@ describe('save', () => {
       await save(asWindow(win), false);
       expect(readBack(elsewhere)).toContain('"text":"<p>xv</p>"');
       expect(mockStore.get('filename')).toBe(elsewhere);
-      expect(mockStore.get('edited')).toBe('false');
+      expect(mockStore.get('edited')).toBe(false);
       // Off macOS the title said "not saved" between the failure and the save that worked (#94).
       expect(win.webContents.send.mock.calls).toEqual([
         ['set-not-saved', true],
@@ -479,12 +486,12 @@ describe('save', () => {
 
     it('one of the editor\u2019s own saves says nothing when there was nothing unsaved', async () => {
       // The editor saves each document it opens; a poem opened from a read-only place is not an error.
-      seedDocument({ filename: unwritable(), edited: 'false' });
+      seedDocument({ filename: unwritable(), edited: false });
       const win = makeWindow();
       await save(asWindow(win), true, false);
       expect(showMessageBox).not.toHaveBeenCalled();
       expect(win.setDocumentEdited).not.toHaveBeenCalled();
-      expect(mockStore.get('edited')).toBe('false');
+      expect(mockStore.get('edited')).toBe(false);
     });
 
     it('the editor\u2019s own saves tell the poet once per file, not after every pause in typing', async () => {
@@ -497,7 +504,7 @@ describe('save', () => {
       await save(asWindow(win), true, false);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       // Still unsaved, and still shown as unsaved, every time.
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
       expect(win.setDocumentEdited.mock.calls).toEqual([
         [true],
         [true],
@@ -518,7 +525,7 @@ describe('save', () => {
       // The folder appears: the save works. Then it goes away again.
       fs.mkdirSync(path.dirname(second));
       await save(asWindow(makeWindow()), false, false);
-      expect(mockStore.get('edited')).toBe('false');
+      expect(mockStore.get('edited')).toBe(false);
       fs.rmSync(path.dirname(second), { recursive: true });
       seedDocument({ filename: second });
       await save(asWindow(makeWindow()), false, false);
@@ -536,7 +543,7 @@ describe('save', () => {
     });
 
     it('a save the poet chooses says so even when nothing was unsaved', async () => {
-      seedDocument({ filename: unwritable(), edited: 'false' });
+      seedDocument({ filename: unwritable(), edited: false });
       showMessageBox.mockReturnValue(OK);
       const win = makeWindow();
       await save(asWindow(win), true);
@@ -581,7 +588,7 @@ describe('save', () => {
       await save(asWindow(makeWindow()), false);
       expect(showMessageBox.mock.calls[0][1].detail).toMatch(/EACCES|EPERM/);
       expect(readBack(target)).toBe('earlier work');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
     });
   });
 });
@@ -628,7 +635,7 @@ describe('saveAs', () => {
     expect(mockStore.get('filename')).toBe(chosen);
     expect(mockStore.get('baseFilename')).toBe('xv.midst');
     expect(mockStore.get('lastFolder')).toBe(dir);
-    expect(mockStore.get('edited')).toBe('false');
+    expect(mockStore.get('edited')).toBe(false);
     expect(win.webContents.send).toHaveBeenCalledWith(
       'set-filename',
       'xv.midst'
@@ -680,7 +687,7 @@ describe('saveAs', () => {
       await ioDone();
       expect(showSaveDialog).not.toHaveBeenCalled();
       expect(readBack(existing)).toBe('earlier work');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
       expect(win.webContents.send).not.toHaveBeenCalled();
     }
   );
@@ -710,7 +717,7 @@ describe('saveAs', () => {
     await saveAs(asWindow(win), false);
     expect(dirListing()).toEqual([]);
     expect(mockStore.get('filename')).toBe(previous);
-    expect(mockStore.get('edited')).toBe('true');
+    expect(mockStore.get('edited')).toBe(true);
     expect(win.webContents.send).not.toHaveBeenCalled();
     expect(win.setTitle).not.toHaveBeenCalled();
   });
@@ -725,7 +732,7 @@ describe('saveAs', () => {
       await saveAs(asWindow(win), true);
       expect(mockStore.get('filename')).toBe(previous);
       expect(mockStore.get('baseFilename')).toBe('zq.midst');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
       expect(win.setDocumentEdited.mock.calls).toEqual([[true]]);
       expect(win.setTitle).not.toHaveBeenCalled();
       // Only that it is not saved, for the title (GitHub #75): nothing claims the save worked.
@@ -737,7 +744,7 @@ describe('saveAs', () => {
     });
 
     it('says so even when nothing was unsaved: the poet asked for this file', async () => {
-      seedDocument({ filename: path.join(dir, 'zq.midst'), edited: 'false' });
+      seedDocument({ filename: path.join(dir, 'zq.midst'), edited: false });
       showSaveDialog.mockReturnValue(unwritable());
       showMessageBox.mockReturnValue(OK);
       await saveAs(asWindow(makeWindow()), false);
@@ -755,7 +762,7 @@ describe('saveAs', () => {
       expect(showSaveDialog).toHaveBeenCalledTimes(2);
       expect(showMessageBox).toHaveBeenCalledTimes(1);
       expect(mockStore.get('filename')).toBe(good);
-      expect(mockStore.get('edited')).toBe('false');
+      expect(mockStore.get('edited')).toBe(false);
       expect(dirListing()).toEqual(['xv.midst']);
     });
   });
@@ -795,7 +802,7 @@ describe('exportRtf (GitHub #26)', () => {
     expect(readBack(chosen)).toContain('{\\b xv}\\par');
     expect(dirListing()).toEqual(['zq.rtf']);
     expect(mockStore.get('filename')).toBe(poemFile);
-    expect(mockStore.get('edited')).toBe('true');
+    expect(mockStore.get('edited')).toBe(true);
     expect(win.webContents.send).not.toHaveBeenCalled();
     expect(win.setTitle).not.toHaveBeenCalled();
     expect(showMessageBox).not.toHaveBeenCalled();
@@ -881,7 +888,7 @@ const EMPTY_FRAME = expect.objectContaining({
 describe('newFile', () => {
   // GitHub #29: a new poem's Timeline begins at an empty page, the frame timed when the poem was made.
   it('begins the new poem with one empty frame, stored and sent alike', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const win = makeWindow();
     const before = Date.now();
     await newFile(asWindow(win), false);
@@ -898,7 +905,7 @@ describe('newFile', () => {
   });
 
   it('with unsaved changes, warns with Proceed/Cancel, and Return is Cancel', async () => {
-    seedDocument({ edited: 'true' });
+    seedDocument({ edited: true });
     showMessageBox.mockReturnValue(1);
     await newFile(asWindow(makeWindow()), false);
     expect(showMessageBox).toHaveBeenCalledTimes(1);
@@ -928,20 +935,41 @@ describe('newFile', () => {
   );
 
   it('when the poet cancels, keeps the document and tells the renderer nothing', async () => {
-    seedDocument({ edited: 'true', filename: '/x/zq.midst' });
+    seedDocument({ edited: true, filename: '/x/zq.midst' });
     showMessageBox.mockReturnValue(1);
     const win = makeWindow();
     await newFile(asWindow(win), true);
     expect(mockStore.get('poem')).toBe('<p>xv</p>');
     expect(mockStore.get('filename')).toBe('/x/zq.midst');
-    expect(mockStore.get('edited')).toBe('true');
+    expect(mockStore.get('edited')).toBe(true);
     expect(win.webContents.send).not.toHaveBeenCalled();
     expect(win.setTitle).not.toHaveBeenCalled();
   });
 
+  // GitHub #105, editor #390: a new poem starts at the last size the poet used.
+  it('starts the new poem at the last size used, in its meta', async () => {
+    seedDocument({ edited: false });
+    mockStore.set('font-size', '20');
+    await newFile(asWindow(makeWindow()), false);
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 20,
+    });
+  });
+
+  // GitHub #48: and in the last font the poet chose.
+  it('starts the new poem in the last font chosen', async () => {
+    seedDocument({ edited: false });
+    mockStore.set('font-family', 'Zqalpha');
+    await newFile(asWindow(makeWindow()), false);
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 14,
+      fontFamily: 'Zqalpha',
+    });
+  });
+
   it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
-      edited: 'true',
+      edited: true,
       filename: '/x/zq.midst',
       baseFilename: 'zq.midst',
       meta: '{"a":1}',
@@ -950,10 +978,13 @@ describe('newFile', () => {
     const win = makeWindow();
     await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
-    expect(mockStore.get('meta')).toBe('');
+    // A new poem has a size from the start: 14 when none has been used (#390).
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 14,
+    });
     expect(mockStore.get('filename')).toBe('');
     expect(mockStore.get('baseFilename')).toBe('');
-    expect(mockStore.get('edited')).toBe('false');
+    expect(mockStore.get('edited')).toBe(false);
     expect(win.webContents.send).toHaveBeenCalledWith(
       'open-file',
       '',
@@ -963,7 +994,7 @@ describe('newFile', () => {
   });
 
   it('with no unsaved changes, does not ask', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const win = makeWindow();
     await newFile(asWindow(win), false);
     expect(showMessageBox).not.toHaveBeenCalled();
@@ -977,7 +1008,7 @@ describe('newFile', () => {
   });
 
   it("on macOS, represents the document as Untitled; the title is the renderer's on every platform (#125)", async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const mac = makeWindow();
     await newFile(asWindow(mac), true);
     expect(mac.setTitle).not.toHaveBeenCalled();
@@ -990,7 +1021,7 @@ describe('newFile', () => {
 
 describe('openFile', () => {
   it('with unsaved changes and a Cancel, opens nothing and does not even ask for a file', async () => {
-    seedDocument({ edited: 'true' });
+    seedDocument({ edited: true });
     showMessageBox.mockReturnValue(1);
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, goodFile());
@@ -1033,7 +1064,7 @@ describe('openFile', () => {
     await ioDone();
     expect(mockStore.get('filename')).toBe(target);
     mockStore.set('filename', path.join(dir, 'gone', 'zq.midst'));
-    mockStore.set('edited', 'true');
+    mockStore.set('edited', true);
     await save(asWindow(win), false, false);
     expect(showMessageBox).toHaveBeenCalledTimes(3);
     expect(
@@ -1045,7 +1076,7 @@ describe('openFile', () => {
   });
 
   it('loads a current-version file given up front, without a file dialog', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, goodFile('<p>zq</p>'));
     const win = makeWindow();
@@ -1063,7 +1094,7 @@ describe('openFile', () => {
   });
 
   it('asks which file to open, with the Midst filter, when none is given', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, goodFile());
     showOpenDialog.mockReturnValue([target]);
@@ -1081,7 +1112,7 @@ describe('openFile', () => {
   });
 
   it('when the poet cancels the open dialog, reads nothing and changes nothing', async () => {
-    seedDocument({ edited: 'false', filename: '/x/zq.midst' });
+    seedDocument({ edited: false, filename: '/x/zq.midst' });
     showOpenDialog.mockReturnValue(undefined);
     const win = makeWindow();
     await openFile(asWindow(win), false);
@@ -1091,7 +1122,7 @@ describe('openFile', () => {
   });
 
   it('treats an empty selection like a cancel', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     showOpenDialog.mockReturnValue([]);
     await openFile(asWindow(makeWindow()), false);
     expect(pendingIo).toHaveLength(0);
@@ -1099,7 +1130,7 @@ describe('openFile', () => {
   });
 
   it('on macOS, clears the edited dot for the opened file', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, goodFile());
     const win = makeWindow();
@@ -1111,7 +1142,7 @@ describe('openFile', () => {
 
   it('a file of the current version that cannot be parsed shows an error and leaves the open document alone', async () => {
     showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
-    seedDocument({ edited: 'false', filename: '/x/xv.midst' });
+    seedDocument({ edited: false, filename: '/x/xv.midst' });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, 'midstVersion: 1\n{not json POEM-SENTINEL');
     const win = makeWindow();
@@ -1143,7 +1174,7 @@ describe('openFile', () => {
       'when the path %s, says it could not be opened, with the reason, and offers no conversion',
       async (_case, target, code) => {
         showMessageBox.mockReturnValue(0); // error box with no buttons: the return value is unused
-        seedDocument({ edited: 'false' });
+        seedDocument({ edited: false });
         const win = makeWindow();
         await openFile(asWindow(win), false, [target(dir)]);
         await ioDone();
@@ -1164,7 +1195,7 @@ describe('openFile', () => {
   });
 
   it('loads nothing and shows nothing when the window has closed while the file was read', async () => {
-    seedDocument({ edited: 'false' });
+    seedDocument({ edited: false });
     const target = path.join(dir, 'zq.midst');
     fs.writeFileSync(target, goodFile());
     const win = { ...makeWindow(), isDestroyed: jest.fn(() => true) };
@@ -1184,7 +1215,7 @@ describe('openFile', () => {
     });
 
     it('offers Cancel or Convert File, defaulting to Convert', async () => {
-      seedDocument({ edited: 'false' });
+      seedDocument({ edited: false });
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, oldFile);
       showMessageBox.mockReturnValue(0);
@@ -1197,7 +1228,7 @@ describe('openFile', () => {
     });
 
     it('on Cancel, writes nothing, loads nothing and leaves the original as it was', async () => {
-      seedDocument({ edited: 'false' });
+      seedDocument({ edited: false });
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, oldFile);
       showMessageBox.mockReturnValue(0);
@@ -1212,7 +1243,7 @@ describe('openFile', () => {
     });
 
     it('on Convert, writes a new file beside the original, loads it, and keeps the original', async () => {
-      seedDocument({ edited: 'false' });
+      seedDocument({ edited: false });
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, oldFile);
       showMessageBox.mockReturnValue(1);
@@ -1236,7 +1267,7 @@ describe('openFile', () => {
     });
 
     it('logs that the version was not recognised, and the conversion', async () => {
-      seedDocument({ edited: 'false' });
+      seedDocument({ edited: false });
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, oldFile);
       showMessageBox.mockReturnValue(1);
@@ -1254,7 +1285,7 @@ describe('openFile', () => {
 
     describe('when it was converted before (#7)', () => {
       const withCopy = () => {
-        seedDocument({ edited: 'false' });
+        seedDocument({ edited: false });
         const target = path.join(dir, 'zq.midst');
         fs.writeFileSync(target, oldFile);
         const copy = path.join(dir, 'zq-converted.midst');
@@ -1366,7 +1397,7 @@ describe('openFile', () => {
         stage: 'convert' | 'write' | 'load',
         content: string
       ) => {
-        seedDocument({ edited: 'false' });
+        seedDocument({ edited: false });
         const target = path.join(dir, 'zq.midst');
         fs.writeFileSync(target, content);
         showMessageBox.mockReturnValueOnce(1).mockReturnValue(undefined);
@@ -1446,7 +1477,7 @@ describe('openFile', () => {
     });
 
     it('on Convert, never overwrites an earlier converted file', async () => {
-      seedDocument({ edited: 'false' });
+      seedDocument({ edited: false });
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, oldFile);
       fs.writeFileSync(path.join(dir, 'zq-converted.midst'), 'months of work');
@@ -1623,13 +1654,13 @@ describe('the menu', () => {
         ]);
         view[2].click!();
         expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-font-size',
-          '3'
+          'step-font-size',
+          'up'
         );
         view[3].click!();
         expect(win.webContents.send).toHaveBeenLastCalledWith(
-          'set-font-size',
-          '2'
+          'step-font-size',
+          'down'
         );
       });
     });
@@ -1820,7 +1851,7 @@ describe('the menu', () => {
         win.webContents.send.mockImplementation(
           (channel: string, id: unknown) => {
             if (channel !== 'flush-editor') return;
-            mockStore.set('edited', 'true');
+            mockStore.set('edited', true);
             editorAnswers({} as never, [id]);
           }
         );
@@ -1828,7 +1859,7 @@ describe('the menu', () => {
       afterEach(() => setEditorShowing(false));
 
       it('New', async () => {
-        seedDocument({ edited: 'false' });
+        seedDocument({ edited: false });
         showMessageBox.mockReturnValue(1);
         const win = makeWindow();
         editorTypedSinceSave(win);
@@ -1838,7 +1869,7 @@ describe('the menu', () => {
       });
 
       it('Open', async () => {
-        seedDocument({ edited: 'false' });
+        seedDocument({ edited: false });
         showMessageBox.mockReturnValue(1);
         const win = makeWindow();
         editorTypedSinceSave(win);
@@ -1901,7 +1932,7 @@ describe('the menu', () => {
     });
 
     it('New guards unsaved changes before clearing the document', async () => {
-      seedDocument({ edited: 'true' });
+      seedDocument({ edited: true });
       showMessageBox.mockReturnValue(1);
       const win = makeWindow();
       await sub(build(platform, win), fileLabels.top, fileLabels.nw).click!();
@@ -1919,7 +1950,7 @@ describe('the menu', () => {
     it('Open guards unsaved changes, then opens the chosen file', async () => {
       const target = path.join(dir, 'zq.midst');
       fs.writeFileSync(target, goodFile('<p>zq</p>'));
-      seedDocument({ edited: 'true' });
+      seedDocument({ edited: true });
       showMessageBox.mockReturnValue(0);
       showOpenDialog.mockReturnValue([target]);
       const item = sub(build(platform), fileLabels.top, fileLabels.open);
@@ -2009,24 +2040,24 @@ describe('the menu', () => {
       expect(win.setFullScreen).toHaveBeenLastCalledWith(false);
     });
 
-    it('text size buttons step the stored size and tell the renderer', () => {
+    // The size belongs to the open poem (#390): the window takes the step, and the menu stores nothing.
+    it('text size buttons tell the window which way to step, and store nothing', () => {
+      mockStore.set('font-size', '20');
       const win = makeWindow();
       const template = build(platform, win);
       const inc = sub(template, viewTop, 'Increase text size');
       const dec = sub(template, viewTop, 'Decrease text size');
       inc.click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '3'
+        'step-font-size',
+        'up'
       );
-      expect(Number(mockStore.get('font-size'))).toBe(3);
-      dec.click!();
       dec.click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '1'
+        'step-font-size',
+        'down'
       );
-      expect(Number(mockStore.get('font-size'))).toBe(1);
+      expect(mockStore.get('font-size')).toBe('20');
     });
 
     it('Help links open the project pages in the browser', () => {
@@ -2119,80 +2150,26 @@ describe('the menu', () => {
       expect(win.setFullScreen).toHaveBeenCalledWith(true);
       sub(template, viewTop, 'Increase text size').click!();
       sub(template, viewTop, 'Decrease text size').click!();
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '3');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '2');
+      expect(win.webContents.send).toHaveBeenCalledWith('step-font-size', 'up');
+      expect(win.webContents.send).toHaveBeenCalledWith(
+        'step-font-size',
+        'down'
+      );
     });
   });
 
   describe('font size limits', () => {
-    it('Increase stops at 4', () => {
-      mockStore.set('font-size', '4');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Increase text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      expect(mockStore.get('font-size')).toBe('4');
-    });
-
-    it('a stored size that is not a size is read as the default, not stepped into NaN', () => {
-      mockStore.set('font-size', 'abc');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Increase text size').click!();
-      expect(mockStore.get('font-size')).toBe('3');
-      expect(win.webContents.send).toHaveBeenCalledWith('set-font-size', '3');
-    });
-
-    it('Decrease stops at 0', () => {
-      mockStore.set('font-size', '0');
-      const win = makeWindow();
-      sub(build('linux', win), '&View', 'Decrease text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      expect(mockStore.get('font-size')).toBe('0');
-    });
-
-    it('Increase and Decrease both store the size as a string, as the renderer does', () => {
-      const win = makeWindow();
-      const template = build('linux', win);
-      sub(template, '&View', 'Increase text size').click!();
-      expect(mockStore.get('font-size')).toBe('3');
-      sub(template, '&View', 'Decrease text size').click!();
-      expect(mockStore.get('font-size')).toBe('2');
-    });
-
-    it('reads a stored number 0 as size 0, not as unset', () => {
-      mockStore.set('font-size', 0);
-      const win = makeWindow();
-      const template = build('linux', win);
-      sub(template, '&View', 'Decrease text size').click!();
-      expect(win.webContents.send).not.toHaveBeenCalled();
-      sub(template, '&View', 'Increase text size').click!();
-      expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '1'
-      );
-      expect(mockStore.get('font-size')).toBe('1');
-    });
-
-    it('reads an empty stored size as unset, so the default of 2 applies', () => {
-      mockStore.set('font-size', '');
+    // The limits are the window's since #390 (fontSize.test.ts, PoemSizeContext.test.tsx): at the
+    // largest size the menu still sends the step, and the window ignores it.
+    it('sends the step whatever size is stored', () => {
+      mockStore.set('font-size', '36');
       const win = makeWindow();
       sub(build('linux', win), '&View', 'Increase text size').click!();
       expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '3'
+        'step-font-size',
+        'up'
       );
-    });
-
-    it('Increase reaches 4 from the default of 2 and then stops', () => {
-      const win = makeWindow();
-      const inc = sub(build('linux', win), '&View', 'Increase text size');
-      inc.click!();
-      inc.click!();
-      inc.click!();
-      expect(win.webContents.send).toHaveBeenCalledTimes(2);
-      expect(win.webContents.send).toHaveBeenLastCalledWith(
-        'set-font-size',
-        '4'
-      );
+      expect(mockStore.get('font-size')).toBe('36');
     });
     // Focus Mode (GitHub #25): a checkbox that hides every interface option except the moon.
     // It is never stored (a poem must not save its focus mode status); the mark in the built
@@ -2303,7 +2280,7 @@ describe('the menu', () => {
       it('New on a destroyed window resets the stored document and reactivates the app', () => {
         // Saved state on purpose. A destroyed window with unsaved work should not arise (closing is
         // held until the poet chooses), so what New does about it is not pinned here.
-        seedDocument({ edited: 'false', filename: '/x/zq.midst' });
+        seedDocument({ edited: false, filename: '/x/zq.midst' });
         const win = makeWindow();
         win.isDestroyed.mockReturnValue(true);
         sub(build('darwin', win), 'File', 'New').click!();
@@ -2312,9 +2289,11 @@ describe('the menu', () => {
         expect(JSON.parse(mockStore.get('history') as string)).toEqual([
           { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
         ]);
-        expect(mockStore.get('meta')).toBe('');
+        expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+          fontSize: 14,
+        });
         expect(mockStore.get('filename')).toBe('');
-        expect(mockStore.get('edited')).toBe('false');
+        expect(mockStore.get('edited')).toBe(false);
         expect(app.emit).toHaveBeenCalledWith('activate', false);
         expect(win.webContents.send).not.toHaveBeenCalled();
       });
@@ -2563,7 +2542,7 @@ describe('an untitled poem', () => {
   });
 
   it('nothing is written for a poem nothing has been typed into', async () => {
-    seedDocument({ filename: '', edited: 'false' });
+    seedDocument({ filename: '', edited: false });
     await save(asWindow(makeWindow()), false, false);
     expect(writeRecovery).not.toHaveBeenCalled();
     expect(showSaveDialog).not.toHaveBeenCalled();
@@ -2658,7 +2637,7 @@ describe('offerRecovery', () => {
     expect(options.cancelId).toBe(1);
     expect(mockStore.get('poem')).toBe('<p>zq</p>');
     expect(mockStore.get('filename')).toBe('');
-    expect(mockStore.get('edited')).toBe('true');
+    expect(mockStore.get('edited')).toBe(true);
     expect(win.setDocumentEdited).toHaveBeenCalledWith(true);
     expect(win.webContents.send).toHaveBeenCalledWith(
       'open-file',
@@ -2702,7 +2681,7 @@ describe('offerRecovery', () => {
       mockStore.set('filename', filename);
       mockStore.set('poem', '<p>zq</p>');
       mockStore.set('history', '[]');
-      mockStore.set('edited', 'true');
+      mockStore.set('edited', true);
     };
 
     it('is cleared when the poet declines every copy, so nothing asks about it again', async () => {
@@ -2716,7 +2695,7 @@ describe('offerRecovery', () => {
       expect(recovery.declineToTrash).toHaveBeenCalledTimes(2);
       expect(mockStore.get('poem')).toBeUndefined();
       expect(mockStore.get('history')).toBeUndefined();
-      expect(mockStore.get('edited')).toBe('false');
+      expect(mockStore.get('edited')).toBe(false);
     });
 
     it('is kept when a copy could not be read, since it may be the only good one', async () => {
@@ -2730,7 +2709,7 @@ describe('offerRecovery', () => {
       showMessageBox.mockReturnValue(1);
       await offerRecovery(asWindow(makeWindow()), false);
       expect(mockStore.get('poem')).toBe('<p>zq</p>');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
     });
 
     it('is left alone when it has a file of its own', async () => {
@@ -2739,7 +2718,7 @@ describe('offerRecovery', () => {
       showMessageBox.mockReturnValue(1);
       await offerRecovery(asWindow(makeWindow()), false);
       expect(mockStore.get('poem')).toBe('<p>zq</p>');
-      expect(mockStore.get('edited')).toBe('true');
+      expect(mockStore.get('edited')).toBe(true);
     });
   });
 

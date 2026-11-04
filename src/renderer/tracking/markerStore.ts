@@ -5,11 +5,12 @@
 // The stored meta is read afresh for every change, never taken from what a component last saw, so a
 // change is always made to the document that is open now.
 import { MarkerResult, Meta } from './draftMarkers';
+import { StoreSchema } from '../../shared/storeSchema';
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 export interface MetaStore {
-  get(key: string): unknown;
-  set(key: string, value: string): void;
+  get(key: 'meta'): unknown;
+  set<K extends 'meta' | 'edited'>(key: K, value: StoreSchema[K]): unknown;
 }
 /* eslint-enable no-unused-vars */
 
@@ -46,7 +47,7 @@ export const changeStoredMarkers = (
   const result = change(meta);
   if (!result.ok) return result;
   store.set('meta', JSON.stringify(result.meta));
-  store.set('edited', JSON.stringify(true));
+  store.set('edited', true);
   save();
   return result;
 };

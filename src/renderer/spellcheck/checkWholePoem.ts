@@ -37,6 +37,11 @@ import type { EditorView } from '@tiptap/pm/view';
 // its state instead, which drops the space wherever it is, and the fixed MISMATCH_LOG is logged. No check starts
 // during a composition, and a later whole-poem check does not start once the poem has changed.
 //
+// The caret is hidden while the check runs (GitHub #107, editor #393). Each paragraph's edit puts the native caret
+// after its last word, so the poet saw it run down the end of every line, twice, as a poem opened. It is made
+// transparent on the editor element and the editor's own value is put back when the check ends, however it ends.
+// The element's attributes are not ProseMirror's document and are not in innerHTML, so nothing above sees the change.
+//
 // Undo cannot replay the spaces: the native undo stack holds them, but prosemirror-history takes every
 // historyUndo/historyRedo beforeinput and prevents its default, so the native one never runs.
 
@@ -64,8 +69,11 @@ const INPUT_EVENTS: (keyof HTMLElementEventMap)[] = [
 
 // ProseMirror's DOM observer is internal; these are the two calls this needs from it.
 type Observed = { domObserver: { stop(): void; start(): void } };
-/* eslint-disable-next-line no-unused-vars -- a type's parameter name, not a variable */
+/* eslint-disable no-unused-vars -- a type's parameter names, not variables */
 type Log = (message: string) => void;
+// Told once when a check ends: completed is true only when every paragraph was edited and put back cleanly.
+type Done = (completed: boolean) => void;
+/* eslint-enable no-unused-vars */
 type Spot = { text: Text; at: number };
 
 /** Where a space goes in `paragraph`: just after its last word, in the last text node that has one; or null. */
@@ -115,12 +123,13 @@ export function redrawFromState(view: EditorView): void {
 /**
  * Has Chromium check the spelling of `paragraphs` (the editor's own block elements), one after another, without
  * changing the poem. Returns a function that finishes it at once if it has not finished (the editor is going
- * away). `log` hears only the fixed MISMATCH_LOG.
+ * away). `log` hears only the fixed MISMATCH_LOG. `onDone` is told once when the check ends, however it ends.
  */
 export function checkParagraphs(
   view: EditorView,
   paragraphs: Element[],
-  log: Log
+  log: Log,
+  onDone: Done = () => {}
 ): () => void {
   const { dom } = view;
   const doc = dom.ownerDocument;
@@ -130,14 +139,17 @@ export function checkParagraphs(
     .filter((spot): spot is Spot => spot !== null);
   // Not in the document, there is no edit Chromium could see; with no words, nothing to check; and a composition
   // is the poet's, not to be interrupted.
-  if (!dom.isConnected || !spots.length || !selection || view.composing)
+  if (!dom.isConnected || !spots.length || !selection || view.composing) {
+    onDone(false);
     return () => {};
+  }
 
   const observer = (view as unknown as Observed).domObserver;
   const kept = Array.from({ length: selection.rangeCount }, (_, i) =>
     selection.getRangeAt(i).cloneRange()
   );
   const before = dom.innerHTML;
+  const { caretColor } = dom.style;
   // Moving the caret to each paragraph scrolls it into view; the poet's page is put back (editor #238, case 5).
   const { scrollTop } = dom;
 
@@ -163,32 +175,42 @@ export function checkParagraphs(
     return dom.innerHTML === before;
   };
 
-  const finish = () => {
+  // Called with true only when every paragraph has been reached; as an input listener it gets the poet's event,
+  // which ends the check before every paragraph is reached.
+  const finish = (how: boolean | Event = false) => {
     if (done) return;
     done = true;
+    const completed = how === true;
     clearTimeout(timer);
     INPUT_EVENTS.forEach((type) => dom.removeEventListener(type, finish, true));
+    dom.style.caretColor = caretColor;
     if (takeSpaceOut()) {
       selection.removeAllRanges();
       kept.forEach((range) => selection.addRange(range));
       dom.scrollTop = scrollTop;
       observer.start();
+      onDone(completed);
       return;
     }
     observer.start();
     redrawFromState(view);
     log(MISMATCH_LOG);
+    onDone(false);
   };
 
   const step = (next: number) => {
     // After a paragraph whose space could not be taken out cleanly, no other is touched: finish redraws.
     if (next > 0 && !takeSpaceOut()) {
-      finish();
+      finish(false);
       return;
     }
     const spot = spots[next];
-    if (!spot || !spot.text.isConnected) {
-      finish();
+    if (!spot) {
+      finish(true);
+      return;
+    }
+    if (!spot.text.isConnected) {
+      finish(false);
       return;
     }
     const caret = doc.createRange();
@@ -205,32 +227,58 @@ export function checkParagraphs(
   };
 
   observer.stop();
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- a CSS value, not text for the poet
+  dom.style.caretColor = 'transparent';
   INPUT_EVENTS.forEach((type) => dom.addEventListener(type, finish, true));
   step(0);
-  return finish;
+  // The editor going away: the check ends before every paragraph is reached.
+  return () => finish(false);
 }
 
 /** checkParagraphs on every paragraph of the poem, those on screen first. */
-export default function checkWholePoem(view: EditorView, log: Log): () => void {
+export default function checkWholePoem(
+  view: EditorView,
+  log: Log,
+  onDone?: Done
+): () => void {
   return checkParagraphs(
     view,
     onScreenFirst(view.dom, Array.from(view.dom.children)),
-    log
+    log,
+    onDone
   );
 }
 
 /** checkWholePoem at FIRST_MS and again at AGAIN_MS, each only while the poem is as it was when this was called
- *  (once it has changed, Chromium has seen an edit). Returns a function that cancels what has not run. */
+ *  (once it has changed, Chromium has seen an edit). Returns a function that cancels what has not run.
+ *
+ *  The second never starts over the first (editor #380). On a poem of more than about 40 paragraphs the first is
+ *  still running at AGAIN_MS; two at once each find the other's space, so both stopped, redrew the poem and logged,
+ *  and the paragraphs after the first ~42 were never checked. So the second waits for the first to finish, and runs
+ *  then only if the first reached every paragraph: one ended by the poet's input is not followed by another. */
 export function checkWholePoemSoon(view: EditorView, log: Log): () => void {
   const poem = view.state.doc;
   let finishRunning = () => {};
-  const timers = [FIRST_MS, AGAIN_MS].map((ms) =>
-    setTimeout(() => {
-      if (view.state.doc === poem) finishRunning = checkWholePoem(view, log);
-    }, ms)
-  );
+  let running = false;
+  let againWaiting = false;
+  const start = () => {
+    if (view.state.doc !== poem) return;
+    running = true;
+    finishRunning = checkWholePoem(view, log, (completed) => {
+      running = false;
+      if (!againWaiting) return;
+      againWaiting = false;
+      if (completed) start();
+    });
+  };
+  const first = setTimeout(start, FIRST_MS);
+  const again = setTimeout(() => {
+    if (running) againWaiting = true;
+    else start();
+  }, AGAIN_MS);
   return () => {
-    timers.forEach(clearTimeout);
+    clearTimeout(first);
+    clearTimeout(again);
     finishRunning();
   };
 }

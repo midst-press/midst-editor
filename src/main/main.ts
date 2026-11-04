@@ -47,6 +47,12 @@ import MenuBuilder, {
 } from './menu';
 import { forgetRecovery } from './recovery';
 import store from './store';
+import {
+  DOCUMENT_KEYS,
+  fitsSchema,
+  isStoreKey,
+  WORK_KEYS,
+} from '../shared/storeSchema';
 import { flushEditor, setEditorShowing } from './editorFlush';
 import { helpUrl } from '../shared/helpUrl';
 import { logFileForPeople } from './logFile';
@@ -60,6 +66,7 @@ import {
   languageOrder,
 } from '../shared/i18n';
 import confirmContinueWriting from './continueWriting';
+import sendToWindow from './sendToWindow';
 
 let mainWindow: BrowserWindow | null = null;
 
@@ -68,12 +75,6 @@ setupTitlebar();
 let earlyPath = '';
 // Whether the current window has been shown. Until then, ready-to-show is what opens a requested file.
 let windowShown = false;
-
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  log.debug(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -104,10 +105,8 @@ const installExtensions = async () => {
 
 // The document the window held, removed from the store when the window closes.
 const clearDocument = () => {
-  ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
-    store.delete(key)
-  );
-  store.set('edited', 'false');
+  DOCUMENT_KEYS.forEach((key) => store.delete(key));
+  store.set('edited', false);
 };
 
 const createWindow = async () => {
@@ -204,7 +203,7 @@ const createWindow = async () => {
       try {
         await flushEditor(win);
         if (win.isDestroyed()) return;
-        if (store.get('edited') === 'false') {
+        if (store.get('edited') === false) {
           clearDocument();
           win.destroy();
           return;
@@ -289,7 +288,7 @@ ipcMain.on('focus-mode-changed', (_event, args: unknown) => {
     log.warn('focus-mode-changed: unexpected arguments, ignored', { args });
   }
   logIfRejected('focus mode report', () =>
-    win.webContents.send('set-focus-mode', focusModeMark())
+    sendToWindow(win, 'set-focus-mode', focusModeMark())
   );
 });
 ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
@@ -354,12 +353,49 @@ ipcMain.on('disable-save', () => {
   setSaveEnabled(false);
 });
 
-// IPC listener
-ipcMain.on('electron-store-get', async (event, val) => {
-  event.returnValue = store.get(val);
+// The renderer's store calls (#355). What crosses IPC is untyped whatever the preload says, so the key
+// and the value are checked against the schema here. A get of a key the app does not have answers
+// undefined. A refused set is logged, and when the key holds the poem the poet is told, once until a write
+// of the poem is stored again, because their latest work is not being kept.
+let toldWorkNotKept = false;
+ipcMain.on('electron-store-get', (event, key) => {
+  if (isStoreKey(key)) {
+    event.returnValue = store.get(key);
+    return;
+  }
+  log.error('the renderer asked for a store key the app does not have', {
+    key: String(key),
+  });
+  event.returnValue = undefined;
 });
-ipcMain.on('electron-store-set', async (event, key, val) => {
+ipcMain.on('electron-store-set', (event, key, val) => {
+  if (!isStoreKey(key) || !fitsSchema(key, val)) {
+    log.error('the renderer wrote a store key or value the app does not have', {
+      key: String(key),
+      found: typeof val,
+    });
+    // A refused `edited` would leave the old value, which can be false, and closing would then skip the
+    // unsaved-changes prompt. Whatever was meant, it is stored as unsaved: the safe direction (Silas,
+    // review of #370).
+    if (key === 'edited') store.set('edited', true);
+    if (isStoreKey(key) && WORK_KEYS.has(key) && !toldWorkNotKept) {
+      toldWorkNotKept = true;
+      const win = BrowserWindow.fromWebContents(event.sender);
+      const options = {
+        type: 'error' as const,
+        title: i18n._('dialog.workNotKept.title'),
+        message: i18n._('dialog.workNotKept.message'),
+        detail: i18n._('dialog.workNotKept.detail', {
+          logFile: logFileForPeople(),
+        }),
+      };
+      if (win) dialog.showMessageBox(win, options);
+      else dialog.showMessageBox(options);
+    }
+    return;
+  }
   store.set(key, val);
+  if (WORK_KEYS.has(key)) toldWorkNotKept = false;
   // Applied immediately so raising the level takes effect inside the session being reproduced,
   // rather than only after a restart.
   if (key === LOG_LEVEL_KEY) {
@@ -415,6 +451,23 @@ app.on('window-all-closed', () => {
   app.quit();
 });
 
+// A poem the OS hands over, by open-file or a second launch. Until a window has been shown it is held for
+// ready-to-show, which opens it once. It used to be sent on to app-open as well, and a window that existed but was not
+// yet shown then opened it a second time, before the recovery offer and into a page still loading (#381). A second
+// Finder open within a moment of a cold launch lands there. Once a window has been shown, app-open opens it (with
+// the unsaved-changes prompt) and nothing is held: a path left held was read straight into the next window, without
+// the prompt, after the poet closed this one and reopened from the Dock (#41).
+const requestOpen = (poem: string) => {
+  if (!windowShown) {
+    log.info('os requested open; held until the window shows', {
+      filename: poem,
+    });
+    earlyPath = poem;
+    return;
+  }
+  ipcMain.emit('app-open', [poem]);
+};
+
 // One Midst at a time (#336; Annelyse chose it on GitHub #91, 26 Oct). Two copies would share one store, the open poem in it, and
 // the recovery folder. A second launch quits at once and hands its poem to the running copy, which comes to the front.
 // Electron's lock belongs to the userData folder, so the end-to-end specs, each launched with its own
@@ -423,6 +476,13 @@ const firstCopy = app.requestSingleInstanceLock({ poem: poemIn(process.argv) });
 if (!firstCopy) {
   log.info('another Midst is running; this launch hands over and quits');
   app.quit();
+}
+// The first copy's own poem (#384). On Windows and Linux a double-clicked poem arrives on the command line of the launch
+// it starts, and nothing read it there: Midst opened without it (measured on 0.9.1, Windows). It is held for
+// ready-to-show like any poem handed over before the window is shown. macOS hands a poem over by open-file instead.
+if (firstCopy) {
+  const launchPoem = poemIn(process.argv);
+  if (launchPoem !== '') requestOpen(launchPoem);
 }
 app.on('second-instance', (_event, argv, _cwd, data) => {
   if (mainWindow !== null) {
@@ -437,9 +497,7 @@ app.on('second-instance', (_event, argv, _cwd, data) => {
   else if (poem) channel = 'argv';
   log.info('second launch', { poem: channel, args: argv.length });
   if (poem === '') return;
-  // As open-file below: held for ready-to-show only while no window has been shown.
-  if (!windowShown) earlyPath = poem;
-  ipcMain.emit('app-open', [poem]);
+  requestOpen(poem);
 });
 
 // Responding to external requests to open a file
@@ -448,11 +506,7 @@ app.on('open-file', async (event, filename) => {
   // store the filename, so it can be used once the window is ready
   // on other operating systems, this will need to be handled differently
   event.preventDefault();
-  // Held for ready-to-show only while no window has been shown. Once one has, app-open opens the file (with
-  // the unsaved-changes prompt) and nothing is held: a path left here was read straight into the next
-  // window, without the prompt, after the poet closed this one and reopened from the Dock (#41).
-  if (!windowShown) earlyPath = filename;
-  ipcMain.emit('app-open', [filename]);
+  requestOpen(filename);
 });
 
 // A launch that lost the lock creates nothing: it is quitting.

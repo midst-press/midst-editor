@@ -17,8 +17,9 @@ import {
   includeVersionInfo,
   serializeDocument,
 } from '@midst-press/midst-format/convert';
+import { newPoemMeta } from './fontSize';
 import store from './store';
-import { fontSizeOrDefault, MAX_FONT_SIZE, MIN_FONT_SIZE } from './fontSize';
+import { DOCUMENT_KEYS } from '../shared/storeSchema';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
 import replaceFile from './replaceFile';
@@ -46,6 +47,7 @@ import {
   languageName,
   languageOrder,
 } from '../shared/i18n';
+import sendToWindow from './sendToWindow';
 
 // A menu or IPC action that nothing awaits. If its promise rejects, the log says which action failed
 // (#160); the unhandled-rejection handler could say only that something did. A synchronous throw is
@@ -65,7 +67,7 @@ export const logIfRejected = (
 };
 
 const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
-  if (store.get('edited') === 'false') {
+  if (store.get('edited') === false) {
     return false;
   }
 
@@ -87,17 +89,17 @@ const handleUnsavedChanges = (mainWindow: BrowserWindow) => {
 };
 
 const toggleEditMode = (mainWindow: BrowserWindow) => {
-  mainWindow.webContents.send('toggle-edit-mode');
+  sendToWindow(mainWindow, 'toggle-edit-mode');
 };
 const findInPoem = (mainWindow: BrowserWindow) => {
-  mainWindow.webContents.send('find-in-poem');
+  sendToWindow(mainWindow, 'find-in-poem');
 };
 // Check Spelling is a checkbox (GitHub #80, editor #320), and the menu owns the setting: Electron has already
 // flipped the item's mark when this runs, so the store follows the mark, and the window is told to apply it.
 // Whatever the window is showing, the mark and the setting agree; the writing screen reads the setting when it opens.
 const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
-  mainWindow.webContents.send('toggle-spellcheck');
+  sendToWindow(mainWindow, 'toggle-spellcheck');
 };
 // Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
 // one owner is main: menu.ts's memory, mirrored onto the live checkbox by id (getMenuItemById,
@@ -136,7 +138,7 @@ export const setFocusModeMark = (on: boolean) => {
 // The menu's click: Electron has already flipped the mark, and the screen follows it (one path
 // for both halves, so there is nothing left to hold a second copy of the state).
 export const setFocusMode = (mainWindow: BrowserWindow, on: boolean) => {
-  mainWindow.webContents.send('set-focus-mode', on);
+  sendToWindow(mainWindow, 'set-focus-mode', on);
 };
 // The moon's request, from wherever the click happened: main turns the mark and answers.
 export const requestFocusMode = (mainWindow: BrowserWindow) => {
@@ -145,14 +147,9 @@ export const requestFocusMode = (mainWindow: BrowserWindow) => {
   setFocusMode(mainWindow, on);
 };
 
-const storedFontSize = () => fontSizeOrDefault(store.get('font-size'));
+// The size belongs to the open poem (#390), which the window holds, so the window takes the step.
 const increaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = storedFontSize();
-  if (fontSize >= MAX_FONT_SIZE) {
-    return;
-  }
-  store.set('font-size', String(fontSize + 1));
-  mainWindow.webContents.send('set-font-size', String(fontSize + 1));
+  sendToWindow(mainWindow, 'step-font-size', 'up');
 };
 // Light, dark or the OS's (GitHub #16). nativeTheme decides what prefers-color-scheme matches in the
 // renderer, so the stylesheet and the MUI theme follow it with no message of their own.
@@ -175,7 +172,7 @@ export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
   // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
   new MenuBuilder(mainWindow).applyMenu();
   BrowserWindow.getAllWindows().forEach((w) =>
-    w.webContents.send('set-locale', used)
+    sendToWindow(w, 'set-locale', used)
   );
 };
 
@@ -187,13 +184,7 @@ const APPEARANCE_LABELS: Record<Appearance, () => string> = {
 };
 
 const decreaseFontSize = (mainWindow: BrowserWindow) => {
-  const fontSize = storedFontSize();
-
-  if (fontSize <= MIN_FONT_SIZE) {
-    return;
-  }
-  store.set('font-size', String(fontSize - 1));
-  mainWindow.webContents.send('set-font-size', String(fontSize - 1));
+  sendToWindow(mainWindow, 'step-font-size', 'down');
 };
 
 // A document that is not in the store is not an empty document. newFile stores '' and '[]' for a
@@ -244,7 +235,7 @@ const saveFilters = () => [
 // renderer sets it (#94). Sent only when that changes. On macOS the edited dot says it as well.
 const sayWhetherSaved = (mainWindow: BrowserWindow, wasShown: boolean) => {
   const shown = saveFailure.showsNotSaved();
-  if (shown !== wasShown) mainWindow.webContents.send('set-not-saved', shown);
+  if (shown !== wasShown) sendToWindow(mainWindow, 'set-not-saved', shown);
 };
 
 // The window now holds another document: nothing about the last one's failed saves applies to it.
@@ -269,8 +260,8 @@ const recordSaved = (
     mainWindow.setRepresentedFilename(filename);
   }
   // The renderer titles the window from this name, in one place (#125); main does not set the title.
-  mainWindow.webContents.send('set-filename', path.basename(filename));
-  store.set('edited', JSON.stringify(false));
+  sendToWindow(mainWindow, 'set-filename', path.basename(filename));
+  store.set('edited', false);
 };
 
 // The write failed: nothing is recorded, and the poet is told when the rules above say so.
@@ -296,7 +287,7 @@ const reportCouldNotSave = async (
     filename,
     byPoet,
     firstSave,
-    nothingUnsaved: store.get('edited') === 'false',
+    nothingUnsaved: store.get('edited') === false,
   });
   if (darwin && saveFailure.showsNotSaved()) mainWindow.setDocumentEdited(true);
   sayWhetherSaved(mainWindow, wasShown);
@@ -484,14 +475,14 @@ export const save = async (
   const document = storedDocument();
   if (document === null) {
     log.error('save: no document in the store; nothing written');
-    mainWindow.webContents.send('cancel-save');
+    sendToWindow(mainWindow, 'cancel-save');
     return;
   }
   const stored = store.get('filename') as string | undefined;
   // An untitled poem is not asked a name until the poet saves on purpose (#315; Annelyse, GitHub #81): the editor's own
   // saves keep its recovery copy instead. Nothing is written for a poem nothing has been typed into.
   if (!stored && !byPoet) {
-    if (store.get('edited') !== 'true') return;
+    if (store.get('edited') !== true) return;
     try {
       writeRecovery(
         includeVersionInfo(
@@ -527,7 +518,9 @@ export const save = async (
       saveElsewhere: () => saveAs(mainWindow, darwin),
     });
   } else {
-    mainWindow.webContents.send('cancel-save');
+    // The poet cancelled the save dialog: the poem stays open, as it was (Annelyse, GitHub #106; editor #392). This
+    // used to send cancel-save, and the editor went Home, where an untitled poem cannot be reached again.
+    log.info('save: the poet cancelled the save dialog; the poem stays open');
   }
 };
 
@@ -545,12 +538,15 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const history = [emptyFirstFrame()];
   store.set('poem', '');
   store.set('history', JSON.stringify(history));
-  store.set('meta', '');
+  store.set(
+    'meta',
+    newPoemMeta(store.get('font-size'), store.get('font-family'))
+  );
   store.set('filename', '');
   store.set('baseFilename', '');
-  store.set('edited', JSON.stringify(false));
+  store.set('edited', false);
   forgetSaveFailures(mainWindow);
-  mainWindow.webContents.send('open-file', '', history, '');
+  sendToWindow(mainWindow, 'open-file', '', history, '');
   if (darwin) {
     mainWindow.setRepresentedFilename(untitled());
   }
@@ -834,7 +830,7 @@ export default class MenuBuilder {
         // The poem's font (#240): the picker is in the window, since a menu cannot show each font in its own face.
         id: 'menu.view.font',
         label: this.label(i18n._('menu.view.font')),
-        click: () => this.mainWindow.webContents.send('choose-font'),
+        click: () => sendToWindow(this.mainWindow, 'choose-font'),
       },
     ];
   }
@@ -1119,9 +1115,12 @@ export default class MenuBuilder {
               store.set('poem', '');
               // A new poem, so it too begins at an empty page (GitHub #29).
               store.set('history', JSON.stringify([emptyFirstFrame()]));
-              store.set('meta', '');
+              store.set(
+                'meta',
+                newPoemMeta(store.get('font-size'), store.get('font-family'))
+              );
               store.set('filename', '');
-              store.set('edited', JSON.stringify(false));
+              store.set('edited', false);
               saveFailure.startAgain();
               app.emit('activate', false);
             } else {
@@ -1348,9 +1347,7 @@ export const offerRecovery = async (
   };
   await offer(orphans());
   if (declined > 0 && kept === 0 && !adopted && !store.get('filename')) {
-    ['filename', 'baseFilename', 'poem', 'history', 'meta'].forEach((key) =>
-      store.delete(key)
-    );
-    store.set('edited', 'false');
+    DOCUMENT_KEYS.forEach((key) => store.delete(key));
+    store.set('edited', false);
   }
 };

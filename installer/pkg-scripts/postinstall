@@ -1,0 +1,113 @@
+#!/bin/bash
+# Runs as root after the new Midst's payload (issue 16). It checks that the new Midst is really in
+# place, and if it is not, moves every app the preinstall kept back to its own name (Stuart, 4 Nov:
+# always move the old one aside, install the new one, and if the new one fails, move the old one back).
+#
+# The new Midst is in place only when $3/Applications/Midst.app is a directory (not a symlink) whose
+# Info.plist says CFBundleIdentifier press.Midst.MidstApp and a CFBundleShortVersionString equal,
+# byte for byte, to the expected-version file beside this script, which tools/finish_pkg.sh writes
+# from the package's own product version. This is what catches the 0.9.4 candidate: the payload was
+# skipped and Installer still reported success.
+#
+# In place: writes the version to $record.installed and exits 0. The opt-in delete
+# (installer/remove-previous) deletes nothing unless that file names the Midst.app now in place.
+#
+# Not in place:
+#   - Midst.app missing: each line of $record.restore ("<original name><TAB><kept path>") is moved
+#     back, only onto a free name, and checked; exit 1.
+#   - Midst.app present but not the new Midst: nothing is moved onto it, since that would mean
+#     moving it first. Both paths are named and the script exits 1; nothing is lost.
+# Either way it never deletes anything.
+#
+# A run that finds .installed exits 0 without touching anything.
+#
+# Not covered: if the payload aborts outright, no postinstall runs and the older Midst stays under
+# its versioned name ("Midst <version>.app"). Nothing is lost, but it must be renamed back by hand.
+#
+# $3 is the target volume. MIDST_PREVIOUS_RECORD overrides the record path for the tests.
+set -u
+
+say() { echo "Midst postinstall: $*"; }
+fail() { echo "Midst postinstall: FAILED: $*" >&2; exit 1; }
+
+apps="${3%/}/Applications"
+new="$apps/Midst.app"
+[ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept cannot be found"
+record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
+restore="$record.restore"
+installed="$record.installed"
+expected_file="$(dirname "$0")/expected-version"
+
+if [ -f "$installed" ] && [ ! -L "$installed" ]; then
+  say "already checked in this install ($installed exists); changing nothing"
+  exit 0
+fi
+
+# These set $value rather than print it: $(...) strips every trailing newline, so a version such
+# as "0.9.5\n" would compare equal to "0.9.5" (connor-227743e6's test).
+read_exact() { # <file>: sets $value to its bytes exactly, trailing newlines included, or fails
+  value=$(cat -- "$1" 2> /dev/null && printf x) || return 1
+  value=${value%x}
+}
+
+plist_value() { # <key>: sets $value to Midst.app's value as the plist holds it, or fails
+  # The "x" keeps trailing newlines; then exactly the one newline plutil adds is removed.
+  value=$(plutil -extract "$1" raw -o - "$new/Contents/Info.plist" 2> /dev/null && printf x) || return 1
+  value=${value%x}
+  value=${value%$'\n'}
+}
+
+kept_list() { # names every kept path in the record, for a message
+  local orig kept
+  while IFS=$'\t' read -r orig kept || [ -n "$orig" ]; do
+    [ -n "$orig" ] && printf ' %s' "$kept"
+  done < "$restore"
+}
+
+[ -f "$restore" ] && [ ! -L "$restore" ] || fail "no record of the apps kept ($restore), so nothing can be moved back"
+
+if [ -e "$new" ] || [ -L "$new" ]; then
+  read_exact "$expected_file" && expected=$value && [ -n "$expected" ] \
+    || fail "cannot read the expected version ($expected_file); $new and the kept apps are left as they are:$(kept_list)"
+  why=""
+  if [ -L "$new" ] || [ ! -d "$new" ]; then
+    why="it is not a directory"
+  elif ! plist_value CFBundleIdentifier || [ "$value" != press.Midst.MidstApp ]; then
+    why="it is not Midst (CFBundleIdentifier)"
+  elif ! plist_value CFBundleShortVersionString || [ "$value" != "$expected" ]; then
+    why="it is not version $expected"
+  fi
+  if [ -z "$why" ]; then
+    printf '%s' "$expected" > "$installed" || fail "the new Midst is in place, but $installed could not be written"
+    say "Midst $expected is in place"
+    exit 0
+  fi
+  fail "$new is there but $why, so nothing is moved onto it; the apps kept are left as they are:$(kept_list)"
+fi
+
+# The new Midst is missing: move every kept app back to its own name.
+problems=0
+while IFS=$'\t' read -r orig kept || [ -n "$orig" ]; do
+  [ -n "$orig" ] || continue
+  case "$orig" in
+    Midst.app | "Midst Beta.app") ;;
+    *) echo "Midst postinstall: not moving $kept back: \"$orig\" is not a name the preinstall renames" >&2; problems=1; continue ;;
+  esac
+  to="$apps/$orig"
+  if [ "$(dirname -- "$kept")" != "$apps" ]; then
+    echo "Midst postinstall: not moving $kept back: it is not directly in $apps" >&2; problems=1
+  elif ! { [ -e "$kept" ] || [ -L "$kept" ]; }; then
+    echo "Midst postinstall: cannot move $kept back to $to: $kept is not there" >&2; problems=1
+  elif [ -e "$to" ] || [ -L "$to" ]; then
+    echo "Midst postinstall: cannot move $kept back: $to is taken" >&2; problems=1
+  elif ! mv -- "$kept" "$to" || ! { [ -e "$to" ] || [ -L "$to" ]; } || [ -e "$kept" ] || [ -L "$kept" ]; then
+    echo "Midst postinstall: could not move $kept back to $to" >&2; problems=1
+  else
+    echo "Midst postinstall: moved $(basename "$kept") back to $orig" >&2
+  fi
+done < "$restore"
+
+if [ "$problems" = 0 ]; then
+  fail "the new Midst was not installed ($new is missing); every app kept was moved back"
+fi
+fail "the new Midst was not installed ($new is missing), and not every app kept could be moved back (above)"

@@ -1,18 +1,26 @@
 import '@testing-library/jest-dom';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { useMemo, useState } from 'react';
+import { ReactNode, useMemo, useState } from 'react';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from '../renderer/components/Editor';
+import {
+  PoemSizeContext,
+  usePoemSizeState,
+} from '../renderer/fontSize/PoemSizeContext';
 import { REFUSED_LOG } from '../renderer/components/DraftMarkers/useDraftMarkers';
 import { HistoryContext, RETURN_TO, TextContext } from '../renderer/context';
 import {
   checkLinesAfterBreaks,
   checkWholePoemSoon,
 } from '../renderer/spellcheck/checkWholePoem';
+
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
 
 // The spelling check edits the DOM, which jsdom cannot do; it is tested on its own (checkWholePoem.test.ts) and
 // end to end (e2e/spellcheck.spec.ts). Here: when the editor asks for it.
@@ -86,7 +94,9 @@ const installBridge = (seed: Record<string, unknown> = {}, isMac = false) => {
     activeListeners: (channel: string) => (listeners[channel] ?? []).length,
     emit: (channel: string, ...a: unknown[]) =>
       act(() => {
-        [...(listeners[channel] ?? [])].forEach((l) => l(...a));
+        [...(listeners[channel] ?? [])].forEach((l) =>
+          (l as AnyListener)(...a)
+        );
       }),
   };
 };
@@ -113,6 +123,15 @@ function Where() {
 // Holds text and history as App does, and reports every setter call.
 const setPoemHistorySpy = jest.fn();
 const setTextSpy = jest.fn();
+// The size belongs to the poem, held above the screens as App holds it (#390).
+function WithPoemSize({ children }: { children: ReactNode }) {
+  return (
+    <PoemSizeContext.Provider value={usePoemSizeState()}>
+      {children}
+    </PoemSizeContext.Provider>
+  );
+}
+
 function Harness({
   initialText,
   initialHistory,
@@ -145,13 +164,15 @@ function Harness({
   return (
     <TextContext.Provider value={textValue}>
       <HistoryContext.Provider value={historyValue}>
-        <MemoryRouter initialEntries={['/editor']}>
-          <Routes>
-            <Route path="/editor" element={<Editor />} />
-            <Route path="*" element={<div />} />
-          </Routes>
-          <Where />
-        </MemoryRouter>
+        <WithPoemSize>
+          <MemoryRouter initialEntries={['/editor']}>
+            <Routes>
+              <Route path="/editor" element={<Editor />} />
+              <Route path="*" element={<div />} />
+            </Routes>
+            <Where />
+          </MemoryRouter>
+        </WithPoemSize>
       </HistoryContext.Provider>
     </TextContext.Provider>
   );
@@ -226,7 +247,12 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   delete (window as unknown as { electron?: unknown }).electron;
+  document.documentElement.style.removeProperty('--poem-size');
 });
+
+// The size the poem is drawn at: Editor.css takes it from --poem-size (#390).
+const poemSize = () =>
+  document.documentElement.style.getPropertyValue('--poem-size');
 
 describe('Editor: content and appearance', () => {
   it('shows the text from the text context', () => {
@@ -234,24 +260,45 @@ describe('Editor: content and appearance', () => {
     expect(proseMirror()).toHaveTextContent('zq xv');
   });
 
-  it('uses the stored font size class, and the default when the stored size is not a size', () => {
-    bridge = installBridge({ 'font-size': '4' });
+  it("opens at the poem's own size, else the last size used, else 16 (#390)", () => {
+    bridge = installBridge({ meta: JSON.stringify({ fontSize: 24 }) });
     const { unmount } = mount();
-    expect(proseMirror()).toHaveClass('size-4');
+    expect(poemSize()).toBe('24px');
     unmount();
-    bridge = installBridge({ 'font-size': '9' });
+    bridge = installBridge({ 'font-size': '20', meta: '' });
+    const second = mount();
+    expect(poemSize()).toBe('20px');
+    second.unmount();
+    bridge = installBridge({ 'font-size': 'zq' });
     mount();
-    expect(proseMirror()).toHaveClass('size-2');
+    expect(poemSize()).toBe('16px');
   });
 
-  it('uses the default size when none is stored, and the smallest when 0 is stored', () => {
-    bridge = installBridge({});
+  it('keeps the size a poet had before #390, stored as a step', () => {
+    bridge = installBridge({ 'font-size': '4' });
     const { unmount } = mount();
-    expect(proseMirror()).toHaveClass('size-2');
+    expect(poemSize()).toBe('32px');
     unmount();
     bridge = installBridge({ 'font-size': '0' });
     mount();
-    expect(proseMirror()).toHaveClass('size-0');
+    expect(poemSize()).toBe('10px');
+  });
+
+  it('keeps a size changed from its buttons when the poet types (#390, GitHub #105)', () => {
+    // The size used to be a class in the editor's props, which @tiptap/react re-applies on every render, and typing
+    // put back the size the editor opened at. It is no longer in the props at all.
+    bridge = installBridge({ 'font-size': '2', meta: '' });
+    mount();
+    expect(poemSize()).toBe('16px');
+    fireEvent.click(screen.getByRole('button', { name: 'Increase text size' }));
+    expect(poemSize()).toBe('20px');
+    typeText('x');
+    expect(poemSize()).toBe('20px');
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Decrease text size' }));
+    typeText('y');
+    expect(poemSize()).toBe('14px');
+    expect(proseMirror().className).not.toMatch(/size-/);
   });
 
   it('picks the tall editor on a Mac and the short one elsewhere', () => {
@@ -413,7 +460,7 @@ describe('Editor: on entering and leaving', () => {
       'toggle-spellcheck',
       'toggle-edit-mode',
       'cancel-save',
-      'set-font-size',
+      'step-font-size',
       'flush-editor',
     ].forEach((channel) => expect(bridge.activeListeners(channel)).toBe(0));
   });
@@ -455,7 +502,7 @@ describe('Editor: recording an edit', () => {
     expect(newHistory[1].t).toBeInstanceOf(Date);
     expect(typeof newHistory[1].pos).toBe('number');
     expect(bridge.sets('edited')).toEqual([
-      { kind: 'store.set', args: ['edited', 'true'] },
+      { kind: 'store.set', args: ['edited', true] },
     ]);
   });
 
@@ -541,11 +588,11 @@ describe('Editor: autosave', () => {
     typeText('xv');
     // File > Save: the menu takes the poem through the flush, and the save marks the document saved.
     bridge.emit('flush-editor', 2);
-    bridge.values.edited = 'false';
+    bridge.values.edited = false;
     bridge.clear();
     typeText('qj');
     // At once, with no flush and no autosave: New, Open, closing the window and Quit all read it.
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.sets('edited')).toHaveLength(1);
   });
 
@@ -822,7 +869,7 @@ describe('Editor: draft marker button', () => {
 
     const meta = JSON.parse(bridge.values.meta as string);
     expect(meta.draftMarkers).toEqual([{ index: 59, defaultName: 'Draft 1' }]);
-    expect(bridge.values.edited).toBe('true');
+    expect(bridge.values.edited).toBe(true);
     expect(bridge.sends('save-file').length).toBeGreaterThanOrEqual(1);
     expect(bridge.index('store.set', 'meta')).toBeLessThan(
       bridge.index('send', 'save-file')

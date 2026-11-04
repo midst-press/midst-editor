@@ -6,6 +6,15 @@ import { useEffect } from 'react';
 import StarterKit from '@tiptap/starter-kit';
 import type { ElectronHandler } from 'main/preload';
 import MenuBar from '../renderer/components/Editor/MenuBar';
+import useFontSize from '../renderer/fontSize/useFontSize';
+import {
+  PoemSizeContext,
+  usePoemSizeState,
+} from '../renderer/fontSize/PoemSizeContext';
+
+// A listener of any channel, called as the window would call it.
+// eslint-disable-next-line no-unused-vars
+type AnyListener = (...args: unknown[]) => void;
 
 type Listener = Parameters<ElectronHandler['ipcRenderer']['on']>[1];
 
@@ -87,33 +96,68 @@ function Capture() {
   return null;
 }
 
+// As App does (#390): the size belongs to the poem and is held above the editor; MenuBar steps it.
+function Toolbar({ focused }: { focused: boolean }) {
+  return (
+    <MenuBar
+      focused={focused}
+      onToggleFocus={jest.fn()}
+      fontSize={useFontSize()}
+    />
+  );
+}
+
+function Host({
+  extensions,
+  content,
+  cls,
+  focused,
+}: {
+  extensions: any[];
+  content: string;
+  cls: string;
+  focused: boolean;
+}) {
+  return (
+    <PoemSizeContext.Provider value={usePoemSizeState()}>
+      <EditorProvider
+        extensions={extensions}
+        content={content}
+        editorProps={{ attributes: { class: cls } }}
+        slotBefore={<Toolbar focused={focused} />}
+        slotAfter={<Capture />}
+      />
+    </PoemSizeContext.Provider>
+  );
+}
+
 const mount = ({
   extensions = [StarterKit] as any[],
   content = '<p>synthetic line</p>',
-  cls = 'TextEditor editor-height-tall size-2',
+  cls = 'TextEditor editor-height-tall',
   focused = false,
 } = {}) =>
   render(
-    <EditorProvider
+    <Host
       extensions={extensions}
       content={content}
-      editorProps={{ attributes: { class: cls } }}
-      slotBefore={<MenuBar focused={focused} onToggleFocus={jest.fn()} />}
-      slotAfter={<Capture />}
+      cls={cls}
+      focused={focused}
     />
   );
 
 const storeWrites = () => calls.filter((c) => c[0] === 'store.set');
-const editorClass = () =>
-  (editor.options.editorProps.attributes as Record<string, string>).class;
 const click = (name: string) =>
   fireEvent.click(screen.getByRole('button', { name }));
 const selectAll = () =>
   act(() => {
     editor.commands.selectAll();
   });
-const emitSetFontSize = (size: unknown) =>
-  act(() => listeners['set-font-size'].forEach((l) => l(size)));
+const emitStep = (direction: 'up' | 'down') =>
+  act(() =>
+    listeners['step-font-size'].forEach((l) => (l as AnyListener)(direction))
+  );
+const poemFontSize = () => JSON.parse(values.meta as string).fontSize;
 
 describe('MenuBar controls', () => {
   it('offers seven buttons with accessible names', () => {
@@ -224,180 +268,84 @@ describe('MenuBar bold and italic', () => {
   });
 });
 
+// The stepping itself, and what it writes, is PoemSizeContext.test.tsx's; these are the toolbar's buttons (#390).
 describe('MenuBar text size', () => {
-  it('starts at size 2 when nothing is stored, with both buttons enabled', () => {
+  const button = (name: string) => screen.getByRole('button', { name });
+
+  it('starts at 16 when nothing is stored, with both buttons enabled', () => {
     mount();
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeEnabled();
-    expect(
-      screen.getByRole('button', { name: 'Decrease text size' })
-    ).toBeEnabled();
-    expect(calls).toContainEqual(['store.get', 'font-size']);
+    expect(button('Increase text size')).toBeEnabled();
+    expect(button('Decrease text size')).toBeEnabled();
   });
 
-  it('increase writes the next size as a string and sets the size class', () => {
-    install({ 'font-size': '2' });
+  it("increase and decrease step the poem's size", () => {
+    install({ 'font-size': '20' });
     mount();
     click('Increase text size');
-    expect(storeWrites()).toEqual([['store.set', 'font-size', '3']]);
-    expect(editorClass()).toBe('TextEditor editor-height-tall size-3');
-  });
-
-  it('decrease writes the previous size as a string and sets the size class', () => {
-    install({ 'font-size': '2' });
-    mount();
+    expect(poemFontSize()).toBe(24);
     click('Decrease text size');
-    expect(storeWrites()).toEqual([['store.set', 'font-size', '1']]);
-    expect(editorClass()).toBe('TextEditor editor-height-tall size-1');
+    click('Decrease text size');
+    expect(poemFontSize()).toBe(16);
+    expect(values['font-size']).toBe('16');
   });
 
-  it('keeps unrelated classes and replaces only the size class', () => {
-    mount({ cls: 'alpha size-2 beta' });
+  it('leaves the editor surface without a size class', () => {
+    const { container } = mount();
     click('Increase text size');
-    expect(editorClass().split(' ').sort()).toEqual(
-      ['alpha', 'beta', 'size-3'].sort()
+    expect(container.querySelector('.ProseMirror')?.className).not.toMatch(
+      /size-/
     );
   });
 
-  it('applies the size class to the rendered editor surface', () => {
-    const { container } = mount();
-    click('Increase text size');
-    expect(container.querySelector('.ProseMirror')).toHaveClass('size-3');
-    expect(container.querySelector('.ProseMirror')).not.toHaveClass('size-2');
-  });
-
-  it('steps up successively to 4, then disables increase and stops writing', () => {
-    install({ 'font-size': '2' });
-    mount();
-    click('Increase text size');
-    click('Increase text size');
-    expect(storeWrites()).toEqual([
-      ['store.set', 'font-size', '3'],
-      ['store.set', 'font-size', '4'],
-    ]);
-    const inc = screen.getByRole('button', { name: 'Increase text size' });
-    expect(inc).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'Decrease text size' })
-    ).toBeEnabled();
-    fireEvent.click(inc);
-    expect(storeWrites()).toHaveLength(2);
-    expect(editorClass()).toContain('size-4');
-  });
-
-  it('steps down successively to 0, then disables decrease and stops writing', () => {
-    install({ 'font-size': '2' });
-    mount();
-    click('Decrease text size');
-    click('Decrease text size');
-    expect(storeWrites()).toEqual([
-      ['store.set', 'font-size', '1'],
-      ['store.set', 'font-size', '0'],
-    ]);
-    const dec = screen.getByRole('button', { name: 'Decrease text size' });
-    expect(dec).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeEnabled();
-    fireEvent.click(dec);
-    expect(storeWrites()).toHaveLength(2);
-    expect(editorClass()).toContain('size-0');
-  });
-
-  it('re-enables a limit button after stepping away from the limit', () => {
-    install({ 'font-size': '4' });
-    mount();
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeDisabled();
-    click('Decrease text size');
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeEnabled();
-  });
-
   it.each([
-    ['0', 'Decrease text size', 'Increase text size'],
-    ['4', 'Increase text size', 'Decrease text size'],
-  ])('stored size %s disables only the limit button', (stored, off, on) => {
-    install({ 'font-size': stored });
-    mount();
-    expect(screen.getByRole('button', { name: off })).toBeDisabled();
-    expect(screen.getByRole('button', { name: on })).toBeEnabled();
-  });
-
-  it('accepts a stored size that is a number rather than a string', () => {
-    install({ 'font-size': 0 });
-    mount();
-    expect(
-      screen.getByRole('button', { name: 'Decrease text size' })
-    ).toBeDisabled();
-  });
-
-  it.each([['9'], ['-1'], ['abc'], ['2.5']])(
-    'falls back to size 2 for unsupported stored value %j',
-    (stored) => {
+    ['36', 'Increase text size', 'Decrease text size'],
+    ['10', 'Decrease text size', 'Increase text size'],
+  ])(
+    'at %s disables only the limit button, which then writes nothing',
+    (stored, off, on) => {
       install({ 'font-size': stored });
       mount();
-      click('Increase text size');
-      expect(storeWrites()).toEqual([['store.set', 'font-size', '3']]);
+      expect(button(off)).toBeDisabled();
+      expect(button(on)).toBeEnabled();
+      fireEvent.click(button(off));
+      expect(storeWrites()).toEqual([]);
     }
   );
 
-  it('falls back to size 2 for an empty stored value', () => {
-    install({ 'font-size': '' });
+  it('re-enables a limit button after stepping away from the limit', () => {
+    install({ 'font-size': '36' });
     mount();
+    expect(button('Increase text size')).toBeDisabled();
     click('Decrease text size');
-    expect(storeWrites()).toEqual([['store.set', 'font-size', '1']]);
+    expect(button('Increase text size')).toBeEnabled();
   });
 
   it('does not itself write the store on mount', () => {
-    install({ 'font-size': '3' });
+    install({ 'font-size': '20' });
     mount();
     expect(storeWrites()).toEqual([]);
   });
 });
 
-describe('MenuBar set-font-size message from the main process', () => {
-  it('subscribes once to set-font-size and unsubscribes on unmount', () => {
+describe("MenuBar and the View menu's step-font-size", () => {
+  it('the size is subscribed once, above the toolbar, and unsubscribed on unmount', () => {
     const { unmount } = mount();
-    expect(calls.filter((c) => c[0] === 'on')).toEqual([
-      ['on', 'set-font-size'],
-    ]);
-    expect(removed).toEqual([]);
+    expect(
+      calls.filter((c) => c[0] === 'on' && c[1] === 'step-font-size')
+    ).toHaveLength(1);
     unmount();
-    expect(removed).toEqual(['set-font-size']);
+    expect(removed).toContain('step-font-size');
   });
 
-  it('applies the size class without writing the store', () => {
+  it("updates which buttons are disabled, and later presses continue from the menu's step", () => {
+    install({ 'font-size': '32' });
     mount();
-    emitSetFontSize('4');
-    expect(editorClass()).toBe('TextEditor editor-height-tall size-4');
-    expect(storeWrites()).toEqual([]);
-  });
-
-  it('updates which buttons are disabled', () => {
-    mount();
-    emitSetFontSize('4');
+    emitStep('up');
     expect(
       screen.getByRole('button', { name: 'Increase text size' })
     ).toBeDisabled();
-    emitSetFontSize(0);
-    expect(
-      screen.getByRole('button', { name: 'Decrease text size' })
-    ).toBeDisabled();
-    expect(
-      screen.getByRole('button', { name: 'Increase text size' })
-    ).toBeEnabled();
-  });
-
-  it('later button presses continue from the size the message set', () => {
-    mount();
-    emitSetFontSize('4');
     click('Decrease text size');
-    expect(storeWrites()).toEqual([['store.set', 'font-size', '3']]);
-    expect(editorClass()).toContain('size-3');
+    expect(poemFontSize()).toBe(32);
   });
 });
 
@@ -407,13 +355,13 @@ describe('MenuBar: a button that cannot be used says why', () => {
 
   it.each([
     [
-      '4',
+      '36',
       'Increase text size',
       'The text is already at its largest size.',
       'Decrease text size',
     ],
     [
-      '0',
+      '10',
       'Decrease text size',
       'The text is already at its smallest size.',
       'Increase text size',
@@ -453,7 +401,7 @@ describe('MenuBar: a button that cannot be used says why', () => {
   });
 
   it('shows the reason in a tooltip over a disabled button', async () => {
-    install({ 'font-size': '4' });
+    install({ 'font-size': '36' });
     mount();
     fireEvent.mouseOver(
       button('Increase text size').parentElement as HTMLElement
@@ -526,7 +474,19 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       <EditorProvider
         extensions={[StarterKit] as any[]}
         content="<p>synthetic line</p>"
-        slotBefore={<MenuBar focused={false} onToggleFocus={onToggleFocus} />}
+        slotBefore={
+          <MenuBar
+            focused={false}
+            onToggleFocus={onToggleFocus}
+            fontSize={{
+              size: 2,
+              increase: jest.fn(),
+              decrease: jest.fn(),
+              canIncrease: true,
+              canDecrease: true,
+            }}
+          />
+        }
       />
     );
     fireEvent.click(button('Focus Mode'));

@@ -22,28 +22,12 @@
     'Helvetica Neue',
     sans-serif
   );
-  /* font-size: 1rem;
-  line-height: 1.5rem; */
+  /* The poem's size (#390), set on an ancestor by PoemSizeContext; the fallback is UNSIZED_POEM_FONT_SIZE in
+     main/fontSize.ts. */
+  font-size: var(--poem-size, 16px);
   border: none;
   resize: none;
   overflow-y: scroll;
-}
-
-.size-0 {
-  font-size: 10px;
-  /* line-height: 15; */
-}
-.size-1 {
-  font-size: 12px;
-}
-.size-2 {
-  font-size: 16px;
-}
-.size-3 {
-  font-size: 24px;
-}
-.size-4 {
-  font-size: 32px;
 }
 
 .TextEditor p {

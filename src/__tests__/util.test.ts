@@ -113,7 +113,7 @@ describe('opening a document', () => {
   );
 
   it('stores the document and where it came from, and marks it unedited', () => {
-    mockStore.set('edited', 'true');
+    mockStore.set('edited', true);
     loadDataIntoWorkspace(
       '/some/dir/zq.midst',
       file,
@@ -127,7 +127,7 @@ describe('opening a document', () => {
     });
     expect(mockStore.get('filename')).toBe('/some/dir/zq.midst');
     expect(mockStore.get('baseFilename')).toBe('zq.midst');
-    expect(mockStore.get('edited')).toBe('false');
+    expect(mockStore.get('edited')).toBe(false);
   });
 
   it('sends the renderer the text, the history and the bare file name', () => {
@@ -165,7 +165,7 @@ describe('opening a document', () => {
   ])('throws on %s and leaves the open document as it was', (_name, bad) => {
     mockStore.set('poem', '<p>already open</p>');
     mockStore.set('filename', '/open.midst');
-    mockStore.set('edited', 'true');
+    mockStore.set('edited', true);
     const before = new Map(mockStore);
     const window = makeWindow();
     expect(() =>

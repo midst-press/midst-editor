@@ -8,6 +8,10 @@ import {
   reconstruct,
 } from '@midst-press/midst-format/history';
 import Replay from '../renderer/components/Replay';
+import {
+  PoemSizeContext,
+  usePoemSizeState,
+} from '../renderer/fontSize/PoemSizeContext';
 import RestartIcon from '../renderer/components/Replay/restartIcon';
 import {
   FAILED_LOG,
@@ -165,17 +169,21 @@ function Harness({
     }),
     [poemHistory]
   );
+  // The size belongs to the poem, held above the screens as App holds it (#390).
+  const poemSize = usePoemSizeState();
   return (
-    <MemoryRouter initialEntries={['/replay']}>
-      <TextContext.Provider value={textValue}>
-        <HistoryContext.Provider value={historyValue}>
-          <Routes>
-            <Route path="/replay" element={<Replay />} />
-            <Route path="/editor" element={<Arrival />} />
-          </Routes>
-        </HistoryContext.Provider>
-      </TextContext.Provider>
-    </MemoryRouter>
+    <PoemSizeContext.Provider value={poemSize}>
+      <MemoryRouter initialEntries={['/replay']}>
+        <TextContext.Provider value={textValue}>
+          <HistoryContext.Provider value={historyValue}>
+            <Routes>
+              <Route path="/replay" element={<Replay />} />
+              <Route path="/editor" element={<Arrival />} />
+            </Routes>
+          </HistoryContext.Provider>
+        </TextContext.Provider>
+      </MemoryRouter>
+    </PoemSizeContext.Provider>
   );
 }
 
@@ -282,7 +290,7 @@ describe('Restart from here', () => {
       expect(at).toBeGreaterThan(-1);
       expect(at).toBeLessThan(arrival);
     });
-    expect(events).toContainEqual(['store.set', 'edited', 'true']);
+    expect(events).toContainEqual(['store.set', 'edited', true]);
     expect(events).toContainEqual([
       'editor-arrived',
       TEXTS[0],

@@ -1,3 +1,71 @@
+# 0.9.4
+
+- **Installing Midst never writes over the Midst you already have.** Any Midst already in Applications, including
+  an earlier release or the same one, is kept and renamed with its version number (for example "Midst 0.9.3"),
+  and the installer says so before it starts. To delete it instead, tick "Delete the Midst that’s already
+  installed" under Customize. Before, installing a new release replaced the old one without a word (GitHub #47).
+
+# 0.9.3
+
+- **Cancelling the Save dialog keeps your poem open.** Before, a new poem you had not saved yet disappeared behind
+  the Home screen and could not be reached again (GitHub #106).
+- **The text size stays where you set it.** Before, it went back to the size Midst opened at as soon as you typed
+  (GitHub #105).
+- **A saved poem opens still**, with the cursor at the top. Before, with Check Spelling on, the cursor ran down the
+  end of every line, twice, as the poem opened (GitHub #107).
+
+# 0.9.2
+
+- **On Windows and Linux, opening a poem when Midst is closed** (for example by double-clicking it) opens the poem.
+  Before, Midst opened without the poem.
+- Under the hood: a security update to the library Midst uses to read a poem's formatting, and the editor library
+  that goes with it.
+
+# 0.9.1
+
+- **Space on the Timeline only plays and pauses.** It no longer also presses the button you last clicked, so
+  Play no longer undoes it, and **Follow the writing** and **Show timestamp** no longer switch over by themselves.
+- **No red ring** around a button after you click it. A control you reach with the Tab key still shows it, and
+  Space operates that control; Enter operates a button.
+- **Enter** plays or pauses too, unless a control is selected with the keyboard or the drafts list is open.
+- **Deleting a Draft Marker on the timeline** no longer shows "Undo". Settings keeps its Undo.
+- **Spellcheck checks all of a long poem.** On a poem of about 40 lines or more, only the first part was checked
+  when it opened, and the poem was redrawn twice. Now every line is checked, and nothing is redrawn.
+- **A poem opened while Midst is starting** opens once, not twice.
+- Under the hood: tidier internal code for Replay, the settings store and the app's messages between its parts.
+
+# 0.9.0
+
+- **Choose a font for a poem** with **View** > **Font…**: any font installed on your computer, one font for the
+  whole poem, saved with it. Poems from the original Midst open in the font they were written in, where that font
+  is installed.
+- **Underline and strikethrough**, with buttons and Command+U and Command+Shift+X (Ctrl on Windows and Linux).
+- **Focus Mode:** the moon icon at the upper right hides every control but itself. It is also in the Edit menu.
+- **A new poem stays Untitled** and asks for no name until you save it. If Midst stops unexpectedly, it offers
+  your unsaved poem back the next time it opens.
+- **"(not saved)" shows in the title** on every platform, macOS included.
+- **One copy of Midst at a time.** Opening a poem while Midst is running opens it in the running copy.
+- **A new poem's Timeline begins at an empty page.** Poems written before this version are unchanged.
+- **Timeline, Edit and Draft Markers** are the names everywhere, and the menu item is **Check Spelling**, with a
+  checkmark while it is on.
+- **Spellcheck marks every line**: when you switch it on, and after a line break. Switching it keeps your place.
+- **Draft Markers on the timeline:** a new marker is named in place on the timeline, the timeline jumps to its
+  exact moment, and markers can be renamed and deleted there. Escape on a marker made in Timeline mode keeps its
+  old name. Labels on neighbouring moments can overlap, the later one covering the earlier.
+- **A gear for Settings** in Timeline mode. It holds the Draft Markers list and **Show timestamp**.
+- **The drafts list sits beside the poem and the timeline**, never over them.
+- **The time on the timeline is black** (white in the dark appearance), not pink.
+- **A smaller logo**, clear of the window buttons on a Mac. This is a first attempt, for you to refine.
+- **Continue writing from here** is a magic wand that asks before it changes anything, with an X to go back to Edit.
+- **Find scrolls to the match it selects.**
+- **A click outside a long poem**, in the header or footer, no longer makes it jump.
+- **The writing column** has about 15% of the window as a margin on each side, with no character limit.
+- **On a Mac, Command+= and Command+-** change the text size, as Command+Shift+= and Command+Shift+- do.
+- **The Mac installer installs for all users.** An older Midst, such as Midst Beta, is kept; it is deleted only
+  if you ask.
+- Under the hood: security updates to the libraries the app ships with, and checks for the project's own tools.
+  Nothing a writer sees changes.
+
 # 0.8.0
 
 - **The user guide is under construction.** **Help** > **Documentation** and the **User Guide** button in About

@@ -211,6 +211,27 @@ jobs:
         if: matrix.want == 'macos'
         shell: bash
         run: tools/check_pkg_not_relocatable.sh release/build/*.pkg
+      # pkgbuild's default also version-checks the app: over a newer copy in Applications it writes
+      # nothing. The preinstall keeps that copy by renaming it aside, so the poet is left with no
+      # Midst at all, while the installer reports success (#16, the 0.9.4 Tart run).
+      # build.pkg.isVersionChecked turns that off; this reads the built package to see that it did.
+      - name: check the installer writes the app over any version
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_not_version_checked.sh release/build/*.pkg
+      # electron-builder names the preinstall as the app bundle's script AND passes the same scripts
+      # directory to pkgbuild, so PackageInfo lists it twice and the installer runs it twice in one
+      # install (#353, #16). This reads the built package to see that each script is listed once.
+      - name: check each install script is listed once
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_scripts_listed_once.sh release/build/*.pkg
+      # The app's postinstall rolls the install back unless Midst.app's version is the one in
+      # expected-version beside it, which finish_pkg writes from the Distribution (#16 rollback).
+      - name: check the app's expected-version is the version it installs
+        if: matrix.want == 'macos'
+        shell: bash
+        run: tools/check_pkg_expected_version.sh release/build/*.pkg
       - name: check what Gatekeeper will say
         if: steps.signing.outputs.signed == 'yes'
         shell: bash

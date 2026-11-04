@@ -6,33 +6,8 @@ import {
 } from '@jshafto/custom-electron-titlebar-update';
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 import { TITLEBAR_BACKGROUND } from './appearance';
-
-export type Channels =
-  | 'ipc-example'
-  | 'open-file'
-  | 'set-filename'
-  | 'set-font-size'
-  | 'set-locale'
-  | 'set-language'
-  | 'toggle-edit-mode'
-  | 'save-file'
-  | 'toggle-spellcheck'
-  | 'set-focus-mode'
-  | 'focus-mode-requested'
-  | 'focus-mode-changed'
-  | 'find-in-poem'
-  | 'choose-font'
-  | 'new-file'
-  | 'new-file-from-menu'
-  | 'button-open-file'
-  | 'open-help'
-  | 'enable-save'
-  | 'disable-save'
-  | 'cancel-save'
-  | 'set-not-saved'
-  | 'flush-editor'
-  | 'editor-flushed'
-  | 'app-open';
+import { StoreKey, StoreSchema } from '../shared/storeSchema';
+import { MainToWindow, WindowToMain } from '../shared/channels';
 
 let titlebar: CustomTitlebar | null = null;
 
@@ -87,22 +62,32 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 const electronHandler = {
+  // Typed by the channel maps in shared/channels.ts (#355).
   ipcRenderer: {
-    sendMessage(channel: Channels, args: unknown[]) {
+    sendMessage<C extends keyof WindowToMain>(
+      channel: C,
+      args: WindowToMain[C]
+    ) {
       ipcRenderer.send(channel, args);
     },
-    on(channel: Channels, func: (...args: unknown[]) => void) {
+    on<C extends keyof MainToWindow>(
+      channel: C,
+      func: (...args: MainToWindow[C]) => void
+    ) {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
+        func(...(args as MainToWindow[C]));
       ipcRenderer.on(channel, subscription);
 
       return () => {
         ipcRenderer.removeListener(channel, subscription);
       };
     },
-    once(channel: Channels, func: (...args: unknown[]) => void) {
+    once<C extends keyof MainToWindow>(
+      channel: C,
+      func: (...args: MainToWindow[C]) => void
+    ) {
       const subscription = (_event: IpcRendererEvent, ...args: unknown[]) =>
-        func(...args);
+        func(...(args as MainToWindow[C]));
       ipcRenderer.once(channel, subscription);
 
       return () => {
@@ -110,12 +95,15 @@ const electronHandler = {
       };
     },
   },
+  // Typed by StoreSchema (#355). main checks both again, since nothing types what crosses IPC. `set` does
+  // not wait: a refused write is logged by main, which tells the poet when it is the poem, and waiting would
+  // hold up typing on every autosave while electron-store rewrites its file (Cora, review of #370).
   store: {
-    get(key: string) {
+    get<K extends StoreKey>(key: K): StoreSchema[K] | undefined {
       return ipcRenderer.sendSync('electron-store-get', key);
     },
-    set(property: string, val: string) {
-      ipcRenderer.send('electron-store-set', property, val);
+    set<K extends StoreKey>(key: K, value: StoreSchema[K]): void {
+      ipcRenderer.send('electron-store-set', key, value);
     },
   },
   titlebar: {

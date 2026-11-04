@@ -1,16 +1,31 @@
 #!/bin/bash
 # Runs as root before the new Midst is written to /Applications (issue 16).
 #
-# An older Midst in /Applications is kept, renamed "Midst (previous version).app", so the new one
-# can be installed as "Midst" without writing over it. An older Midst is:
-#   - "Midst Beta.app", whatever is inside it, or
-#   - a "Midst.app" that is not one of ours: ours carry the bundle id press.Midst.MidstApp and a
-#     version of 0.1.0 or later. The original app shares that id at 0.0.x. Anything we cannot read
-#     counts as older, because keeping an app is recoverable and writing over it is not.
+# This script is the ONLY thing that keeps an existing Midst from being written over. The package
+# is built with isVersionChecked false (package.json build.pkg): with macOS Installer's version
+# check on, Installer decides to skip the payload when a newer Midst.app is in place BEFORE this
+# script runs, so after this script moves it aside nothing is installed and Installer still reports
+# success (0.9.4 candidate, Tart run 4 Nov: "Midst 99.0.0" kept, no Midst.app). Reproduced with a
+# stub app: version-checked, the new app is never written; not version-checked, it is.
+#
+# Any Midst already in /Applications is kept, renamed with its own version number, so the new one
+# can be installed as "Midst" without writing over it: "Midst.app" becomes "Midst <version>.app"
+# and "Midst Beta.app" becomes "Midst Beta <version>.app", whatever is inside them, including our
+# own releases at any version, even the one being installed. Nothing is ever written over without
+# the poet's say: keeping an app is recoverable and writing over it is not (Stuart, 4 Nov: the most
+# conservative reading wherever data safety is a judgement call).
+#
+# The version (CFBundleShortVersionString) goes into a file name, so it is used only if it matches
+# ^[0-9][0-9A-Za-z.+-]*$. Otherwise, or if it cannot be read, the app keeps its own stem with
+# " (version unknown)": "Midst (version unknown).app" or "Midst Beta (version unknown).app". A name
+# already taken gets " (2)", " (3)" ... " (99)"; with none of those free the script fails.
 #
 # Each app renamed is written, one path per line, to $INSTALLER_TEMP/press.Midst.previous-apps.
-# The opt-in "Delete the older version of Midst" choice deletes exactly those paths, and nothing
-# else, after the new app is installed.
+# The opt-in "Delete the Midst that's already installed" choice deletes exactly those paths, and nothing
+# else, after the new app is installed and the app's postinstall has checked it.
+#
+# Each rename is also written to $record.restore as "<original name><TAB><kept path>", so the
+# postinstall can move every kept app back if the new Midst is not in place (Stuart, 4 Nov).
 #
 # If anything here fails, the script exits 1 and the installer stops before the new app is
 # written. It never deletes anything, and never moves an app onto an existing name.
@@ -19,60 +34,89 @@
 set -u
 
 say() { echo "Midst preinstall: $*"; }
+
 fail() { echo "Midst preinstall: FAILED: $*" >&2; exit 1; }
 
 apps="${3%/}/Applications"
 record="${MIDST_PREVIOUS_RECORD:-${INSTALLER_TEMP:-}/press.Midst.previous-apps}"
+restore="$record.restore"
 
 # Create the record before anything moves, so a record we cannot write stops the install while
 # every app is still where it was.
+#
+# macOS Installer runs this script twice in one install, in the same sandbox and with the same
+# INSTALLER_TEMP (#353: the 0.9.0 candidate's install.log). INSTALLER_TEMP is new for each install.
+# Nothing documents whether the second run comes before or after the new app is written. If it
+# came after, it would find the new Midst.app, rename it aside as a kept older copy, and a ticked
+# delete would then delete the new install (#397). So only the first run in an install acts. When
+# it has kept everything it writes a completion marker beside the record; a run that finds the
+# marker does nothing at all. A record WITHOUT the marker means an earlier run in this install
+# stopped part-way, so this run refuses rather than treat it as done: an app it did not get to
+# would otherwise be written over (alden-ec2221c7, #397). The record is never emptied: emptying it
+# lost what the first run kept, and the ticked delete then deleted nothing (#353).
 [ -n "${MIDST_PREVIOUS_RECORD:-}${INSTALLER_TEMP:-}" ] || fail "INSTALLER_TEMP is not set, so the apps kept could not be recorded"
+done_marker="$record.done"
+if [ -e "$done_marker" ] || [ -L "$done_marker" ]; then
+  [ -f "$done_marker" ] && [ ! -L "$done_marker" ] || fail "$done_marker exists but is not a plain file"
+  say "already ran to completion in this install ($done_marker exists); renaming nothing"
+  exit 0
+fi
+if [ -e "$record" ] || [ -L "$record" ]; then
+  [ -f "$record" ] && [ ! -L "$record" ] || fail "$record exists but is not a plain file"
+  fail "$record exists but an earlier run in this install did not finish; refusing to continue"
+fi
 : > "$record" || fail "could not create $record"
+[ -f "$record" ] && [ -w "$record" ] || fail "cannot write $record"
+if [ -e "$restore" ] || [ -L "$restore" ]; then fail "$restore exists, but $record did not"; fi
+: > "$restore" || fail "could not create $restore"
+[ -f "$restore" ] && [ -w "$restore" ] || fail "cannot write $restore"
 
-plist_value() { # <app> <key>: prints the value, or fails
-  plutil -extract "$2" raw -o - "$1/Contents/Info.plist" 2> /dev/null
+version_of() { # <app>: prints its version if it is safe in a file name, or fails
+  local v
+  # $(...) strips every trailing newline, which would turn a version such as "1\n" into a valid "1"
+  # (alden-ec2221c7, #402). The "x" keeps them; then exactly the one newline plutil adds is removed,
+  # and the value is checked as the plist holds it, as the installer warning checks it.
+  v=$(plutil -extract CFBundleShortVersionString raw -o - "$1/Contents/Info.plist" 2> /dev/null && printf x) || return 1
+  v=${v%x}
+  v=${v%$'\n'}
+  [[ "$v" =~ ^[0-9][0-9A-Za-z.+-]*$ ]] || return 1
+  echo "$v"
 }
 
-ours() { # <app>: succeeds only for a Midst from this project
-  local id version
-  [ ! -L "$1" ] || return 1
-  id=$(plist_value "$1" CFBundleIdentifier) || return 1
-  [ "$id" = press.Midst.MidstApp ] || return 1
-  version=$(plist_value "$1" CFBundleShortVersionString) || return 1
-  [[ "$version" =~ ^([0-9]+)\.([0-9]+)(\.|$) ]] || return 1
-  [ "${BASH_REMATCH[1]}" != 0 ] || [ "${BASH_REMATCH[2]}" != 0 ]
+kept_stem() { # <app> <"Midst" or "Midst Beta">: prints the name it is kept under, without ".app"
+  local v
+  if v=$(version_of "$1"); then echo "$2 $v"; else echo "$2 (version unknown)"; fi
 }
 
-free_name() { # prints the first unused "Midst (previous version[ N]).app"
-  local n=1 name="$apps/Midst (previous version).app"
+free_name() { # <stem>: prints the first unused "<stem>.app", "<stem> (2).app" ... "<stem> (99).app"
+  local n=1 name="$apps/$1.app"
   while [ -e "$name" ] || [ -L "$name" ]; do
     n=$((n + 1))
     [ "$n" -le 99 ] || return 1
-    name="$apps/Midst (previous version $n).app"
+    name="$apps/$1 ($n).app"
   done
   echo "$name"
 }
 
-keep() { # <app>: renames it aside and records the new path
-  local to
-  to=$(free_name) || fail "no free name for $1 among \"Midst (previous version 2..99).app\""
+keep() { # <app> <"Midst" or "Midst Beta">: renames it aside and records the new path
+  local stem to
+  stem=$(kept_stem "$1" "$2")
+  to=$(free_name "$stem") || fail "no free name for $1: \"$stem.app\" and \"$stem (2..99).app\" are all taken"
   mv -- "$1" "$to" || fail "could not rename $1 to $to"
   if ! { [ -e "$to" ] || [ -L "$to" ]; } || [ -e "$1" ] || [ -L "$1" ]; then
     fail "renaming $1 to $to did not take effect"
   fi
   printf '%s\n' "$to" >> "$record" || fail "renamed $1 to $to, but could not record it"
+  printf '%s\t%s\n' "$(basename "$1")" "$to" >> "$restore" || fail "renamed $1 to $to, but could not record how to restore it"
   say "kept the older $(basename "$1") as $(basename "$to")"
 }
 
 beta="$apps/Midst Beta.app"
-if [ -e "$beta" ] || [ -L "$beta" ]; then keep "$beta"; fi
+if [ -e "$beta" ] || [ -L "$beta" ]; then keep "$beta" "Midst Beta"; fi
 
 current="$apps/Midst.app"
-if [ -e "$current" ] || [ -L "$current" ]; then
-  if ours "$current"; then
-    say "updating $current in place"
-  else
-    keep "$current"
-  fi
-fi
+if [ -e "$current" ] || [ -L "$current" ]; then keep "$current" Midst; fi
+
+# Only now is this install's preservation complete.
+: > "$done_marker" || fail "kept everything, but could not write $done_marker"
 exit 0

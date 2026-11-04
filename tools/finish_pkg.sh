@@ -1,6 +1,6 @@
 #!/bin/bash
 # Adds the older-Midst handling (issue 16) to a macOS package built by `npm run package`, in place:
-# the installer warning, and the opt-in "Delete the older version of Midst" choice with its
+# the installer warning, and the opt-in "Delete the Midst that's already installed" choice with its
 # payload-free package (installer/remove-previous). The rename itself is already in the app's own
 # package, from installer/pkg-scripts (package.json build.pkg.scripts).
 #
@@ -35,6 +35,27 @@ pkgutil --expand "$pkg" "$work/x" || fail "pkgutil --expand $pkg"
 version=$(sed -n 's/.*<product id="press.Midst.MidstApp" version="\([^"]*\)".*/\1/p' "$work/x/Distribution")
 [ -n "$version" ] || fail "no product version in the Distribution"
 
+# The postinstall checks the new Midst against this file, so it must hold the product version
+# exactly, with no newline (installer/pkg-scripts/postinstall).
+scripts="$work/x/press.Midst.MidstApp.pkg/Scripts"
+[ -f "$scripts/postinstall" ] || fail "the app's component has no postinstall script"
+printf '%s' "$version" > "$scripts/expected-version" || fail "could not write $scripts/expected-version"
+
+# Each script must be listed ONCE. electron-builder 26 lists each twice (app-builder-lib
+# targets/pkg.js): as a bundle script (BundlePreInstallScriptPath / BundlePostInstallScriptPath in
+# the component plist) and as the package script (pkgbuild --scripts), so Installer ran the
+# preinstall twice in every install (#353). Keep the package script and drop the bundle one.
+info="$work/x/press.Midst.MidstApp.pkg/PackageInfo"
+for kind in preinstall postinstall; do
+  bundle_entry="<$kind file=\"\\./$kind\" component-id=\"press\\.Midst\\.MidstApp\" timeout=\"[0-9]+\"/>"
+  package_entry="<$kind file=\"\\./$kind\" timeout=\"[0-9]+\"/>"
+  [ "$(grep -cE "$bundle_entry" "$info")" = 1 ] && [ "$(grep -cE "$package_entry" "$info")" = 1 ] \
+    || fail "PackageInfo does not list the $kind as expected (one bundle and one package entry): electron-builder changed?"
+  sed -i '' -E "/$(printf '%s' "$bundle_entry" | sed 's#/#\\/#g')/d" "$info" || fail "could not remove the bundle $kind entry"
+  [ "$(grep -c "<$kind " "$info")" = 1 ] && [ "$(grep -cE "$package_entry" "$info")" = 1 ] \
+    || fail "after the edit PackageInfo must list exactly one $kind, the package one"
+done
+
 mkdir "$work/pkgs" || fail "mkdir"
 pkgutil --flatten "$work/x/press.Midst.MidstApp.pkg" "$work/pkgs/press.Midst.MidstApp.pkg" \
   || fail "pkgutil --flatten the app's component"
@@ -60,6 +81,18 @@ for want in 'installation-check script="midstPreviousCheck()"' 'customize="allow
   grep -qF "$want" "$work/check/Distribution" || fail "the rebuilt Distribution lacks: $want"
 done
 [ -f "$work/check/press.Midst.MidstApp.pkg/Scripts/preinstall" ] || fail "the rebuilt package lost the rename script"
+[ -f "$work/check/press.Midst.MidstApp.pkg/Scripts/postinstall" ] || fail "the rebuilt package lost the check-and-restore script"
+"$here/check_pkg_expected_version.sh" "$work/out.pkg" > "$work/expected.log" 2>&1 \
+  || { cat "$work/expected.log" >&2; fail "the rebuilt package's expected-version is not its product version"; }
+for f in "$work"/check/*.pkg/PackageInfo; do
+  for kind in preinstall postinstall; do
+    [ "$(grep -c "<$kind " "$f")" -le 1 ] || fail "the rebuilt $(basename "$(dirname "$f")") lists its $kind more than once"
+  done
+done
+for kind in preinstall postinstall; do
+  [ "$(grep -c "<$kind " "$work/check/press.Midst.MidstApp.pkg/PackageInfo")" = 1 ] \
+    || fail "the rebuilt app component does not list its $kind exactly once"
+done
 [ -f "$work/check/press.Midst.MidstApp.remove-previous.pkg/Scripts/postinstall" ] \
   || fail "the rebuilt package lacks the remove-previous script"
 if [ $# -eq 3 ]; then
