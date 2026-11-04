@@ -6,6 +6,7 @@ import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
+import { FONT_PICKER_CLASS } from '../renderer/poemFont/FontPicker';
 import Editor from '../renderer/components/Editor';
 import {
   PoemSizeContext,
@@ -427,6 +428,22 @@ describe('Editor: content and appearance', () => {
     });
     settleFocus();
     expect(document.activeElement).toBe(proseMirror());
+  });
+
+  // GitHub #112 (editor #417): the font picker's search field must keep the focus, or its Escape never reaches it.
+  it('on a Mac, leaves the focus in the font picker', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    const picker = document.createElement('div');
+    picker.className = FONT_PICKER_CLASS;
+    const search = document.createElement('input');
+    picker.appendChild(search);
+    document.body.appendChild(picker);
+    act(() => search.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(search);
+    picker.remove();
   });
 });
 
