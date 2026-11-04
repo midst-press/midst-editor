@@ -440,6 +440,14 @@ test('round 2: Undo takes back a new marker, and the names sit clear of the line
           height: window.innerHeight,
         };
       });
+    // The bar grows in as the Timeline opens (MUI Grow, from a scale of 0.75 by 0.5625): measure it once it is
+    // full size, or its top reads 8.75px low (clement-7074f29f, review of #424).
+    await expect
+      .poll(async () => {
+        const { bar } = await geometry();
+        return bar.bottom - bar.top;
+      })
+      .toBe(40);
     const before = await geometry();
 
     // 1. Undo before anything is typed: no marker, in the file too, and the field gone.

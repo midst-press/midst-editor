@@ -182,6 +182,19 @@ export default function Replay() {
     timelineNaming !== null ||
     (showMarkers && showLabels && drafts.markers.length > 0);
   const namesBelow = showTimestamp.on && namesShown;
+  // The timeline's move is animated only while it moves for the names: a window being resized must not slide it
+  // (clement-7074f29f, review of #424). Set in the same render as the move, so the transition is in place for it.
+  const [movedFor, setMovedFor] = useState(namesBelow);
+  const [moving, setMoving] = useState(false);
+  if (movedFor !== namesBelow) {
+    setMovedFor(namesBelow);
+    setMoving(true);
+  }
+  useEffect(() => {
+    if (!moving) return undefined;
+    const settle = setTimeout(() => setMoving(false), 400);
+    return () => clearTimeout(settle);
+  }, [moving, namesBelow]);
   useReplayKeys(playPauseButton, closeDrafts, goToEdit);
 
   return (
@@ -191,7 +204,13 @@ export default function Replay() {
       style={{ backgroundColor: cssVar('background') }}
     >
       <div
-        className={namesBelow ? 'ReplayMain names-below-lift' : 'ReplayMain'}
+        className={[
+          'ReplayMain',
+          namesBelow && 'names-below-lift',
+          moving && 'timeline-moving',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
         <ReplayTopButtons
           fontSize={fontSize}

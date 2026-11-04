@@ -960,6 +960,8 @@ describe('Replay: Draft Markers on the timeline', () => {
       above: container.querySelector('.MuiSlider-root.names-above') !== null,
       lifted: container.querySelector('.names-below-lift') !== null,
     });
+    const moving = (container: HTMLElement) =>
+      container.querySelector('.timeline-moving') !== null;
 
     it('above, with the timeline where it was, when the timestamp only shows on pointing', () => {
       bridge = withTimestamp(false);
@@ -996,8 +998,11 @@ describe('Replay: Draft Markers on the timeline', () => {
       });
       const { container } = mount();
       expect(place(container).lifted).toBe(false);
+      // Nothing has moved yet, so nothing is animated: a resize must not slide the timeline.
+      expect(moving(container)).toBe(false);
       seek(20);
       markDraft();
+      expect(moving(container)).toBe(true);
       expect(place(container)).toEqual({
         below: true,
         above: false,
