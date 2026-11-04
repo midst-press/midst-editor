@@ -217,6 +217,13 @@ const CASES = [
     before: { 'Midst.app': ours(version) },
     after: [fallback()],
   })),
+  // Whitespace in the plist's own bytes, which bash's $( ) would strip from the end and leave a
+  // valid "1" (alden-ec2221c7, #402): unknown, in the warning and in the preinstall alike.
+  ...['1\n', '1\n\n', '\n1', '1\n2', '1\t', '1 '].map((version) => ({
+    name: `the version ${JSON.stringify(version)}, as the plist holds it: the fallback name`,
+    before: { 'Midst.app': ours(version) },
+    after: [fallback()],
+  })),
   ...['1.0 beta', '1.0/../x', '1.0_1', '1.0:2', '1.0é'].map((version) => ({
     name: `a version with a character outside [0-9A-Za-z.+-] ("${version}"): the fallback name`,
     before: { 'Midst.app': ours(version) },
@@ -716,8 +723,11 @@ describe('Distribution edit', () => {
     expect(remove.getAttribute('visible')).toBe('midstHasPrevious()');
     expect(remove.getAttribute('description')).toMatch(/PERMANENTLY deletes/);
     expect(remove.getAttribute('description')).toMatch(/cannot be undone/);
-    expect(remove.getAttribute('description')).toMatch(
-      /renamed to show its version/
+    // Exactly, so it stays true for the unknown fallback as well (alden-ec2221c7, #402).
+    expect(remove.getAttribute('description')).toBe(
+      'PERMANENTLY deletes the Midst that was already in Applications after the new one is installed. ' +
+        'It does not go to the Trash and cannot be undone. ' +
+        'Leave this unticked to keep it, renamed to show its version, or “version unknown” if its version cannot be read.'
     );
     // Stuart (4 Nov): not the words "previous version" where the poet reads (the warning: above).
     expect(remove.getAttribute('description')).not.toMatch(/previous version/i);
