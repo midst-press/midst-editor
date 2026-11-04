@@ -5,8 +5,7 @@
 // is kept current; a packaged app's release tag no longer needs to appear in the URL.
 const GUIDE_AT = 'https://midst.press/app';
 
-/** The user guide on midst.press. The version parameter is unused since #111; kept for the call site. */
-// eslint-disable-next-line no-unused-vars
-export const userGuideUrl = (_version: string | null): string => GUIDE_AT;
+/** The user guide on midst.press. */
+export const userGuideUrl = (): string => GUIDE_AT;
 
 export default userGuideUrl;
