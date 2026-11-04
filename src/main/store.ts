@@ -1,5 +1,6 @@
 import log from 'electron-log';
 import Store from 'electron-store';
+import { describeError } from '../shared/errorSummary';
 import {
   fitsSchema,
   STORE_TYPES,
@@ -47,9 +48,19 @@ settleEdited(disk);
 // whose value is of the wrong type is logged and comes back as undefined, as a missing value does; every
 // caller already handles undefined.
 // Told the key after each write or delete, wherever it came from: the renderer's messages, the menu, or main itself.
+// A listener that throws is logged and the rest still run: nothing a listener does may break a write, which is already
+// on disk, or leave a caller writing several keys half done (silas-397300f6, review of #438).
 /* eslint-disable-next-line no-unused-vars -- the name says what the argument is */
 type Changed = (key: StoreKey) => void;
 const listeners: Changed[] = [];
+const tell = (key: StoreKey) =>
+  listeners.forEach((listener) => {
+    try {
+      listener(key);
+    } catch (err) {
+      log.error('a store listener failed', { key, ...describeError(err) });
+    }
+  });
 
 const store = {
   onChange(listener: Changed): void {
@@ -67,11 +78,11 @@ const store = {
   },
   set<K extends StoreKey>(key: K, value: StoreSchema[K]): void {
     disk.set(key, value);
-    listeners.forEach((listener) => listener(key));
+    tell(key);
   },
   delete(key: StoreKey): void {
     disk.delete(key);
-    listeners.forEach((listener) => listener(key));
+    tell(key);
   },
 };
 

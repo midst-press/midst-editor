@@ -75,7 +75,9 @@ let mainWindow: BrowserWindow | null = null;
 const sayUntitledEdits = reportChanges(
   () => untitledWithEdits(store.get('edited'), store.get('baseFilename')),
   (shown) => {
-    if (mainWindow) sendToWindow(mainWindow, 'set-untitled-edited', shown);
+    // Not to a window that is gone or closing: closing clears the document, writing `edited` (silas-397300f6).
+    if (mainWindow && !mainWindow.isDestroyed())
+      sendToWindow(mainWindow, 'set-untitled-edited', shown);
   }
 );
 store.onChange((key) => {

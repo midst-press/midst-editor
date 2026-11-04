@@ -475,6 +475,19 @@ describe('main process', () => {
       ]);
     });
 
+    it('tells no window that is gone, and the write still stands', async () => {
+      const { fireIpc, store, win } = await boot();
+      store.set('baseFilename', '');
+      win().isDestroyed.mockReturnValue(true);
+      await set(fireIpc, 'edited', true);
+      expect(store.get('edited')).toBe(true);
+      expect(
+        win().webContents.send.mock.calls.filter(
+          ([c]) => c === 'set-untitled-edited'
+        )
+      ).toEqual([]);
+    });
+
     it.each([
       ['font-size', 3],
       ['zq-not-a-key', 'xv'],
