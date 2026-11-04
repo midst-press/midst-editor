@@ -601,12 +601,26 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
         timeout: 25_000,
       });
       await hideText(win);
+      // What the second poem shows without typing, well past the whole-poem check's FIRST_MS and AGAIN_MS.
+      let untyped = 0;
+      const until = Date.now() + 5_000;
+      while (untyped === 0 && Date.now() < until) {
+        // eslint-disable-next-line no-await-in-loop -- samples in time order
+        [untyped] = await redPerLine(app, win, 1);
+      }
+      // CONTROL: typing in the second poem marks it, so the count can see a mark there.
+      await typeAtEnd(win, [' ']);
+      await hideText(win);
       await expect
         .poll(async () => (await redPerLine(app, win, 1))[0], {
-          message: 'the second poem was left unmarked until typing',
+          message: 'the second poem was not marked even after typing',
           timeout: 5_000,
         })
         .toBeGreaterThan(0);
+      expect(
+        untyped,
+        'the second poem was left unmarked until typing'
+      ).toBeGreaterThan(0);
     } finally {
       await app.close();
     }
