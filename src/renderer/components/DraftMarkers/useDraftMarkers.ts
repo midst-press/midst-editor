@@ -224,6 +224,13 @@ export default function useDraftMarkers(
     },
     [apply]
   );
+  // Undo straight after making a marker takes it away again (GitHub #95). That undoes the making, so it is not a
+  // delete Settings can put back, and an earlier delete stays undoable.
+  const unmake = useCallback(
+    (index: number) =>
+      apply((current) => deleteMarker(current, index), 'undo-create', index),
+    [apply]
+  );
   const undoDelete = useCallback(() => {
     if (deleted === null) return false;
     const { marker, position } = deleted;
@@ -243,6 +250,7 @@ export default function useDraftMarkers(
     create,
     rename,
     remove,
+    unmake,
     canUndoDelete: deleted !== null,
     undoDelete,
     refusal,
