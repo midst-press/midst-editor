@@ -131,8 +131,8 @@ export default function App() {
                 <PoemFontContext.Provider value={poemFont}>
                   <WindowTitle
                     filename={filename}
-                    // eslint-disable-next-line lingui/no-unlocalized-strings -- a flag's name, not text for the poet
-                    flag={notSaved || untitledEdited ? 'notSaved' : null}
+                    notSaved={notSaved}
+                    untitledEdited={untitledEdited}
                   />
                   <FontPicker />
                   <Routes>

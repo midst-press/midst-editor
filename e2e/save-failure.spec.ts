@@ -71,7 +71,7 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
 
     // The window keeps saying so (#94), in its title on every platform, macOS included (Annelyse, GitHub #75). A
     // Mac also keeps the dot in the close button.
-    const shown = `${basename(poemPath)}* (not saved)`;
+    const shown = `${basename(poemPath)}* (unsaved changes)`;
     await expect
       .poll(
         async () => ({
