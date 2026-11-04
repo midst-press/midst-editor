@@ -16,6 +16,7 @@ export interface StoreSchema {
   meta: string;
   edited: boolean;
   'font-size': string;
+  'font-family': string;
   spellcheck: string;
   appearance: string;
   language: string;
@@ -44,6 +45,7 @@ export const STORE_TYPES: {
   meta: 'string',
   edited: 'boolean',
   'font-size': 'string',
+  'font-family': 'string',
   spellcheck: 'string',
   appearance: 'string',
   language: 'string',

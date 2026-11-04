@@ -13,6 +13,7 @@ import FontPicker, {
   LIST_FAILED_LOG,
 } from '../renderer/poemFont/FontPicker';
 import {
+  FontStore,
   PoemFontContext,
   usePoemFont,
   usePoemFontState,
@@ -57,7 +58,7 @@ const installBridge = (fonts: { family: string }[] | Error | 'absent') => {
 
 const makeStore = (initial: Record<string, unknown>) => {
   const values: Record<string, unknown> = { ...initial };
-  const store: MetaStore = {
+  const store: FontStore = {
     get: (key) => values[key],
     set: (key, value) => {
       values[key] = value;
@@ -66,7 +67,7 @@ const makeStore = (initial: Record<string, unknown>) => {
   return { store, values };
 };
 
-function Harness({ store }: { store: MetaStore }) {
+function Harness({ store }: { store: FontStore }) {
   const poemFont = usePoemFontState(store);
   return (
     <PoemFontContext.Provider value={poemFont}>
@@ -160,6 +161,8 @@ it('chooses with the arrow keys and Enter: writes meta, keeps the rest, marks it
     fontFamily: 'Zqbeta',
   });
   expect(values.edited).toBe(true);
+  // The last font chosen, which a new poem starts in (GitHub #48).
+  expect(values['font-family']).toBe('Zqbeta');
   expect(bridge.sent).toEqual(['save-file']);
   expect(screen.getByTestId('family')).toHaveTextContent('Zqbeta');
   expect(document.documentElement.style.getPropertyValue('--poem-font')).toBe(
@@ -183,6 +186,7 @@ it("chooses with a click, and the app's own font takes the poem's font away", as
   fireEvent.mouseEnter(option(i18n._('fontPicker.appFont')));
   fireEvent.click(option(i18n._('fontPicker.appFont')));
   expect(JSON.parse(String(values.meta))).toEqual({ other: 1 });
+  expect(values['font-family']).toBe('');
   expect(document.documentElement.style.getPropertyValue('--poem-font')).toBe(
     APP_FONT_STACK
   );
@@ -274,6 +278,7 @@ it("keeps the font and says so when the poem's settings cannot be read", async (
     i18n._('fontPicker.metaUnreadable')
   );
   expect(values.meta).toBe('not json');
+  expect(values['font-family']).toBeUndefined();
   expect(bridge.sent).toEqual([]);
 });
 

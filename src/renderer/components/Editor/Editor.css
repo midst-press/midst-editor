@@ -22,28 +22,12 @@
     'Helvetica Neue',
     sans-serif
   );
-  /* font-size: 1rem;
-  line-height: 1.5rem; */
+  /* The poem's size (#390), set on an ancestor by PoemSizeContext; the fallback is UNSIZED_POEM_FONT_SIZE in
+     main/fontSize.ts. */
+  font-size: var(--poem-size, 16px);
   border: none;
   resize: none;
   overflow-y: scroll;
-}
-
-.size-0 {
-  font-size: 10px;
-  /* line-height: 15; */
-}
-.size-1 {
-  font-size: 12px;
-}
-.size-2 {
-  font-size: 16px;
-}
-.size-3 {
-  font-size: 24px;
-}
-.size-4 {
-  font-size: 32px;
 }
 
 .TextEditor p {
@@ -88,8 +72,8 @@
 }
 
 .focus-mode-gap {
-  /* The small empty space that separates the moon slightly from the font options (GitHub #25). */
-  width: 12px;
+  /* The empty space between groups of toolbar icons (GitHub #25, #432). Equal spacers, 30% wider than the original 12px. */
+  width: 16px;
 }
 
 .icon-button {
@@ -127,9 +111,9 @@
 
 .is-active {
   transition: background-color 0.1s ease;
-  stroke: rgb(255, 145, 175);
+  stroke: #b57edc;
   stroke-width: 1px;
-  color: rgb(255, 145, 175);
+  color: #b57edc;
 }
 
 .MuiTooltip-tooltip {
