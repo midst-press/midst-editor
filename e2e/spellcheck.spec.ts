@@ -441,9 +441,6 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
   });
 
   test('case 4: breaking the line after a marked word keeps the next line marked', async () => {
-    // Not fixed yet (editor #238), and not every time: the next line kept its mark in 3 of 10 runs, so as an
-    // expected failure it would turn CI red at random. Skipped until the cause is known; then test.fail().
-    test.fixme();
     const { app, win, userData } = await openPoem('split');
     try {
       await turnSpellcheckOn(app, win, userData);
@@ -458,9 +455,38 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
           { timeout: 5_000 }
         )
         .toBe(true);
-      // Break after the first misspelled line: the caret to the end of line 2, then Enter.
+      // Break after the first misspelled line: the caret to the end of line 2, then Enter. On macOS End goes to the
+      // end of the poem, not the line, so Cmd+Right there. And Enter waits until ProseMirror's own selection is at the
+      // end of line 2: sent sooner, it broke the poem after its last line (measured), not after line 2.
       await win.locator('.ProseMirror p').nth(1).click();
-      await win.keyboard.press('End');
+      await win.keyboard.press(
+        process.platform === 'darwin' ? 'Meta+ArrowRight' : 'End'
+      );
+      await expect
+        .poll(
+          () =>
+            win.evaluate(() => {
+              const { state } = (
+                document.querySelector('.ProseMirror') as unknown as {
+                  editor: {
+                    state: {
+                      selection: { head: number };
+                      // eslint-disable-next-line no-unused-vars -- a type's parameter name, not a variable
+                      doc: { child(i: number): { nodeSize: number } };
+                    };
+                  };
+                }
+              ).editor;
+              const endOfLine2 =
+                state.doc.child(0).nodeSize + state.doc.child(1).nodeSize - 1;
+              return state.selection.head === endOfLine2;
+            }),
+          {
+            message: 'the caret never reached the end of line 2',
+            timeout: 5_000,
+          }
+        )
+        .toBe(true);
       await win.keyboard.press('Enter');
       await expect
         .poll(async () => (await redPerLine(app, win))[3], {
