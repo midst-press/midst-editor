@@ -345,6 +345,21 @@ describe('Editor: content and appearance', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the whole poem again when another poem is opened into the editor, cancelling the first check (#238)', () => {
+    const cancel = jest.fn();
+    mockCheck.mockClear().mockReturnValueOnce(cancel);
+    bridge = installBridge({ spellcheck: 'true' });
+    mount();
+    expect(mockCheck).toHaveBeenCalledTimes(1);
+    act(() => {
+      bridge.emit('open-file', '<p>wqzvtk</p>', [change(6)], 'other.midst');
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(mockCheck).toHaveBeenCalledTimes(2);
+    expect(mockCheck.mock.calls[1][0].dom).toBe(proseMirror());
+    expect(proseMirror()).toHaveTextContent('wqzvtk');
+  });
+
   it('with spellcheck on, tells the line-break check of each change, and stops it when the editor goes (#238)', () => {
     mockLines.mockClear();
     const { unmount: offUnmount } = mount();
