@@ -91,21 +91,17 @@ describe('showAbout', () => {
     expect(writeText.mock.calls[0][0]).not.toContain('Annelyse');
   });
 
-  it('opens the guide for this version, at its release tag, when User Guide is chosen, and copies nothing (#102)', async () => {
+  it('opens the guide on midst.press when User Guide is chosen, and copies nothing (#102, #111)', async () => {
     showMessageBox.mockResolvedValue({ response: 2 });
     await showAbout(fakeWindow);
-    expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/midst-press/midst-editor/blob/v0.3.0-beta.1/docs/user-guide.md'
-    );
+    expect(openExternal).toHaveBeenCalledWith('https://www.midst.press/app');
     expect(writeText).not.toHaveBeenCalled();
   });
 
-  it('a development build opens the guide on main (#102)', async () => {
+  it('a development build opens the guide on midst.press too (#102, #111)', async () => {
     setPackaged(false);
     showMessageBox.mockResolvedValue({ response: 2 });
     await showAbout(fakeWindow);
-    expect(openExternal).toHaveBeenCalledWith(
-      'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
-    );
+    expect(openExternal).toHaveBeenCalledWith('https://www.midst.press/app');
   });
 });

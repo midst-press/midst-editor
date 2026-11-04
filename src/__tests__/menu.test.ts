@@ -2037,11 +2037,11 @@ describe('the menu', () => {
       );
       sub(template, helpTop, 'Documentation').click!();
       expect(shell.openExternal).toHaveBeenLastCalledWith(
-        'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
+        'https://www.midst.press/app'
       );
     });
 
-    it('Documentation in an installed app opens the guide at that version’s release tag (#102)', () => {
+    it('Documentation in an installed app opens the guide on midst.press (#102, #111)', () => {
       const packaged = app as unknown as {
         isPackaged?: boolean;
         getVersion?: () => string;
@@ -2051,7 +2051,7 @@ describe('the menu', () => {
       try {
         sub(build(platform), helpTop, 'Documentation').click!();
         expect(shell.openExternal).toHaveBeenLastCalledWith(
-          'https://github.com/midst-press/midst-editor/blob/v0.5.0/docs/user-guide.md'
+          'https://www.midst.press/app'
         );
       } finally {
         delete packaged.isPackaged;
