@@ -18,6 +18,8 @@
 #      a fixed one really does not. Done with an empty app under an invalid.example identifier.
 #      Without it, step 3's "the old copy was left alone" could pass only because the installer
 #      never saw the old copy.
+#   3a install on a Mac with no Midst: it is in /Applications at the expected version and opens a
+#      poem; it is then removed, so step 3 starts as before.
 #   3  install for all users, with an older Midst placed elsewhere first and a stand-in "Midst
 #      Beta" in /Applications: the new one is in /Applications at the expected version, the copy
 #      elsewhere was not updated in its place, and the stand-in was kept as "Midst Beta 0.0.3".
@@ -254,6 +256,45 @@ else
   give_up "CONTROL FAILED. Relocatable gave \"$relocated\" (expected \"0.0.2 absent\") and fixed gave \"$fixed\" (expected \"0.0.1 0.0.2\"), as <copy elsewhere> <~/Applications>. On this Mac the installer did not behave as the relocation test assumes, so step 3 would prove nothing."
 fi
 
+# launch_and_open <step>: launch the installed app on a synthetic poem with its own user data,
+# check that it opened the poem, and quit it, reporting under <step>. (Body not indented: it holds
+# python heredocs.)
+launch_and_open() {
+poem="$work/install-test-poem-$1.midst"
+userdata="$work/userdata-$1"
+python3 - "$poem" << 'PY'
+import json, sys
+body = "zq xv"
+history = [{"inserted": ("<p>%s</p>" % c) if i == 0 else c, "front": i + 4, "end": i + 4,
+            "t": "2026-01-01T00:00:%02d.000Z" % i, "pos": i + 2} for i, c in enumerate(body)]
+open(sys.argv[1], "w").write("midstVersion: 1\n" + json.dumps({"text": "<p>%s</p>" % body, "history": history}))
+PY
+open -n -a "$installed" "$poem" --args "--user-data-dir=$userdata" > "$work/open.txt" 2>&1 \
+  || fail "$1 open could not start the app: $(tr '\n' ' ' < "$work/open.txt")"
+opened=no
+for _ in $(seq 1 60); do
+  [ -n "$app_pid" ] || app_pid=$(pgrep -f -- "$installed/Contents/MacOS/Midst --user-data-dir=$userdata" | head -1)
+  if [ -f "$userdata/config.json" ] && python3 - "$userdata/config.json" "$poem" << 'PY'
+import json, os, sys
+try:
+    name = json.load(open(sys.argv[1])).get("filename")
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if name and os.path.realpath(name) == os.path.realpath(sys.argv[2]) else 1)
+PY
+  then opened=yes; break; fi
+  sleep 1
+done
+if [ -n "$app_pid" ]; then pass "$1 the app launched (process $app_pid)"; else fail "$1 the app did not launch: no Midst process appeared"; fi
+if [ "$opened" = yes ]; then pass "$1 it opened the synthetic poem"; else fail "$1 it did not open the synthetic poem within 60 seconds"; fi
+if [ -n "$app_pid" ]; then
+  kill -TERM "$app_pid" 2> /dev/null
+  gone=no
+  for _ in $(seq 1 20); do kill -0 "$app_pid" 2> /dev/null || { gone=yes; break; }; sleep 1; done
+  if [ "$gone" = yes ]; then pass "$1 it quit when asked"; app_pid=; else fail "$1 it was still running 20 seconds after being asked to quit"; fi
+fi
+}
+
 # --- 3. install for all users, with an older Midst elsewhere and a stand-in in /Applications --
 decoy="$elsewhere/older"
 stub "$decoy" "$APP_NAME" "$BUNDLE_ID" 0.0.1
@@ -263,6 +304,29 @@ stand_in() {
   stub "$work/beta-$1" "Midst Beta.app" invalid.example.midst-beta "$1" \
     && sudo -n ditto "$work/beta-$1/Midst Beta.app" "$beta"
 }
+installed_by_test=yes
+# 3a, the plain path: a Mac with no Midst at all (Cyril, 4 Nov: the main road first). The app must be
+# in Applications at the expected version and open a poem. Then it is removed again, so step 3 starts
+# from no Midst in Applications, as it always has.
+# A clean install only if there really is no Midst: anything named Midst*.app makes it an upgrade.
+for existing in /Applications/Midst*.app; do
+  if [ -e "$existing" ] || [ -L "$existing" ]; then give_up "3a needs a Mac with no Midst, but $existing is in /Applications"; fi
+done
+# The log is ours to write, not root's.
+# shellcheck disable=SC2024
+if sudo -n installer -pkg "$pkg" -target / > "$work/install-clean.txt" 2>&1; then
+  pass "3a installer on a Mac with no Midst reported success"
+else
+  fail "3a installer on a Mac with no Midst failed: $(tr '\n' ' ' < "$work/install-clean.txt")"
+fi
+if [ "$(version_of "$installed")" = "$want" ]; then
+  pass "3a Midst $want is in /Applications"
+  launch_and_open 3a
+else
+  fail "3a /Applications holds Midst \"$(version_of "$installed")\" after a clean install, expected $want"
+fi
+"$LSREGISTER" -u "$installed" > /dev/null 2>&1
+sudo -n rm -rf "$installed" || give_up "could not remove the clean install before step 3"
 installed_by_test=yes
 stand_in 0.0.3 || give_up "could not put a stand-in Midst Beta in /Applications"
 # The log is ours to write, not root's.
@@ -354,37 +418,5 @@ if [ "$got" != "$want" ]; then
   skip "4 launch: the app is not installed where expected"
   finish
 fi
-poem="$work/install-test-poem.midst"
-userdata="$work/userdata"
-python3 - "$poem" << 'PY'
-import json, sys
-body = "zq xv"
-history = [{"inserted": ("<p>%s</p>" % c) if i == 0 else c, "front": i + 4, "end": i + 4,
-            "t": "2026-01-01T00:00:%02d.000Z" % i, "pos": i + 2} for i, c in enumerate(body)]
-open(sys.argv[1], "w").write("midstVersion: 1\n" + json.dumps({"text": "<p>%s</p>" % body, "history": history}))
-PY
-open -n -a "$installed" "$poem" --args "--user-data-dir=$userdata" > "$work/open.txt" 2>&1 \
-  || fail "4 open could not start the app: $(tr '\n' ' ' < "$work/open.txt")"
-opened=no
-for _ in $(seq 1 60); do
-  [ -n "$app_pid" ] || app_pid=$(pgrep -f -- "$installed/Contents/MacOS/Midst --user-data-dir=$userdata" | head -1)
-  if [ -f "$userdata/config.json" ] && python3 - "$userdata/config.json" "$poem" << 'PY'
-import json, os, sys
-try:
-    name = json.load(open(sys.argv[1])).get("filename")
-except ValueError:
-    sys.exit(1)
-sys.exit(0 if name and os.path.realpath(name) == os.path.realpath(sys.argv[2]) else 1)
-PY
-  then opened=yes; break; fi
-  sleep 1
-done
-if [ -n "$app_pid" ]; then pass "4 the app launched (process $app_pid)"; else fail "4 the app did not launch: no Midst process appeared"; fi
-if [ "$opened" = yes ]; then pass "4 it opened the synthetic poem"; else fail "4 it did not open the synthetic poem within 60 seconds"; fi
-if [ -n "$app_pid" ]; then
-  kill -TERM "$app_pid" 2> /dev/null
-  gone=no
-  for _ in $(seq 1 20); do kill -0 "$app_pid" 2> /dev/null || { gone=yes; break; }; sleep 1; done
-  if [ "$gone" = yes ]; then pass "4 it quit when asked"; app_pid=; else fail "4 it was still running 20 seconds after being asked to quit"; fi
-fi
+launch_and_open 4
 finish
