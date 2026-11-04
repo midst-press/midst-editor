@@ -63,15 +63,20 @@ describe('the size a poem opens at', () => {
     expect(poemSize()).toBe('24px');
   });
 
-  it('is the last size used for a poem without one, and 14 when none has been used', () => {
+  // Violet, 4 Nov: an existing poem without a size of its own, with no size used yet, stays at 16, where it
+  // has always been shown, and nothing is written into it. (A new poem has 14 in its meta: newPoemMeta.)
+  it('is the last size used for a poem without one, and 16 when none has been used', () => {
     const last = makeStore({ meta: '', 'font-size': '20' }).store;
     expect(renderHook(() => usePoemSizeState(last)).result.current.size).toBe(
       20
     );
-    const none = makeStore({ meta: '{}' }).store;
-    expect(renderHook(() => usePoemSizeState(none)).result.current.size).toBe(
-      14
-    );
+    const none = makeStore({ meta: '{}' });
+    expect(
+      renderHook(() => usePoemSizeState(none.store)).result.current.size
+    ).toBe(16);
+    expect(poemSize()).toBe('16px');
+    expect(none.stored.meta).toBe('{}');
+    expect(none.stored['font-size']).toBeUndefined();
   });
 
   it('keeps a size the steps do not hold, and draws it within the range', () => {
@@ -172,10 +177,10 @@ describe('changing the size', () => {
   });
 });
 
-it('works with no preload: the default size, and a change does nothing', () => {
+it('works with no preload: the size every poem had before #390, and a change does nothing', () => {
   (window as unknown as { electron?: unknown }).electron = undefined;
   const { result } = renderHook(() => usePoemSizeState(undefined));
-  expect(result.current.size).toBe(14);
+  expect(result.current.size).toBe(16);
   act(() => result.current.increase());
-  expect(result.current.size).toBe(14);
+  expect(result.current.size).toBe(16);
 });

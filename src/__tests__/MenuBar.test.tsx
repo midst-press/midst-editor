@@ -272,7 +272,7 @@ describe('MenuBar bold and italic', () => {
 describe('MenuBar text size', () => {
   const button = (name: string) => screen.getByRole('button', { name });
 
-  it('starts at 14 when nothing is stored, with both buttons enabled', () => {
+  it('starts at 16 when nothing is stored, with both buttons enabled', () => {
     mount();
     expect(button('Increase text size')).toBeEnabled();
     expect(button('Decrease text size')).toBeEnabled();

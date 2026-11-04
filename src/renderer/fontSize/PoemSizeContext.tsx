@@ -11,6 +11,7 @@ import {
   fontSizeBelow,
   lastUsedFontSize,
   shownFontSize,
+  UNSIZED_POEM_FONT_SIZE,
 } from 'main/fontSize';
 import { changeStoredMarkers, readStoredMeta } from '../tracking/markerStore';
 import { StoreSchema } from '../../shared/storeSchema';
@@ -18,8 +19,8 @@ import { fontSizeOf, withFontSize } from './poemSize';
 
 // The open poem's text size (editor #390, GitHub #105), shared by the editor, Replay and the View menu.
 // A poem with `meta.fontSize` is shown at it. A poem without one is shown at the last size the poet used
-// (the store's 'font-size'), as every poem was before #390, and nothing is written into it until the
-// poet changes its size. A change is written into the document's `meta`, counted as an unsaved change
+// (the store's 'font-size'), or at 16 if none has been, as every poem was before #390, and nothing is
+// written into it until the poet changes its size. A new poem has a size from the start (newPoemMeta). A change is written into the document's `meta`, counted as an unsaved change
 // and saved, as a font choice is (PoemFontContext.tsx), and it becomes the last size used.
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
@@ -43,10 +44,12 @@ export interface PoemSize {
 export const PoemSizeContext = createContext<PoemSize | null>(null);
 
 const storedSize = (store: SizeStore | undefined): number => {
-  if (!store) return lastUsedFontSize(undefined);
+  if (!store) return UNSIZED_POEM_FONT_SIZE;
   const meta = readStoredMeta(store);
   const own = meta === null ? null : fontSizeOf(meta);
-  return own ?? lastUsedFontSize(store.get('font-size'));
+  return (
+    own ?? lastUsedFontSize(store.get('font-size')) ?? UNSIZED_POEM_FONT_SIZE
+  );
 };
 
 // As for the font: the editor's autosave writes the poem; this asks for a save of the store as it is,

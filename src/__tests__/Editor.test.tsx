@@ -260,7 +260,7 @@ describe('Editor: content and appearance', () => {
     expect(proseMirror()).toHaveTextContent('zq xv');
   });
 
-  it("opens at the poem's own size, else the last size used, else 14 (#390)", () => {
+  it("opens at the poem's own size, else the last size used, else 16 (#390)", () => {
     bridge = installBridge({ meta: JSON.stringify({ fontSize: 24 }) });
     const { unmount } = mount();
     expect(poemSize()).toBe('24px');
@@ -271,7 +271,7 @@ describe('Editor: content and appearance', () => {
     second.unmount();
     bridge = installBridge({ 'font-size': 'zq' });
     mount();
-    expect(poemSize()).toBe('14px');
+    expect(poemSize()).toBe('16px');
   });
 
   it('keeps the size a poet had before #390, stored as a step', () => {

@@ -17,6 +17,7 @@ import {
   includeVersionInfo,
   serializeDocument,
 } from '@midst-press/midst-format/convert';
+import { newPoemMeta } from './fontSize';
 import store from './store';
 import { DOCUMENT_KEYS } from '../shared/storeSchema';
 import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
@@ -537,7 +538,7 @@ export const newFile = async (mainWindow: BrowserWindow, darwin: boolean) => {
   const history = [emptyFirstFrame()];
   store.set('poem', '');
   store.set('history', JSON.stringify(history));
-  store.set('meta', '');
+  store.set('meta', newPoemMeta(store.get('font-size')));
   store.set('filename', '');
   store.set('baseFilename', '');
   store.set('edited', false);
@@ -1111,7 +1112,7 @@ export default class MenuBuilder {
               store.set('poem', '');
               // A new poem, so it too begins at an empty page (GitHub #29).
               store.set('history', JSON.stringify([emptyFirstFrame()]));
-              store.set('meta', '');
+              store.set('meta', newPoemMeta(store.get('font-size')));
               store.set('filename', '');
               store.set('edited', false);
               saveFailure.startAgain();

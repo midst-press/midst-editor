@@ -22,9 +22,9 @@
     'Helvetica Neue',
     sans-serif
   );
-  /* The poem's size (#390), set on an ancestor by PoemSizeContext; the fallback is DEFAULT_FONT_SIZE in
+  /* The poem's size (#390), set on an ancestor by PoemSizeContext; the fallback is UNSIZED_POEM_FONT_SIZE in
      main/fontSize.ts. */
-  font-size: var(--poem-size, 14px);
+  font-size: var(--poem-size, 16px);
   border: none;
   resize: none;
   overflow-y: scroll;

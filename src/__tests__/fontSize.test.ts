@@ -1,6 +1,5 @@
 /** @jest-environment node */
 import {
-  DEFAULT_FONT_SIZE,
   FONT_SIZES,
   fontSizeAbove,
   fontSizeBelow,
@@ -8,16 +7,23 @@ import {
   MAX_FONT_SIZE,
   MIN_FONT_SIZE,
   nearestFontSize,
+  NEW_POEM_FONT_SIZE,
+  newPoemMeta,
   shownFontSize,
+  UNSIZED_POEM_FONT_SIZE,
 } from '../main/fontSize';
 
 // GitHub #105, editor #390: the earlier steps (10, 12, 16, 24, 32) with each jump halved, up to 36.
 describe('the steps', () => {
-  it('are the earlier ones with each jump halved, up to 36, and 14 to start', () => {
+  it('are the earlier ones with each jump halved, up to 36', () => {
     expect(FONT_SIZES).toEqual([10, 11, 12, 14, 16, 20, 24, 28, 32, 36]);
-    expect([MIN_FONT_SIZE, MAX_FONT_SIZE, DEFAULT_FONT_SIZE]).toEqual([
-      10, 36, 14,
-    ]);
+    expect([MIN_FONT_SIZE, MAX_FONT_SIZE]).toEqual([10, 36]);
+  });
+
+  // Violet, 4 Nov: by poem, not by poet. A new poem starts at 14; an existing one without a size of its
+  // own stays at 16, where it has always been shown.
+  it('start a new poem at 14, and show an existing unsized one at 16', () => {
+    expect([NEW_POEM_FONT_SIZE, UNSIZED_POEM_FONT_SIZE]).toEqual([14, 16]);
   });
 
   it('hold every size the original editor wrote (midst-format META.md)', () => {
@@ -62,9 +68,9 @@ describe('shownFontSize', () => {
 });
 
 describe('lastUsedFontSize', () => {
-  it('is 14 when nothing is stored, or what is stored cannot be read', () => {
+  it('is null when nothing is stored, or what is stored cannot be read', () => {
     [undefined, null, '', 'zq', '-5', 'Infinity'].forEach((stored) =>
-      expect(lastUsedFontSize(stored)).toBe(14)
+      expect(lastUsedFontSize(stored)).toBeNull()
     );
   });
 
@@ -80,5 +86,18 @@ describe('lastUsedFontSize', () => {
     expect(lastUsedFontSize('36')).toBe(36);
     expect(lastUsedFontSize('15')).toBe(14);
     expect(lastUsedFontSize('5.5')).toBe(10);
+  });
+});
+
+describe('newPoemMeta', () => {
+  it('starts a new poem at the last size used, written into its meta', () => {
+    expect(JSON.parse(newPoemMeta('20'))).toEqual({ fontSize: 20 });
+    expect(JSON.parse(newPoemMeta('2'))).toEqual({ fontSize: 16 });
+  });
+
+  it('starts it at 14 when no size has been used', () => {
+    [undefined, '', 'zq'].forEach((stored) =>
+      expect(JSON.parse(newPoemMeta(stored))).toEqual({ fontSize: 14 })
+    );
   });
 });

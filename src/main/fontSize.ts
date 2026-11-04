@@ -11,8 +11,12 @@ export const FONT_SIZES: readonly number[] = [
 export const MIN_FONT_SIZE = FONT_SIZES[0];
 export const MAX_FONT_SIZE = FONT_SIZES[FONT_SIZES.length - 1];
 
-// The size before the poet has used any: META.md's default for `fontSize`.
-export const DEFAULT_FONT_SIZE = 14;
+// Before the poet has used any size (Violet, 4 Nov, editor #390: by poem, not by poet):
+// - a NEW poem starts at 14, Annelyse's default for new files and META.md's, written into its meta;
+// - an EXISTING poem without a size of its own opens at 16, where every poem was shown before #390,
+//   so nobody's poems move on upgrade.
+export const NEW_POEM_FONT_SIZE = 14;
+export const UNSIZED_POEM_FONT_SIZE = 16;
 
 // Before #390 the store held a step, 0 to 4, of these sizes. A poet's last size is kept across the change.
 const STEPS_BEFORE_390 = [10, 12, 16, 24, 32];
@@ -26,16 +30,19 @@ export const nearestFontSize = (px: number): number =>
     Math.abs(size - px) < Math.abs(best - px) ? size : best
   );
 
-// The last size the poet used, from the store's 'font-size' (a string). Unset or unreadable gives the
-// default; a step stored before #390 gives its size; any other size gives the nearest step.
-export const lastUsedFontSize = (stored: unknown): number => {
-  if (stored === undefined || stored === null || stored === '')
-    return DEFAULT_FONT_SIZE;
+// The last size the poet used, from the store's 'font-size' (a string), or null when none has been used
+// (unset, or unreadable). A step stored before #390 gives its size; any other size gives the nearest step.
+export const lastUsedFontSize = (stored: unknown): number | null => {
+  if (stored === undefined || stored === null || stored === '') return null;
   const n = Number(stored);
   if (Number.isInteger(n) && n >= 0 && n < STEPS_BEFORE_390.length)
     return STEPS_BEFORE_390[n];
-  return isSize(n) ? nearestFontSize(n) : DEFAULT_FONT_SIZE;
+  return isSize(n) ? nearestFontSize(n) : null;
 };
+
+// The meta a new poem starts with: the last size used, or 14 when none has been.
+export const newPoemMeta = (stored: unknown): string =>
+  JSON.stringify({ fontSize: lastUsedFontSize(stored) ?? NEW_POEM_FONT_SIZE });
 
 // The size a poem is drawn at. A poem keeps whatever size its file holds, and a save writes it back
 // (META.md); it is drawn at that size within the steps' range, and at the nearest end outside it.

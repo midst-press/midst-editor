@@ -946,6 +946,16 @@ describe('newFile', () => {
     expect(win.setTitle).not.toHaveBeenCalled();
   });
 
+  // GitHub #105, editor #390: a new poem starts at the last size the poet used.
+  it('starts the new poem at the last size used, in its meta', async () => {
+    seedDocument({ edited: false });
+    mockStore.set('font-size', '20');
+    await newFile(asWindow(makeWindow()), false);
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 20,
+    });
+  });
+
   it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
       edited: true,
@@ -957,7 +967,10 @@ describe('newFile', () => {
     const win = makeWindow();
     await newFile(asWindow(win), false);
     expect(mockStore.get('poem')).toBe('');
-    expect(mockStore.get('meta')).toBe('');
+    // A new poem has a size from the start: 14 when none has been used (#390).
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 14,
+    });
     expect(mockStore.get('filename')).toBe('');
     expect(mockStore.get('baseFilename')).toBe('');
     expect(mockStore.get('edited')).toBe(false);
@@ -2265,7 +2278,9 @@ describe('the menu', () => {
         expect(JSON.parse(mockStore.get('history') as string)).toEqual([
           { inserted: '', front: 0, end: 0, pos: 0, t: expect.any(String) },
         ]);
-        expect(mockStore.get('meta')).toBe('');
+        expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+          fontSize: 14,
+        });
         expect(mockStore.get('filename')).toBe('');
         expect(mockStore.get('edited')).toBe(false);
         expect(app.emit).toHaveBeenCalledWith('activate', false);
