@@ -79,8 +79,9 @@ candidate before then, or build a new one.
 Every macOS package gets these three checks before it is released. They exist because 0.2.0's first
 candidate reported "The installation was successful" and put nothing in Applications.
 
-**No `v<version>` tag is made until the script has passed and both manual steps are ticked, all on
-the package being released.** Nothing enforces this but the person running the release workflow.
+**No `v<version>` tag is made until the script has passed and every manual step is ticked, all on
+the package being released.** The release workflow enforces it: it refuses unless the evidence below
+is on the `release-evidence` branch (issue 414).
 
 Use a Mac, or an account on one, that has no Midst installed.
 
@@ -134,6 +135,33 @@ Use a Mac, or an account on one, that has no Midst installed.
   - **Customize** at the Installation Type step shows **Delete the Midst that's already installed**,
     unticked, and its description says it permanently deletes it and cannot be undone.
 
+  Screenshots: `warning-old-version.png` (the warning, naming the old version) and
+  `customize-delete-choice.png` (Customize, with the delete choice). On the clean install in the step
+  before, `customize-no-midst.png`: Customize with no delete choice.
+
+- [ ] **Over the previous release, the new Midst opens a poem.** Install the previous release's
+      package (`gh release download v<previous> -R midst-press/midst-editor -p '*.pkg'`), then this one
+      three times through the GUI, launching Midst and opening a poem after each:
+
+  - with **Delete the Midst that's already installed** unticked: `poem-unticked.png`. The old one is
+    kept as `Midst <old version>.app`;
+  - again, with it ticked: `poem-ticked.png`. Only the new Midst is left;
+  - over itself (the same version): `poem-same-version.png`.
+
+### Recording the evidence
+
+On the `release-evidence` branch, add a folder `v<version>/` holding:
+
+- `install-test.log`: the script's whole output, run with the previous release's package as well, so
+  it includes the previous-release case. Its `PASSED` line names the package's sha256;
+- `manifest.txt`: a line `sha256 <the package's sha256>`, then this section's checklist, every item
+  ticked (`- [x] **...**`);
+- every screenshot named above, as a PNG under exactly that name.
+
+Push it before running the release workflow. The workflow checks that each file is there, that the
+log passed for the package being released, and that every item is ticked. It cannot check what a
+screenshot shows; whoever ticks the item has looked.
+
 Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and the kept
 `/Applications/Midst Beta <version>.app`), so the next candidate's test starts clean.
 
@@ -149,6 +177,7 @@ It checks all of this before it tags or publishes anything:
 | has an installer whose SHA-256 differs from what its build recorded                | what is released must be what was tested |
 | is for a version already tagged or released from a different commit                | one version, one build                   |
 | has no `CHANGELOG.md` entry for its version                                        | every release says what changed          |
+| has no install-test evidence for its macOS package on `release-evidence`           | a release is only what was installed     |
 
 The package workflow also refuses to build a candidate from `main` once that version has been
 released from different code. Bump the version first.

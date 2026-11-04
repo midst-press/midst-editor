@@ -11,7 +11,10 @@
 #   - has a macOS installer that was not signed and notarised, or any installer whose bytes differ
 #     from what its build recorded;
 #   - is for a version already released (or tagged) from a different commit;
-#   - has no CHANGELOG.md entry for its version (the entry becomes the release notes).
+#   - has no CHANGELOG.md entry for its version (the entry becomes the release notes);
+#   - has no install-test evidence for its macOS package on the release-evidence branch, under
+#     v<version>/ (issue 414): the passing log for that package's sha256, the ticked checklist, and the
+#     screenshots docs/releasing.md names. See tools/check_release_evidence.sh.
 # Artifacts expire after the repository's retention period, so a run must be promoted before then.
 # Once the release is published and checked to carry every installer, the artifacts of this package run
 # and of every earlier one are deleted (#69): GitHub Free holds 500 MB of artifacts per organisation, and
@@ -87,6 +90,21 @@ jobs:
             echo "::error::$RELEASE_REPO already has a release v$VERSION"
             exit 1
           fi
+      - name: check the macOS install test is recorded for this package
+        env:
+          SHA: ${{ steps.run.outputs.sha }}
+          VERSION: ${{ steps.verify.outputs.version }}
+        run: |
+          pkg_sha=$(awk '$2 ~ /\.pkg$/ { print $1 }' candidate/release/SHA256SUMS)
+          [ "$(wc -w <<< "$pkg_sha")" = 1 ] || { echo "::error::expected one .pkg in candidate/release/SHA256SUMS"; exit 1; }
+          git fetch --quiet --depth 1 origin release-evidence \
+            || { echo "::error::no release-evidence branch: push the install test's evidence under v$VERSION/ (docs/releasing.md)"; exit 1; }
+          mkdir evidence
+          git archive FETCH_HEAD "v$VERSION" | tar -x -C evidence \
+            || { echo "::error::no v$VERSION/ on the release-evidence branch: push the install test's evidence there (docs/releasing.md)"; exit 1; }
+          git fetch --quiet --depth 1 origin "$SHA"
+          git show "$SHA:docs/releasing.md" > candidate-releasing.md
+          tools/check_release_evidence.sh "evidence/v$VERSION" "$pkg_sha" candidate-releasing.md
       - name: write the release notes from CHANGELOG.md at that commit
         env:
           SHA: ${{ steps.run.outputs.sha }}
