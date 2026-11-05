@@ -72,7 +72,13 @@ beforeEach(() => {
 afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 it('reads the checklist and the six screenshots from releasing.md', () => {
-  expect(titles.length).toBeGreaterThan(0);
+  expect(titles).toEqual([
+    'The script passes.',
+    'An "all users" install puts Midst in the main Applications folder.',
+    "The installer's windows read correctly.",
+    'The older-Midst warning and choice read correctly (issue 16).',
+    'Over the previous release, the new Midst opens a poem.',
+  ]);
   expect(shots.sort()).toEqual(
     [
       'customize-delete-choice.png',
@@ -134,6 +140,23 @@ it('refuses a log without the previous-release case', () => {
       'check_installed_package: previous release 0.9.4: PASSED',
       'check_installed_package: previous release: not run'
     )
+  );
+  const r = check();
+  expect(r.status).toBe(1);
+  expect(r.out).toContain('previous release');
+});
+
+it('refuses a log of two runs: the previous release on another package, this one without it (#428)', () => {
+  writeGood();
+  write(
+    'install-test.log',
+    goodLog(OTHER_SHA) +
+      [
+        `package   Midst-1.0.0-arm64.pkg sha256 ${SHA}`,
+        'check_installed_package: previous release: not run',
+        `check_installed_package: PASSED Midst-1.0.0-arm64.pkg sha256 ${SHA}`,
+        '',
+      ].join('\n')
   );
   const r = check();
   expect(r.status).toBe(1);
