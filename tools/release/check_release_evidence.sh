@@ -37,10 +37,15 @@ log="$dir/install-test.log"
 if [ ! -s "$log" ]; then
   missing+=("install-test.log (the whole output of tools/check_installed_package.sh)")
 else
-  grep -qE "^check_installed_package: PASSED .* sha256 $sha\$" "$log" \
-    || missing+=("in install-test.log, a PASSED line for sha256 $sha (it is FAILED, or for another package)")
-  grep -qE '^check_installed_package: previous release [^ ]+: PASSED$' "$log" \
-    || missing+=("in install-test.log, a PASSED install over the previous release")
+  # Only the last run counts: its last two result lines, in order. Matched anywhere, a log joining two
+  # runs passed with the previous-release case done on another package (Fable, #428).
+  results=$(grep -E '^check_installed_package: (PASSED|FAILED|previous release)' "$log")
+  final=$(tail -n 1 <<< "$results")
+  before=$(tail -n 2 <<< "$results" | sed -n 1p)
+  [[ "$final" =~ ^check_installed_package:\ PASSED\ .*\ sha256\ $sha$ ]] \
+    || missing+=("in install-test.log, as the last run's result, a PASSED line for sha256 $sha (it is FAILED, or for another package)")
+  [[ "$before" =~ ^check_installed_package:\ previous\ release\ [^\ ]+:\ PASSED$ ]] \
+    || missing+=("in install-test.log, the same run passing over the previous release: run it with --previous <previous release's pkg>")
 fi
 
 manifest="$dir/manifest.txt"

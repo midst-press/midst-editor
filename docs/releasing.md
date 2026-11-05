@@ -97,7 +97,8 @@ Use a Mac, or an account on one, that has no Midst installed.
 
   ```bash
   gh run download <package run number> -R midst-press/midst-editor -p 'midst-macos-*' -D candidate
-  tools/check_installed_package.sh candidate/midst-macos-*/Midst-*-arm64.pkg
+  gh release download v<previous version> -R midst-press/midst-editor -p '*.pkg' -D previous
+  tools/check_installed_package.sh --previous previous/Midst-*-arm64.pkg candidate/midst-macos-*/Midst-*-arm64.pkg
   ```
 
   It checks the package (signed, accepted by Gatekeeper, not relocatable, the right version),
@@ -167,7 +168,8 @@ Attach these files to the Gitea release PR itself (not to a comment), under exac
 
 `tools/release/release.sh` checks that each file is there and not empty, that each screenshot is a
 PNG, that the log passed for the package being released, and that every item is ticked. It cannot
-check what a screenshot shows; whoever ticks the item has looked.
+check what a screenshot shows; whoever ticks the item has looked. Nor can it tell which candidate a screenshot
+was taken on: for a new candidate, replace every screenshot on the release PR, not only the log.
 
 Afterwards, delete what you installed by hand (`/Applications/Midst.app`, and the kept
 `/Applications/Midst Beta <version>.app`), so the next candidate's test starts clean.
