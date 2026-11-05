@@ -572,10 +572,10 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
       'adding a marker moved the line'
     ).toBeLessThanOrEqual(0.5);
     await expect
-      .poll(() => problems(win), { message: 'names above the line' })
+      .poll(() => problems(win), { message: 'timestamp only on pointing' })
       .toEqual([]);
 
-    // Item 3: with the timestamp always shown, the names move out of its way, and the room under the timeline stays.
+    // Item 3: with the timestamp always shown too, names and timestamp keep apart, and the room under the timeline stays.
     await showTimestamp(win);
     await settled(win);
     await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
@@ -620,18 +620,23 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
   }
 });
 
-// With Show timestamp off (the default), the timestamp still appears while the poet points at or drags the dot, and
-// the names are above the line, where it appears. Round 2 does not solve that; it is a question for Annelyse on
-// GitHub #95. This asserts the collision as it stands, so it turns red the day it is solved, and for no other reason
-// (silas-397300f6, review of #424).
-test('round 2, known: with the timestamp off, pointing at the dot on a marker puts the timestamp on its name', async () => {
+// With Show timestamp off (the default), the timestamp still appears while the poet points at or drags the dot. Round 2
+// left the names above the line, where it appears, and it landed on them (this test asserted that collision until
+// #446). Annelyse chose option (a) on GitHub #95: names below the line whenever there are any, so it never can.
+test('option a: with the timestamp off, pointing at the dot on a marker keeps the timestamp off its name', async () => {
   const { app, win } = await openTimeline('pointing');
   try {
+    const bare = await lineAndRoom(win);
     await markHere(win, 'zq');
     await win.locator('.MuiSlider-thumb').hover();
-    // The control: the timestamp is open.
+    // The control: the timestamp is open, so there is something to collide with.
     await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
-    await expect.poll(() => problems(win)).toContain('zq: on the timestamp');
+    await expect
+      .poll(() => problems(win), { message: 'pointing at the dot on zq' })
+      .toEqual([]);
+    // The timeline moved up for the name, so the room under it stays.
+    const marked = await lineAndRoom(win);
+    expect(marked.room).toBeGreaterThanOrEqual(bare.room - 1);
   } finally {
     await app.close();
   }

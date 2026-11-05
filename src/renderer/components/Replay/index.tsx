@@ -192,12 +192,12 @@ export default function Replay() {
   const undoNewMarker = (index: number) => {
     if (drafts.unmake(index)) leaveTimelineNaming(true);
   };
-  // Names on the timeline sit above the line, unless the timestamp is always shown: then the timestamp has the
-  // space above, the names go below, and the timeline moves up to make room for them (GitHub #95).
-  const namesShown =
+  // Names on the timeline sit below the line, so the timestamp, above it, can never land on one, whether it is
+  // always shown or only while the dot is pointed at or dragged. The timeline moves up to make room for them while
+  // there are any (Annelyse, GitHub #95, option a; #446).
+  const namesBelow =
     timelineNaming !== null ||
     (showMarkers && showLabels && drafts.markers.length > 0);
-  const namesBelow = showTimestamp.on && namesShown;
   // The timeline's move is animated only while it moves for the names: a window being resized must not slide it
   // (clement-7074f29f, review of #424). Set in the same render as the move, so the transition is in place for it.
   const [movedFor, setMovedFor] = useState(namesBelow);
@@ -272,7 +272,6 @@ export default function Replay() {
               showLabels={showLabels}
               naming={timelineNaming}
               newMarker={newMarker}
-              namesBelow={namesBelow}
               setNaming={setTimelineNaming}
               onJump={jumpTo}
               onLeaveNaming={leaveTimelineNaming}
