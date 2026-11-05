@@ -449,10 +449,12 @@ async function problems(win: Page): Promise<string[]> {
   });
 }
 
-// Where the line is, and how much room is left under the lowest thing on the timeline.
+// Where the line is, how far it is from the middle of its bar, and how much room is left under the lowest thing on
+// the timeline.
 const lineAndRoom = (win: Page) =>
   win.evaluate(() => {
     const bar = document.querySelector('.ControlBar')!;
+    const box = bar.getBoundingClientRect();
     const line = bar.querySelector('.MuiSlider-rail')!.getBoundingClientRect();
     const lowest = Math.max(
       bar.getBoundingClientRect().bottom,
@@ -462,6 +464,9 @@ const lineAndRoom = (win: Page) =>
     );
     return {
       line: (line.top + line.bottom) / 2,
+      offCentre: Math.abs(
+        (line.top + line.bottom) / 2 - (box.top + box.bottom) / 2
+      ),
       room: window.innerHeight - lowest,
     };
   });
@@ -566,12 +571,22 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await win.keyboard.press('Home');
     await markHere(win, 'xv');
 
-    // Item 2: a marker on the timeline does not move its line.
+    // Item 2: with markers on it, the line stays in the middle of its bar. The whole timeline moves up for the names
+    // (option a, #446), so where the line is on the page is not the check; where it is in the bar is.
+    await settled(win);
     const marked = await lineAndRoom(win);
     expect(
-      Math.abs(marked.line - bare.line),
-      'adding a marker moved the line'
+      bare.offCentre,
+      'the line is off centre with no markers'
     ).toBeLessThanOrEqual(0.5);
+    expect(
+      marked.offCentre,
+      'adding a marker took the line off the middle of its bar'
+    ).toBeLessThanOrEqual(0.5);
+    expect(
+      marked.line,
+      'the timeline did not move up for the names'
+    ).toBeLessThan(bare.line);
     await expect
       .poll(() => problems(win), { message: 'timestamp only on pointing' })
       .toEqual([]);
