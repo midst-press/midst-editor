@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makePlayableMidst } from './fixtures';
-import { launch, openDocument, waitUntil } from './harness';
+import { launch, openDocument, shot, waitUntil } from './harness';
 
 // Can a poet mark a draft, name it, and delete it, and is that what the saved file holds?
 //
@@ -407,7 +407,8 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
 
 // GitHub #95, round 2. What Annelyse is troubled by is a name colliding with the timestamp, so these tests look for
 // collisions and for names the poet cannot see, in the real window (jsdom has no layout), rather than for positions.
-// Each problem found is said in words: which name, and what it is on or under. The checks poll: while the timeline
+// Each problem found is said in words: which name, and what it is on or under. Each state checked is also kept as a
+// screenshot in the test's output folder, for a person to look at. The checks poll: while the timeline
 // is still moving a name can pass anywhere, and only what stays is a problem.
 async function problems(win: Page): Promise<string[]> {
   return win.evaluate(() => {
@@ -574,6 +575,11 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await expect
       .poll(() => problems(win), { message: 'timestamp only on pointing' })
       .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('1-names-below-timestamp-off.png')
+    );
 
     // Item 3: with the timestamp always shown too, names and timestamp keep apart, and the room under the timeline stays.
     await showTimestamp(win);
@@ -582,11 +588,21 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await expect
       .poll(() => problems(win), { message: 'timestamp shown, dot on xv' })
       .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('2-timestamp-on-dot-at-start.png')
+    );
     await win.locator('.MuiSlider-thumb input').focus();
     await win.keyboard.press('End');
     await expect
       .poll(() => problems(win), { message: 'timestamp shown, dot on zq' })
       .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('3-timestamp-on-dot-at-end.png')
+    );
     const lifted = await lineAndRoom(win);
     expect(
       lifted.room,
@@ -605,6 +621,11 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     const back = await lineAndRoom(win);
     expect(Math.abs(back.line - bare.line)).toBeLessThanOrEqual(0.5);
     expect(back.room).toBeGreaterThanOrEqual(bare.room - 1);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('4-deleted-timeline-back-down.png')
+    );
 
     // A narrower, shorter window, with a name at the end of the timeline.
     await markHere(win, 'qz');
@@ -615,6 +636,7 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await expect
       .poll(() => problems(win), { message: 'at 900 by 600' })
       .toEqual([]);
+    await shot(app, win, test.info().outputPath('5-900x600.png'));
   } finally {
     await app.close();
   }
@@ -634,6 +656,11 @@ test('option a: with the timestamp off, pointing at the dot on a marker keeps th
     await expect
       .poll(() => problems(win), { message: 'pointing at the dot on zq' })
       .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('6-pointing-timestamp-off.png')
+    );
     // The timeline moved up for the name, so the room under it stays.
     const marked = await lineAndRoom(win);
     expect(marked.room).toBeGreaterThanOrEqual(bare.room - 1);
