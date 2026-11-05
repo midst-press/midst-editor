@@ -21,6 +21,7 @@ import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
 import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
+import { FONT_PICKER_CLASS } from '../../poemFont/FontPicker';
 import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
@@ -48,6 +49,9 @@ export default function Editor() {
   const [spellcheckOn] = useState<boolean>(
     () => window.electron.store.get('spellcheck') === 'true'
   );
+  // Counts the poems opened into this editor. Opening one replaces every text node, which loses every spelling mark,
+  // and the editor is the same, so the whole-poem check runs again on this (editor #238, gap 4).
+  const [opened, setOpened] = useState(0);
   const heightClass = window.electron.versions.isMac
     ? 'editor-height-tall'
     : 'editor-height-short';
@@ -146,9 +150,14 @@ export default function Editor() {
     editor: EditorType;
     event: FocusEvent;
   }) => {
-    // The find bar takes the focus on purpose; taking it back would leave the poet unable to type there.
+    // The find bar and the font picker take the focus on purpose; taking it back would leave the poet unable to
+    // type there, and the font picker's Escape would never reach it (GitHub #112, editor #417).
     const to = event.relatedTarget;
-    if (to instanceof Element && to.closest(`.${FIND_BAR_CLASS}`)) return;
+    if (
+      to instanceof Element &&
+      to.closest(`.${FIND_BAR_CLASS}, .${FONT_PICKER_CLASS}`)
+    )
+      return;
     // Without moving the page (GitHub #92): focus() scrolls the caret into view by default, so a click in the
     // header or footer of a long poem the poet had scrolled away from jumped back to the caret.
     if (window.electron.versions.isMac) {
@@ -176,6 +185,7 @@ export default function Editor() {
           myEditor.commands.setContent(savedPoem, {
             emitUpdate: false,
           });
+          setOpened((n) => n + 1);
         }
         saveFileAndUpdateStore(savedPoem, savedHistory);
         navigate('/editor');
@@ -254,13 +264,14 @@ export default function Editor() {
     []
   );
   // Chromium marks nothing until the text is edited (GitHub #71): have it check the whole poem soon after the
-  // editor is in the page (see checkWholePoem.ts for why soon, and not at once). Cancelled if the editor goes.
+  // editor is in the page, and again when a poem is opened into it (see checkWholePoem.ts for why soon, and not at
+  // once). Cancelled if the editor goes, or another poem is opened first.
   useEffect(() => {
     if (!myEditor || !spellcheckOn) return undefined;
     return checkWholePoemSoon(myEditor.view, (message) =>
       window.electron.log.warn(message)
     );
-  }, [myEditor, spellcheckOn]);
+  }, [myEditor, spellcheckOn, opened]);
   // A line break is not an edit Chromium sees (editor #238): the lines around it are checked once the poet pauses.
   useEffect(() => {
     const editor = myEditor;
@@ -300,7 +311,7 @@ export default function Editor() {
         onBlur={onBlur}
         editorProps={{
           attributes: {
-            class: `TextEditor ${heightClass} size-${fontSize.size}`,
+            class: `TextEditor ${heightClass}`,
             spellcheck: spellcheckOn.toString(),
           },
         }}

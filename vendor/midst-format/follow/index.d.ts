@@ -32,8 +32,12 @@ export declare const PEAK_VIEWPORTS_PER_S = 5;
  * jumps in Annelyse's Autoscroll Test Poem stay under 2 views. Whether a very long jump should
  * instead jump most of the way and glide the rest is an open question for the editor
  * (clement-7074f29f, midst-editor#24).
+ *
+ * `peak` overrides PEAK_VIEWPORTS_PER_S, for the editor's scroll-speed slider (midst-editor #427,
+ * Annelyse, GitHub #49). One that is not a positive number gives the default; the 250ms floor still
+ * holds at any speed.
  */
-export declare function glideMs(distance: number, viewport: number): number;
+export declare function glideMs(distance: number, viewport: number, peak?: number): number;
 export declare const ease: (t: number) => number;
 export interface Glide {
     to: number;
@@ -55,5 +59,6 @@ export declare const MIN_GLIDE_VIEWPORT = 50;
  * showed 150-226ms stalls, which moved a wall-clock glide a whole stall's worth in one frame).
  */
 export declare const MAX_FRAME_MS: number;
-/** Glide `el` to `to`. Returns the glide, so the caller can tell whether it is already heading there. */
-export declare function glideTo(el: HTMLElement, to: number, current: Glide | null): Glide | null;
+/** Glide `el` to `to`, peaking at `peak` viewports per second (PEAK_VIEWPORTS_PER_S by default).
+ * Returns the glide, so the caller can tell whether it is already heading there. */
+export declare function glideTo(el: HTMLElement, to: number, current: Glide | null, peak?: number): Glide | null;

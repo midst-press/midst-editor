@@ -17,6 +17,8 @@ interface TimelineSliderProps {
   showLabels: boolean;
   // The frame whose marker is being named on the timeline, or null.
   naming: number | null;
+  // The frame of a marker made just now and not yet named, or null.
+  newMarker: number | null;
   onJump: (index: number) => void;
   // Which marker is being named on the timeline: null for none.
   setNaming: (index: number | null) => void;
@@ -24,6 +26,7 @@ interface TimelineSliderProps {
   onLeaveNaming: (goBack: boolean) => void;
   onRename: (index: number, name: string) => void;
   onDelete: (index: number) => void;
+  onUndoNew: (index: number) => void;
 }
 /* eslint-enable no-unused-vars */
 
@@ -39,11 +42,13 @@ export default function TimelineSlider({
   showMarkers,
   showLabels,
   naming,
+  newMarker,
   onJump,
   setNaming,
   onLeaveNaming,
   onRename,
   onDelete,
+  onUndoNew,
 }: TimelineSliderProps) {
   const handleChange = (_event: Event, value: number | number[]) => {
     const next = Array.isArray(value) ? value[0] : value;
@@ -67,6 +72,7 @@ export default function TimelineSlider({
       index={index}
       label={label}
       naming={naming === index}
+      isNew={newMarker === index}
       onJump={onJump}
       onStartNaming={(at) => {
         onJump(at);
@@ -83,6 +89,7 @@ export default function TimelineSlider({
         if (naming === at) setNaming(null);
         onDelete(at);
       }}
+      onUndoNew={onUndoNew}
     />
   );
   return (
@@ -98,22 +105,29 @@ export default function TimelineSlider({
         color: cssVar('onControlBar'),
         marginRight: '15px',
         cursor: poemHistory.length ? undefined : 'not-allowed',
-        // Draft markers: a tick tall enough to see on the rail, and the name above the bar,
-        // where there is room for it.
-        '& .MuiSlider-mark': {
-          height: '14px',
-          width: '2px',
-          backgroundColor: cssVar('textPrimary'),
-          opacity: 0.7,
-        },
-        // Above the dot, so the timestamp passes behind the names where they meet (GitHub #95); the
-        // names themselves are styled in Replay.css.
+        // MUI leaves room under a slider with mark labels; the names are placed by hand, so the line keeps to the
+        // middle of the bar either way (GitHub #95).
+        '&.MuiSlider-marked': { marginBottom: 0 },
+        // A named marker is a speech bubble, its point on the line, like the timestamp's (GitHub #95). With the
+        // names turned off, a tick in the bubble's colours shows where each marker is.
+        '& .MuiSlider-mark': showLabels
+          ? { display: 'none' }
+          : {
+              height: '14px',
+              width: '3px',
+              backgroundColor: cssVar('surface'),
+              border: `1px solid ${cssVar('primaryDark')}`,
+              borderRadius: '1px',
+            },
+        // Below the line, as far from it as the timestamp is above it, so the two never meet (GitHub #95, option a);
+        // the names themselves are styled in Replay.css.
         '& .MuiSlider-markLabel': {
-          top: '-34px',
+          top: '30px',
           fontSize: '0.75rem',
           zIndex: 2,
         },
       }}
+      className="names-below"
       onChange={handleChange}
       // MUI hides mark labels from assistive technology; these are buttons and a name field now
       // (GitHub #95), so they must be reachable.

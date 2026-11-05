@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makePlayableMidst } from './fixtures';
-import { launch, openDocument, waitUntil } from './harness';
+import { launch, openDocument, shot, waitUntil } from './harness';
 
 // Can a poet mark a draft, name it, and delete it, and is that what the saved file holds?
 //
@@ -400,6 +400,305 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
     await win.screenshot({
       path: test.info().outputPath('drafts-beside-900.png'),
     });
+  } finally {
+    await app.close();
+  }
+});
+
+// GitHub #95, round 2. What Annelyse is troubled by is a name colliding with the timestamp, so these tests look for
+// collisions and for names the poet cannot see, in the real window (jsdom has no layout), rather than for positions.
+// Each problem found is said in words: which name, and what it is on or under. Each state checked is also kept as a
+// screenshot in the test's output folder, for a person to look at. The checks poll: while the timeline
+// is still moving a name can pass anywhere, and only what stays is a problem.
+async function problems(win: Page): Promise<string[]> {
+  return win.evaluate(() => {
+    const box = (el: Element) => el.getBoundingClientRect();
+    const overlap = (a: DOMRect, b: DOMRect) =>
+      a.left < b.right &&
+      b.left < a.right &&
+      a.top < b.bottom &&
+      b.top < a.bottom;
+    const bar = document.querySelector('.ControlBar')!;
+    const line = box(bar.querySelector('.MuiSlider-rail')!);
+    const dot = box(bar.querySelector('.MuiSlider-thumb')!);
+    const open = bar.querySelector('.MuiSlider-valueLabelOpen');
+    const time = open && box(open);
+    const found: string[] = [];
+    bar.querySelectorAll('.MuiSlider-markLabel').forEach((name) => {
+      const at = box(name);
+      const said =
+        name.textContent || (name.querySelector('input')?.value ?? '');
+      if (overlap(at, line)) found.push(`${said}: on the line`);
+      if (overlap(at, dot)) found.push(`${said}: on the dot`);
+      if (time && overlap(at, time)) found.push(`${said}: on the timestamp`);
+      if (
+        at.left < 0 ||
+        at.top < 0 ||
+        at.right > window.innerWidth ||
+        at.bottom > window.innerHeight
+      )
+        found.push(`${said}: partly outside the window`);
+      const seen = document.elementFromPoint(
+        (at.left + at.right) / 2,
+        (at.top + at.bottom) / 2
+      );
+      if (!seen || !name.contains(seen))
+        found.push(`${said}: under ${seen?.className || 'nothing'}`);
+    });
+    return found;
+  });
+}
+
+// Where the line is, how far it is from the middle of its bar, and how much room is left under the lowest thing on
+// the timeline.
+const lineAndRoom = (win: Page) =>
+  win.evaluate(() => {
+    const bar = document.querySelector('.ControlBar')!;
+    const box = bar.getBoundingClientRect();
+    const line = bar.querySelector('.MuiSlider-rail')!.getBoundingClientRect();
+    const lowest = Math.max(
+      bar.getBoundingClientRect().bottom,
+      ...Array.from(bar.querySelectorAll('.MuiSlider-markLabel')).map(
+        (n) => n.getBoundingClientRect().bottom
+      )
+    );
+    return {
+      line: (line.top + line.bottom) / 2,
+      offCentre: Math.abs(
+        (line.top + line.bottom) / 2 - (box.top + box.bottom) / 2
+      ),
+      room: window.innerHeight - lowest,
+    };
+  });
+
+// Where the dot is drawn along the line: 0 at its start, 1 at its end. MUI slides the dot to a new value over about
+// 150ms, so a check made straight after a key can see it where it was (violet-14057653, on #447's screenshot 3).
+const dotAlong = (win: Page) =>
+  win.evaluate(() => {
+    const bar = document.querySelector('.ControlBar')!;
+    const line = bar.querySelector('.MuiSlider-rail')!.getBoundingClientRect();
+    const dot = bar.querySelector('.MuiSlider-thumb')!.getBoundingClientRect();
+    return ((dot.left + dot.right) / 2 - line.left) / line.width;
+  });
+
+async function openTimeline(name: string) {
+  const doc = makePlayableMidst(LONG);
+  const work = mkdtempSync(join(tmpdir(), `midst-drafts-${name}-`));
+  const poemPath = join(work, `${name}.midst`);
+  writeFileSync(poemPath, doc.file);
+  const { app, userData } = await launch(work);
+  const win = await app.firstWindow();
+  await win.waitForLoadState('domcontentloaded');
+  await openDocument(app, userData, poemPath, 'the long poem');
+  await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+  await win.getByRole('link', { name: 'Timeline' }).click();
+  await expect(win.locator('.ReplayContainer')).toBeVisible({
+    timeout: 25_000,
+  });
+  // The bar grows in as the Timeline opens (MUI Grow): measure once it has (clement-7074f29f, review of #424).
+  await expect
+    .poll(() =>
+      win.evaluate(
+        () =>
+          document.querySelector('.ControlBar')!.getBoundingClientRect().height
+      )
+    )
+    .toBe(40);
+  return { app, win, poemPath };
+}
+
+// A marker at the frame the slider is on, named.
+async function markHere(win: Page, name: string) {
+  await win.getByRole('button', { name: MARK }).click();
+  const field = win.getByLabel('Draft Marker name');
+  await expect(field).toBeVisible({ timeout: 25_000 });
+  await field.fill(name);
+  await field.press('Enter');
+  await expect(win.getByRole('button', { name })).toBeVisible();
+}
+
+const showTimestamp = async (win: Page) => {
+  await win.getByRole('button', { name: 'Settings' }).click();
+  await win.getByRole('checkbox', { name: 'Show timestamp' }).click();
+  await win.getByRole('button', { name: 'Settings' }).click();
+  await expect(win.locator('.DraftDrawer')).toBeHidden();
+};
+
+// Long enough for the timeline's move to finish.
+const settled = (win: Page) => win.waitForTimeout(600);
+
+test('round 2: Undo straight after the button takes the new marker back, in the file', async () => {
+  const { app, win, poemPath } = await openTimeline('undo');
+  const undo = process.platform === 'darwin' ? 'Meta+z' : 'Control+z';
+  try {
+    await win.getByRole('button', { name: MARK }).click();
+    const field = win.getByLabel('Draft Marker name');
+    await expect(field).toHaveValue('Draft 1', { timeout: 25_000 });
+    expect(
+      await waitUntil(
+        () => metaOnDisk(poemPath)?.draftMarkers?.length === 1,
+        10_000
+      ),
+      'the new marker never reached the file'
+    ).toBe(true);
+    // Typed in the middle of the field (item 1), on the timestamp's white, not the old yellow (item 1.3).
+    const look = await field.evaluate((el) => {
+      const probe = document.createElement('div');
+      probe.style.backgroundColor = 'var(--midst-surface)';
+      document.body.appendChild(probe);
+      const surface = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      const style = getComputedStyle(el);
+      return {
+        align: style.textAlign,
+        background: style.backgroundColor,
+        surface,
+      };
+    });
+    expect(look.align).toBe('center');
+    expect(look.background).toBe(look.surface);
+    await field.press(undo);
+    await expect(field, 'Undo left the name field open').toBeHidden();
+    expect(
+      await waitUntil(
+        () => metaOnDisk(poemPath)?.draftMarkers?.length === 0,
+        10_000
+      ),
+      'Undo did not take the marker out of the file'
+    ).toBe(true);
+  } finally {
+    await app.close();
+  }
+});
+
+test('round 2: names never collide with the line, the dot or the timestamp, and stay in sight', async () => {
+  const { app, win } = await openTimeline('clear');
+  try {
+    const bare = await lineAndRoom(win);
+    // Markers at both ends of the timeline, where a name has least room.
+    await markHere(win, 'zq');
+    await win.locator('.MuiSlider-thumb input').focus();
+    await win.keyboard.press('Home');
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot did not go to the start' })
+      .toBeLessThan(0.01);
+    await markHere(win, 'xv');
+
+    // Item 2: with markers on it, the line stays in the middle of its bar. The whole timeline moves up for the names
+    // (option a, #446), so where the line is on the page is not the check; where it is in the bar is.
+    await settled(win);
+    const marked = await lineAndRoom(win);
+    expect(
+      bare.offCentre,
+      'the line is off centre with no markers'
+    ).toBeLessThanOrEqual(0.5);
+    expect(
+      marked.offCentre,
+      'adding a marker took the line off the middle of its bar'
+    ).toBeLessThanOrEqual(0.5);
+    expect(
+      marked.line,
+      'the timeline did not move up for the names'
+    ).toBeLessThan(bare.line);
+    await expect
+      .poll(() => problems(win), { message: 'timestamp only on pointing' })
+      .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('1-names-below-timestamp-off.png')
+    );
+
+    // Item 3: with the timestamp always shown too, names and timestamp keep apart, and the room under the timeline stays.
+    await showTimestamp(win);
+    await settled(win);
+    await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
+    // The states below are named by where the dot is, so it is checked to be there before anything is judged.
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot is not at the start' })
+      .toBeLessThan(0.01);
+    await expect
+      .poll(() => problems(win), { message: 'timestamp shown, dot on xv' })
+      .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('2-timestamp-on-dot-at-start.png')
+    );
+    await win.locator('.MuiSlider-thumb input').focus();
+    await win.keyboard.press('End');
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot did not go to the end' })
+      .toBeGreaterThan(0.99);
+    await expect
+      .poll(() => problems(win), { message: 'timestamp shown, dot on zq' })
+      .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('3-timestamp-on-dot-at-end.png')
+    );
+    const lifted = await lineAndRoom(win);
+    expect(
+      lifted.room,
+      'the names reach further down than the timeline did'
+    ).toBeGreaterThanOrEqual(bare.room - 1);
+
+    // The names gone, the timeline goes back where it was.
+    const remove = async (name: string) => {
+      await win.getByRole('button', { name }).click({ button: 'right' });
+      await win.getByRole('menuitem', { name: 'Delete Draft Marker' }).click();
+      await expect(win.getByRole('button', { name })).toHaveCount(0);
+    };
+    await remove('zq');
+    await remove('xv');
+    await settled(win);
+    const back = await lineAndRoom(win);
+    expect(Math.abs(back.line - bare.line)).toBeLessThanOrEqual(0.5);
+    expect(back.room).toBeGreaterThanOrEqual(bare.room - 1);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('4-deleted-timeline-back-down.png')
+    );
+
+    // A narrower, shorter window, with a name at the end of the timeline.
+    await markHere(win, 'qz');
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0].setContentSize(900, 600);
+    });
+    await win.waitForFunction(() => window.innerWidth === 900);
+    await expect
+      .poll(() => problems(win), { message: 'at 900 by 600' })
+      .toEqual([]);
+    await shot(app, win, test.info().outputPath('5-900x600.png'));
+  } finally {
+    await app.close();
+  }
+});
+
+// With Show timestamp off (the default), the timestamp still appears while the poet points at or drags the dot. Round 2
+// left the names above the line, where it appears, and it landed on them (this test asserted that collision until
+// #446). Annelyse chose option (a) on GitHub #95: names below the line whenever there are any, so it never can.
+test('option a: with the timestamp off, pointing at the dot on a marker keeps the timestamp off its name', async () => {
+  const { app, win } = await openTimeline('pointing');
+  try {
+    const bare = await lineAndRoom(win);
+    await markHere(win, 'zq');
+    await win.locator('.MuiSlider-thumb').hover();
+    // The control: the timestamp is open, so there is something to collide with.
+    await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
+    await expect
+      .poll(() => problems(win), { message: 'pointing at the dot on zq' })
+      .toEqual([]);
+    await shot(
+      app,
+      win,
+      test.info().outputPath('6-pointing-timestamp-off.png')
+    );
+    // The timeline moved up for the name, so the room under it stays.
+    const marked = await lineAndRoom(win);
+    expect(marked.room).toBeGreaterThanOrEqual(bare.room - 1);
   } finally {
     await app.close();
   }

@@ -58,6 +58,10 @@ const UPDATE_KEY = 'preventUpdate';
 
 export const MISMATCH_LOG =
   'spellcheck: the editor changed while its spelling was being checked';
+// Why, appended to MISMATCH_LOG as a reason code: fixed words only, never the poem (editor #238). Annelyse's log held MISMATCH_LOG 5
+// times, and nothing in it said which of the two had happened.
+export const BECAUSE_POEM_CHANGED = 'poem-changed';
+export const BECAUSE_FOCUS_MOVED = 'focus-moved';
 
 // What the poet does that has to wait for the check to finish.
 const INPUT_EVENTS: (keyof HTMLElementEventMap)[] = [
@@ -123,13 +127,15 @@ export function redrawFromState(view: EditorView): void {
 /**
  * Has Chromium check the spelling of `paragraphs` (the editor's own block elements), one after another, without
  * changing the poem. Returns a function that finishes it at once if it has not finished (the editor is going
- * away). `log` hears only the fixed MISMATCH_LOG. `onDone` is told once when the check ends, however it ends.
+ * away), and cancels the recheck a redraw schedules. `log` hears only the fixed MISMATCH_LOG, with a fixed reason.
+ * `onDone` is told once when the check ends, however it ends. With `recheck` false, a redraw schedules no recheck.
  */
 export function checkParagraphs(
   view: EditorView,
   paragraphs: Element[],
   log: Log,
-  onDone: Done = () => {}
+  onDone: Done = () => {},
+  recheck = true
 ): () => void {
   const { dom } = view;
   const doc = dom.ownerDocument;
@@ -137,9 +143,18 @@ export function checkParagraphs(
   const spots = paragraphs
     .map(afterLastWord)
     .filter((spot): spot is Spot => spot !== null);
-  // Not in the document, there is no edit Chromium could see; with no words, nothing to check; and a composition
-  // is the poet's, not to be interrupted.
-  if (!dom.isConnected || !spots.length || !selection || view.composing) {
+  // Not in the document, there is no edit Chromium could see; with no words, nothing to check; a composition is the
+  // poet's, not to be interrupted; and with the focus elsewhere (the find bar, a marker's name) the first space would
+  // go where the focus is, into the poet's field (Silas, review of #448), so no check starts then.
+  const focused = doc.activeElement;
+  const startable = focused === dom || focused === doc.body || focused === null;
+  if (
+    !dom.isConnected ||
+    !spots.length ||
+    !selection ||
+    view.composing ||
+    !startable
+  ) {
     onDone(false);
     return () => {};
   }
@@ -158,14 +173,19 @@ export function checkParagraphs(
   // What the latest insert left: the DOM, and the caret just after its space.
   let inserted = '';
   let afterSpace: Range | undefined;
+  // Why the DOM is not as it was, once it is not: for the log.
+  let because = BECAUSE_POEM_CHANGED;
+  // The whole-poem check that follows a redraw, until it is cancelled or ends.
+  let recheckTimer: ReturnType<typeof setTimeout> | undefined;
+  let finishRecheck = () => {};
 
   /** Delete the latest space if the DOM is as its insert left it; then whether the DOM is as it was before. */
   const takeSpaceOut = () => {
     const focus = doc.activeElement;
+    const focusHere = focus === dom || focus === doc.body || focus === null;
+    if (!focusHere) because = BECAUSE_FOCUS_MOVED;
     const untouched =
-      afterSpace !== undefined &&
-      dom.innerHTML === inserted &&
-      (focus === dom || focus === doc.body || focus === null);
+      afterSpace !== undefined && dom.innerHTML === inserted && focusHere;
     if (untouched && afterSpace) {
       selection.removeAllRanges();
       selection.addRange(afterSpace);
@@ -194,8 +214,18 @@ export function checkParagraphs(
     }
     observer.start();
     redrawFromState(view);
-    log(MISMATCH_LOG);
+    log(`${MISMATCH_LOG}: ${because}`);
     onDone(false);
+    // The redraw built every text node afresh, and Chromium marks a new node only after an edit, so every mark in the
+    // poem is gone (measured on #238). Have the whole poem checked again, once: only if the poem is as the redraw left
+    // it, and not after a check that was itself a recheck, so a mismatch that keeps happening cannot loop.
+    if (!recheck) return;
+    const poem = view.state.doc;
+    recheckTimer = setTimeout(() => {
+      if (view.state.doc === poem && dom.isConnected)
+        // eslint-disable-next-line no-use-before-define -- mutual recursion: checkWholePoem is checkParagraphs on every paragraph
+        finishRecheck = checkWholePoem(view, log, undefined, false);
+    }, FIRST_MS);
   };
 
   const step = (next: number) => {
@@ -231,21 +261,27 @@ export function checkParagraphs(
   dom.style.caretColor = 'transparent';
   INPUT_EVENTS.forEach((type) => dom.addEventListener(type, finish, true));
   step(0);
-  // The editor going away: the check ends before every paragraph is reached.
-  return () => finish(false);
+  // The editor going away: the check ends before every paragraph is reached, and no recheck follows.
+  return () => {
+    finish(false);
+    clearTimeout(recheckTimer);
+    finishRecheck();
+  };
 }
 
 /** checkParagraphs on every paragraph of the poem, those on screen first. */
 export default function checkWholePoem(
   view: EditorView,
   log: Log,
-  onDone?: Done
+  onDone?: Done,
+  recheck = true
 ): () => void {
   return checkParagraphs(
     view,
     onScreenFirst(view.dom, Array.from(view.dom.children)),
     log,
-    onDone
+    onDone,
+    recheck
   );
 }
 

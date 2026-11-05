@@ -11,10 +11,11 @@ import type { ChangeObj } from '@midst-press/midst-format/history';
 export interface MainToWindow {
   'open-file': [poem: string, history: ChangeObj[], filename: string];
   'set-filename': [filename: string];
-  'set-font-size': [size: string];
+  'step-font-size': [direction: 'up' | 'down'];
   'set-locale': [locale: string];
   'set-focus-mode': [on: boolean];
   'set-not-saved': [shown: boolean];
+  'set-untitled-edited': [shown: boolean];
   'flush-editor': [id: number];
   'toggle-edit-mode': [];
   'toggle-spellcheck': [];

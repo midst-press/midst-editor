@@ -2,10 +2,11 @@
 # Install regression test for a macOS package of Midst (issue 66). Run it on every candidate
 # before release; docs/releasing.md says where it sits.
 #
-#     tools/check_installed_package.sh <Midst-x.y.z-arm64.pkg> [expected version]
+#     tools/check_installed_package.sh [--previous <previous release's pkg>] <Midst-x.y.z-arm64.pkg> [expected version]
 #
 # The package is the artifact of a GitHub `package` run. The expected version defaults to the one
-# in release/app/package.json of this checkout. No administrator rights are needed: it installs
+# in release/app/package.json of this checkout. It first prints what it is testing: the package's
+# SHA-256, this script's commit, the macOS version and the time; the PASSED/FAILED line repeats the SHA-256. No administrator rights are needed: it installs
 # for all users, into /Applications, the only place the package installs (issue 16), so it needs
 # passwordless sudo: run it in a throwaway VM or account. What it cannot do (a click through the
 # installer's windows) is a manual step in docs/releasing.md.
@@ -18,6 +19,11 @@
 #      a fixed one really does not. Done with an empty app under an invalid.example identifier.
 #      Without it, step 3's "the old copy was left alone" could pass only because the installer
 #      never saw the old copy.
+#   3a install on a Mac with no Midst: it is in /Applications at the expected version and opens a
+#      poem; it is then removed, so step 3 starts as before.
+#   3p only with --previous: the previous release is installed, then this package over it, unticked
+#      (the previous one is kept as "Midst <its version>"), then again, ticked (it is deleted). The app
+#      opens a poem after each. Everything is then removed, so step 3 starts as before.
 #   3  install for all users, with an older Midst placed elsewhere first and a stand-in "Midst
 #      Beta" in /Applications: the new one is in /Applications at the expected version, the copy
 #      elsewhere was not updated in its place, and the stand-in was kept as "Midst Beta 0.0.3".
@@ -45,7 +51,14 @@ LSREGISTER=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchSe
 
 here=$(cd "$(dirname "$0")" && pwd)
 cannot() { echo "CANNOT RUN: $*" >&2; exit 2; }
-[ $# -ge 1 ] && [ $# -le 2 ] || cannot "usage: $0 <Midst.pkg> [expected version]"
+usage="usage: $0 [--previous <previous release's pkg>] <Midst.pkg> [expected version]"
+previous=
+if [ "${1:-}" = --previous ]; then
+  [ $# -ge 2 ] || cannot "$usage"
+  previous=$2
+  shift 2
+fi
+[ $# -ge 1 ] && [ $# -le 2 ] || cannot "$usage"
 pkg=$1
 [ "$(uname -s)" = Darwin ] || cannot "this test runs on macOS"
 for tool in pkgutil pkgbuild productbuild installer spctl plutil open pgrep python3; do
@@ -53,9 +66,22 @@ for tool in pkgutil pkgbuild productbuild installer spctl plutil open pgrep pyth
 done
 [ -x "$LSREGISTER" ] || cannot "lsregister not found at $LSREGISTER"
 [ -f "$pkg" ] || cannot "no such file: $pkg"
+[ -z "$previous" ] || [ -f "$previous" ] || cannot "no such file: $previous"
 [ -n "${HOME:-}" ] && [ -d "$HOME" ] || cannot "HOME is not a directory"
 want=${2:-$(plutil -extract version raw -o - "$here/../release/app/package.json" 2> /dev/null)}
 [[ "$want" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || cannot "expected version \"$want\" is not MAJOR.MINOR.PATCH"
+
+# What this run tested, so that its output is a record of it (#414).
+pkg_sha=$(shasum -a 256 "$pkg" | cut -d' ' -f1)
+[[ "$pkg_sha" =~ ^[0-9a-f]{64}$ ]] || cannot "could not compute the SHA-256 of $pkg"
+script_commit=$(git -C "$here" rev-parse HEAD 2> /dev/null) || script_commit="unknown (not a git checkout)"
+if [ "${script_commit#unknown}" = "$script_commit" ] && ! git -C "$here" diff --quiet HEAD -- . 2> /dev/null; then
+  script_commit="$script_commit, with local changes in tools/"
+fi
+echo "package   $(basename "$pkg") sha256 $pkg_sha"
+echo "script    commit $script_commit"
+echo "macOS     $(sw_vers -productVersion 2> /dev/null || echo unknown) ($(sw_vers -buildVersion 2> /dev/null || echo unknown))"
+echo "date      $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 user_apps="$HOME/Applications"
 installed="/Applications/$APP_NAME"
@@ -66,6 +92,9 @@ kept_beta4="/Applications/Midst Beta 0.0.4.app"
 kept_low="/Applications/Midst 0.1.0.app"
 kept_high="/Applications/Midst 99.0.0.app"
 kept_want="/Applications/Midst $want.app"
+kept_prev= # "Midst <previous version>.app", set in step 1 when --previous is given
+prev_version=
+previous_result= # PASSED or FAILED once step 3p has run
 REMOVE_ID=$BUNDLE_ID.remove-previous
 sudo -n true 2> /dev/null || cannot "it installs for all users, so it needs passwordless sudo (an admin account in a throwaway VM)"
 # Any Midst at all, kept or not, under any name this test could make or meet.
@@ -113,8 +142,8 @@ cleanup() {
   local left=0 path
   if [ -n "$app_pid" ] && kill -0 "$app_pid" 2> /dev/null; then kill -KILL "$app_pid" 2> /dev/null; fi
   if [ "$installed_by_test" = yes ]; then
-    for path in "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want"; do "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
-    sudo -n rm -rf "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want"
+    for path in "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want" ${kept_prev:+"$kept_prev"}; do "$LSREGISTER" -u "$path" > /dev/null 2>&1; done
+    sudo -n rm -rf "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want" ${kept_prev:+"$kept_prev"}
     [ "$had_receipt" = yes ] || sudo -n pkgutil --forget "$BUNDLE_ID" > /dev/null 2>&1
     [ "$had_remove_receipt" = yes ] || sudo -n pkgutil --forget "$REMOVE_ID" > /dev/null 2>&1
   fi
@@ -133,7 +162,7 @@ cleanup() {
     case "$path" in "$HOME"/Library/*) rm -rf "$path" ;; esac
   done
   [ "$had_user_apps" = yes ] || rmdir "$user_apps" 2> /dev/null
-  for path in "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want" "$user_apps/MidstInstallControl.app" "$elsewhere"; do
+  for path in "$installed" "$beta" "$kept_beta3" "$kept_beta4" "$kept_low" "$kept_high" "$kept_want" ${kept_prev:+"$kept_prev"} "$user_apps/MidstInstallControl.app" "$elsewhere"; do
     [ -e "$path" ] && { echo "FAIL  5 clean-up: $path is still there"; left=1; }
   done
   [ "$left" = 0 ] && echo "ok    5 clean-up: everything the test installed is removed"
@@ -142,8 +171,14 @@ cleanup() {
 finish() {
   cleanup || failures=$((failures + 1))
   trap - EXIT
-  if [ "$failures" = 0 ]; then echo "PASSED: $(basename "$pkg") installs and runs as version $want"; exit 0; fi
-  echo "FAILED: $failures step(s) failed for $(basename "$pkg")"
+  # Fixed formats: the release check reads these two lines (#414).
+  case "$previous_result" in
+    PASSED | FAILED) echo "check_installed_package: previous release $prev_version: $previous_result" ;;
+    *) echo "check_installed_package: previous release: not run" ;;
+  esac
+  if [ "$failures" = 0 ]; then echo "check_installed_package: PASSED $(basename "$pkg") sha256 $pkg_sha"; exit 0; fi
+  echo "$failures step(s) failed"
+  echo "check_installed_package: FAILED $(basename "$pkg") sha256 $pkg_sha"
   exit 1
 }
 trap 'cleanup > /dev/null 2>&1' EXIT
@@ -190,6 +225,15 @@ inside_version=$(printf '%s' "$bundle_line" | sed -n 's/.*CFBundleShortVersionSt
 inside_id=$(printf '%s' "$bundle_line" | sed -n 's/.* id="\([^"]*\)".*/\1/p')
 if [ "$inside_version" = "$want" ]; then pass "1 holds version $want"; else fail "1 holds version \"$inside_version\", expected $want"; fi
 if [ "$inside_id" = "$BUNDLE_ID" ]; then pass "1 bundle identifier $BUNDLE_ID"; else fail "1 bundle identifier is \"$inside_id\", expected $BUNDLE_ID"; fi
+if [ -n "$previous" ]; then
+  pkgutil --expand "$previous" "$work/previous-expanded" > /dev/null 2>&1 || give_up "could not expand the previous release $previous"
+  prev_version=$(grep -h '<bundle path=' "$work"/previous-expanded/*/PackageInfo 2> /dev/null \
+    | sed -n 's/.*CFBundleShortVersionString="\([^"]*\)".*/\1/p')
+  [[ "$prev_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || give_up "the previous release's version \"$prev_version\" is not MAJOR.MINOR.PATCH"
+  [ "$prev_version" != "$want" ] || give_up "the previous release is version $want, the same as this package"
+  kept_prev="/Applications/Midst $prev_version.app"
+  echo "previous  $(basename "$previous") sha256 $(shasum -a 256 "$previous" | cut -d' ' -f1), version $prev_version"
+fi
 if [ "$failures" != 0 ]; then
   skip "2 to 4: the package failed its own checks, so it was not installed"
   finish
@@ -254,6 +298,50 @@ else
   give_up "CONTROL FAILED. Relocatable gave \"$relocated\" (expected \"0.0.2 absent\") and fixed gave \"$fixed\" (expected \"0.0.1 0.0.2\"), as <copy elsewhere> <~/Applications>. On this Mac the installer did not behave as the relocation test assumes, so step 3 would prove nothing."
 fi
 
+# launch_and_open <step>: launch the installed app on a synthetic poem with its own user data,
+# check that it opened the poem, and quit it, reporting under <step>. (Body not indented: it holds
+# python heredocs.)
+launch_and_open() {
+poem="$work/install-test-poem-$1.midst"
+userdata="$work/userdata-$1"
+python3 - "$poem" << 'PY'
+import json, sys
+body = "zq xv"
+history = [{"inserted": ("<p>%s</p>" % c) if i == 0 else c, "front": i + 4, "end": i + 4,
+            "t": "2026-01-01T00:00:%02d.000Z" % i, "pos": i + 2} for i, c in enumerate(body)]
+open(sys.argv[1], "w").write("midstVersion: 1\n" + json.dumps({"text": "<p>%s</p>" % body, "history": history}))
+PY
+open -n -a "$installed" "$poem" --args "--user-data-dir=$userdata" > "$work/open.txt" 2>&1 \
+  || fail "$1 open could not start the app: $(tr '\n' ' ' < "$work/open.txt")"
+opened=no
+app_pid=
+for _ in $(seq 1 60); do
+  [ -n "$app_pid" ] || app_pid=$(pgrep -f -- "$installed/Contents/MacOS/Midst --user-data-dir=$userdata" | head -1)
+  if [ -f "$userdata/config.json" ] && python3 - "$userdata/config.json" "$poem" << 'PY'
+import json, os, sys
+try:
+    name = json.load(open(sys.argv[1])).get("filename")
+except ValueError:
+    sys.exit(1)
+sys.exit(0 if name and os.path.realpath(name) == os.path.realpath(sys.argv[2]) else 1)
+PY
+  then opened=yes; break; fi
+  sleep 1
+done
+if [ -n "$app_pid" ]; then pass "$1 the app launched (process $app_pid)"; else fail "$1 the app did not launch: no Midst process appeared"; fi
+if [ "$opened" = yes ]; then pass "$1 it opened the synthetic poem"; else fail "$1 it did not open the synthetic poem within 60 seconds"; fi
+if [ -n "$app_pid" ]; then
+  kill -TERM "$app_pid" 2> /dev/null
+  gone=no
+  for _ in $(seq 1 20); do kill -0 "$app_pid" 2> /dev/null || { gone=yes; break; }; sleep 1; done
+  if [ "$gone" = yes ]; then pass "$1 it quit when asked"; else
+    fail "$1 it was still running 20 seconds after being asked to quit"
+    kill -KILL "$app_pid" 2> /dev/null
+  fi
+  app_pid=
+fi
+}
+
 # --- 3. install for all users, with an older Midst elsewhere and a stand-in in /Applications --
 decoy="$elsewhere/older"
 stub "$decoy" "$APP_NAME" "$BUNDLE_ID" 0.0.1
@@ -263,7 +351,85 @@ stand_in() {
   stub "$work/beta-$1" "Midst Beta.app" invalid.example.midst-beta "$1" \
     && sudo -n ditto "$work/beta-$1/Midst Beta.app" "$beta"
 }
+# The opt-in delete, through the real package: tick the choice, as a poet would in Customize.
+cat > "$work/delete-choice.plist" << PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><array><dict>
+<key>attributeSetting</key><integer>1</integer>
+<key>choiceAttribute</key><string>selected</string>
+<key>choiceIdentifier</key><string>$REMOVE_ID</string>
+</dict></array></plist>
+PLIST
 installed_by_test=yes
+# 3a, the plain path: a Mac with no Midst at all (Cyril, 4 Nov: the main road first). The app must be
+# in Applications at the expected version and open a poem. Then it is removed again, so step 3 starts
+# from no Midst in Applications, as it always has.
+# A clean install only if there really is no Midst: anything named Midst*.app makes it an upgrade.
+for existing in /Applications/Midst*.app; do
+  if [ -e "$existing" ] || [ -L "$existing" ]; then give_up "3a needs a Mac with no Midst, but $existing is in /Applications"; fi
+done
+# The log is ours to write, not root's.
+# shellcheck disable=SC2024
+if sudo -n installer -pkg "$pkg" -target / > "$work/install-clean.txt" 2>&1; then
+  pass "3a installer on a Mac with no Midst reported success"
+else
+  fail "3a installer on a Mac with no Midst failed: $(tr '\n' ' ' < "$work/install-clean.txt")"
+fi
+if [ "$(version_of "$installed")" = "$want" ]; then
+  pass "3a Midst $want is in /Applications"
+  launch_and_open 3a
+else
+  fail "3a /Applications holds Midst \"$(version_of "$installed")\" after a clean install, expected $want"
+fi
+"$LSREGISTER" -u "$installed" > /dev/null 2>&1
+sudo -n rm -rf "$installed" || give_up "could not remove the clean install before step 3"
+
+# 3p, over the real previous release (#414): install it, then this package, unticked and then ticked.
+# install_over_previous <label> [choices plist]: install the previous release, then this package over it.
+install_over_previous() {
+  # The logs are ours to write, not root's.
+  # shellcheck disable=SC2024
+  sudo -n installer -pkg "$previous" -target / > "$work/previous-$1.txt" 2>&1 \
+    || give_up "3p could not install the previous release: $(tr '\n' ' ' < "$work/previous-$1.txt")"
+  [ "$(version_of "$installed")" = "$prev_version" ] \
+    || give_up "3p the previous release left Midst \"$(version_of "$installed")\" in /Applications, expected $prev_version"
+  # shellcheck disable=SC2024
+  if sudo -n installer -pkg "$pkg" -target / ${2:+-applyChoiceChangesXML "$2"} > "$work/over-previous-$1.txt" 2>&1; then
+    pass "3p $1: installer over the previous release $prev_version reported success"
+  else
+    fail "3p $1: installer over the previous release $prev_version failed: $(tr '\n' ' ' < "$work/over-previous-$1.txt")"
+  fi
+}
+# remove_both: take this package's Midst and the kept previous one out of /Applications again.
+remove_both() {
+  "$LSREGISTER" -u "$installed" > /dev/null 2>&1
+  "$LSREGISTER" -u "$kept_prev" > /dev/null 2>&1
+  sudo -n rm -rf "$installed" "$kept_prev" || give_up "3p could not remove the apps it installed"
+}
+if [ -z "$previous" ]; then
+  skip "3p over the previous release: no --previous package was given"
+else
+  failures_before_3p=$failures
+  install_over_previous unticked
+  if [ "$(version_of "$installed")" = "$want" ] && [ "$(version_of "$kept_prev")" = "$prev_version" ]; then
+    pass "3p unticked: Midst $want is in /Applications and $prev_version was kept as \"Midst $prev_version\""
+    launch_and_open 3p-unticked
+  else
+    fail "3p unticked: Midst $(version_of "$installed"), Midst $prev_version kept $(version_of "$kept_prev") (expected $want and $prev_version)"
+  fi
+  remove_both
+  install_over_previous ticked "$work/delete-choice.plist"
+  if [ "$(version_of "$installed")" = "$want" ] && [ ! -e "$kept_prev" ]; then
+    pass "3p ticked: Midst $want is in /Applications and the previous release $prev_version is deleted"
+    launch_and_open 3p-ticked
+  else
+    fail "3p ticked: Midst $(version_of "$installed"), Midst $prev_version kept $(version_of "$kept_prev") (expected $want and absent)"
+  fi
+  remove_both
+  if [ "$failures" = "$failures_before_3p" ]; then previous_result=PASSED; else previous_result=FAILED; fi
+fi
+
 stand_in 0.0.3 || give_up "could not put a stand-in Midst Beta in /Applications"
 # The log is ours to write, not root's.
 # shellcheck disable=SC2024
@@ -287,16 +453,6 @@ if [ "$old" = 0.0.1 ]; then pass "3 the older copy elsewhere was left alone"; el
 "$LSREGISTER" -u "$decoy/$APP_NAME" > /dev/null 2>&1
 rm -rf "$decoy"
 
-# The opt-in delete, through the real package: tick the choice, as a poet would in Customize.
-cat > "$work/delete-choice.plist" << PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><array><dict>
-<key>attributeSetting</key><integer>1</integer>
-<key>choiceAttribute</key><string>selected</string>
-<key>choiceIdentifier</key><string>$REMOVE_ID</string>
-</dict></array></plist>
-PLIST
 stand_in 0.0.4 || give_up "could not put a second stand-in Midst Beta in /Applications"
 # The log is ours to write, not root's.
 # shellcheck disable=SC2024
@@ -354,37 +510,5 @@ if [ "$got" != "$want" ]; then
   skip "4 launch: the app is not installed where expected"
   finish
 fi
-poem="$work/install-test-poem.midst"
-userdata="$work/userdata"
-python3 - "$poem" << 'PY'
-import json, sys
-body = "zq xv"
-history = [{"inserted": ("<p>%s</p>" % c) if i == 0 else c, "front": i + 4, "end": i + 4,
-            "t": "2026-01-01T00:00:%02d.000Z" % i, "pos": i + 2} for i, c in enumerate(body)]
-open(sys.argv[1], "w").write("midstVersion: 1\n" + json.dumps({"text": "<p>%s</p>" % body, "history": history}))
-PY
-open -n -a "$installed" "$poem" --args "--user-data-dir=$userdata" > "$work/open.txt" 2>&1 \
-  || fail "4 open could not start the app: $(tr '\n' ' ' < "$work/open.txt")"
-opened=no
-for _ in $(seq 1 60); do
-  [ -n "$app_pid" ] || app_pid=$(pgrep -f -- "$installed/Contents/MacOS/Midst --user-data-dir=$userdata" | head -1)
-  if [ -f "$userdata/config.json" ] && python3 - "$userdata/config.json" "$poem" << 'PY'
-import json, os, sys
-try:
-    name = json.load(open(sys.argv[1])).get("filename")
-except ValueError:
-    sys.exit(1)
-sys.exit(0 if name and os.path.realpath(name) == os.path.realpath(sys.argv[2]) else 1)
-PY
-  then opened=yes; break; fi
-  sleep 1
-done
-if [ -n "$app_pid" ]; then pass "4 the app launched (process $app_pid)"; else fail "4 the app did not launch: no Midst process appeared"; fi
-if [ "$opened" = yes ]; then pass "4 it opened the synthetic poem"; else fail "4 it did not open the synthetic poem within 60 seconds"; fi
-if [ -n "$app_pid" ]; then
-  kill -TERM "$app_pid" 2> /dev/null
-  gone=no
-  for _ in $(seq 1 20); do kill -0 "$app_pid" 2> /dev/null || { gone=yes; break; }; sleep 1; done
-  if [ "$gone" = yes ]; then pass "4 it quit when asked"; app_pid=; else fail "4 it was still running 20 seconds after being asked to quit"; fi
-fi
+launch_and_open 4
 finish
