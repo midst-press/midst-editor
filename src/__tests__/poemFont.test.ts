@@ -1,7 +1,8 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import path from 'path';
 import {
   APP_FONT_STACK,
+  BUNDLED_FONTS,
   cssFontName,
   fontFamilyOf,
   poemFontStack,
@@ -100,4 +101,62 @@ describe('the CSS fallback', () => {
       expect(fallbackOf(file)).toEqual(expected);
     }
   );
+});
+
+// The fonts that come with the app (editor #445; Annelyse, GitHub #73): Jost is the app's own font, and every font
+// the app offers as its own has a face in fonts.css, in both styles, from a file that is there.
+describe('the fonts that come with the app', () => {
+  const fontsDir = path.join(__dirname, '..', 'renderer', 'fonts');
+  const css = readFileSync(path.join(fontsDir, 'fonts.css'), 'utf8');
+  const faces = Array.from(css.matchAll(/@font-face\s*{([^}]*)}/g)).map(
+    ([, body]) => ({
+      family: (body.match(/font-family:\s*([^;]+);/)?.[1] ?? '')
+        .trim()
+        .replace(/^'(.*)'$/, '$1'),
+      style: body.match(/font-style:\s*([^;]+);/)?.[1].trim(),
+      urls: Array.from(body.matchAll(/url\('([^']+)'\)/g)).map(([, u]) => u),
+      local: /local\(/.test(body),
+    })
+  );
+
+  it("the app's own font is Jost first, then the system's", () => {
+    expect(APP_FONT_STACK.split(',')[0].trim()).toBe('Jost');
+    expect(APP_FONT_STACK).toContain('system-ui');
+  });
+
+  it.each(['Jost', ...BUNDLED_FONTS])(
+    '%s has a normal and an italic face, each from a bundled file that exists',
+    (family) => {
+      const mine = faces.filter((face) => face.family === family);
+      expect(mine.map((face) => face.style).sort()).toEqual([
+        'italic',
+        'normal',
+      ]);
+      mine.forEach((face) => {
+        expect(face.local).toBe(false);
+        expect(face.urls).toHaveLength(1);
+        expect(existsSync(path.join(fontsDir, face.urls[0]))).toBe(true);
+      });
+    }
+  );
+
+  it('the package carries the licences: the fonts go into the renderer bundle, their OFL.txt into Resources', () => {
+    const { build } = JSON.parse(
+      readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')
+    ) as { build: { extraResources: unknown[] } };
+    expect(build.extraResources).toContainEqual({
+      from: 'src/renderer/fonts',
+      to: 'fonts',
+      filter: ['**/OFL.txt', 'README.md'],
+    });
+  });
+
+  it('each bundled family keeps its licence beside it', () => {
+    faces.forEach((face) => {
+      const dir = path.dirname(path.join(fontsDir, face.urls[0]));
+      expect(readFileSync(path.join(dir, 'OFL.txt'), 'utf8')).toContain(
+        'SIL OPEN FONT LICENSE'
+      );
+    });
+  });
 });

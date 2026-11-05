@@ -512,6 +512,14 @@
       {
         "from": "assets/Assets.car",
         "to": "Assets.car"
+      },
+      {
+        "from": "src/renderer/fonts",
+        "to": "fonts",
+        "filter": [
+          "**/OFL.txt",
+          "README.md"
+        ]
       }
     ],
     "publish": {

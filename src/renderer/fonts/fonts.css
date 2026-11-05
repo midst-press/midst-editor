@@ -1,0 +1,37 @@
+/* The two fonts that come with the app (#445; Annelyse, GitHub #73), so a poem looks the same on every
+   computer whether or not they are installed. Jost is the app's own font (APP_FONT_STACK in
+   poemFont/poemFont.ts), as on the website; Libre Caslon Text is the serif offered under it in View > Font.
+   Both are variable in weight, with a separate italic, and both are under the SIL Open Font License
+   (OFL.txt beside each). From google/fonts at bbda7253fc363238b05d97515ca71f8ae49c4fa9 (README.md).
+
+   The sources are the bundled files only, never local(): an installed copy of a different version would
+   make the same poem wrap differently on different computers. */
+@font-face {
+  font-family: Jost;
+  font-style: normal;
+  font-weight: 100 900;
+  src: url('./jost/Jost-Variable.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: Jost;
+  font-style: italic;
+  font-weight: 100 900;
+  src: url('./jost/Jost-Italic-Variable.ttf') format('truetype');
+}
+
+@font-face {
+  font-family: 'Libre Caslon Text';
+  font-style: normal;
+  font-weight: 400 700;
+  src: url('./libre-caslon-text/LibreCaslonText-Variable.ttf')
+    format('truetype');
+}
+
+@font-face {
+  font-family: 'Libre Caslon Text';
+  font-style: italic;
+  font-weight: 400 700;
+  src: url('./libre-caslon-text/LibreCaslonText-Italic-Variable.ttf')
+    format('truetype');
+}

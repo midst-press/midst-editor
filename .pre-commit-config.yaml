@@ -16,9 +16,9 @@ repos:
     rev: v6.0.0
     hooks:
       - id: trailing-whitespace
-        exclude: ^content/|^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/|^src/renderer/fonts/.*/OFL\.txt$
       - id: end-of-file-fixer
-        exclude: ^content/|^vendor/midst-format/
+        exclude: ^content/|^vendor/midst-format/|^src/renderer/fonts/.*/OFL\.txt$
       - id: check-merge-conflict
       - id: check-case-conflict # macOS/Linux collisions; this repo has accented filenames
       - id: check-json

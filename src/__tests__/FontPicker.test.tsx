@@ -113,6 +113,7 @@ it('is closed until View > Font… asks, then lists the installed fonts, each in
   await waitFor(() =>
     expect(optionNames()).toEqual([
       i18n._('fontPicker.appFont'),
+      'Libre Caslon Text',
       'Zqalpha',
       'Zqbeta',
       'Zqgamma',
@@ -132,7 +133,7 @@ it('filters as the poet types, and says when nothing matches', async () => {
   const bridge = installBridge(FONTS);
   render(<Harness store={makeStore({}).store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.change(field(), { target: { value: 'GAM' } });
   expect(optionNames()).toEqual(['Zqgamma']);
   fireEvent.change(field(), { target: { value: 'nothing like it' } });
@@ -150,7 +151,8 @@ it('chooses with the arrow keys and Enter: writes meta, keeps the rest, marks it
   });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
+  fireEvent.keyDown(field(), { key: 'ArrowDown' });
   fireEvent.keyDown(field(), { key: 'ArrowDown' });
   fireEvent.keyDown(field(), { key: 'ArrowDown' });
   fireEvent.keyDown(field(), { key: 'ArrowUp' });
@@ -182,7 +184,7 @@ it("chooses with a click, and the app's own font takes the poem's font away", as
     `"Zqalpha", ${APP_FONT_STACK}`
   );
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   expect(option('Zqalpha')).toHaveAttribute('data-current', 'true');
   fireEvent.mouseEnter(option(i18n._('fontPicker.appFont')));
   fireEvent.click(option(i18n._('fontPicker.appFont')));
@@ -201,7 +203,7 @@ it('choosing the font the poem already has changes nothing', async () => {
   });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.click(option('Zqalpha'));
   expect(values.edited).toBe(false);
   expect(bridge.sent).toEqual([]);
@@ -214,7 +216,7 @@ it('stays open through several choices, each saved, until Escape; the last one c
   const { store, values } = makeStore({ meta: '' });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.click(option('Zqalpha'));
   expect(screen.getByRole('dialog')).toBeInTheDocument();
   fireEvent.click(option('Zqgamma'));
@@ -231,7 +233,7 @@ it('a click on a font leaves the focus in the search field, so Escape still clos
   const bridge = installBridge(FONTS);
   render(<Harness store={makeStore({ meta: '' }).store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   const row = option('Zqbeta');
   // fireEvent.mouseDown returns false when the default (moving the focus) was prevented.
   expect(fireEvent.mouseDown(row)).toBe(false);
@@ -244,11 +246,11 @@ it('Escape closes it without a change; the close button does too', async () => {
   const { store, values } = makeStore({ meta: '' });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.keyDown(field(), { key: 'Escape' });
   expect(screen.queryByRole('dialog')).toBeNull();
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.click(
     screen.getByRole('button', { name: i18n._('fontPicker.close') })
   );
@@ -271,6 +273,7 @@ it('a font this computer lacks is shown as not installed, and keeps its place', 
   await waitFor(() =>
     expect(optionNames()).toEqual([
       i18n._('fontPicker.appFont'),
+      'Libre Caslon Text',
       label,
       'Zqalpha',
       'Zqbeta',
@@ -292,19 +295,88 @@ it.each([
     expect(await screen.findByRole('alert')).toHaveTextContent(
       i18n._('fontPicker.unavailable')
     );
-    expect(optionNames()).toEqual([i18n._('fontPicker.appFont')]);
+    // The fonts that come with the app are still offered (editor #445).
+    expect(optionNames()).toEqual([
+      i18n._('fontPicker.appFont'),
+      'Libre Caslon Text',
+    ]);
     expect(bridge.errors).toEqual([
       { message: LIST_FAILED_LOG, meta: { error: 'Error' } },
     ]);
   }
 );
 
+// The fonts that come with the app (editor #445; Annelyse, GitHub #73): Libre Caslon Text straight after the
+// app's own font, installed or not.
+describe('the fonts that come with the app', () => {
+  it("lists Libre Caslon Text once, after the app's own font, when it is installed too", async () => {
+    const bridge = installBridge([...FONTS, { family: 'Libre Caslon Text' }]);
+    render(<Harness store={makeStore({}).store} />);
+    bridge.emit('choose-font');
+    await waitFor(() => expect(optionNames()).toHaveLength(5));
+    expect(optionNames()).toEqual([
+      i18n._('fontPicker.appFont'),
+      'Libre Caslon Text',
+      'Zqalpha',
+      'Zqbeta',
+      'Zqgamma',
+    ]);
+    expect(option('Libre Caslon Text')).toHaveStyle({
+      fontFamily: `"Libre Caslon Text", ${APP_FONT_STACK}`,
+    });
+  });
+
+  it('choosing it writes its name into the poem', async () => {
+    const bridge = installBridge(FONTS);
+    const { store, values } = makeStore({ meta: '' });
+    render(<Harness store={store} />);
+    bridge.emit('choose-font');
+    await waitFor(() => expect(optionNames()).toHaveLength(5));
+    fireEvent.keyDown(field(), { key: 'ArrowDown' });
+    fireEvent.keyDown(field(), { key: 'Enter' });
+    expect(JSON.parse(String(values.meta))).toEqual({
+      fontFamily: 'Libre Caslon Text',
+    });
+    expect(bridge.sent).toEqual(['save-file']);
+  });
+
+  it('a poem in it is not shown as missing on a computer without it installed', async () => {
+    const bridge = installBridge(FONTS);
+    render(
+      <Harness
+        store={
+          makeStore({
+            meta: JSON.stringify({ fontFamily: 'Libre Caslon Text' }),
+          }).store
+        }
+      />
+    );
+    bridge.emit('choose-font');
+    await waitFor(() => expect(optionNames()).toHaveLength(5));
+    expect(optionNames()).not.toContain(
+      i18n._('fontPicker.notInstalled', { family: 'Libre Caslon Text' })
+    );
+    expect(option('Libre Caslon Text')).toHaveAttribute('data-current', 'true');
+  });
+
+  it('the search finds it, and leaves it out when it does not match', async () => {
+    const bridge = installBridge(FONTS);
+    render(<Harness store={makeStore({}).store} />);
+    bridge.emit('choose-font');
+    await waitFor(() => expect(optionNames()).toHaveLength(5));
+    fireEvent.change(field(), { target: { value: 'caslon' } });
+    expect(optionNames()).toEqual(['Libre Caslon Text']);
+    fireEvent.change(field(), { target: { value: 'zqa' } });
+    expect(optionNames()).toEqual(['Zqalpha']);
+  });
+});
+
 it("keeps the font and says so when the poem's settings cannot be read", async () => {
   const bridge = installBridge(FONTS);
   const { store, values } = makeStore({ meta: 'not json' });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.click(option('Zqgamma'));
   expect(screen.getByRole('alert')).toHaveTextContent(
     i18n._('fontPicker.metaUnreadable')
@@ -320,7 +392,7 @@ it('a later choice that saves takes the problem message away', async () => {
   const { store, values } = makeStore({ meta: 'not json' });
   render(<Harness store={store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.click(option('Zqgamma'));
   expect(screen.getByRole('alert')).toHaveTextContent(
     i18n._('fontPicker.metaUnreadable')
@@ -354,7 +426,7 @@ it('arrow keys do nothing when no font matches', async () => {
   const bridge = installBridge(FONTS);
   render(<Harness store={makeStore({}).store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.change(field(), { target: { value: 'nothing like it' } });
   fireEvent.keyDown(field(), { key: 'ArrowDown' });
   fireEvent.keyDown(field(), { key: 'Enter' });
@@ -392,7 +464,7 @@ it('closing gives the poem back the keyboard', async () => {
   document.body.appendChild(poem);
   render(<Harness store={makeStore({}).store} />);
   bridge.emit('choose-font');
-  await waitFor(() => expect(optionNames()).toHaveLength(4));
+  await waitFor(() => expect(optionNames()).toHaveLength(5));
   fireEvent.keyDown(field(), { key: 'Escape' });
   expect(poem).toHaveFocus();
   poem.remove();

@@ -6,6 +6,7 @@
      APP_FONT_STACK in poemFont.ts. */
   font-family: var(
     --poem-font,
+    Jost,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
