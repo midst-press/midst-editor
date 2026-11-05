@@ -956,6 +956,17 @@ describe('newFile', () => {
     });
   });
 
+  // GitHub #48: and in the last font the poet chose.
+  it('starts the new poem in the last font chosen', async () => {
+    seedDocument({ edited: false });
+    mockStore.set('font-family', 'Zqalpha');
+    await newFile(asWindow(makeWindow()), false);
+    expect(JSON.parse(mockStore.get('meta') as string)).toEqual({
+      fontSize: 14,
+      fontFamily: 'Zqalpha',
+    });
+  });
+
   it('when the poet proceeds, clears the document and tells the renderer', async () => {
     seedDocument({
       edited: true,
@@ -2057,11 +2068,11 @@ describe('the menu', () => {
       );
       sub(template, helpTop, 'Documentation').click!();
       expect(shell.openExternal).toHaveBeenLastCalledWith(
-        'https://github.com/midst-press/midst-editor/blob/main/docs/user-guide.md'
+        'https://midst.press/app'
       );
     });
 
-    it('Documentation in an installed app opens the guide at that version’s release tag (#102)', () => {
+    it('Documentation in an installed app opens the guide on midst.press (#102, #111)', () => {
       const packaged = app as unknown as {
         isPackaged?: boolean;
         getVersion?: () => string;
@@ -2071,7 +2082,7 @@ describe('the menu', () => {
       try {
         sub(build(platform), helpTop, 'Documentation').click!();
         expect(shell.openExternal).toHaveBeenLastCalledWith(
-          'https://github.com/midst-press/midst-editor/blob/v0.5.0/docs/user-guide.md'
+          'https://midst.press/app'
         );
       } finally {
         delete packaged.isPackaged;

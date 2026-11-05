@@ -7,8 +7,9 @@ import {
 } from 'react';
 import { gliding, Glide } from '@midst-press/midst-format/follow';
 
-// One frame of the history every FRAME_MS while playing, held while a glide is under way.
-const FRAME_MS = 60;
+// One frame of the history every FRAME_MS while playing, held while a glide is under way. The frame-rate
+// slider (GitHub #49, editor #427) sets another pace; this is the one it starts at.
+export const FRAME_MS = 60;
 // Play from the last frame starts again from the first; the slider needs this long to move back.
 const REWIND_MS = 250;
 
@@ -18,7 +19,8 @@ const REWIND_MS = 250;
 // the screen during it still started playback (#110).
 export default function usePlayback(
   maxStep: number,
-  glide: MutableRefObject<Glide | null>
+  glide: MutableRefObject<Glide | null>,
+  frameMs: number = FRAME_MS
 ) {
   const [step, setStepState] = useState(maxStep);
   // The step as last set, for the interval and play to read without a state updater.
@@ -31,6 +33,8 @@ export default function usePlayback(
     undefined
   );
   const rewind = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // The pace as last set, for advance to read; a change while playing takes effect below.
+  const pace = useRef(frameMs);
 
   const clearTimers = () => {
     clearTimeout(rewind.current);
@@ -71,7 +75,7 @@ export default function usePlayback(
       // marked there, so the last frame was unmarkable once playback had ended.
       if (!gliding(glide.current))
         setStep(Math.min(current.current + 1, last.current));
-    }, FRAME_MS);
+    }, pace.current);
   };
 
   const play = () => {
@@ -90,6 +94,15 @@ export default function usePlayback(
       advance();
     }
   };
+
+  // A new pace while playing restarts the frame interval at it, from the frame shown.
+  useEffect(() => {
+    pace.current = frameMs;
+    if (interval.current === undefined) return;
+    clearInterval(interval.current);
+    advance();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- advance reads only refs
+  }, [frameMs]);
 
   // The handles are refs, read when the cleanup runs.
   useEffect(() => clearTimers, []);

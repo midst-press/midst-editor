@@ -6,6 +6,7 @@ import type { Editor as TipTapEditor } from '@tiptap/core';
 import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
+import { FONT_PICKER_CLASS } from '../renderer/poemFont/FontPicker';
 import Editor from '../renderer/components/Editor';
 import {
   PoemSizeContext,
@@ -344,6 +345,21 @@ describe('Editor: content and appearance', () => {
     expect(cancel).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the whole poem again when another poem is opened into the editor, cancelling the first check (#238)', () => {
+    const cancel = jest.fn();
+    mockCheck.mockClear().mockReturnValueOnce(cancel);
+    bridge = installBridge({ spellcheck: 'true' });
+    mount();
+    expect(mockCheck).toHaveBeenCalledTimes(1);
+    act(() => {
+      bridge.emit('open-file', '<p>wqzvtk</p>', [change(6)], 'other.midst');
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(mockCheck).toHaveBeenCalledTimes(2);
+    expect(mockCheck.mock.calls[1][0].dom).toBe(proseMirror());
+    expect(proseMirror()).toHaveTextContent('wqzvtk');
+  });
+
   it('with spellcheck on, tells the line-break check of each change, and stops it when the editor goes (#238)', () => {
     mockLines.mockClear();
     const { unmount: offUnmount } = mount();
@@ -427,6 +443,22 @@ describe('Editor: content and appearance', () => {
     });
     settleFocus();
     expect(document.activeElement).toBe(proseMirror());
+  });
+
+  // GitHub #112 (editor #417): the font picker's search field must keep the focus, or its Escape never reaches it.
+  it('on a Mac, leaves the focus in the font picker', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    const picker = document.createElement('div');
+    picker.className = FONT_PICKER_CLASS;
+    const search = document.createElement('input');
+    picker.appendChild(search);
+    document.body.appendChild(picker);
+    act(() => search.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(search);
+    picker.remove();
   });
 });
 

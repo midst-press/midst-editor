@@ -15,6 +15,7 @@ export interface MainToWindow {
   'set-locale': [locale: string];
   'set-focus-mode': [on: boolean];
   'set-not-saved': [shown: boolean];
+  'set-untitled-edited': [shown: boolean];
   'flush-editor': [id: number];
   'toggle-edit-mode': [];
   'toggle-spellcheck': [];

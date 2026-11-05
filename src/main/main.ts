@@ -67,8 +67,22 @@ import {
 } from '../shared/i18n';
 import confirmContinueWriting from './continueWriting';
 import sendToWindow from './sendToWindow';
+import { reportChanges, untitledWithEdits } from './untitledEdits';
 
 let mainWindow: BrowserWindow | null = null;
+
+// The title's flag for an untitled poem with edits (#421), told to the window whenever a write or delete changes it.
+const sayUntitledEdits = reportChanges(
+  () => untitledWithEdits(store.get('edited'), store.get('baseFilename')),
+  (shown) => {
+    // Not to a window that is gone or closing: closing clears the document, writing `edited` (silas-397300f6).
+    if (mainWindow && !mainWindow.isDestroyed())
+      sendToWindow(mainWindow, 'set-untitled-edited', shown);
+  }
+);
+store.onChange((key) => {
+  if (key === 'edited' || key === 'baseFilename') sayUntitledEdits();
+});
 
 setupTitlebar();
 
