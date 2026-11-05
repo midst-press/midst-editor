@@ -15,7 +15,8 @@
 - **Two speed controls on the Timeline**, just before "Continue writing from here": a speedometer for the frame rate
   (1 to 60 fps) and a separate scroll-speed slider (1 to 20 views per second) (GitHub #49).
 - **An untitled poem with edits shows "Untitled\* (not saved)"** in the window title (GitHub #113).
-- **Spellcheck marks a poem you open while another is open**, without your having to type (GitHub #71).
+- **Spelling marks stay.** A poem you open while another is open is marked without your having to type, and a poem
+  whose marks were lost when it was redrawn is checked again (GitHub #71).
 - **Clicking Play or Pause and then pressing Space** no longer draws a coloured ring on the button (GitHub #98).
 - Under the hood: tidier code for the user guide link, steadier tests, and a stricter check of the install test
   before a release.
