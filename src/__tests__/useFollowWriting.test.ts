@@ -14,6 +14,9 @@ const mockFollow = {
   gliding: jest.fn(),
 };
 jest.mock('@midst-press/midst-format/follow', () => ({
+  // The real default speed, so a hook given none passes the speed glides use today.
+  PEAK_VIEWPORTS_PER_S: jest.requireActual('@midst-press/midst-format/follow')
+    .PEAK_VIEWPORTS_PER_S,
   scrollParent: (...a: unknown[]) => mockFollow.scrollParent(...a),
   targetScrollTop: (...a: unknown[]) => mockFollow.targetScrollTop(...a),
   glideTo: (...a: unknown[]) => mockFollow.glideTo(...a),
@@ -75,8 +78,27 @@ describe('useFollowWriting', () => {
     );
     view.rerender({ step: 1 });
     expect(editor.commands.setContent).toHaveBeenCalledTimes(2);
-    expect(mockFollow.glideTo).toHaveBeenCalledWith(scroller, 120, null);
+    expect(mockFollow.glideTo).toHaveBeenCalledWith(scroller, 120, null, 5);
     expect(glide.current).toEqual({ frame: 7 });
+  });
+
+  it('glides at the scroll speed it is given (GitHub #49, editor #427)', () => {
+    const editor = fakeEditor();
+    const view = renderHook(
+      ({ step, peak }) => useFollowWriting(editor, [], step, glideRef(), peak),
+      {
+        initialProps: { step: 0, peak: 12.5 },
+      }
+    );
+    view.rerender({ step: 1, peak: 12.5 });
+    expect(mockFollow.glideTo).toHaveBeenLastCalledWith(
+      scroller,
+      120,
+      null,
+      12.5
+    );
+    view.rerender({ step: 2, peak: 2 });
+    expect(mockFollow.glideTo).toHaveBeenLastCalledWith(scroller, 120, null, 2);
   });
 
   it('does not glide with Follow off', () => {

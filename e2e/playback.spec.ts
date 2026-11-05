@@ -165,6 +165,27 @@ test('pausing playback stops it, and it stays stopped', async () => {
     await expect(
       win.getByRole('button', { name: /^(Play|Pause)$/ })
     ).toHaveAttribute('aria-label', 'Play');
+    // And once the text has stopped changing for three animation frames. A tick just before the click schedules its
+    // frame at normal priority, and React can render the click's Pause first, so that frame, chosen before the pause,
+    // reaches the page a few milliseconds after the button says Play (measured: 3 ms, in 1 of 20 probed runs, #378).
+    // Stepping after Pause would add a frame every FRAME_MS, so the 900 ms wait below still catches it.
+    await win.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const read = () =>
+            document.querySelector('.ProseMirror')?.textContent?.length ?? -1;
+          let last = read();
+          let still = 0;
+          const frame = () => {
+            const now = read();
+            still = now === last ? still + 1 : 0;
+            last = now;
+            if (still >= 3) resolve();
+            else requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        })
+    );
 
     const atPause = await len();
 

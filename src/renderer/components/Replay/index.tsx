@@ -9,6 +9,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import SettingsIcon from '@mui/icons-material/Settings';
+import SwapVertIcon from '@mui/icons-material/SwapVert';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
@@ -28,6 +29,8 @@ import ReasonButton from './ReasonButton';
 import ReplayTopButtons from './ReplayTopButtons';
 import TimelineSlider from './TimelineSlider';
 import RestartFromButton from './RestartFromButton';
+import PaceControl, { SpeedometerIcon } from './PaceControl';
+import usePace, { FPS, SCROLL_SPEED } from './usePace';
 import FindNotHere, { findInReplay } from '../../search/FindNotHere';
 import { i18n } from '../../../shared/i18n';
 import { changesMade } from '../../../shared/firstFrame';
@@ -44,7 +47,14 @@ export default function Replay() {
   const refocusDrafts = useRef(false);
   const glide = useRef<Glide | null>(null);
 
-  const { step, setStep, playing, play, pause } = usePlayback(maxStep, glide);
+  // Frame rate and scroll speed, each set on its own (GitHub #49, editor #427).
+  const fps = usePace(FPS);
+  const scrollSpeed = usePace(SCROLL_SPEED);
+  const { step, setStep, playing, play, pause } = usePlayback(
+    maxStep,
+    glide,
+    1000 / fps.value
+  );
 
   // Draft markers. A marker is saved with the text and history this view shows. The store can be
   // behind them: the editor saves a second after the last keystroke, and coming here inside that
@@ -111,7 +121,13 @@ export default function Replay() {
       },
     },
   });
-  const follow = useFollowWriting(editor, poemHistory, step, glide);
+  const follow = useFollowWriting(
+    editor,
+    poemHistory,
+    step,
+    glide,
+    scrollSpeed.value
+  );
 
   useEffect(() => {
     // 🚨 `editor` is narrowed EXPLICITLY here rather than reached through `editor?.commands`, and
@@ -176,12 +192,12 @@ export default function Replay() {
   const undoNewMarker = (index: number) => {
     if (drafts.unmake(index)) leaveTimelineNaming(true);
   };
-  // Names on the timeline sit above the line, unless the timestamp is always shown: then the timestamp has the
-  // space above, the names go below, and the timeline moves up to make room for them (GitHub #95).
-  const namesShown =
+  // Names on the timeline sit below the line, so the timestamp, above it, can never land on one, whether it is
+  // always shown or only while the dot is pointed at or dragged. The timeline moves up to make room for them while
+  // there are any (Annelyse, GitHub #95, option a; #446).
+  const namesBelow =
     timelineNaming !== null ||
     (showMarkers && showLabels && drafts.markers.length > 0);
-  const namesBelow = showTimestamp.on && namesShown;
   // The timeline's move is animated only while it moves for the names: a window being resized must not slide it
   // (clement-7074f29f, review of #424). Set in the same render as the move, so the transition is in place for it.
   const [movedFor, setMovedFor] = useState(namesBelow);
@@ -256,13 +272,33 @@ export default function Replay() {
               showLabels={showLabels}
               naming={timelineNaming}
               newMarker={newMarker}
-              namesBelow={namesBelow}
               setNaming={setTimelineNaming}
               onJump={jumpTo}
               onLeaveNaming={leaveTimelineNaming}
               onRename={drafts.rename}
               onDelete={drafts.remove}
               onUndoNew={undoNewMarker}
+            />
+            {/* The speedometer first on the left of the bottom-right buttons, then scroll speed (GitHub #49). */}
+            <PaceControl
+              setting={FPS}
+              value={fps.value}
+              onChange={fps.set}
+              label={i18n._('replay.fps')}
+              valueText={i18n._('replay.fps.value', {
+                fps: (Math.round(fps.value * 10) / 10).toString(),
+              })}
+              icon={<SpeedometerIcon />}
+            />
+            <PaceControl
+              setting={SCROLL_SPEED}
+              value={scrollSpeed.value}
+              onChange={scrollSpeed.set}
+              label={i18n._('replay.scrollSpeed')}
+              valueText={i18n._('replay.scrollSpeed.value', {
+                speed: scrollSpeed.value.toFixed(1),
+              })}
+              icon={<SwapVertIcon fontSize="small" />}
             />
             {/* Continue writing from here first, then the two Draft Marker buttons, then X (GitHub #90). */}
             <RestartFromButton step={step} pause={pause} />
