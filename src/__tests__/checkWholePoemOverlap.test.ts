@@ -73,7 +73,10 @@ it('on a long poem the second check waits for the first, and both reach every pa
 
   jest.advanceTimersByTime(2 * LONG * PAUSE_MS);
   expect(typed).toEqual(Array(LONG).fill(2));
-  expect(log).not.toHaveBeenCalledWith(MISMATCH_LOG);
+  // Any mismatch, whatever its reason: an exact match on MISMATCH_LOG alone would pass with one logged.
+  expect(
+    log.mock.calls.filter(([m]) => String(m).startsWith(MISMATCH_LOG))
+  ).toEqual([]);
   expect(texts()).toEqual(before);
 });
 

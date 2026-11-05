@@ -9,6 +9,8 @@ import checkWholePoem, {
   checkParagraphs,
   checkWholePoemSoon,
   FIRST_MS,
+  BECAUSE_FOCUS_MOVED,
+  BECAUSE_POEM_CHANGED,
   MISMATCH_LOG,
   PAUSE_MS,
 } from '../renderer/spellcheck/checkWholePoem';
@@ -354,7 +356,9 @@ describe('in a real editor', () => {
       expect(calls).toEqual(['insertText " "']);
       expect(paragraphs()).toEqual(stateParagraphs());
       expect(paragraphs()).toEqual(['Zq other', 'xq']);
-      expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
+      expect(log).toHaveBeenCalledWith(
+        `${MISMATCH_LOG}: ${BECAUSE_POEM_CHANGED}`
+      );
       // The redraw is not in the history: only the setContent is.
       expect(undoDepth(editor.state)).toBe(changed);
       expect(changed).toBeGreaterThanOrEqual(depth);
@@ -371,8 +375,112 @@ describe('in a real editor', () => {
       expect(calls).toEqual(['insertText " "']);
       expect(field.value).toBe('zq');
       expect(paragraphs()).toEqual(['Zq wrd', 'xq']);
-      expect(log).toHaveBeenCalledWith(MISMATCH_LOG);
+      expect(log).toHaveBeenCalledWith(
+        `${MISMATCH_LOG}: ${BECAUSE_FOCUS_MOVED}`
+      );
       field.remove();
+    });
+
+    // A redraw builds every text node afresh, which takes every spelling mark with it (editor #238, gap 1).
+    const mismatch = (log: jest.Mock) => {
+      const cancel = checkWholePoem(editor.view, log);
+      editor.commands.setContent('<p>Zq other</p><p>xq</p>');
+      // The first paragraph's delete, PAUSE_MS on, finds the DOM changed: redraw, log, and the recheck is due
+      // FIRST_MS from then.
+      jest.advanceTimersByTime(PAUSE_MS);
+      expect(log).toHaveBeenCalledTimes(1);
+      calls.length = 0;
+      return cancel;
+    };
+
+    it('after a redraw, checks the whole poem again at FIRST_MS, and leaves it as it was', () => {
+      const log = jest.fn();
+      mismatch(log);
+      jest.advanceTimersByTime(FIRST_MS - 1);
+      expect(calls).toEqual([]);
+      jest.advanceTimersByTime(1);
+      expect(calls).toEqual(['insertText " "']);
+      jest.advanceTimersByTime(2 * PAUSE_MS);
+      expect(calls).toEqual([
+        'insertText " "',
+        'delete',
+        'insertText " "',
+        'delete',
+      ]);
+      expect(paragraphs()).toEqual(['Zq other', 'xq']);
+      expect(log).toHaveBeenCalledTimes(1);
+    });
+
+    it('a recheck that itself ends in a redraw is not followed by another', () => {
+      const log = jest.fn();
+      mismatch(log);
+      jest.advanceTimersByTime(FIRST_MS);
+      editor.commands.setContent('<p>Zq third</p><p>xq</p>');
+      jest.advanceTimersByTime(2 * PAUSE_MS);
+      expect(log).toHaveBeenCalledTimes(2);
+      calls.length = 0;
+      jest.advanceTimersByTime(10 * FIRST_MS);
+      expect(calls).toEqual([]);
+    });
+
+    it('no recheck once the poem has changed since the redraw (the poet has edited it)', () => {
+      const log = jest.fn();
+      mismatch(log);
+      editor.commands.setContent('<p>Zq edited</p><p>xq</p>');
+      jest.advanceTimersByTime(10 * FIRST_MS);
+      expect(calls).toEqual([]);
+    });
+
+    it('a recheck after the focus moved does not start while the focus is still elsewhere (Silas, #448)', () => {
+      const field = document.createElement('input');
+      field.value = 'zq';
+      document.body.appendChild(field);
+      try {
+        const log = jest.fn();
+        checkWholePoem(editor.view, log);
+        field.focus();
+        jest.advanceTimersByTime(PAUSE_MS);
+        expect(log).toHaveBeenCalledWith(
+          `${MISMATCH_LOG}: ${BECAUSE_FOCUS_MOVED}`
+        );
+        calls.length = 0;
+        jest.advanceTimersByTime(10 * FIRST_MS);
+        expect(calls).toEqual([]);
+        expect(field.value).toBe('zq');
+        expect(log).toHaveBeenCalledTimes(1);
+      } finally {
+        // A failure here must not leave the field focused for the tests after it.
+        field.remove();
+      }
+    });
+
+    it('no check starts while something outside the editor has the focus', () => {
+      const field = document.createElement('input');
+      field.value = 'zq';
+      document.body.appendChild(field);
+      try {
+        field.focus();
+        const onDone = jest.fn();
+        checkParagraphs(
+          editor.view,
+          Array.from(editor.view.dom.children),
+          jest.fn(),
+          onDone
+        );
+        expect(calls).toEqual([]);
+        expect(onDone).toHaveBeenCalledWith(false);
+        expect(field.value).toBe('zq');
+      } finally {
+        field.remove();
+      }
+    });
+
+    it('the editor going away cancels a recheck not yet started', () => {
+      const log = jest.fn();
+      const cancel = mismatch(log);
+      cancel();
+      jest.advanceTimersByTime(10 * FIRST_MS);
+      expect(calls).toEqual([]);
     });
   });
 

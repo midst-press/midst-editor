@@ -19,8 +19,6 @@ interface TimelineSliderProps {
   naming: number | null;
   // The frame of a marker made just now and not yet named, or null.
   newMarker: number | null;
-  // The names go below the line, leaving the timestamp above it (GitHub #95).
-  namesBelow: boolean;
   onJump: (index: number) => void;
   // Which marker is being named on the timeline: null for none.
   setNaming: (index: number | null) => void;
@@ -45,7 +43,6 @@ export default function TimelineSlider({
   showLabels,
   naming,
   newMarker,
-  namesBelow,
   onJump,
   setNaming,
   onLeaveNaming,
@@ -122,20 +119,15 @@ export default function TimelineSlider({
               border: `1px solid ${cssVar('primaryDark')}`,
               borderRadius: '1px',
             },
-        // As far from the line as the timestamp is, above it or below it. Above the dot, so the timestamp passes
-        // behind the names where they meet; the names themselves are styled in Replay.css.
+        // Below the line, as far from it as the timestamp is above it, so the two never meet (GitHub #95, option a);
+        // the names themselves are styled in Replay.css.
         '& .MuiSlider-markLabel': {
-          top: namesBelow ? '30px' : '-2px',
-          transform: namesBelow ? 'translateX(-50%)' : 'translate(-50%, -100%)',
-          transition: 'top 0.2s ease, transform 0.2s ease',
+          top: '30px',
           fontSize: '0.75rem',
           zIndex: 2,
         },
-        '@media (prefers-reduced-motion: reduce)': {
-          '& .MuiSlider-markLabel': { transition: 'none' },
-        },
       }}
-      className={namesBelow ? 'names-below' : 'names-above'}
+      className="names-below"
       onChange={handleChange}
       // MUI hides mark labels from assistive technology; these are buttons and a name field now
       // (GitHub #95), so they must be reachable.

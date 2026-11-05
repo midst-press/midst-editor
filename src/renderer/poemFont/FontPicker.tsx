@@ -1,13 +1,14 @@
 import CloseIcon from '@mui/icons-material/Close';
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { i18n } from '../../shared/i18n';
-import { poemFontStack } from './poemFont';
+import { BUNDLED_FONTS, poemFontStack } from './poemFont';
 import { ChooseResult, usePoemFont } from './PoemFontContext';
 import './FontPicker.css';
 
 // View > Font… (#240; Annelyse, GitHub #73): any font installed on the poet's computer, one font for the
 // whole poem. Each font is listed in its own face, which a native menu cannot draw, so the choice is
-// made here, in the window. The first entry is the app's own font: a poem with no font of its own.
+// made here, in the window. The first entry is the app's own font: a poem with no font of its own. The fonts
+// that come with the app follow it, then the installed ones.
 
 export const FONT_PICKER_CLASS = 'font-picker';
 export const LIST_FAILED_LOG = 'listing the installed fonts failed';
@@ -99,12 +100,18 @@ export default function FontPicker() {
     const list: Row[] = [];
     if (matches(i18n._('fontPicker.appFont')))
       list.push({ family: null, label: i18n._('fontPicker.appFont') });
+    // The fonts that come with the app, next (editor #445): offered whether or not they are installed, and
+    // while the installed fonts are still being listed or cannot be.
+    BUNDLED_FONTS.filter(matches).forEach((family) =>
+      list.push({ family, label: family })
+    );
     // The poem's font when this computer does not have it: shown so the poet can see what the poem asks
     // for. Choosing it again keeps it.
     if (
       current !== null &&
       listing.state === 'ready' &&
       !installed.includes(current) &&
+      !BUNDLED_FONTS.includes(current) &&
       matches(current)
     )
       list.push({
@@ -112,7 +119,7 @@ export default function FontPicker() {
         label: i18n._('fontPicker.notInstalled', { family: current }),
       });
     installed
-      .filter(matches)
+      .filter((family) => !BUNDLED_FONTS.includes(family) && matches(family))
       .forEach((family) => list.push({ family, label: family }));
     return list;
   }, [listing, query, current]);

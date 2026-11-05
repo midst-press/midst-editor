@@ -1,3 +1,26 @@
+# 0.10.0
+
+- **Draft Markers on the Timeline look like the timestamp.** They are white speech bubbles, a name is typed centred,
+  and adding a marker no longer moves the line. The names sit below the Timeline, out of the timestamp's way, and the
+  Timeline moves up to make room for them. Undo straight after adding a marker takes it away again (GitHub #95).
+- **The text size belongs to the poem.** It is saved with the poem, as its font is, and Replay shows the poem at its
+  own size. The sizes are now 10, 11, 12, 14, 16, 20, 24, 28, 32 and 36 (GitHub #105).
+- **A new poem starts in the last font you chose**, as it already starts at the last size. A poem with its own font
+  keeps it (GitHub #48).
+- **View** > **Font…** **stays open after you choose a font**, so you can try several. Escape or the X closes it
+  (GitHub #112).
+- **Shift-Tab takes a tab away**, and Tab with several lines selected indents each of them (GitHub #30).
+- **Active toolbar icons turn lavender**, the moon included, and the icons sit in three groups: size, styling and
+  focus (GitHub #25).
+- **Two speed controls on the Timeline**, just before "Continue writing from here": a speedometer for the frame rate
+  (1 to 60 fps) and a separate scroll-speed slider (1 to 20 views per second) (GitHub #49).
+- **An untitled poem with edits shows "Untitled\* (not saved)"** in the window title (GitHub #113).
+- **Spelling marks stay.** A poem you open while another is open is marked without your having to type, and a poem
+  whose marks were lost when it was redrawn is checked again (GitHub #71).
+- **Clicking Play or Pause and then pressing Space** no longer draws a coloured ring on the button (GitHub #98).
+- Under the hood: tidier code for the user guide link, steadier tests, and a stricter check of the install test
+  before a release.
+
 # 0.9.4
 
 - **Installing Midst never writes over the Midst you already have.** Any Midst already in Applications, including

@@ -65,7 +65,7 @@ while IFS=$'\t' read -r name url; do
   [[ "$name" =~ ^[A-Za-z0-9._-]+$ ]] || { say "ignoring attachment with an unexpected name: $name"; continue; }
   curl -sSf -o "$work/evidence/$name" -H "Authorization: token $token" "$url" || cannot "cannot download attachment $name"
 done < <(jq -r '.[] | [.name, .browser_download_url] | @tsv' "$work/assets.json")
-say "release PR $pr has $(wc -l <<< "$names" | tr -d ' ') attachment(s)"
+say "release PR $pr has $(jq length "$work/assets.json") attachment(s)"
 
 "$here/check_release_evidence.sh" "$work/evidence" "$sha" "$work/releasing.md"
 rc=$?

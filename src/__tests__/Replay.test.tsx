@@ -933,67 +933,49 @@ describe('Replay: Draft Markers on the timeline', () => {
     });
   });
 
-  // GitHub #95: the names go below the line only when the timestamp is always shown, and the timeline moves up
-  // to make room for them.
-  describe('above or below the line', () => {
-    const withTimestamp = (on: boolean) =>
+  // GitHub #95, option a (#446): with any names on the timeline, they are below the line and the timeline moves
+  // up to make room, whether the timestamp is always shown or not; with none, it stays where it was.
+  describe('names below the line', () => {
+    const withTimestamp = (on: boolean, meta = seeded.meta) =>
       installBridge({
-        ...seeded,
+        'font-size': '2',
+        meta,
         'replay-show-timestamp': on ? 'true' : 'false',
       });
-    const place = (container: HTMLElement) => ({
-      below: container.querySelector('.MuiSlider-root.names-below') !== null,
-      above: container.querySelector('.MuiSlider-root.names-above') !== null,
-      lifted: container.querySelector('.names-below-lift') !== null,
-    });
+    const lifted = (container: HTMLElement) =>
+      container.querySelector('.names-below-lift') !== null;
     const moving = (container: HTMLElement) =>
       container.querySelector('.timeline-moving') !== null;
 
-    it('above, with the timeline where it was, when the timestamp only shows on pointing', () => {
-      bridge = withTimestamp(false);
-      const { container } = mount();
-      expect(place(container)).toEqual({
-        below: false,
-        above: true,
-        lifted: false,
-      });
-    });
+    it.each([
+      ['always shown', true],
+      ['shown only on pointing', false],
+    ])(
+      'with the timestamp %s, markers move the timeline up; hiding them moves it back',
+      (_how, on) => {
+        bridge = withTimestamp(on as boolean);
+        const { container } = mount();
+        expect(lifted(container)).toBe(true);
+        fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+        fireEvent.click(
+          screen.getByRole('checkbox', {
+            name: 'Show Draft Markers on the Timeline',
+          })
+        );
+        expect(lifted(container)).toBe(false);
+      }
+    );
 
-    it('below, with the timeline moved up, when the timestamp is always shown; back when they are hidden', () => {
-      bridge = withTimestamp(true);
+    it('with no markers the timeline stays where it was; a new one moves it up, animated', () => {
+      bridge = withTimestamp(false, '');
       const { container } = mount();
-      expect(place(container)).toEqual({
-        below: true,
-        above: false,
-        lifted: true,
-      });
-      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-      fireEvent.click(
-        screen.getByRole('checkbox', {
-          name: 'Show Draft Markers on the Timeline',
-        })
-      );
-      expect(place(container).lifted).toBe(false);
-    });
-
-    it('with the timestamp shown and no markers, the timeline stays where it was; a new one moves it up', () => {
-      bridge = installBridge({
-        'font-size': '2',
-        meta: '',
-        'replay-show-timestamp': 'true',
-      });
-      const { container } = mount();
-      expect(place(container).lifted).toBe(false);
+      expect(lifted(container)).toBe(false);
       // Nothing has moved yet, so nothing is animated: a resize must not slide the timeline.
       expect(moving(container)).toBe(false);
       seek(20);
       markDraft();
       expect(moving(container)).toBe(true);
-      expect(place(container)).toEqual({
-        below: true,
-        above: false,
-        lifted: true,
-      });
+      expect(lifted(container)).toBe(true);
     });
   });
 
@@ -1399,4 +1381,42 @@ describe('Replay: listeners', () => {
       fireEvent.keyDown(document.body, { key: 'Escape' })
     ).not.toThrow();
   });
+});
+
+// A pace control opened with the mouse stays open (vivian-1a61bc9a, #437): useReplayKeys blurs a button clicked
+// with the mouse, and that blur must not close the slider the same click opened.
+describe('Replay: the pace controls (GitHub #49, editor #427)', () => {
+  it('Escape after a mouse click closes the slider and stays on the Timeline (#437)', () => {
+    mount();
+    const button = screen.getByRole('button', { name: 'Frame rate' });
+    button.focus();
+    fireEvent.click(button, { detail: 1 });
+    expect(
+      screen.getByRole('slider', { name: 'Frame rate', hidden: true })
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: 'Escape' });
+    expect(
+      screen.queryByRole('slider', { name: 'Frame rate', hidden: true })
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('EDITOR PAGE')).not.toBeInTheDocument();
+    expect(playButton()).toBeInTheDocument();
+  });
+
+  it.each(['Frame rate', 'Scroll speed'])(
+    '%s opens on a mouse click, stays open, and a click outside closes it',
+    (label) => {
+      mount();
+      const button = screen.getByRole('button', { name: label });
+      button.focus();
+      fireEvent.click(button, { detail: 1 });
+      expect(document.activeElement).not.toBe(button);
+      expect(
+        screen.getByRole('slider', { name: label, hidden: true })
+      ).toBeInTheDocument();
+      fireEvent.pointerDown(document.body);
+      expect(
+        screen.queryByRole('slider', { name: label, hidden: true })
+      ).not.toBeInTheDocument();
+    }
+  );
 });
