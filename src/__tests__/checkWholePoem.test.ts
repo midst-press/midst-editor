@@ -431,6 +431,50 @@ describe('in a real editor', () => {
       expect(calls).toEqual([]);
     });
 
+    it('a recheck after the focus moved does not start while the focus is still elsewhere (Silas, #448)', () => {
+      const field = document.createElement('input');
+      field.value = 'zq';
+      document.body.appendChild(field);
+      try {
+        const log = jest.fn();
+        checkWholePoem(editor.view, log);
+        field.focus();
+        jest.advanceTimersByTime(PAUSE_MS);
+        expect(log).toHaveBeenCalledWith(
+          `${MISMATCH_LOG}: ${BECAUSE_FOCUS_MOVED}`
+        );
+        calls.length = 0;
+        jest.advanceTimersByTime(10 * FIRST_MS);
+        expect(calls).toEqual([]);
+        expect(field.value).toBe('zq');
+        expect(log).toHaveBeenCalledTimes(1);
+      } finally {
+        // A failure here must not leave the field focused for the tests after it.
+        field.remove();
+      }
+    });
+
+    it('no check starts while something outside the editor has the focus', () => {
+      const field = document.createElement('input');
+      field.value = 'zq';
+      document.body.appendChild(field);
+      try {
+        field.focus();
+        const onDone = jest.fn();
+        checkParagraphs(
+          editor.view,
+          Array.from(editor.view.dom.children),
+          jest.fn(),
+          onDone
+        );
+        expect(calls).toEqual([]);
+        expect(onDone).toHaveBeenCalledWith(false);
+        expect(field.value).toBe('zq');
+      } finally {
+        field.remove();
+      }
+    });
+
     it('the editor going away cancels a recheck not yet started', () => {
       const log = jest.fn();
       const cancel = mismatch(log);

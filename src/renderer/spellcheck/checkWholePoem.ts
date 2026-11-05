@@ -143,9 +143,18 @@ export function checkParagraphs(
   const spots = paragraphs
     .map(afterLastWord)
     .filter((spot): spot is Spot => spot !== null);
-  // Not in the document, there is no edit Chromium could see; with no words, nothing to check; and a composition
-  // is the poet's, not to be interrupted.
-  if (!dom.isConnected || !spots.length || !selection || view.composing) {
+  // Not in the document, there is no edit Chromium could see; with no words, nothing to check; a composition is the
+  // poet's, not to be interrupted; and with the focus elsewhere (the find bar, a marker's name) the first space would
+  // go where the focus is, into the poet's field (Silas, review of #448), so no check starts then.
+  const focused = doc.activeElement;
+  const startable = focused === dom || focused === doc.body || focused === null;
+  if (
+    !dom.isConnected ||
+    !spots.length ||
+    !selection ||
+    view.composing ||
+    !startable
+  ) {
     onDone(false);
     return () => {};
   }
