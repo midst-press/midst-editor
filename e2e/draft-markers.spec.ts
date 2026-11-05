@@ -471,6 +471,16 @@ const lineAndRoom = (win: Page) =>
     };
   });
 
+// Where the dot is drawn along the line: 0 at its start, 1 at its end. MUI slides the dot to a new value over about
+// 150ms, so a check made straight after a key can see it where it was (violet-14057653, on #447's screenshot 3).
+const dotAlong = (win: Page) =>
+  win.evaluate(() => {
+    const bar = document.querySelector('.ControlBar')!;
+    const line = bar.querySelector('.MuiSlider-rail')!.getBoundingClientRect();
+    const dot = bar.querySelector('.MuiSlider-thumb')!.getBoundingClientRect();
+    return ((dot.left + dot.right) / 2 - line.left) / line.width;
+  });
+
 async function openTimeline(name: string) {
   const doc = makePlayableMidst(LONG);
   const work = mkdtempSync(join(tmpdir(), `midst-drafts-${name}-`));
@@ -569,6 +579,9 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await markHere(win, 'zq');
     await win.locator('.MuiSlider-thumb input').focus();
     await win.keyboard.press('Home');
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot did not go to the start' })
+      .toBeLessThan(0.01);
     await markHere(win, 'xv');
 
     // Item 2: with markers on it, the line stays in the middle of its bar. The whole timeline moves up for the names
@@ -600,6 +613,10 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     await showTimestamp(win);
     await settled(win);
     await expect(win.locator('.MuiSlider-valueLabelOpen')).toBeVisible();
+    // The states below are named by where the dot is, so it is checked to be there before anything is judged.
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot is not at the start' })
+      .toBeLessThan(0.01);
     await expect
       .poll(() => problems(win), { message: 'timestamp shown, dot on xv' })
       .toEqual([]);
@@ -610,6 +627,9 @@ test('round 2: names never collide with the line, the dot or the timestamp, and 
     );
     await win.locator('.MuiSlider-thumb input').focus();
     await win.keyboard.press('End');
+    await expect
+      .poll(() => dotAlong(win), { message: 'the dot did not go to the end' })
+      .toBeGreaterThan(0.99);
     await expect
       .poll(() => problems(win), { message: 'timestamp shown, dot on zq' })
       .toEqual([]);
