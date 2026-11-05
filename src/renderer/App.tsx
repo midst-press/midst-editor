@@ -2,6 +2,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
+import './fonts/fonts.css';
 import './cssVars.css';
 import './App.css';
 import { useState, useEffect, useMemo } from 'react';

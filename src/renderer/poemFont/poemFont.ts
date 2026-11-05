@@ -7,10 +7,12 @@
 // These functions never change the object they are given, and they keep every other key of `meta`.
 import { Meta } from '../tracking/draftMarkers';
 
-// The app's own font: Editor.css and Replay.css use the same list as the fallback of `--poem-font`
+// The app's own font: Jost, which comes with the app (fonts/fonts.css; Annelyse, GitHub #73, editor #445), as on
+// the website, then the system's. Editor.css and Replay.css use the same list as the fallback of `--poem-font`
 // (poemFont.test.ts checks that they agree).
 /* eslint-disable lingui/no-unlocalized-strings -- font names, not text for the poet */
 export const APP_FONT_STACK = [
+  'Jost',
   'system-ui',
   '-apple-system',
   'BlinkMacSystemFont',
@@ -23,6 +25,10 @@ export const APP_FONT_STACK = [
   "'Helvetica Neue'",
   'sans-serif',
 ].join(', ');
+
+// The other fonts that come with the app (fonts/fonts.css), listed in View > Font straight after the app's own,
+// whether or not this computer has them installed: Libre Caslon Text, the serif (Annelyse, GitHub #73).
+export const BUNDLED_FONTS: readonly string[] = ['Libre Caslon Text'];
 /* eslint-enable lingui/no-unlocalized-strings */
 
 export type FontResult = { ok: true; meta: Meta };

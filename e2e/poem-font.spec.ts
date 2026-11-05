@@ -37,13 +37,13 @@ test("View > Font… lists the installed fonts, and the one chosen is the poem's
     await clickMenuItem(app, 'menu.view.font');
     const picker = win.getByRole('dialog', { name: 'Font for this poem' });
     await expect(picker).toBeVisible();
-    // The app's own font, then at least one installed family.
+    // The app's own font, then Libre Caslon Text, which comes with the app (editor #445).
     const options = picker.getByRole('option');
     await expect
       .poll(() => options.count(), { timeout: 15_000 })
       .toBeGreaterThan(1);
     // It stays open after a choice, so the poet can try several fonts; Escape closes it (GitHub #112, editor
-    // #417). A second installed family is tried after the first when this computer has one.
+    // #417). An installed family is tried after Libre Caslon Text when this computer has one.
     const count = await options.count();
     await options.nth(1).click();
     await expect(picker).toBeVisible();
@@ -68,6 +68,51 @@ test("View > Font… lists the installed fonts, and the one chosen is the poem's
     expect(await waitUntil(() => savedFontFamily(p) === family, 10_000)).toBe(
       true
     );
+  } finally {
+    await app.close();
+  }
+});
+
+// Editor #445 (Annelyse, GitHub #73): Jost and Libre Caslon Text come with the built app, so they load from its
+// own files on any computer; a poem with no font of its own is drawn in Jost.
+test('the fonts that come with the app load from the built app, and a poem with no font of its own is in Jost', async () => {
+  const work = mkdtempSync(join(tmpdir(), 'midst-e2e-font-bundled-'));
+  const p = join(work, 'bundled.midst');
+  writeFileSync(p, makeMidst('ZQBUNDLED', 0).file);
+  const { app, userData } = await launch(work);
+  try {
+    const win = await app.firstWindow();
+    await win.waitForLoadState('domcontentloaded');
+    await openDocument(app, userData, p, 'the poem');
+    await expect(win.locator('.ProseMirror')).toBeVisible({ timeout: 25_000 });
+    // document.fonts.load() resolves with the faces it loaded: none means no face matched, and a file missing
+    // from the build rejects or leaves the face in "error". Names are compared unquoted, as Chromium may or may
+    // not quote them.
+    const loaded = await win.evaluate(async () => {
+      const faces = async (font: string) =>
+        (await document.fonts.load(font)).map(
+          (face) =>
+            `${face.family.replace(/"/g, '')}/${face.style}/${face.status}`
+        );
+      return {
+        jost: await faces('16px Jost'),
+        jostItalic: await faces('italic 16px Jost'),
+        caslon: await faces('16px "Libre Caslon Text"'),
+        caslonItalic: await faces('italic 16px "Libre Caslon Text"'),
+      };
+    });
+    expect(loaded).toEqual({
+      jost: ['Jost/normal/loaded'],
+      jostItalic: ['Jost/italic/loaded'],
+      caslon: ['Libre Caslon Text/normal/loaded'],
+      caslonItalic: ['Libre Caslon Text/italic/loaded'],
+    });
+    const first = await win
+      .locator('.ProseMirror')
+      .evaluate((el) =>
+        getComputedStyle(el).fontFamily.split(',')[0].trim().replace(/"/g, '')
+      );
+    expect(first).toBe('Jost');
   } finally {
     await app.close();
   }
