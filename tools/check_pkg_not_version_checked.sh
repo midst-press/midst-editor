@@ -33,16 +33,23 @@ version_checking() {
   local out="$work/expanded.$RANDOM$RANDOM"
   pkgutil --expand "$1" "$out" > /dev/null || { echo "$0: could not expand $1" >&2; return 2; }
   local infos
-  infos=$(find "$out" -name PackageInfo -type f)
+  # Fails closed: a find that fails part-way has listed only some of the tree, so its silence about
+  # the rest is not a clean result.
+  infos=$(find "$out" -name PackageInfo -type f) || { echo "$0: find failed under the expanded $1" >&2; return 2; }
   [ -n "$infos" ] || { echo "$0: no PackageInfo inside $1" >&2; return 2; }
-  local n=0 info
+  local n=0 info rc
   while IFS= read -r info; do
     # A bundle listed between <bundle-version> and </bundle-version>. An empty <bundle-version/> has
-    # no closing tag.
-    if awk '/<bundle-version>/ { inside = 1 } inside && /<bundle / { found = 1 } /<\/bundle-version>/ { inside = 0 }
-            END { exit found ? 0 : 1 }' "$info"; then
-      n=$((n + 1))
-    fi
+    # no closing tag. awk exits 0 for found and 1 for not found; anything else is awk failing, and
+    # fails closed rather than counting as "not found".
+    rc=0
+    awk '/<bundle-version>/ { inside = 1 } inside && /<bundle / { found = 1 } /<\/bundle-version>/ { inside = 0 }
+         END { exit found ? 0 : 1 }' "$info" || rc=$?
+    case $rc in
+      0) n=$((n + 1)) ;;
+      1) ;;
+      *) echo "$0: awk failed (exit $rc) reading $info" >&2; return 2 ;;
+    esac
   done <<< "$infos"
   echo "$n"
 }
