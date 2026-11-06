@@ -105,7 +105,7 @@ async function toggle({ app, win, userData }: Started) {
       const facts = JSON.stringify({
         seen: seen(),
         editorHasText: shown.includes(TYPED),
-        storeHasText: String(store.text ?? '').includes(TYPED),
+        storeHasText: String(store.poem ?? '').includes(TYPED),
         filename: store.filename ?? '',
         recoveryCopies: recoveryCopies(userData).length,
       });
@@ -113,6 +113,32 @@ async function toggle({ app, win, userData }: Started) {
       expect(shown.includes(TYPED), `the poem after the reload: ${facts}`).toBe(
         true
       );
+      // And through a second reload, which takes the poem from the store: after an answer that cleared the store, the
+      // editor's copy is the only one left.
+      await clickCheckSpelling(app);
+      expect(
+        await waitUntil(
+          () => readStore(userData).spellcheck === 'false',
+          10_000
+        )
+      ).toBe(true);
+      await expect(win.locator('.ProseMirror')).toHaveAttribute(
+        'spellcheck',
+        'false',
+        { timeout: 25_000 }
+      );
+      await win.waitForTimeout(SETTLE_MS);
+      const shownAgain =
+        (await win.locator('.ProseMirror').textContent()) ?? '';
+      expect(
+        shownAgain.includes(TYPED),
+        `the poem after a second reload: ${JSON.stringify({
+          seen: seen(),
+          storeHasText: String(readStore(userData).poem ?? '').includes(TYPED),
+          edited: readStore(userData).edited,
+          recoveryCopies: recoveryCopies(userData).length,
+        })}`
+      ).toBe(true);
       expect(
         seen(),
         `nothing crashed, so nothing is asked or trashed: ${facts}`
@@ -165,7 +191,7 @@ test('Midst ending while the toggle offer is up still leaves the poem for the ne
       killedByOffer,
       seenOnRelaunch: again.seen(),
       editorHasText: shown.includes(TYPED),
-      storeHasText: String(store.text ?? '').includes(TYPED),
+      storeHasText: String(store.poem ?? '').includes(TYPED),
       recoveryCopies: recoveryCopies(userData).length,
     });
     expect(shown.includes(TYPED), `the poem on the next launch: ${facts}`).toBe(
