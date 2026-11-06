@@ -431,24 +431,31 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       'Strikethrough',
       'Focus Mode',
     ]);
-    // Two gaps: one between size and styling, one between styling and the moon (GitHub #25, #432).
-    const gaps = bar.querySelectorAll('.focus-mode-gap');
+    // Two gaps: one between size and styling, one between styling and the moon (GitHub #25, #432, #462).
+    const gaps = bar.querySelectorAll('.focus-mode-gap, .focus-mode-gap-wide');
     expect(gaps).toHaveLength(2);
     gaps.forEach((gap) => {
       expect(gap.textContent).toBe('');
     });
     const label = (n: Element) =>
-      n.classList.contains('focus-mode-gap')
+      n.classList.contains('focus-mode-gap') ||
+      n.classList.contains('focus-mode-gap-wide')
         ? 'gap'
         : (n.getAttribute('aria-label') ?? 'other');
     const inOrder = Array.from(
       bar.querySelectorAll(
-        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Increase text size"], button[aria-label="Bold"]'
+        '.focus-mode-gap, .focus-mode-gap-wide, button[aria-label="Focus Mode"], button[aria-label="Increase text size"], button[aria-label="Bold"]'
       )
     )
       .map(label)
       .join(',');
     expect(inOrder).toBe('Increase text size,gap,Bold,gap,Focus Mode');
+    // The first spacer is the regular one, the second is the wide one (#462).
+    const gapEls = Array.from(
+      bar.querySelectorAll('.focus-mode-gap, .focus-mode-gap-wide')
+    );
+    expect(gapEls[0].classList.contains('focus-mode-gap')).toBe(true);
+    expect(gapEls[1].classList.contains('focus-mode-gap-wide')).toBe(true);
   });
 
   it('in focus mode the moon is the only control, and its tooltip says what it restores', async () => {
@@ -457,7 +464,9 @@ describe('MenuBar focus mode (GitHub #25)', () => {
     // The gap goes with the font options it separates them from: focus mode hides every
     // interface option except the moon (GitHub #25), and an invisible 12px gap is none.
     expect(bar.querySelectorAll('button')).toHaveLength(1);
-    expect(bar.querySelector('.focus-mode-gap')).toBeNull();
+    expect(
+      bar.querySelector('.focus-mode-gap, .focus-mode-gap-wide')
+    ).toBeNull();
     expect(button('Focus Mode')).toBeInTheDocument();
     expect(button('Focus Mode')).toHaveAttribute('aria-pressed', 'true');
     // MUI renders a tooltip's words only when it opens; the contract is that they exist

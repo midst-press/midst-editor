@@ -77,6 +77,11 @@
   width: 16px;
 }
 
+.focus-mode-gap-wide {
+  /* Double the space before the focus-mode icon (GitHub #25, #462). */
+  width: 32px;
+}
+
 .icon-button {
   /* theme.palette.secondary.light */
   background-color: transparent;
