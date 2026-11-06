@@ -1,5 +1,12 @@
 import './Replay.css';
-import { useState, useEffect, useRef, useContext, useCallback } from 'react';
+import {
+  CSSProperties,
+  useState,
+  useEffect,
+  useRef,
+  useContext,
+  useCallback,
+} from 'react';
 import { reconstructHTML } from '@midst-press/midst-format/history';
 import { Glide } from '@midst-press/midst-format/follow';
 import Tooltip from '@mui/material/Tooltip';
@@ -22,6 +29,7 @@ import DraftDrawer from '../DraftMarkers/DraftDrawer';
 import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers from '../DraftMarkers/useDraftMarkers';
 import useShowTimestamp from './useShowTimestamp';
+import useTimelineTop from './useTimelineTop';
 import usePlayback from './usePlayback';
 import useFollowWriting from './useFollowWriting';
 import useReplayKeys from './useReplayKeys';
@@ -45,6 +53,9 @@ export default function Replay() {
   const playPauseButton = useRef<HTMLButtonElement | null>(null);
   const draftsButton = useRef<HTMLButtonElement | null>(null);
   const refocusDrafts = useRef(false);
+  const replayMain = useRef<HTMLDivElement | null>(null);
+  const controlBar = useRef<HTMLDivElement | null>(null);
+  const timelineTop = useTimelineTop(controlBar, replayMain);
   const glide = useRef<Glide | null>(null);
 
   // Frame rate and scroll speed, each set on its own (GitHub #49, editor #427).
@@ -217,9 +228,17 @@ export default function Replay() {
     // The drafts list sits beside the poem and the timeline, never over them (#313, GitHub #85).
     <div
       className="ReplayLayout"
-      style={{ backgroundColor: cssVar('background') }}
+      style={
+        {
+          backgroundColor: cssVar('background'),
+          ...(timelineTop === null
+            ? {}
+            : { '--timeline-top': `${timelineTop}px` }),
+        } as CSSProperties
+      }
     >
       <div
+        ref={replayMain}
         className={[
           'ReplayMain',
           namesBelow && 'names-below-lift',
@@ -238,6 +257,7 @@ export default function Replay() {
         </div>
         <Grow mountOnEnter in>
           <Box
+            ref={controlBar}
             component="div"
             className="ControlBar"
             style={{
@@ -336,7 +356,10 @@ export default function Replay() {
                 aria-expanded={drawerOpen}
                 type="button"
                 className="control-bar-icon"
-                style={{ color: cssVar('onControlBar') }}
+                // In the active colour while the panel is open (GitHub #117, item 11).
+                style={{
+                  color: cssVar(drawerOpen ? 'activeIcon' : 'onControlBar'),
+                }}
                 // Opens the list, or closes it: with the list beside the page, this button stays in reach.
                 onClick={() => {
                   if (drawerOpen) setNaming(null);
@@ -374,6 +397,7 @@ export default function Replay() {
       </div>
       <DraftDrawer
         open={drawerOpen}
+        onClose={() => closeDrafts(true)}
         markers={drafts.markers}
         naming={naming}
         setNaming={setNaming}

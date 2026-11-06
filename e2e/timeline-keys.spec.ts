@@ -98,7 +98,7 @@ test('with Follow the writing clicked, Space plays and leaves Follow as it was, 
 test('with Show timestamp clicked in Settings, Space plays and leaves the switch as it was', async () => {
   const { win, close, failures } = await openTimeline('timestamp');
   try {
-    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
     const timestamp = win.getByLabel('Show timestamp');
     await timestamp.click();
     const checked = await timestamp.isChecked();
@@ -142,7 +142,7 @@ test('a switch reached with Tab turns over on Space, keeps its ring, and does no
   // cora-2f1e43dc, review of 36eb9b5: a native switch toggles on Space and ignores Enter, so Space must reach it.
   const { win, close, failures } = await openTimeline('tab-switch');
   try {
-    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
     const timestamp = win.getByLabel('Show timestamp');
     await expect(timestamp).toBeVisible();
     const onSwitch = () =>

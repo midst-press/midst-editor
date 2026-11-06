@@ -112,9 +112,9 @@
 
 .is-active {
   transition: background-color 0.1s ease;
-  stroke: #b57edc;
+  stroke: var(--midst-active-icon);
   stroke-width: 1px;
-  color: #b57edc;
+  color: var(--midst-active-icon);
 }
 
 .MuiTooltip-tooltip {

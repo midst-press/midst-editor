@@ -1177,6 +1177,20 @@ describe('Replay: drafts list', () => {
     ).toBeInTheDocument();
   });
 
+  // GitHub #117, items 6 and 11: the X closes it as the gear does, and the gear is in the active colour while it is open.
+  it('closes from its X, back to the gear, which is active only while it is open', () => {
+    mount();
+    const gear = screen.getByRole('button', { name: 'Settings' });
+    expect(gear.style.color).toBe('var(--midst-on-control-bar)');
+    fireEvent.click(gear);
+    expect(gear.style.color).toBe('var(--midst-active-icon)');
+    fireEvent.click(screen.getByRole('button', { name: 'Close Settings' }));
+    expect(document.querySelector('.DraftDrawer')).toBeNull();
+    expect(gear).toHaveFocus();
+    expect(gear.style.color).toBe('var(--midst-on-control-bar)');
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+  });
+
   // GitHub #98: Space only ever plays or pauses, with Settings open too. Enter stays with the list.
   it('plays on Space while the list is open, and leaves Enter to the list', () => {
     mount();
