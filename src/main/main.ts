@@ -89,6 +89,8 @@ setupTitlebar();
 let earlyPath = '';
 // Whether the current window has been shown. Until then, ready-to-show is what opens a requested file.
 let windowShown = false;
+// Whether this launch has offered back a crashed run's untitled poems (#315). Only the first window's first show does.
+let recoveryOffered = false;
 
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
@@ -179,9 +181,14 @@ const createWindow = async () => {
       mainWindow.show();
     }
 
-    // A poem a crashed run left untitled is offered back first (#315), before any file the OS asked to open.
-    const win = mainWindow;
-    logIfRejected('recovery', () => offerRecovery(win, isDarwin()));
+    // A poem a crashed run left untitled is offered back first (#315), before any file the OS asked to open. Once a
+    // launch: ready-to-show comes again when the page reloads (turning spellcheck on or off, editor #238), and
+    // nothing has crashed then (editor #460).
+    if (!recoveryOffered) {
+      recoveryOffered = true;
+      const win = mainWindow;
+      logIfRejected('recovery', () => offerRecovery(win, isDarwin()));
+    }
     if (earlyPath !== '') {
       openPath(mainWindow, isDarwin(), earlyPath);
       earlyPath = '';
