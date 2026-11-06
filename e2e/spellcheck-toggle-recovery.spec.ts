@@ -149,6 +149,36 @@ async function toggle({ app, win, userData }: Started) {
   });
 });
 
+// Violet's question on #460: after Yes, is the poem the latest typing, or the older copy the offer names? Text typed
+// just before the toggle, with no time for autosave to write the recovery copy again.
+test('after Yes on the toggle offer, the poem is the latest typing, not the older recovery copy', async () => {
+  const started = await untitledPoemWithText(0);
+  const { app, win, userData, seen } = started;
+  try {
+    const LATER = 'QZXLATER';
+    await win.keyboard.type(` ${LATER}`);
+    const [copy] = recoveryCopies(userData);
+    const copyHadLater = readFileSync(
+      join(userData, 'Recovery', copy),
+      'utf8'
+    ).includes(LATER);
+    await toggle(started);
+    const shown = (await win.locator('.ProseMirror').textContent()) ?? '';
+    const facts = JSON.stringify({
+      seen: seen(),
+      copyHadLaterAtToggle: copyHadLater,
+      editorHasEarlier: shown.includes(TYPED),
+      editorHasLater: shown.includes(LATER),
+      storeHasLater: String(readStore(userData).poem ?? '').includes(LATER),
+    });
+    expect(shown.includes(LATER), `the latest typing after Yes: ${facts}`).toBe(
+      true
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 // Violet's question on #460: what quitting Midst with the offer open does. A native modal cannot be left open in a
 // test, so this is the case a test can reach: Midst ends (killed, as a force quit or a crash would) while the offer is
 // up. The next launch must still have the poem.
