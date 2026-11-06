@@ -114,11 +114,15 @@ const startOf = (pid: number): number | null => {
 // Whether the process that wrote a recovery file is still running. Anything this cannot be sure of is not running.
 const running = (owner: unknown) => {
   const { pid, boot, started } = (owner ?? {}) as Partial<Owner>;
-  if (!Number.isInteger(pid) || (pid as number) <= 0 || pid === process.pid)
-    return false;
+  if (!Number.isInteger(pid) || (pid as number) <= 0) return false;
   if (typeof boot !== 'number' || typeof started !== 'number') return false;
   // The computer has restarted since: whatever has this id now is not the writer.
   if (Math.abs(bootTime() - boot) > SAME_START_MS) return false;
+  // This process's own id: it is this window's copy only if it was written by this run, which started when the owner
+  // says. A reload must not find this run's own poem and offer it as a crashed one (editor #460: No then took it).
+  // An earlier run that crashed with the same id, which comes round again, started at another time.
+  if (pid === process.pid)
+    return Math.abs(processStart() - started) <= SAME_PROCESS_MS;
   try {
     process.kill(pid as number, 0);
   } catch {
