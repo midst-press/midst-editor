@@ -1,7 +1,9 @@
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import DraftDrawer from '../renderer/components/DraftMarkers/DraftDrawer';
+import DraftDrawer, {
+  fitsTheField,
+} from '../renderer/components/DraftMarkers/DraftDrawer';
 
 // Synthetic names only.
 
@@ -21,6 +23,7 @@ interface HarnessProps {
   refusal: string | null;
   canUndo: boolean;
   onUndo: jest.Mock;
+  onClose: jest.Mock;
 }
 
 function Harness({
@@ -33,6 +36,7 @@ function Harness({
   refusal,
   canUndo,
   onUndo,
+  onClose,
 }: HarnessProps) {
   const [naming, setNaming] = useState<number | null>(startNaming);
   const [showMarkers, setShowMarkers] = useState(true);
@@ -41,6 +45,7 @@ function Harness({
   return (
     <DraftDrawer
       open
+      onClose={onClose}
       markers={markers}
       naming={naming}
       setNaming={setNaming}
@@ -82,6 +87,7 @@ const show = (given: Partial<HarnessProps> = {}) =>
       refusal={given.refusal ?? null}
       canUndo={given.canUndo ?? false}
       onUndo={given.onUndo ?? jest.fn()}
+      onClose={given.onClose ?? jest.fn()}
     />
   );
 
@@ -116,9 +122,18 @@ describe('DraftDrawer', () => {
     expect(timestamp).toBeChecked();
   });
 
-  it('lists the drafts newest first', () => {
+  // GitHub #117, item 2: in timeline order, the latest on top, not the order they were made (7, 2, 30 here).
+  it('lists the drafts in timeline order, the latest on top', () => {
     show();
-    expect(names()).toEqual(['xv', 'Draft 2', 'zq']);
+    expect(names()).toEqual(['xv', 'zq', 'Draft 2']);
+  });
+
+  // GitHub #117, item 6: one more way to close it.
+  it('closes from the X at its top', () => {
+    const onClose = jest.fn();
+    show({ onClose });
+    fireEvent.click(screen.getByRole('button', { name: 'Close Settings' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it('says so when there are no drafts', () => {
@@ -136,7 +151,7 @@ describe('DraftDrawer', () => {
   it('opens a name for typing with the current name in it, and saves it on Enter', () => {
     const onRename = jest.fn();
     show({ onRename });
-    fireEvent.click(screen.getAllByLabelText('Rename Draft Marker')[2]);
+    fireEvent.click(screen.getAllByLabelText('Rename Draft Marker')[1]);
     const field = screen.getByLabelText(
       'Draft Marker name'
     ) as HTMLInputElement;
@@ -234,5 +249,58 @@ describe('DraftDrawer: refusal', () => {
   it('shows no Undo when there is nothing to undo', () => {
     show();
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+  });
+});
+
+// GitHub #117, item 9: the panel is a fixed width, so a name stops at the end of its field.
+describe('DraftDrawer: a name fits its field', () => {
+  // jsdom lays nothing out, so the field's widths are given: it overflows once its text is longer than `room`.
+  const field = (value: string, room: number) =>
+    ({
+      value,
+      clientWidth: room * 10,
+      scrollWidth: Math.max(value.length, room) * 10,
+    }) as unknown as HTMLInputElement;
+
+  it('takes a letter while the name fits', () => {
+    expect(fitsTheField(field('abcd', 4), 'abc')).toBe(true);
+  });
+
+  it('refuses a letter that would run past the end', () => {
+    expect(fitsTheField(field('abcde', 4), 'abcd')).toBe(false);
+  });
+
+  it('never cuts a name already longer than the field, and lets it be shortened', () => {
+    expect(fitsTheField(field('abcdefg', 4), 'abcdefgh')).toBe(true);
+  });
+
+  it('refuses making a name that is already too long longer still', () => {
+    expect(fitsTheField(field('abcdefghi', 4), 'abcdefgh')).toBe(false);
+  });
+
+  describe('in the panel', () => {
+    const widths = (room: number) => {
+      jest
+        .spyOn(HTMLElement.prototype, 'clientWidth', 'get')
+        .mockImplementation(() => room * 10);
+      jest
+        .spyOn(HTMLElement.prototype, 'scrollWidth', 'get')
+        // eslint-disable-next-line no-unused-vars -- the base rule reports the `this` parameter's type
+        .mockImplementation(function width(this: HTMLElement) {
+          const text = (this as HTMLInputElement).value ?? '';
+          return Math.max(text.length, room) * 10;
+        });
+    };
+    afterEach(() => jest.restoreAllMocks());
+
+    it('keeps what was typed up to the end of the field, and no further', () => {
+      widths(4);
+      show({ startNaming: 7 });
+      const input = screen.getByRole('textbox', { name: 'Draft Marker name' });
+      fireEvent.change(input, { target: { value: 'abcd' } });
+      expect(input).toHaveValue('abcd');
+      fireEvent.change(input, { target: { value: 'abcde' } });
+      expect(input).toHaveValue('abcd');
+    });
   });
 });

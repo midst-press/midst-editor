@@ -14,6 +14,12 @@
   --midst-control-bar: #ffa4b9;
   --midst-on-control-bar: #ffffff;
   --midst-control-bar-hover: rgb(255, 182, 199);
+  --midst-active-icon: #b57edc;
+  --midst-divider: rgba(0, 0, 0, 0.12);
+  --midst-title-rule: rgba(0, 0, 0, 0.18);
+  --midst-switch-on: #ffa4b9;
+  --midst-switch-thumb: #fff;
+  --midst-switch-off: #d6d6d6;
   --midst-card: #ffced4;
   --midst-on-card: rgba(0, 0, 0, 0.87);
   --midst-logo: #000;
@@ -44,6 +50,12 @@
     --midst-control-bar: #4a2f38;
     --midst-on-control-bar: #fff;
     --midst-control-bar-hover: rgba(255, 255, 255, 0.12);
+    --midst-active-icon: #b57edc;
+    --midst-divider: #6b6b6b;
+    --midst-title-rule: rgba(255, 255, 255, 0.22);
+    --midst-switch-on: rgba(255, 206, 212, 0.5);
+    --midst-switch-thumb: #fff;
+    --midst-switch-off: rgba(255, 255, 255, 0.3);
     --midst-card: #4a2f38;
     --midst-on-card: #fff;
     --midst-logo: #fff;

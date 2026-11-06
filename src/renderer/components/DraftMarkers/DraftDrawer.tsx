@@ -1,3 +1,4 @@
+import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -10,6 +11,8 @@ import { i18n } from '../../../shared/i18n';
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {
   open: boolean;
+  // The X at the top right, one more way to close the panel (GitHub #117, item 6).
+  onClose: () => void;
   markers: ShownMarker[];
   // The history position whose name is open for typing, if any.
   naming: number | null;
@@ -31,6 +34,18 @@ interface Props {
 }
 /* eslint-enable no-unused-vars */
 
+// The drafts in the order they come on the timeline, the latest on top (GitHub #117, item 2), whatever order they
+// were made in.
+export const latestFirst = (markers: ShownMarker[]): ShownMarker[] =>
+  [...markers].sort((a, b) => b.index - a.index);
+
+// Whether a name being typed still fits its field. The panel is a fixed width, so a name stops where the field
+// ends instead of running on behind an ellipsis (GitHub #117, item 9). Only typing that makes the name longer is
+// held to it: a name already longer than the field, from before or from another app, is never cut, and
+// deleting from it always works.
+export const fitsTheField = (field: HTMLInputElement, before: string) =>
+  field.value.length <= before.length || field.scrollWidth <= field.clientWidth;
+
 // The Settings panel (GitHub #94), which for now holds the drafts: the list of drafts, newest first, as the original editor's drawer had it: choose one to go to that
 // moment, rename it, or delete it. A delete happens at once, as the original did, and can be undone for a few
 // seconds (#277).
@@ -39,6 +54,7 @@ interface Props {
 // moment being named. The replay lays it out beside the rest of the page, and nothing behind it is dimmed.
 export default function DraftDrawer({
   open,
+  onClose,
   markers,
   naming,
   setNaming,
@@ -89,7 +105,17 @@ export default function DraftDrawer({
       className="DraftDrawer"
       aria-label={i18n._('settings.title')}
     >
-      <h2>{i18n._('settings.title')}</h2>
+      <div className="SettingsHeader">
+        <h2>{i18n._('settings.title')}</h2>
+        <button
+          type="button"
+          className="icon-button SettingsClose"
+          aria-label={i18n._('settings.close')}
+          onClick={onClose}
+        >
+          <CloseIcon fontSize="small" />
+        </button>
+      </div>
       <h3>{i18n._('drafts.title')}</h3>
       <RefusalAlert message={refusal} />
       {canUndo ? (
@@ -122,7 +148,7 @@ export default function DraftDrawer({
       />
       {markers.length === 0 ? <p>{i18n._('drafts.none')}</p> : null}
       <ul>
-        {[...markers].reverse().map((marker) => (
+        {latestFirst(markers).map((marker) => (
           <li key={marker.index}>
             {naming === marker.index ? (
               <input
@@ -131,7 +157,9 @@ export default function DraftDrawer({
                 // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 value={typed}
-                onChange={(e) => setTyped(e.target.value)}
+                onChange={(e) => {
+                  if (fitsTheField(e.target, typed)) setTyped(e.target.value);
+                }}
                 onFocus={(e) => e.target.select()}
                 onBlur={() => finishNaming(marker.index)}
                 onKeyDown={(e) => {
