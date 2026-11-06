@@ -139,7 +139,7 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
     await win.keyboard.press('Home');
     await markHere(win, 'xv');
 
-    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // The divider follows the timeline as it moves up for the names: wait for that to finish.
     await win.waitForTimeout(600);
@@ -236,7 +236,7 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
     // Item 6: the X closes it, and the gear stops being active.
     await win.getByRole('button', { name: 'Close Settings' }).click();
     await expect(win.locator('.DraftDrawer')).toBeHidden();
-    const gear = win.getByRole('button', { name: 'Settings' });
+    const gear = win.getByRole('button', { name: 'Settings', exact: true });
     await expect(gear).toBeFocused();
     expect(await gear.evaluate((g) => getComputedStyle(g).color)).toBe(
       await resolved(win, 'var(--midst-on-control-bar)')
