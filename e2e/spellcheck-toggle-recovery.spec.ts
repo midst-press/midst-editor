@@ -77,6 +77,17 @@ async function untitledPoemWithText(answer: number) {
 
 type Started = Awaited<ReturnType<typeof untitledPoemWithText>>;
 
+// Ends Midst without its quit path. The poem is unsaved, so a close asks about it, and every dialog here gets the same
+// answer, which for No cancels the quit and leaves app.close() waiting for ever (run 14191).
+async function end(app: Started['app']) {
+  const exited = new Promise<void>((resolve) => {
+    if (app.process().exitCode !== null) resolve();
+    else app.process().once('exit', () => resolve());
+  });
+  app.process().kill('SIGKILL');
+  await exited;
+}
+
 // Check Spelling, then wait past the reloaded page's first render, when main's ready-to-show handler would offer.
 async function toggle({ app, win, userData }: Started) {
   await clickCheckSpelling(app);
@@ -144,7 +155,7 @@ async function toggle({ app, win, userData }: Started) {
         `nothing crashed, so nothing is asked or trashed: ${facts}`
       ).toEqual([]);
     } finally {
-      await app.close();
+      await end(app);
     }
   });
 });
@@ -175,7 +186,7 @@ test('after Yes on the toggle offer, the poem is the latest typing, not the olde
       true
     );
   } finally {
-    await app.close();
+    await end(app);
   }
 });
 
@@ -204,7 +215,7 @@ test('Midst ending while the toggle offer is up still leaves the poem for the ne
     }),
   ]);
   if (!killedByOffer) {
-    await app.close();
+    await end(app);
   }
   const again = await start(work, userData, 0);
   try {
