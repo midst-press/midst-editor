@@ -4,12 +4,14 @@ import type { EditorState } from '@tiptap/pm/state';
 
 // Tab and Shift-Tab in the poem (Annelyse, GitHub #30; editor #431).
 //
-// - Tab with the cursor in a line, or with part of one line selected, puts a tab there, as it always has: a tab partway
-//   through a line still works.
+// - Tab with the cursor in a line puts a tab there, as it always has: a tab partway through a line still works.
+// - Tab with a word or phrase selected inside one line moves it over by a tab: the tab goes just before it, and the
+//   selection stays on it (GitHub #30, 6 Nov; editor #461).
 // - Tab with a selection reaching across lines puts a tab at the start of each of those lines, and keeps the selection.
-// - Shift-Tab takes a tab away: the one just before the cursor if there is one, so it undoes the tab just typed even
-//   partway through a line; otherwise one tab from the start of the line. With a selection, one tab from the start of
-//   each selected line that begins with one. Backspace still deletes a tab as any character.
+// - Shift-Tab takes a tab away: the one just before the cursor, or just before a selection inside one line, if there is
+//   one, so it undoes the Tab just pressed even partway through a line; otherwise one tab from the start of the line.
+//   With a selection across lines, one tab from the start of each selected line that begins with one. Backspace still
+//   deletes a tab as any character.
 //
 // A line is a paragraph, or the text after a line break inside one. A selection that ends at the very start of a line
 // does not take that line in, as in other editors. Each key is one change, so one Undo puts it back.
@@ -53,9 +55,19 @@ const HandleTab = Extension.create({
       Tab: () => {
         const { state, view } = this.editor;
         const starts = selectedLineStarts(state);
-        if (state.selection.empty || starts.length < 2)
+        if (state.selection.empty || !starts.length)
           return this.editor.commands.insertContent(TAB);
         const { tr } = state;
+        if (starts.length === 1) {
+          // Before the selected words. A selection starting between blocks (Select All) starts at its line instead.
+          const at =
+            lineStartAt(state.doc, state.selection.from) === null
+              ? starts[0]
+              : state.selection.from;
+          // The selection maps past the inserted tab, so it stays on the same words.
+          view.dispatch(tr.insertText(TAB, at));
+          return true;
+        }
         // From the last line up, so each insert leaves the earlier positions where they were.
         [...starts].reverse().forEach((start) => tr.insertText(TAB, start));
         view.dispatch(tr);
@@ -67,7 +79,7 @@ const HandleTab = Extension.create({
         let remove: number[];
         const before = selection.from - 1;
         if (
-          selection.empty &&
+          (selection.empty || selectedLineStarts(state).length === 1) &&
           before >= 0 &&
           doc.textBetween(before, selection.from) === TAB
         )
