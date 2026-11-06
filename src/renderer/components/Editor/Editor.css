@@ -10,6 +10,7 @@
      APP_FONT_STACK in poemFont.ts. */
   font-family: var(
     --poem-font,
+    Jost,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -76,6 +77,11 @@
   width: 16px;
 }
 
+.focus-mode-gap-wide {
+  /* Double the space before the focus-mode icon (GitHub #25, #462). */
+  width: 32px;
+}
+
 .icon-button {
   /* theme.palette.secondary.light */
   background-color: transparent;
@@ -111,9 +117,9 @@
 
 .is-active {
   transition: background-color 0.1s ease;
-  stroke: #b57edc;
+  stroke: var(--midst-active-icon);
   stroke-width: 1px;
-  color: #b57edc;
+  color: var(--midst-active-icon);
 }
 
 .MuiTooltip-tooltip {

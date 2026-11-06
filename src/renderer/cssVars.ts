@@ -34,6 +34,15 @@ export const CSS_VARS = {
   controlBar: { name: '--midst-control-bar' },
   onControlBar: { name: '--midst-on-control-bar' },
   controlBarHover: { name: '--midst-control-bar-hover' },
+  // An icon whose mode or panel is on: the editor's marks and focus mode, and Settings while it is open (GitHub #117,
+  // item 11). One colour for "active" everywhere.
+  activeIcon: { name: '--midst-active-icon' },
+  // The Settings panel's divider, the line under its title, and its switches (GitHub #117).
+  divider: { name: '--midst-divider' },
+  titleRule: { name: '--midst-title-rule' },
+  switchOn: { name: '--midst-switch-on' },
+  switchThumb: { name: '--midst-switch-thumb' },
+  switchOff: { name: '--midst-switch-off' },
   // The opening screen's welcome card, what is written on it, and its logo. Pink in the light scheme,
   // dark rose in the dark, so the card is never a bright block in a dark window.
   card: { name: '--midst-card' },

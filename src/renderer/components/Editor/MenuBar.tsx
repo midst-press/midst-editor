@@ -245,7 +245,7 @@ function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
           {sizeControls}
           <span className="focus-mode-gap" aria-hidden="true" />
           {stylingControls}
-          <span className="focus-mode-gap" aria-hidden="true" />
+          <span className="focus-mode-gap-wide" aria-hidden="true" />
           {moon}
         </>
       )}

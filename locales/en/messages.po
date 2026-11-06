@@ -1310,6 +1310,12 @@ msgstr "\"{type}\""
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
 #, fuzzy
+msgid "settings.close"
+msgstr "Close Settings"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
 msgid "settings.showTimestamp"
 msgstr "Show timestamp"
 

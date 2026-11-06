@@ -95,7 +95,7 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     // playback. Space plays and pauses, with the list open too (GitHub #98).
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
-    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // One key at a time: the two together would start playback and stop it again. Read once, not
     // with a retrying expect: a retry would wait until the playback it is meant to catch had run to
@@ -386,7 +386,7 @@ test('the drafts list sits beside the poem and the timeline, covering neither', 
     });
     await win.getByLabel('Draft Marker name').press('Enter');
     await win.getByRole('link', { name: 'Timeline' }).click();
-    await win.getByRole('button', { name: 'Settings' }).click();
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
 
     await expectBeside(win);
@@ -518,9 +518,9 @@ async function markHere(win: Page, name: string) {
 }
 
 const showTimestamp = async (win: Page) => {
-  await win.getByRole('button', { name: 'Settings' }).click();
+  await win.getByRole('button', { name: 'Settings', exact: true }).click();
   await win.getByRole('checkbox', { name: 'Show timestamp' }).click();
-  await win.getByRole('button', { name: 'Settings' }).click();
+  await win.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(win.locator('.DraftDrawer')).toBeHidden();
 };
 

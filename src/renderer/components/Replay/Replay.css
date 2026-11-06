@@ -6,6 +6,7 @@
      APP_FONT_STACK in poemFont.ts. */
   font-family: var(
     --poem-font,
+    Jost,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -133,6 +134,8 @@
 /* The drafts list beside the poem and the timeline, never over them (#313, GitHub #85): the poem and the control
    bar take the width that is left. */
 .ReplayLayout {
+  /* What the timeline's top is measured from (useTimelineTop). */
+  position: relative;
   display: flex;
   align-items: flex-start;
 }
@@ -144,13 +147,26 @@
 
 .DraftDrawer {
   flex: 0 0 auto;
+  box-sizing: border-box;
   width: 300px;
   padding: 16px;
-  max-height: calc(100vh - 32px);
+  /* The divider runs down to just above the timeline, leaving the gap the names leave below it (GitHub #117,
+     item 3). The replay measures where the timeline starts. */
+  height: calc(var(--timeline-top, 100vh) - var(--divider-gap));
   overflow-y: auto;
-  border-left: 1px solid rgba(0, 0, 0, 0.12);
+  border-left: 1px solid var(--midst-divider);
   outline: none;
+  --divider-gap: 16px;
+}
+
+/* Everything in the panel in the app's font (GitHub #117, item 1; Jost since #453), at one size (item 7). The
+   switches' labels are MUI text, which takes the theme's font unless told otherwise. */
+.DraftDrawer,
+.DraftDrawer .MuiTypography-root,
+.DraftDrawer h2,
+.DraftDrawer h3 {
   font-family:
+    Jost,
     system-ui,
     -apple-system,
     BlinkMacSystemFont,
@@ -162,23 +178,40 @@
     'Open Sans',
     'Helvetica Neue',
     sans-serif;
+  font-size: 1rem;
+}
+
+/* The title in the middle, a pale dotted line under it with a little space between and at the sides, and the X
+   at the right (GitHub #117, items 5 and 6). */
+.SettingsHeader {
+  position: relative;
+  margin: 0 4px 28px;
+  padding-bottom: 8px;
+  border-bottom: 1px dotted var(--midst-title-rule);
 }
 
 .DraftDrawer h2 {
-  font-size: 1rem;
-  margin: 0 0 8px;
+  margin: 0;
+  text-align: center;
+}
+
+.SettingsClose {
+  position: absolute;
+  top: 50%;
+  right: -4px;
+  transform: translateY(calc(-50% - 4px));
 }
 
 /* A section of Settings (GitHub #94), under the panel's own heading. */
 .DraftDrawer h3 {
-  font-size: 0.875rem;
-  margin: 8px 0 4px;
+  margin: 0 0 4px;
 }
 
 .DraftDrawer ul {
   list-style: none;
   padding: 0;
-  margin: 12px 0 0;
+  /* Room between the drafts and the next setting (GitHub #117, item 8). */
+  margin: 12px 0 28px;
 }
 
 .DraftDrawer li {
@@ -186,6 +219,22 @@
   align-items: center;
   gap: 4px;
   padding: 2px 0;
+}
+
+/* The switches: pink with a white circle when on, light grey when off; the circle white in both schemes
+   (GitHub #117, item 4). */
+.DraftDrawer .MuiSwitch-thumb {
+  color: var(--midst-switch-thumb);
+}
+
+.DraftDrawer .MuiSwitch-switchBase + .MuiSwitch-track {
+  background-color: var(--midst-switch-off);
+  opacity: 1;
+}
+
+.DraftDrawer .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
+  background-color: var(--midst-switch-on);
+  opacity: 1;
 }
 
 .DraftDrawer .draft-name,
