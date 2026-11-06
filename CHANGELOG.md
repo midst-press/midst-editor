@@ -10,6 +10,7 @@
   to the Timeline. The drafts are listed in Timeline order, latest on top, the gear is lavender while Settings is
   open, and a name typed in Settings stops at the end of its field (GitHub #117).
 - **Tab with a word or phrase selected moves it over by a tab** (GitHub #30).
+- **Twice the space between the styling icons and the moon** in the toolbar (GitHub #25).
 - Under the hood: new tests for the spelling marks, and the package checks before a release now fail rather than
   pass when one of their own steps goes wrong.
 
