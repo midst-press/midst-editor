@@ -1,3 +1,18 @@
+# 0.11.0
+
+- **Turning Check Spelling on or off no longer asks to recover your poem.** Before, it offered to recover the poem
+  you were writing, and answering No could lose an Untitled poem. Recovery is now offered once when Midst opens,
+  and never for the poem you are working on (GitHub #71).
+- **A poem with no font of its own is drawn in Jost**, which comes with Midst, so its lines may wrap differently. A
+  poem that chose a font keeps it. **View** > **Font…** lists "The app's own font", then Libre Caslon Text, which
+  also comes with Midst, then your installed fonts (GitHub #73).
+- **Settings has a new look:** all in Jost, "Settings" centred with an X to close it, pink switches, and a line down
+  to the Timeline. The drafts are listed in Timeline order, latest on top, the gear is lavender while Settings is
+  open, and a name typed in Settings stops at the end of its field (GitHub #117).
+- **Tab with a word or phrase selected moves it over by a tab** (GitHub #30).
+- Under the hood: new tests for the spelling marks, and the package checks before a release now fail rather than
+  pass when one of their own steps goes wrong.
+
 # 0.10.0
 
 - **Draft Markers on the Timeline look like the timestamp.** They are white speech bubbles, a name is typed centred,
