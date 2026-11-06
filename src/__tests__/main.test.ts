@@ -1232,6 +1232,19 @@ describe('main process', () => {
       reads.restore();
     });
 
+    it('offers recovery once a launch: a reload shows the page again, and nothing has crashed then (editor #460)', async () => {
+      const { fireWindow } = await boot();
+      // After boot: boot resets the modules, and with them this mock.
+      const { offerRecovery } = jest.requireMock('../main/menu') as {
+        offerRecovery: jest.Mock;
+      };
+      await fireWindow('ready-to-show');
+      expect(offerRecovery).toHaveBeenCalledTimes(1);
+      await fireWindow('ready-to-show');
+      await fireWindow('ready-to-show');
+      expect(offerRecovery).toHaveBeenCalledTimes(1);
+    });
+
     it('reads nothing when no file was requested', async () => {
       const reads = trackReadFile();
       const { store, fireWindow } = await boot();
