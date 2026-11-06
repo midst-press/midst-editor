@@ -431,19 +431,20 @@ describe('MenuBar focus mode (GitHub #25)', () => {
       'Strikethrough',
       'Focus Mode',
     ]);
-    // Two gaps: one between size and styling, one between styling and the moon (GitHub #25, #432).
-    const gaps = bar.querySelectorAll('.focus-mode-gap');
+    // Two gaps: one between size and styling, one between styling and the moon (GitHub #25, #432, #462).
+    const gaps = bar.querySelectorAll('.focus-mode-gap, .focus-mode-gap-wide');
     expect(gaps).toHaveLength(2);
     gaps.forEach((gap) => {
       expect(gap.textContent).toBe('');
     });
     const label = (n: Element) =>
-      n.classList.contains('focus-mode-gap')
+      n.classList.contains('focus-mode-gap') ||
+      n.classList.contains('focus-mode-gap-wide')
         ? 'gap'
         : (n.getAttribute('aria-label') ?? 'other');
     const inOrder = Array.from(
       bar.querySelectorAll(
-        '.focus-mode-gap, button[aria-label="Focus Mode"], button[aria-label="Increase text size"], button[aria-label="Bold"]'
+        '.focus-mode-gap, .focus-mode-gap-wide, button[aria-label="Focus Mode"], button[aria-label="Increase text size"], button[aria-label="Bold"]'
       )
     )
       .map(label)
