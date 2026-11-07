@@ -386,12 +386,6 @@ msgstr "There is no moment here to mark."
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/useDraftMarkers.ts
 #, fuzzy
-msgid "drafts.refused.noNumberLeft"
-msgstr "No more Draft Markers can be numbered in this poem."
-
-#. js-lingui-explicit-id
-#: src/renderer/components/DraftMarkers/useDraftMarkers.ts
-#, fuzzy
 msgid "drafts.refused.tooFewChanges"
 msgstr "A Draft Marker can be added once the poem has more than {needed} changes. This one has {count}."
 
