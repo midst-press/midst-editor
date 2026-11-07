@@ -110,6 +110,13 @@
   stroke-width: 1px;
 }
 
+/* All toolbar icon SVGs render at one size (GitHub #469). */
+.icon-button svg,
+.control-bar-icon svg {
+  height: 22px;
+  width: 22px;
+}
+
 .size-icon svg {
   height: 22px;
   margin-top: -1px;

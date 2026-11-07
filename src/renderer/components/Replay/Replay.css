@@ -109,6 +109,13 @@
   z-index: 10;
 }
 
+/* All toolbar icon SVGs render at one size (GitHub #469). */
+.icon-button svg,
+.control-bar-icon svg {
+  height: 22px;
+  width: 22px;
+}
+
 .control-bar-icon:hover {
   /* theme.palette.secondary.light */
   background-color: var(--midst-control-bar-hover);
