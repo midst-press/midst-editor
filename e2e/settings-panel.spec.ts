@@ -344,14 +344,28 @@ test('numbers follow the Timeline, and Undo is in the deleted row (GitHub #117)'
     await win.getByRole('button', { name: 'Undo' }).click();
     await expect.poll(names).toEqual(['Draft 3', 'Draft 2', 'Draft 1']);
 
-    // Delete it again and let the time run out: the row fades, the list closes up, the numbers close the gap.
+    // Delete it again and let the time run out: the row fades, the list closes up, the numbers close the gap. The
+    // fade lasts 400ms, shorter than the gaps between a retrying expect's polls (it passed on the PR by luck and failed
+    // on main, run 14349), so the page records the row taking the class as it happens.
+    await win.locator('.DraftDrawer ul').evaluate((list) => {
+      const seen = window as unknown as { sawLeaving?: boolean };
+      seen.sawLeaving = false;
+      new MutationObserver(() => {
+        if (list.querySelector('.DraftDeleted.leaving')) seen.sawLeaving = true;
+      }).observe(list, { subtree: true, childList: true, attributes: true });
+    });
     await win
       .getByRole('button', { name: 'Delete Draft Marker' })
       .nth(1)
       .click();
     await expect(row).toBeVisible();
-    await expect(row).toHaveClass(/leaving/, { timeout: 8_000 });
-    await expect(row).toHaveCount(0, { timeout: 2_000 });
+    await expect(row).toHaveCount(0, { timeout: 8_000 });
+    expect(
+      await win.evaluate(
+        () => (window as unknown as { sawLeaving?: boolean }).sawLeaving
+      ),
+      'the row went without fading'
+    ).toBe(true);
     await expect.poll(names).toEqual(['Draft 2', 'Draft 1']);
     await expect
       .poll(() => metaOnDisk().draftMarkers.length, { timeout: 10_000 })
