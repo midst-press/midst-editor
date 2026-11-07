@@ -216,12 +216,12 @@ describe('Replay: initial frame and slider', () => {
     expect(slider()).toHaveAttribute('aria-valuemax', '0');
   });
 
-  // GitHub #90: from the left, Continue writing from here, Add a Draft Marker, Settings (GitHub #94), then an X back to Edit.
+  // GitHub #469: from the left, Add a Draft Marker, Continue writing from here, Settings (GitHub #94), then an X back to Edit.
   it('orders the buttons at the right of the Timeline as Annelyse set them, ending in an X', () => {
     mount();
     const names = [
-      'Continue writing from here',
       'Add a Draft Marker here',
+      'Continue writing from here',
       'Settings',
       'Edit',
     ];
