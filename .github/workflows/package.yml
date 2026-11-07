@@ -25,6 +25,11 @@ on:
         type: choice
         options: [all, macos, windows, linux]
         default: all
+      # An audition build (GitHub #119): View > Colours… is in it. Never a release: build-info says so, and the
+      # artifact is named for it. See src/renderer/colourAudition/README.md.
+      colour_audition:
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -154,6 +159,8 @@ jobs:
       # signs the .pkg with the Developer ID Installer identity.
       - name: npm run package
         shell: bash
+        env:
+          MIDST_COLOUR_AUDITION: ${{ inputs.colour_audition && 'true' || 'false' }}
         run: |
           set -o pipefail
           npm run package 2>&1 | tee package.log
@@ -247,7 +254,7 @@ jobs:
       # omitted, so a macOS run would have failed at upload even once the workflow was valid.
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: midst-${{ matrix.want }}-${{ needs.plan.outputs.version }}-${{ github.sha }}
+          name: midst-${{ matrix.want }}-${{ needs.plan.outputs.version }}${{ inputs.colour_audition && '-colour-audition' || '' }}-${{ github.sha }}
           path: |
             release/build/*.pkg
             release/build/*.dmg
@@ -263,6 +270,7 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
           SIGNED: ${{ steps.signing.outputs.signed }}
           NOTARISED: ${{ steps.signing.outputs.notarised }}
+          COLOUR_AUDITION: ${{ inputs.colour_audition && 'true' || 'false' }}
         run: |
           node - <<'JS'
           const fs = require('fs');
@@ -281,6 +289,7 @@ jobs:
             ref: process.env.GITHUB_REF,
             signed: process.env.SIGNED === 'yes',
             notarised: process.env.NOTARISED === 'yes',
+            colourAudition: process.env.COLOUR_AUDITION === 'true',
             files,
           };
           fs.mkdirSync('build-info', { recursive: true });

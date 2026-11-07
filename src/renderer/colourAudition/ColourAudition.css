@@ -1,0 +1,121 @@
+/* View > Colours… (GitHub #119). Placed like View > Font…, but drawn in fixed neutrals of its own, never the
+   app's variables: a colour being auditioned can make the app unreadable, and the panel must stay usable to
+   put it back. */
+.colour-audition {
+  position: fixed;
+  top: 40px;
+  right: 16px;
+  z-index: 11;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 380px;
+  max-height: calc(100vh - 80px);
+  padding: 8px 10px;
+  color: #222;
+  background: #fafafa;
+  border: 1px solid #bbb;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  font-family:
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .colour-audition {
+    color: #eee;
+    background: #262626;
+    border-color: #555;
+  }
+}
+
+.colour-audition button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+}
+
+.colour-audition button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.colour-audition button[aria-pressed='true'] {
+  background: rgba(127, 127, 127, 0.3);
+}
+
+.colour-audition-head,
+.colour-audition-schemes,
+.colour-audition-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.colour-audition-head button {
+  margin-left: auto;
+  border: none;
+  display: flex;
+}
+
+.colour-audition-title {
+  font-weight: 600;
+}
+
+.colour-audition-note {
+  margin: 0;
+  font-style: italic;
+}
+
+.colour-audition-list {
+  overflow-y: auto;
+}
+
+.colour-audition-list h3 {
+  margin: 8px 0 2px;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.75;
+}
+
+.colour-audition-row {
+  display: grid;
+  grid-template-columns: 1fr 28px 86px auto auto;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 0;
+}
+
+.colour-audition-row input[type='color'] {
+  width: 28px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.colour-audition-hex {
+  font:
+    12px ui-monospace,
+    Menlo,
+    monospace;
+  color: inherit;
+  background: transparent;
+  border: 1px solid #999;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+
+.colour-audition-bad {
+  border-color: #d00;
+}
