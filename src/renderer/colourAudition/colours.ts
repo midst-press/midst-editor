@@ -143,7 +143,8 @@ export const parseColour = (value: string): Rgba | null => {
   if (m) {
     const [r, g, b] = [m[1], m[2], m[3]].map(Number);
     const a = m[4] === undefined ? 1 : Number(m[4]);
-    if ([r, g, b].some((c) => c > 255) || a > 1) return null;
+    if ([r, g, b].some((c) => c > 255) || !Number.isFinite(a) || a > 1)
+      return null;
     return { r, g, b, a };
   }
   return null;
@@ -165,7 +166,9 @@ export const withRgb = (rgbHex: string, previous: string): string | null => {
 // ---- Applying choices ----------------------------------------------------------------------------------
 
 // The CSS that puts the chosen variables over cssVars.css. `:root:root` outranks cssVars.css's `:root`
-// whatever order the stylesheets load in.
+// whatever order the stylesheets load in. Each scheme's choices sit in that scheme's media block, light
+// included: cssVars.css's light values apply in both schemes until its dark block overrides them, so a light
+// choice outside a media block would outrank the dark defaults too (alden-ec2221c7, review of #472).
 export const cssText = (choices: Choices): string => {
   const block = (scheme: Scheme) =>
     AUDITION_COLOURS.filter((c) => c.css && choices[scheme][c.id] !== undefined)
@@ -176,7 +179,7 @@ export const cssText = (choices: Choices): string => {
   const light = block('light');
   const dark = block('dark');
   return [
-    light && `:root:root { ${light} }`,
+    light && `@media (prefers-color-scheme: light) { :root:root { ${light} } }`,
     dark && `@media (prefers-color-scheme: dark) { :root:root { ${dark} } }`,
   ]
     .filter(Boolean)

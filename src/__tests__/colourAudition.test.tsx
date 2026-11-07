@@ -87,6 +87,8 @@ describe('colour values', () => {
     'rgba(0,0,0,2)',
     '#12',
     'red; } body { display: none',
+    'rgba(1, 2, 3, .)',
+    'rgba(1, 2, 3, 0..5)',
   ])('does not read %s', (value) => expect(parseColour(value)).toBeNull());
 
   it('keeps the transparency a colour had when the RGB is picked', () => {
