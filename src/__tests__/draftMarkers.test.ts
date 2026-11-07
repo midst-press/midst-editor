@@ -229,6 +229,51 @@ describe('createMarker', () => {
       ]);
     });
 
+    // clement-7074f29f, review of #467: neither comes from this app's renames, only from converted or edited files.
+    it('numbers a marker at a negative position after every one on the Timeline', () => {
+      const meta = metaOf(
+        createMarker(
+          {
+            draftMarkers: [
+              { index: -1, defaultName: 'Draft 1' },
+              { index: 5, defaultName: 'Draft 2' },
+            ],
+          },
+          8,
+          10
+        )
+      );
+      expect(shownMarkers(meta, 10).map((m) => m.label)).toEqual([
+        'Draft 1',
+        'Draft 2',
+      ]);
+      expect(names(meta)).toEqual([
+        [-1, 'Draft 3'],
+        [5, 'Draft 1'],
+        [8, 'Draft 2'],
+      ]);
+    });
+
+    it('numbers a name of only spaces, and shows its number, not the spaces', () => {
+      const meta = metaOf(
+        createMarker(
+          {
+            draftMarkers: [
+              { index: 2, defaultName: 'Draft 1' },
+              { index: 4, name: '  ', defaultName: 'Draft 2' },
+            ],
+          },
+          8,
+          10
+        )
+      );
+      expect(shownMarkers(meta, 10).map((m) => m.label)).toEqual([
+        'Draft 1',
+        'Draft 2',
+        'Draft 3',
+      ]);
+    });
+
     it('leaves a marker whose number does not change as the same object', () => {
       const first = { index: 1, defaultName: 'Draft 1', timestamp: 3 };
       const after = metaOf(createMarker({ draftMarkers: [first] }, 4, 10));

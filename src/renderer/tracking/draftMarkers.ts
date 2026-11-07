@@ -54,7 +54,8 @@ const hasDefaultName = (marker: DraftMarker) =>
   marker.name === marker.defaultName;
 
 // The list with its default names numbered in Timeline order (two markers at one position in the order of the list),
-// and how many there are. Everything else in it is kept as it is, and an entry whose name does not change is the same
+// and how many there are. A marker at a negative position is not on the Timeline, so it comes after every one that
+// could be, as one past the end of the history does (clement-7074f29f, review of #467). Everything else in it is kept as it is, and an entry whose name does not change is the same
 // object, so a list that needs no renumbering comes back equal.
 const renumbered = (list: unknown[]): { list: unknown[]; count: number } => {
   const numbered = list
@@ -62,11 +63,11 @@ const renumbered = (list: unknown[]): { list: unknown[]; count: number } => {
     .filter(
       ({ entry }) => isMarker(entry) && hasDefaultName(entry as DraftMarker)
     )
-    .sort(
-      (a, b) =>
-        (a.entry as DraftMarker).index - (b.entry as DraftMarker).index ||
-        a.at - b.at
-    );
+    .sort((a, b) => {
+      const ai = (a.entry as DraftMarker).index;
+      const bi = (b.entry as DraftMarker).index;
+      return Number(ai < 0) - Number(bi < 0) || ai - bi || a.at - b.at;
+    });
   const numberAt = new Map(numbered.map(({ at }, i) => [at, i + 1]));
   return {
     count: numbered.length,
@@ -195,14 +196,15 @@ export interface ShownMarker {
 }
 
 // The markers to show for a history of this length, in the file's order: those that point inside it.
-// The label is the poet's name, else the default name, else "Draft", as the web player shows them.
+// The label is the poet's name, else the default name, else "Draft", as the web player shows them. A name of only
+// spaces is no name, as an empty rename is: it is numbered, so it shows its number (clement-7074f29f, review of #467).
 export const shownMarkers = (
   meta: Meta,
   historyLength: number
 ): ShownMarker[] => {
   const list = storedList(meta) ?? [];
   const text = (value: unknown) =>
-    typeof value === 'string' && value !== '' ? value : undefined;
+    typeof value === 'string' && value.trim() !== '' ? value : undefined;
   return list
     .filter(isMarker)
     .filter(({ index }) => index >= 0 && index < historyLength)
