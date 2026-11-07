@@ -102,7 +102,7 @@ describe('useDraftMarkers', () => {
     expect(result.current.markers).toEqual([]);
     expect(bridge.storedMeta()).toEqual({
       draftMarkers: [],
-      highestDraftNumber: 1,
+      highestDraftNumber: 0,
     });
     expect(bridge.values.edited).toBe(true);
     expect(save).toHaveBeenCalledTimes(3);
@@ -301,15 +301,6 @@ const REFUSALS: {
     index: 5,
     reason: 'position-has-a-marker',
     text: 'This moment already has a Draft Marker.',
-  },
-  {
-    name: 'create when the draft counter cannot go higher',
-    meta: { highestDraftNumber: Number.MAX_SAFE_INTEGER },
-    run: (h) => h.create(5),
-    action: 'create',
-    index: 5,
-    reason: 'no-draft-number-left',
-    text: 'No more Draft Markers can be numbered in this poem.',
   },
   {
     name: 'create when the stored meta is unreadable',
@@ -624,8 +615,9 @@ describe('useDraftMarkers: a change that throws', () => {
 });
 
 describe('useDraftMarkers: undoing a delete (#277)', () => {
+  // The counter is the number of default names: the draft at 9 has a name of its own.
   const MARKED = {
-    highestDraftNumber: 2,
+    highestDraftNumber: 1,
     draftMarkers: [
       { index: 3, defaultName: 'Draft 1' },
       { index: 9, name: 'zq', defaultName: 'Draft 2', timestamp: 4 },
