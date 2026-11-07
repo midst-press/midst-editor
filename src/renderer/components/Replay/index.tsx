@@ -404,7 +404,7 @@ export default function Replay() {
         onJump={jumpTo}
         onRename={drafts.rename}
         onDelete={drafts.remove}
-        canUndo={drafts.canUndoDelete}
+        deletedAt={drafts.deletedAt}
         onUndo={drafts.undoDelete}
         refusal={drafts.refusal}
         showMarkers={showMarkers}

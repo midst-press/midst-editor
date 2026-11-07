@@ -228,6 +228,67 @@
   padding: 2px 0;
 }
 
+/* A deleted draft's row while it can be put back (GitHub #117): "deleted" in italics at the left, Undo at the right,
+   in the panel's font with rounded corners. */
+.DraftDrawer li.DraftDeleted {
+  justify-content: space-between;
+  min-height: 34px;
+  box-sizing: border-box;
+}
+
+.DraftDeleted em {
+  padding: 4px 6px;
+}
+
+.DraftUndoButton {
+  font: inherit;
+  color: var(--midst-text-primary);
+  background: var(--midst-surface);
+  border: 1px solid var(--midst-divider);
+  border-radius: 12px;
+  padding: 2px 12px;
+  cursor: pointer;
+}
+
+/* Once it can no longer be put back, the row fades, then closes, so the drafts below move up into its place. 400ms
+   in all: LEAVE_MS in DraftDrawer.tsx. */
+.DraftDrawer li.DraftDeleted.leaving {
+  overflow: hidden;
+  animation: draft-row-leaves 0.4s ease forwards;
+}
+
+@keyframes draft-row-leaves {
+  0% {
+    opacity: 1;
+    max-height: 34px;
+    min-height: 34px;
+  }
+  50% {
+    opacity: 0;
+    max-height: 34px;
+    min-height: 34px;
+  }
+  100% {
+    opacity: 0;
+    max-height: 0;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .DraftDrawer li.DraftDeleted.leaving {
+    animation: none;
+    display: none;
+  }
+}
+
+/* A little room between each switch and its label (GitHub #117). */
+.DraftDrawer .MuiFormControlLabel-label {
+  padding-left: 6px;
+}
+
 /* The switches: pink with a white circle when on, light grey when off; the circle white in both schemes
    (GitHub #117, item 4). */
 .DraftDrawer .MuiSwitch-thumb {

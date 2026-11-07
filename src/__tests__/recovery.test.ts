@@ -180,9 +180,16 @@ describe('orphans', () => {
     ).toEqual([A, B]);
   });
 
-  it("offers a copy carrying this process's own id: a crashed run's id can come round again", () => {
-    plant(A, process.pid, new Date());
+  it("offers a copy carrying this process's own id from an earlier start: a crashed run's id can come round again", () => {
+    plant(A, process.pid, new Date(), {
+      startedAt: psStart(process.pid) - 3_600_000,
+    });
     expect(orphans().map((o) => o.id)).toEqual([A]);
+  });
+
+  it("never offers this run's own copy, though its id has been forgotten (a reload, editor #460)", () => {
+    plant(A, process.pid, new Date());
+    expect(orphans().map((o) => o.id)).toEqual([]);
   });
 
   it('offers nothing when there is no Recovery folder, and ignores files that are not recovery copies', () => {

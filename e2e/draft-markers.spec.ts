@@ -135,7 +135,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     expect(second).toBeLessThan(last - 20);
     await expect(mark).toBeEnabled();
     await mark.click();
-    await expect(win.getByLabel('Draft Marker name')).toHaveValue('Draft 2');
+    // The first has a name of its own, so this is the first default name on the Timeline (GitHub #117, option a).
+    await expect(win.getByLabel('Draft Marker name')).toHaveValue('Draft 1');
     await win.getByLabel('Draft Marker name').press('Enter');
     await expect(win.getByLabel('Draft Marker name')).toHaveCount(0);
     await expect(win.locator('.ReplayContainer')).toBeVisible();
@@ -150,9 +151,9 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     expect(metaOnDisk(poemPath)).toEqual({
       draftMarkers: [
         { index: last, name: 'zq xv', defaultName: 'Draft 1' },
-        { index: second, name: 'Draft 2', defaultName: 'Draft 2' },
+        { index: second, name: 'Draft 1', defaultName: 'Draft 1' },
       ],
-      highestDraftNumber: 2,
+      highestDraftNumber: 1,
     });
 
     // 5. A click on a name goes to exactly its frame, from wherever the dot is.
@@ -162,11 +163,11 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     await expect(thumb).toHaveValue('0');
     await onTimeline('zq xv').click();
     await expect(thumb).toHaveValue(String(last));
-    await onTimeline('Draft 2').click();
+    await onTimeline('Draft 1').click();
     await expect(thumb).toHaveValue(String(second));
 
     // 6. A double-click renames in place.
-    await onTimeline('Draft 2').dblclick();
+    await onTimeline('Draft 1').dblclick();
     await expect(win.getByLabel('Draft Marker name')).toBeFocused();
     await win.getByLabel('Draft Marker name').fill('qq');
     await win.getByLabel('Draft Marker name').press('Enter');
@@ -178,7 +179,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       'the rename on the timeline never reached the file'
     ).toBe(true);
 
-    // 7. Right-click offers Delete: gone from the file at once, and its number is not given out again.
+    // 7. Right-click offers Delete: gone from the file at once. The one left has a name of its own, so no default
+    // names are counted.
     await onTimeline('zq xv').click({ button: 'right' });
     await win.getByRole('menuitem', { name: 'Delete Draft Marker' }).click();
     expect(
@@ -189,8 +191,8 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       'the delete never reached the file'
     ).toBe(true);
     expect(metaOnDisk(poemPath)).toEqual({
-      draftMarkers: [{ index: second, name: 'qq', defaultName: 'Draft 2' }],
-      highestDraftNumber: 2,
+      draftMarkers: [{ index: second, name: 'qq', defaultName: 'Draft 1' }],
+      highestDraftNumber: 0,
     });
     // No Undo is offered on the timeline (GitHub #98).
     await expect(win.getByRole('button', { name: 'Undo' })).toHaveCount(0);

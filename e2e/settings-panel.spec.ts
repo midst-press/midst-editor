@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { mkdtempSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makePlayableMidst } from './fixtures';
@@ -35,7 +35,7 @@ async function openTimeline() {
       )
     )
     .toBe(40);
-  return { app, win };
+  return { app, win, poemPath };
 }
 
 async function markHere(win: Page, name: string) {
@@ -122,6 +122,18 @@ const look = (win: Page) =>
       },
       belowTitle: box(h3).top - headerBox.bottom,
       belowDrafts: box(timestamp).top - box(list).bottom,
+      // Between each switch and its label (GitHub #117, the gap she asked for after #458).
+      switchGaps: Array.from(
+        panel.querySelectorAll('.MuiFormControlLabel-root')
+      ).map((label) => {
+        const text = label.querySelector('.MuiFormControlLabel-label')!;
+        const words = document.createRange();
+        words.selectNodeContents(text);
+        return (
+          words.getBoundingClientRect().left -
+          box(label.querySelector('.MuiSwitch-root')!).right
+        );
+      }),
       closeInHeader:
         box(panel.querySelector('.SettingsClose')!).right >
         (headerBox.left + headerBox.right) / 2,
@@ -202,6 +214,9 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
 
       // Item 6: the X at the right of the title, and room under the title. Item 8: room under the drafts.
       expect(seen.closeInHeader).toBe(true);
+      seen.switchGaps.forEach((between) =>
+        expect(between, 'a switch touches its label').toBeGreaterThanOrEqual(4)
+      );
       expect(seen.belowTitle).toBeGreaterThanOrEqual(24);
       expect(seen.belowDrafts).toBeGreaterThanOrEqual(24);
 
@@ -241,6 +256,121 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
     expect(await gear.evaluate((g) => getComputedStyle(g).color)).toBe(
       await resolved(win, 'var(--midst-on-control-bar)')
     );
+  } finally {
+    await app.close();
+  }
+});
+
+// GitHub #117, Annelyse's answers: default names follow the Timeline, a deleted draft's row holds Undo in its place,
+// and once that time is up the row fades and the list closes up. In the file, because the file is what a poet keeps.
+test('numbers follow the Timeline, and Undo is in the deleted row (GitHub #117)', async () => {
+  const { app, win, poemPath } = await openTimeline();
+  const metaOnDisk = () =>
+    JSON.parse(readFileSync(poemPath, 'utf8').split('\n').slice(1).join('\n'))
+      .meta;
+  try {
+    const keep = async () => {
+      await win.getByRole('button', { name: MARK }).click();
+      const field = win.getByLabel('Draft Marker name');
+      await expect(field).toBeVisible({ timeout: 25_000 });
+      const name = await field.inputValue();
+      await field.press('Enter');
+      await expect(field).toHaveCount(0);
+      return name;
+    };
+    const thumb = win.locator('.MuiSlider-thumb input');
+    // Made at the end, then at the start, then in the middle.
+    expect(await keep()).toBe('Draft 1');
+    await thumb.focus();
+    await win.keyboard.press('Home');
+    expect(await keep(), 'a draft made before the first is Draft 1').toBe(
+      'Draft 1'
+    );
+    await thumb.focus();
+    await win.keyboard.press('PageUp');
+    await win.keyboard.press('PageUp');
+    expect(await keep()).toBe('Draft 2');
+
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
+    const names = () =>
+      win
+        .locator('.DraftDrawer li')
+        .evaluateAll((rows) => rows.map((r) => r.textContent));
+    await expect.poll(names).toEqual(['Draft 3', 'Draft 2', 'Draft 1']);
+    // The file says the same, whatever order they were made in.
+    await expect
+      .poll(() =>
+        (metaOnDisk().draftMarkers as { index: number; defaultName: string }[])
+          .slice()
+          .sort((a, b) => a.index - b.index)
+          .map((m) => m.defaultName)
+      )
+      .toEqual(['Draft 1', 'Draft 2', 'Draft 3']);
+
+    // Delete the middle one: its row says so, Undo at its end, in its place.
+    await win
+      .getByRole('button', { name: 'Delete Draft Marker' })
+      .nth(1)
+      .click();
+    await expect
+      .poll(names)
+      .toEqual(['Draft 2', 'Draft Marker deleted.Undo', 'Draft 1']);
+    const row = win.locator('.DraftDeleted');
+    const undoRow = await row.evaluate((li) => {
+      const em = li.querySelector('em')!.getBoundingClientRect();
+      const undo = li.querySelector('button')!;
+      const b = undo.getBoundingClientRect();
+      const r = li.getBoundingClientRect();
+      const style = getComputedStyle(undo);
+      return {
+        italic: getComputedStyle(li.querySelector('em')!).fontStyle,
+        textAtLeft: em.left - r.left,
+        undoAtRight: r.right - b.right,
+        undoFont: style.fontFamily,
+        radius: parseFloat(style.borderTopLeftRadius),
+      };
+    });
+    expect(undoRow.italic).toBe('italic');
+    expect(undoRow.textAtLeft).toBeLessThanOrEqual(8);
+    expect(undoRow.undoAtRight).toBeLessThanOrEqual(2);
+    expect(undoRow.undoFont).toMatch(/^Jost\b/);
+    expect(undoRow.radius).toBeGreaterThan(0);
+    await shot(app, win, test.info().outputPath('undo-row-light.png'));
+    await win.emulateMedia({ colorScheme: 'dark' });
+    await shot(app, win, test.info().outputPath('undo-row-dark.png'));
+    await win.emulateMedia({ colorScheme: 'light' });
+
+    // Undo puts it back, numbered again.
+    await win.getByRole('button', { name: 'Undo' }).click();
+    await expect.poll(names).toEqual(['Draft 3', 'Draft 2', 'Draft 1']);
+
+    // Delete it again and let the time run out: the row fades, the list closes up, the numbers close the gap. The
+    // fade lasts 400ms, shorter than the gaps between a retrying expect's polls (it passed on the PR by luck and failed
+    // on main, run 14349), so the page records the row taking the class as it happens.
+    await win.locator('.DraftDrawer ul').evaluate((list) => {
+      const seen = window as unknown as { sawLeaving?: boolean };
+      seen.sawLeaving = false;
+      new MutationObserver(() => {
+        if (list.querySelector('.DraftDeleted.leaving')) seen.sawLeaving = true;
+      }).observe(list, { subtree: true, childList: true, attributes: true });
+    });
+    await win
+      .getByRole('button', { name: 'Delete Draft Marker' })
+      .nth(1)
+      .click();
+    await expect(row).toBeVisible();
+    await expect(row).toHaveCount(0, { timeout: 8_000 });
+    expect(
+      await win.evaluate(
+        () => (window as unknown as { sawLeaving?: boolean }).sawLeaving
+      ),
+      'the row went without fading'
+    ).toBe(true);
+    await expect.poll(names).toEqual(['Draft 2', 'Draft 1']);
+    await expect
+      .poll(() => metaOnDisk().draftMarkers.length, { timeout: 10_000 })
+      .toBe(2);
+    await shot(app, win, test.info().outputPath('after-delete.png'));
   } finally {
     await app.close();
   }

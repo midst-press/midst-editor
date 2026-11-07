@@ -36,11 +36,31 @@ describe('the Tab key in the editor', () => {
     expect(editor.getText()).toBe('z\tq\t');
   });
 
-  it('replaces the selected text with a tab', () => {
+  // Annelyse, GitHub #30 (6 Nov; editor #461): as a whole line moves over, so do selected words.
+  it('moves selected words over by a tab, and keeps them selected', () => {
+    const editor = makeEditor(true, '<p>zq xv qz</p>');
+    // z at 1, q at 2, the space at 3, xv at 4-6.
+    editor.commands.setTextSelection({ from: 4, to: 6 });
+    expect(editor.commands.keyboardShortcut('Tab')).toBe(true);
+    expect(editor.getText()).toBe('zq \txv qz');
+    const { from, to } = editor.state.selection;
+    expect(editor.state.doc.textBetween(from, to)).toBe('xv');
+  });
+
+  it('moves a selection at the start of a line over by a tab', () => {
     const editor = makeEditor(true);
     editor.commands.setTextSelection({ from: 1, to: 3 });
     editor.commands.keyboardShortcut('Tab');
-    expect(editor.getText()).toBe('\t');
+    expect(editor.getText()).toBe('\tzq');
+  });
+
+  it('moves a one-line poem over under Select All, and keeps it selected', () => {
+    const editor = makeEditor(true);
+    editor.commands.selectAll();
+    editor.commands.keyboardShortcut('Tab');
+    expect(editor.getText()).toBe('\tzq');
+    const { from, to } = editor.state.selection;
+    expect(editor.state.doc.textBetween(from, to)).toBe('\tzq');
   });
 
   // CONTROL -- the tab comes from HandleTab, not from TipTap's own handling of the key.
@@ -110,6 +130,25 @@ describe('Tab over several lines, and Shift-Tab', () => {
     editor.commands.setTextSelection(3);
     expect(editor.commands.keyboardShortcut('Shift-Tab')).toBe(true);
     expect(editor.getText()).toBe('zq');
+  });
+
+  it('Tab then Shift-Tab on selected words puts them back, and keeps them selected', () => {
+    const editor = makeEditor(true, '<p>\tzq xv</p>');
+    // The tab at 1, zq at 2-4, the space at 4, xv at 5-7.
+    editor.commands.setTextSelection({ from: 5, to: 7 });
+    editor.commands.keyboardShortcut('Tab');
+    expect(editor.commands.keyboardShortcut('Shift-Tab')).toBe(true);
+    // The tab before the words goes, not the one at the start of the line.
+    expect(editor.getText()).toBe('\tzq xv');
+    const { from, to } = editor.state.selection;
+    expect(editor.state.doc.textBetween(from, to)).toBe('xv');
+  });
+
+  it('Shift-Tab on selected words with no tab before them takes one from the start of the line', () => {
+    const editor = makeEditor(true, '<p>\tzq xv</p>');
+    editor.commands.setTextSelection({ from: 5, to: 7 });
+    editor.commands.keyboardShortcut('Shift-Tab');
+    expect(editor.getText()).toBe('zq xv');
   });
 
   it('Shift-Tab with no tab before the cursor takes one from the start of the line', () => {

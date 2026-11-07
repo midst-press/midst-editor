@@ -39,12 +39,13 @@ describe('createMarker', () => {
     expect('name' in marker).toBe(false);
   });
 
-  it('appends in the order made, not in history order, and counts on', () => {
+  // GitHub #117, option a: the numbers follow the Timeline, not the order the drafts were made in.
+  it('appends in the order made, and numbers in Timeline order', () => {
     const one = metaOf(createMarker({}, 7, 10));
     const two = metaOf(createMarker(one, 2, 10));
     expect(two.draftMarkers).toEqual([
-      { index: 7, defaultName: 'Draft 1' },
-      { index: 2, defaultName: 'Draft 2' },
+      { index: 7, defaultName: 'Draft 2' },
+      { index: 2, defaultName: 'Draft 1' },
     ]);
     expect(two.highestDraftNumber).toBe(2);
   });
@@ -112,14 +113,21 @@ describe('createMarker', () => {
       ],
     });
     const after = metaOf(createMarker(before, 2, 10));
+    // The marker outside the history keeps its place and its extra keys; it is numbered after those on the
+    // Timeline. The named one takes no number.
     expect(after).toEqual({
       ...before,
-      highestDraftNumber: 4,
+      highestDraftNumber: 2,
       draftMarkers: [
-        ...before.draftMarkers,
-        { index: 2, defaultName: 'Draft 4' },
+        before.draftMarkers[0],
+        { index: 99, defaultName: 'Draft 2' },
+        'qz',
+        null,
+        { name: 'no index' },
+        { index: 2, defaultName: 'Draft 1' },
       ],
     });
+    expect((after.draftMarkers as unknown[])[0]).toBe(before.draftMarkers[0]);
   });
 
   it('does not change the meta it is given', () => {
@@ -131,107 +139,145 @@ describe('createMarker', () => {
     expect(before.draftMarkers).toHaveLength(1);
   });
 
-  describe('never repeats a draft number', () => {
-    it('after the newest marker was deleted', () => {
+  describe('numbers the default names in Timeline order (GitHub #117, option a)', () => {
+    const names = (meta: Meta) =>
+      (meta.draftMarkers as { index: number; defaultName?: string }[]).map(
+        (m) => [m.index, m.defaultName]
+      );
+
+    it('moves the later drafts up one when a draft is made before them', () => {
+      let meta = metaOf(createMarker({}, 2, 10));
+      meta = metaOf(createMarker(meta, 8, 10));
+      meta = metaOf(createMarker(meta, 5, 10));
+      expect(names(meta)).toEqual([
+        [2, 'Draft 1'],
+        [8, 'Draft 3'],
+        [5, 'Draft 2'],
+      ]);
+      expect(meta.highestDraftNumber).toBe(3);
+    });
+
+    it("gives a deleted draft's number to the next one along, so there is no gap", () => {
       let meta = metaOf(createMarker({}, 1, 10));
       meta = metaOf(createMarker(meta, 2, 10));
-      meta = metaOf(deleteMarker(meta, 2));
       meta = metaOf(createMarker(meta, 3, 10));
-      expect(meta.draftMarkers).toEqual([
-        { index: 1, defaultName: 'Draft 1' },
-        { index: 3, defaultName: 'Draft 3' },
+      meta = metaOf(deleteMarker(meta, 2));
+      expect(names(meta)).toEqual([
+        [1, 'Draft 1'],
+        [3, 'Draft 2'],
+      ]);
+      expect(meta.highestDraftNumber).toBe(2);
+    });
+
+    it('numbers past a draft with a name of its own, which takes no number', () => {
+      const meta = metaOf(
+        createMarker(
+          { draftMarkers: [{ index: 2, name: 'zq', defaultName: 'Draft 1' }] },
+          5,
+          10
+        )
+      );
+      const withFirst = metaOf(createMarker(meta, 1, 10));
+      expect(shownMarkers(withFirst, 10)).toEqual([
+        { index: 2, label: 'zq' },
+        { index: 5, label: 'Draft 2' },
+        { index: 1, label: 'Draft 1' },
+      ]);
+      expect(withFirst.highestDraftNumber).toBe(2);
+    });
+
+    it('renumbers what an older file has, on its first change: stale names, a stale counter, names not in the form', () => {
+      const meta = {
+        highestDraftNumber: 2,
+        draftMarkers: [
+          { index: 6, defaultName: 'Draft 9' },
+          { index: 4, defaultName: 'Draft 12b' },
+          { index: 3, defaultName: 40 },
+          { index: 1 },
+        ],
+      };
+      expect(names(metaOf(createMarker(meta, 8, 10)))).toEqual([
+        [6, 'Draft 4'],
+        [4, 'Draft 3'],
+        [3, 'Draft 2'],
+        [1, 'Draft 1'],
+        [8, 'Draft 5'],
       ]);
     });
 
-    it('when only the counter remembers the drafts, every marker having been deleted', () => {
-      expect(metaOf(createMarker({ highestDraftNumber: 1 }, 2, 10))).toEqual({
-        highestDraftNumber: 2,
-        draftMarkers: [{ index: 2, defaultName: 'Draft 2' }],
-      });
-      expect(
-        metaOf(createMarker({ highestDraftNumber: 7, draftMarkers: [] }, 2, 10))
-          .highestDraftNumber
-      ).toBe(8);
-    });
-
-    it('when the file has markers and no counter', () => {
-      const meta = { draftMarkers: [{ index: 1, defaultName: 'Draft 6' }] };
-      expect(metaOf(createMarker(meta, 2, 10)).highestDraftNumber).toBe(7);
-    });
-
-    it('when the counter is behind the default names in the file', () => {
-      const meta = {
-        highestDraftNumber: 2,
-        draftMarkers: [{ index: 1, defaultName: 'Draft 9' }],
-      };
-      expect(metaOf(createMarker(meta, 2, 10)).highestDraftNumber).toBe(10);
-    });
-
-    it('when the counter is ahead of every default name', () => {
-      const meta = {
-        highestDraftNumber: 20,
-        draftMarkers: [{ index: 1, defaultName: 'Draft 9' }],
-      };
-      expect(metaOf(createMarker(meta, 2, 10)).highestDraftNumber).toBe(21);
-    });
-
-    it.each([
-      ['a string', '4'],
-      ['negative', -3],
-      ['a fraction', 2.5],
-      ['null', null],
-    ])(
-      'when the stored counter is %s, by counting from the default names',
-      (_what, stored) => {
-        const meta = {
-          highestDraftNumber: stored,
-          draftMarkers: [{ index: 1, defaultName: 'Draft 2' }],
-        };
-        expect(metaOf(createMarker(meta, 2, 10)).highestDraftNumber).toBe(3);
-      }
-    );
-
-    it('when a default name holds a number too large to count exactly', () => {
-      let meta: Meta = {
+    it('numbers two markers at one position in the order of the list', () => {
+      const twins = {
         draftMarkers: [
-          { index: 1, defaultName: 'Draft 9007199254740993' },
-          { index: 2, defaultName: 'Draft 3' },
+          { index: 4, defaultName: 'Draft 7' },
+          { index: 4, defaultName: 'Draft 1' },
         ],
       };
-      meta = metaOf(createMarker(meta, 4, 10));
-      meta = metaOf(createMarker(meta, 5, 10));
-      expect(
-        (meta.draftMarkers as { defaultName: string }[])
-          .slice(2)
-          .map((m) => m.defaultName)
-      ).toEqual(['Draft 4', 'Draft 5']);
-      expect(meta.highestDraftNumber).toBe(5);
+      expect(names(metaOf(createMarker(twins, 9, 10)))).toEqual([
+        [4, 'Draft 1'],
+        [4, 'Draft 2'],
+        [9, 'Draft 3'],
+      ]);
     });
 
-    it('by refusing when the counter is at the largest number that can be counted exactly', () => {
-      const meta = { highestDraftNumber: Number.MAX_SAFE_INTEGER };
-      expect(refusal(createMarker(meta, 1, 10))).toBe('no-draft-number-left');
-      expect(
-        refusal(
-          createMarker(
-            { highestDraftNumber: Number.MAX_SAFE_INTEGER - 1 },
-            1,
-            10
-          )
+    it('carries a name that was its default name along with the new number', () => {
+      const meta = {
+        draftMarkers: [{ index: 5, name: 'Draft 1', defaultName: 'Draft 1' }],
+      };
+      expect(metaOf(createMarker(meta, 2, 10)).draftMarkers).toEqual([
+        { index: 5, name: 'Draft 2', defaultName: 'Draft 2' },
+        { index: 2, defaultName: 'Draft 1' },
+      ]);
+    });
+
+    // clement-7074f29f, review of #467: neither comes from this app's renames, only from converted or edited files.
+    it('numbers a marker at a negative position after every one on the Timeline', () => {
+      const meta = metaOf(
+        createMarker(
+          {
+            draftMarkers: [
+              { index: -1, defaultName: 'Draft 1' },
+              { index: 5, defaultName: 'Draft 2' },
+            ],
+          },
+          8,
+          10
         )
-      ).toBe('accepted');
+      );
+      expect(shownMarkers(meta, 10).map((m) => m.label)).toEqual([
+        'Draft 1',
+        'Draft 2',
+      ]);
+      expect(names(meta)).toEqual([
+        [-1, 'Draft 3'],
+        [5, 'Draft 1'],
+        [8, 'Draft 2'],
+      ]);
     });
 
-    it('ignoring default names that are not "Draft <number>" and ones that are not text', () => {
-      const meta = {
-        draftMarkers: [
-          { index: 1, defaultName: 'Draft 12b' },
-          { index: 2, defaultName: 'zq Draft 30' },
-          { index: 3, defaultName: 40 },
-          { index: 4 },
-        ],
-      };
-      expect(metaOf(createMarker(meta, 5, 10)).highestDraftNumber).toBe(1);
+    it('numbers a name of only spaces, and shows its number, not the spaces', () => {
+      const meta = metaOf(
+        createMarker(
+          {
+            draftMarkers: [
+              { index: 2, defaultName: 'Draft 1' },
+              { index: 4, name: '  ', defaultName: 'Draft 2' },
+            ],
+          },
+          8,
+          10
+        )
+      );
+      expect(shownMarkers(meta, 10).map((m) => m.label)).toEqual([
+        'Draft 1',
+        'Draft 2',
+        'Draft 3',
+      ]);
+    });
+
+    it('leaves a marker whose number does not change as the same object', () => {
+      const first = { index: 1, defaultName: 'Draft 1', timestamp: 3 };
+      const after = metaOf(createMarker({ draftMarkers: [first] }, 4, 10));
+      expect((after.draftMarkers as unknown[])[0]).toBe(first);
     });
   });
 
@@ -255,14 +301,39 @@ describe('renameMarker', () => {
     ],
   });
 
-  it('names the marker at that position and touches nothing else', () => {
+  it('names the marker at that position and changes nothing else of it', () => {
     expect(metaOf(renameMarker(meta, 5, 'qz vx'))).toEqual({
       ...meta,
+      highestDraftNumber: 0,
       draftMarkers: [
         { index: 5, name: 'qz vx', defaultName: 'Draft 1', description: 'xv' },
         meta.draftMarkers[1],
       ],
     });
+  });
+
+  // GitHub #117: a name of its own takes the draft out of the numbering, and the numbers run on without it.
+  it('renumbers the default names after a draft is given a name of its own, and when it loses it', () => {
+    const three = {
+      draftMarkers: [
+        { index: 1, defaultName: 'Draft 1' },
+        { index: 4, defaultName: 'Draft 2' },
+        { index: 7, defaultName: 'Draft 3' },
+      ],
+    };
+    const named = metaOf(renameMarker(three, 4, 'zq'));
+    expect(shownMarkers(named, 10).map((m) => m.label)).toEqual([
+      'Draft 1',
+      'zq',
+      'Draft 2',
+    ]);
+    expect(named.highestDraftNumber).toBe(2);
+    const unnamed = metaOf(renameMarker(named, 4, ''));
+    expect(shownMarkers(unnamed, 10).map((m) => m.label)).toEqual([
+      'Draft 1',
+      'Draft 2',
+      'Draft 3',
+    ]);
   });
 
   it('replaces an earlier name', () => {
@@ -282,29 +353,35 @@ describe('renameMarker', () => {
     ['empty', ''],
     ['only spaces', '   '],
     ['only a tab and a newline', '\t\n'],
-  ])('puts the default name back when the new name is %s', (_what, name) => {
-    const [, second] = metaOf(renameMarker(meta, 3, name))
-      .draftMarkers as object[];
-    expect(second).toEqual({
-      index: 3,
-      name: 'Draft 2',
-      defaultName: 'Draft 2',
-    });
-  });
+  ])(
+    'puts the default name back when the new name is %s, numbered for its place',
+    (_what, name) => {
+      // At position 3 it comes before the draft at 5, so it is Draft 1 now, and that one is Draft 2.
+      expect(metaOf(renameMarker(meta, 3, name)).draftMarkers).toEqual([
+        { index: 5, defaultName: 'Draft 2', description: 'xv' },
+        { index: 3, name: 'Draft 1', defaultName: 'Draft 1' },
+      ]);
+    }
+  );
 
-  it('leaves a marker that has no default name without a name when the new name is empty', () => {
+  it('gives a marker that had no default name one when its name is emptied', () => {
     const bare = { draftMarkers: [{ index: 1, name: 'zq' }] };
     expect(metaOf(renameMarker(bare, 1, '')).draftMarkers).toEqual([
-      { index: 1 },
+      { index: 1, defaultName: 'Draft 1' },
     ]);
   });
 
-  it('does not change the counter', () => {
-    expect(metaOf(renameMarker(meta, 5, 'zq')).highestDraftNumber).toBe(2);
+  it('writes the counter as the number of default names', () => {
+    expect(metaOf(renameMarker(meta, 5, 'zq')).highestDraftNumber).toBe(0);
     expect(
-      'highestDraftNumber' in
-        metaOf(renameMarker({ draftMarkers: [{ index: 1 }] }, 1, 'zq'))
-    ).toBe(false);
+      metaOf(
+        renameMarker(
+          { draftMarkers: [{ index: 1 }, { index: 2, name: 'xv' }] },
+          2,
+          'zq'
+        )
+      ).highestDraftNumber
+    ).toBe(1);
   });
 
   it('can name a marker that points outside the history', () => {
@@ -314,7 +391,7 @@ describe('renameMarker', () => {
     ]);
   });
 
-  it('renames only the first of two markers that share a position', () => {
+  it('renames only the first of two markers that share a position, and the other is Draft 1 now', () => {
     const twins = {
       draftMarkers: [
         { index: 1, defaultName: 'Draft 1' },
@@ -323,7 +400,7 @@ describe('renameMarker', () => {
     };
     expect(metaOf(renameMarker(twins, 1, 'zq')).draftMarkers).toEqual([
       { index: 1, name: 'zq', defaultName: 'Draft 1' },
-      { index: 1, defaultName: 'Draft 2' },
+      { index: 1, defaultName: 'Draft 1' },
     ]);
   });
 
@@ -340,7 +417,7 @@ describe('renameMarker', () => {
 });
 
 describe('deleteMarker', () => {
-  it('removes the marker at that position, keeps the others in order, and keeps the counter', () => {
+  it('removes the marker at that position, keeps the others in order, and numbers on without it', () => {
     const meta = frozen({
       laterField: 'zq',
       highestDraftNumber: 3,
@@ -351,32 +428,27 @@ describe('deleteMarker', () => {
         { index: 8, defaultName: 'Draft 3' },
       ],
     });
+    // The named draft goes, so Draft 1 at 5 and Draft 3 at 8 become Draft 1 and Draft 2 in Timeline order.
     expect(metaOf(deleteMarker(meta, 3))).toEqual({
       laterField: 'zq',
-      highestDraftNumber: 3,
-      draftMarkers: [meta.draftMarkers[0], 'qz', meta.draftMarkers[3]],
+      highestDraftNumber: 2,
+      draftMarkers: [
+        meta.draftMarkers[0],
+        'qz',
+        { index: 8, defaultName: 'Draft 2' },
+      ],
     });
   });
 
-  it('writes the counter when the file had none, so the number cannot come back', () => {
-    const meta = { draftMarkers: [{ index: 1, defaultName: 'Draft 4' }] };
-    expect(metaOf(deleteMarker(meta, 1))).toEqual({
-      draftMarkers: [],
-      highestDraftNumber: 4,
-    });
-  });
-
-  it('raises a counter that was behind the deleted marker, and never lowers one', () => {
-    const behind = {
-      highestDraftNumber: 1,
-      draftMarkers: [{ index: 1, defaultName: 'Draft 4' }],
-    };
-    expect(metaOf(deleteMarker(behind, 1)).highestDraftNumber).toBe(4);
-    const ahead = {
+  it('writes the counter as the number of default names left, so a file with none says 0', () => {
+    const meta = {
       highestDraftNumber: 9,
       draftMarkers: [{ index: 1, defaultName: 'Draft 4' }],
     };
-    expect(metaOf(deleteMarker(ahead, 1)).highestDraftNumber).toBe(9);
+    expect(metaOf(deleteMarker(meta, 1))).toEqual({
+      draftMarkers: [],
+      highestDraftNumber: 0,
+    });
   });
 
   it('removes only the first of two markers that share a position', () => {
@@ -387,7 +459,7 @@ describe('deleteMarker', () => {
       ],
     };
     expect(metaOf(deleteMarker(twins, 1)).draftMarkers).toEqual([
-      { index: 1, defaultName: 'Draft 2' },
+      { index: 1, defaultName: 'Draft 1' },
     ]);
   });
 
@@ -466,20 +538,42 @@ describe('restoreMarker: undoing a delete (#277)', () => {
     ],
   };
 
-  it('puts the marker back exactly as it was, at its place in the list, with its number', () => {
+  it('puts the marker back exactly as it was, at its place in the list', () => {
     const found = markerAt(before, 5);
     expect(found).toEqual({ marker: kept, position: 1 });
     const after = metaOf(deleteMarker(before, 5));
     const restored = metaOf(restoreMarker(after, kept, 1));
-    expect(restored).toEqual(before);
+    // Its own name, stale default name and extra keys come back as they were. It has a name of its own, so the
+    // default names around it are Draft 1 and Draft 2.
+    expect((restored.draftMarkers as unknown[])[1]).toBe(kept);
+    expect(restored).toEqual({
+      ...before,
+      highestDraftNumber: 2,
+      draftMarkers: [
+        { index: 1, defaultName: 'Draft 1' },
+        kept,
+        { index: 9, defaultName: 'Draft 2' },
+      ],
+    });
   });
 
-  it('never lets a number be given out twice: the next draft after an undo is still Draft 4', () => {
-    const after = metaOf(deleteMarker(before, 5));
-    const restored = metaOf(restoreMarker(after, kept, 1));
-    expect(metaOf(createMarker(restored, 20, 30)).draftMarkers).toContainEqual({
-      index: 20,
-      defaultName: 'Draft 4',
+  it('numbers a default-named draft that is put back for its place, and the ones after it again', () => {
+    const plain = { index: 5, defaultName: 'Draft 2' };
+    const three: Meta = {
+      draftMarkers: [
+        { index: 1, defaultName: 'Draft 1' },
+        plain,
+        { index: 9, defaultName: 'Draft 3' },
+      ],
+    };
+    const deleted = metaOf(deleteMarker(three, 5));
+    expect(shownMarkers(deleted, 10).map((m) => m.label)).toEqual([
+      'Draft 1',
+      'Draft 2',
+    ]);
+    expect(metaOf(restoreMarker(deleted, plain, 1))).toEqual({
+      ...three,
+      highestDraftNumber: 3,
     });
   });
 

@@ -20,8 +20,8 @@ interface Props {
   onJump: (index: number) => void;
   onRename: (index: number, name: string) => void;
   onDelete: (index: number) => void;
-  // A draft was just deleted and can still be put back (#277).
-  canUndo: boolean;
+  // Where on the Timeline a draft was just deleted, while it can still be put back (#277); null otherwise.
+  deletedAt: number | null;
   onUndo: () => void;
   // Why the last change was refused, shown here beside the change.
   refusal: string | null;
@@ -34,15 +34,35 @@ interface Props {
 }
 /* eslint-enable no-unused-vars */
 
-// The drafts in the order they come on the timeline, the latest on top (GitHub #117, item 2), whatever order they
-// were made in.
-export const latestFirst = (markers: ShownMarker[]): ShownMarker[] =>
-  [...markers].sort((a, b) => b.index - a.index);
+type Row =
+  | ({ kind: 'draft' } & ShownMarker)
+  | { kind: 'deleted'; index: number; leaving: boolean };
+
+// The rows of the list in the order they come on the Timeline, the latest on top, whatever order they were made in
+// (GitHub #117, item 2): each draft, and in its place each one just deleted, while it can be put
+// back or while its row is closing.
+export const rows = (
+  markers: ShownMarker[],
+  deletedAt: number | null,
+  leaving: number[]
+): Row[] => {
+  const all: Row[] = markers.map((m) => ({ kind: 'draft', ...m }));
+  if (deletedAt !== null && !markers.some((m) => m.index === deletedAt))
+    all.push({ kind: 'deleted', index: deletedAt, leaving: false });
+  leaving
+    .filter((at) => at !== deletedAt && !markers.some((m) => m.index === at))
+    .forEach((at) => all.push({ kind: 'deleted', index: at, leaving: true }));
+  return all.sort((a, b) => b.index - a.index);
+};
 
 // Whether a name being typed still fits its field. The panel is a fixed width, so a name stops where the field
 // ends instead of running on behind an ellipsis (GitHub #117, item 9). Only typing that makes the name longer is
 // held to it: a name already longer than the field, from before or from another app, is never cut, and
 // deleting from it always works.
+// How long a deleted draft's row takes to fade and close up once it can no longer be put back (GitHub #117). The CSS
+// animation, .DraftDeleted.leaving in Replay.css, takes the same time.
+export const LEAVE_MS = 400;
+
 export const fitsTheField = (field: HTMLInputElement, before: string) =>
   field.value.length <= before.length || field.scrollWidth <= field.clientWidth;
 
@@ -61,7 +81,7 @@ export default function DraftDrawer({
   onJump,
   onRename,
   onDelete,
-  canUndo,
+  deletedAt,
   onUndo,
   refusal,
   showMarkers,
@@ -87,6 +107,23 @@ export default function DraftDrawer({
     onRename(index, typed);
     setNaming(null);
   };
+
+  // A deleted draft keeps its row while it can be put back (GitHub #117): the row says so, with Undo at its end. When
+  // that time is up, the row fades and closes, and the drafts below move up into its place. Put back, it is a draft
+  // again, and there is nothing to fade. Noticed while rendering, as the name field's draft is above.
+  const [undoShown, setUndoShown] = useState(deletedAt);
+  const [leaving, setLeaving] = useState<number[]>([]);
+  if (deletedAt !== undoShown) {
+    const gone = undoShown;
+    setUndoShown(deletedAt);
+    if (gone !== null && !markers.some(({ index }) => index === gone))
+      setLeaving((closing) => [...closing, gone]);
+  }
+  useEffect(() => {
+    if (leaving.length === 0) return undefined;
+    const done = setTimeout(() => setLeaving([]), LEAVE_MS);
+    return () => clearTimeout(done);
+  }, [leaving]);
 
   // On opening, the focus moves into the list, as it did when the list was a modal: the keys then belong to it, and
   // Space cannot press the button that opened it. The name field, when one opens, has taken the focus already.
@@ -118,14 +155,6 @@ export default function DraftDrawer({
       </div>
       <h3>{i18n._('drafts.title')}</h3>
       <RefusalAlert message={refusal} />
-      {canUndo ? (
-        <p role="status" className="DraftUndo">
-          {i18n._('drafts.deleted')}{' '}
-          <button type="button" onClick={onUndo}>
-            {i18n._('drafts.undo')}
-          </button>
-        </p>
-      ) : null}
       <FormControlLabel
         control={
           <Switch
@@ -148,57 +177,75 @@ export default function DraftDrawer({
       />
       {markers.length === 0 ? <p>{i18n._('drafts.none')}</p> : null}
       <ul>
-        {latestFirst(markers).map((marker) => (
-          <li key={marker.index}>
-            {naming === marker.index ? (
-              <input
-                aria-label={i18n._('drafts.nameField')}
-                // The poet has just asked to name this draft.
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus
-                value={typed}
-                onChange={(e) => {
-                  if (fitsTheField(e.target, typed)) setTyped(e.target.value);
-                }}
-                onFocus={(e) => e.target.select()}
-                onBlur={() => finishNaming(marker.index)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') finishNaming(marker.index);
-                  if (e.key === 'Escape') setNaming(null);
-                }}
-              />
-            ) : (
+        {rows(markers, deletedAt, leaving).map((row) =>
+          row.kind === 'deleted' ? (
+            <li
+              key={`deleted-${row.index}`}
+              className={row.leaving ? 'DraftDeleted leaving' : 'DraftDeleted'}
+            >
+              <em role="status">{i18n._('drafts.deleted')}</em>
+              {row.leaving ? null : (
+                <button
+                  type="button"
+                  className="DraftUndoButton"
+                  onClick={onUndo}
+                >
+                  {i18n._('drafts.undo')}
+                </button>
+              )}
+            </li>
+          ) : (
+            <li key={row.index}>
+              {naming === row.index ? (
+                <input
+                  aria-label={i18n._('drafts.nameField')}
+                  // The poet has just asked to name this draft.
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
+                  value={typed}
+                  onChange={(e) => {
+                    if (fitsTheField(e.target, typed)) setTyped(e.target.value);
+                  }}
+                  onFocus={(e) => e.target.select()}
+                  onBlur={() => finishNaming(row.index)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') finishNaming(row.index);
+                    if (e.key === 'Escape') setNaming(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="draft-name"
+                  onClick={() => onJump(row.index)}
+                >
+                  {row.label}
+                </button>
+              )}
               <button
                 type="button"
-                className="draft-name"
-                onClick={() => onJump(marker.index)}
+                className="icon-button"
+                aria-label={i18n._('drafts.rename')}
+                onClick={() => setNaming(row.index)}
               >
-                {marker.label}
+                <EditIcon fontSize="small" />
               </button>
-            )}
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={i18n._('drafts.rename')}
-              onClick={() => setNaming(marker.index)}
-            >
-              <EditIcon fontSize="small" />
-            </button>
-            <button
-              type="button"
-              className="icon-button"
-              aria-label={i18n._('drafts.delete')}
-              // Keeps the name field from saving a name for the draft being deleted.
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setNaming(null);
-                onDelete(marker.index);
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </button>
-          </li>
-        ))}
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={i18n._('drafts.delete')}
+                // Keeps the name field from saving a name for the draft being deleted.
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setNaming(null);
+                  onDelete(row.index);
+                }}
+              >
+                <DeleteIcon fontSize="small" />
+              </button>
+            </li>
+          )
+        )}
       </ul>
       {/* At the bottom, as Annelyse placed it (GitHub #94). */}
       <FormControlLabel
