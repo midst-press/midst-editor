@@ -56,7 +56,11 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   },
   { ...css('primary', 'Primary', SECONDARY), palette: 'primary.main' },
   {
-    ...css('primaryDark', 'Primary, darker', SECONDARY),
+    ...css(
+      'primaryDark',
+      'Primary, darker: the squiggly M, tooltips, Replay borders',
+      SECONDARY
+    ),
     palette: 'primary.dark',
   },
   {
@@ -74,7 +78,7 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   css('controlBar', 'Replay control bar', SECONDARY),
   css('onControlBar', 'Icons on the control bar', SECONDARY),
   css('controlBarHover', 'Control bar hover', SECONDARY),
-  css('logo', 'Logo', SECONDARY),
+  css('logo', 'Midst wordmark on the welcome card', SECONDARY),
   { ...css('textPrimary', 'Text', TEXT), palette: 'text.primary' },
   css('mutedText', 'Window title and editor icons', TEXT),
   css('link', 'Link', TEXT),
