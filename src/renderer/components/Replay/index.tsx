@@ -14,15 +14,15 @@ import Zoom from '@mui/material/Zoom';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import SettingsIcon from '@mui/icons-material/Settings';
-import SwapVertIcon from '@mui/icons-material/SwapVert';
+
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Grow from '@mui/material/Grow';
 import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
+import { AddBookmarkIcon, AutoscrollIcon } from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
@@ -318,10 +318,9 @@ export default function Replay() {
               valueText={i18n._('replay.scrollSpeed.value', {
                 speed: scrollSpeed.value.toFixed(1),
               })}
-              icon={<SwapVertIcon fontSize="small" />}
+              icon={<AutoscrollIcon fontSize="small" />}
             />
-            {/* Continue writing from here first, then the two Draft Marker buttons, then X (GitHub #90). */}
-            <RestartFromButton step={step} pause={pause} />
+            {/* Draft Marker first, then Continue writing from here, then Settings (GitHub #90, #469). */}
             <ReasonButton
               label={i18n._('drafts.mark')}
               reason={draftReason}
@@ -340,8 +339,9 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <BookmarkAddIcon fontSize="small" />
+              <AddBookmarkIcon fontSize="small" />
             </ReasonButton>
+            <RestartFromButton step={step} pause={pause} />
             <Tooltip
               title={i18n._('settings.title')}
               TransitionComponent={Zoom}

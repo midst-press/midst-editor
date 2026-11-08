@@ -9,13 +9,15 @@ import FormatItalicIcon from '@mui/icons-material/FormatItalicOutlined';
 import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlinedOutlined';
 import StrikethroughIcon from '@mui/icons-material/StrikethroughSOutlined';
 import type { ReactNode } from 'react';
-import MoonOutlinedIcon from '@mui/icons-material/ModeNightOutlined';
-import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
-import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
-
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { useId } from 'react';
+import {
+  FocusModeIcon,
+  FontIncreaseIcon,
+  FontDecreaseIcon,
+} from '../../icons/AnnelyseIcons';
+
 import type { FontSize } from '../../fontSize/useFontSize';
 import { i18n } from '../../../shared/i18n';
 import { UNAVAILABLE_STYLE } from '../DraftMarkers/useDraftMarkers';
@@ -132,7 +134,7 @@ function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
             : 'icon-button focus-mode-icon'
         }
       >
-        <MoonOutlinedIcon fontSize="small" />
+        <FocusModeIcon fontSize="small" />
       </button>
     </Tooltip>
   );
@@ -159,7 +161,7 @@ function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
             className="icon-button size-icon"
             style={largestReason ? UNAVAILABLE_STYLE : undefined}
           >
-            <TextIncreaseIcon fontSize="small" />
+            <FontIncreaseIcon fontSize="small" />
           </button>
           {largestReason && (
             <span id="editor-largest-reason" hidden>
@@ -186,7 +188,7 @@ function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
             className="icon-button size-icon"
             style={smallestReason ? UNAVAILABLE_STYLE : undefined}
           >
-            <TextDecreaseIcon fontSize="small" />
+            <FontDecreaseIcon fontSize="small" />
           </button>
           {smallestReason && (
             <span id="editor-smallest-reason" hidden>
