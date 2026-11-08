@@ -21,6 +21,7 @@ export interface MainToWindow {
   'toggle-spellcheck': [];
   'find-in-poem': [];
   'choose-font': [];
+  'choose-colours': []; // View > Colours…, an audition build only (GitHub #119)
   'cancel-save': [];
 }
 

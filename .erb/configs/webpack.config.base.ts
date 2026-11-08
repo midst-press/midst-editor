@@ -57,6 +57,8 @@ const configuration: webpack.Configuration = {
   plugins: [
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'production',
+      // View > Colours… (GitHub #119): only in an audition build, never a release. src/renderer/colourAudition/README.md
+      MIDST_COLOUR_AUDITION: 'false',
     }),
   ],
 };
