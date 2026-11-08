@@ -42,6 +42,10 @@ trap 'rm -rf "$work"' EXIT
 commit=$(gh run view "$run" -R "$gh_repo" --json headSha --jq .headSha) || cannot "cannot read package run $run on $gh_repo"
 gh run download "$run" -R "$gh_repo" -p 'midst-macos-*' -D "$work/pkg" > "$work/download.log" 2>&1 \
   || { cat "$work/download.log" >&2; cannot "cannot download run $run's macOS package"; }
+# An audition build (GitHub #119) is never released; release.yml refuses it too (tools/verify_candidate.sh).
+for d in "$work"/pkg/midst-macos-*; do
+  case "$d" in *colour-audition*) say "REFUSED: run $run is an audition build ($(basename "$d")), never a release"; exit 1 ;; esac
+done
 pkgs=("$work"/pkg/midst-macos-*/*.pkg)
 [ ${#pkgs[@]} -eq 1 ] && [ -f "${pkgs[0]}" ] || cannot "expected one .pkg in run $run's macOS artifact, found ${#pkgs[@]}"
 sha=$(shasum -a 256 "${pkgs[0]}" | cut -d' ' -f1) || cannot "cannot hash ${pkgs[0]}"
