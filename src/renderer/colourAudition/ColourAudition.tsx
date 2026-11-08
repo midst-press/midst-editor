@@ -5,6 +5,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import themeObj, { darkThemeObj } from '../theme';
+import KEEPS_FOCUS from '../keepsFocus';
 import {
   AUDITION_COLOURS,
   AuditionColour,
@@ -153,6 +154,8 @@ export function ColourPanel({
   onClose,
 }: PanelProps) {
   const [scheme, setScheme] = useState<Scheme>(inForce);
+  // Top right by default, over the toolbar's end; the poet can move it to the left to see what is under it.
+  const [left, setLeft] = useState(false);
   const [copied, setCopied] = useState<'yes' | 'no' | null>(null);
   const value = (c: AuditionColour) =>
     choices[scheme][c.id] ?? defaults[scheme][c.id];
@@ -181,9 +184,21 @@ export function ColourPanel({
   }, [onClose]);
   const groups = Array.from(new Set(AUDITION_COLOURS.map((c) => c.group)));
   return (
-    <div className={PANEL_CLASS} role="dialog" aria-label="Colours">
+    <div
+      className={`${PANEL_CLASS}${left ? ' colour-audition-left' : ''}`}
+      {...{ [KEEPS_FOCUS]: '' }}
+      role="dialog"
+      aria-label="Colours"
+    >
       <div className="colour-audition-head">
         <span className="colour-audition-title">Colours</span>
+        <button
+          type="button"
+          className="colour-audition-move"
+          onClick={() => setLeft(!left)}
+        >
+          {left ? 'Move right' : 'Move left'}
+        </button>
         <button type="button" onClick={onClose} aria-label="Close">
           <CloseIcon fontSize="small" />
         </button>

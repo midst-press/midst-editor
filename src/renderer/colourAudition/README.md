@@ -15,3 +15,4 @@ Her choices are kept in the window's localStorage (`midst.colourAudition.v1`), o
 4. `src/shared/channels.ts`: `'choose-colours'`.
 5. `.erb/configs/webpack.config.base.ts`: `MIDST_COLOUR_AUDITION` in the EnvironmentPlugin.
 6. `.github/workflows/package.yml`: the `colour_audition` input and its uses.
+7. The tests: `src/__tests__/colourAudition.test.tsx`, `src/__tests__/colourAuditionCascade.test.ts`, the Colours case in `src/__tests__/menu.test.ts`, and "typing in the Colours panel leaves the poem as it was" in `src/__tests__/Editor.test.tsx`. Keep `src/renderer/keepsFocus.ts` and the editor's test of it: other panels can use it.
