@@ -63,6 +63,7 @@ changes only when the format does, never with a release.
    the install test for that exact package, and says what is missing. Then it starts the `release`
    workflow with that package run's number (the number at the end of the run's URL). The run's
    summary starts with the run, its commit, version and build time. The workflow:
+
    - checks the candidate;
    - tags its commit `v<version>`;
    - publishes a GitHub Release named `Midst <version>`, with the three installers, a
@@ -115,7 +116,8 @@ Use a Mac, or an account on one, that has no Midst installed.
       and finish. Then look for:
 
   - `Midst` in `/Applications` (Finder: Go → Applications), not only in your home folder;
-  - **Get Info** on it shows the version being released;
+  - **Get Info** on it shows the version being released (or, the same answer by script,
+    `defaults read /Applications/Midst.app/Contents/Info.plist CFBundleShortVersionString`);
   - it opens from there.
 
   If the installer says it succeeded and Midst is not in `/Applications`, do not release.
@@ -125,7 +127,8 @@ Use a Mac, or an account on one, that has no Midst installed.
   - no warning that the package cannot be verified or is from an unidentified developer;
   - the installer's window reads **Install Midst**. It shows no version anywhere; the version being
     released is confirmed with **Get Info** on the installed app, as in the step above;
-  - there is no **Install for me only**: Midst installs for all users, into `/Applications` (issue 16).
+  - **Install for me only** is listed, greyed out, and cannot be chosen: Midst installs for all users,
+    into `/Applications` (issue 16).
 
   The script cannot see these windows: the command line skips them.
 
@@ -141,7 +144,8 @@ Use a Mac, or an account on one, that has no Midst installed.
     it will be kept, renamed with its version number (the Chess stand-in becomes
     **Midst Beta <Chess's version>**);
   - **Customize** at the Installation Type step shows **Delete the Midst that's already installed**,
-    unticked, and its description says it permanently deletes it and cannot be undone.
+    unticked, and its description says it permanently deletes it and cannot be undone. The description
+    shows only while its row is selected: click the row's name, not its box, before the screenshot.
 
   Screenshots: `warning-old-version.png` (the warning, naming the old version) and
   `customize-delete-choice.png` (Customize, with the delete choice). On the clean install in the step
@@ -153,7 +157,9 @@ Use a Mac, or an account on one, that has no Midst installed.
 
   - with **Delete the Midst that's already installed** unticked: `poem-unticked.png`. The old one is
     kept as `Midst <old version>.app`;
-  - again, with it ticked: `poem-ticked.png`. Only the new Midst is left;
+  - with it ticked: `poem-ticked.png`. Only the new Midst is left. Install the previous release
+    fresh first (delete both Midsts the unticked run left): straight after the unticked run the new
+    Midst is the one already installed, and ticking would delete it;
   - over itself (the same version): `poem-same-version.png`.
 
 ### Recording the evidence
