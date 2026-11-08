@@ -1,0 +1,395 @@
+/* eslint-disable lingui/no-unlocalized-strings -- the audition tool is English only (GitHub #119) */
+import '@testing-library/jest-dom';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { createTheme } from '@mui/material/styles';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+import themeObj, { darkThemeObj } from '../renderer/theme';
+import { CSS_VARS, CssVarKey } from '../renderer/cssVars';
+import {
+  AUDITION_COLOURS,
+  STORAGE_KEY,
+  cssText,
+  loadChoices,
+  noChoices,
+  parseColour,
+  saveChoices,
+  themeWith,
+  toHex,
+  withRgb,
+} from '../renderer/colourAudition/colours';
+import { defaultsFrom } from '../renderer/colourAudition/defaults';
+import ColourAuditionHost, {
+  ColourPanel,
+  STYLE_ID,
+} from '../renderer/colourAudition/ColourAudition';
+
+// View > Colours… (GitHub #119): Annelyse auditions the app's colours, light and dark, in an audition build.
+
+const ROOT_CSS = readFileSync(
+  join(__dirname, '..', 'renderer', 'cssVars.css'),
+  'utf8'
+);
+const themes = {
+  light: createTheme(themeObj),
+  dark: createTheme(darkThemeObj),
+};
+
+describe('the colours offered', () => {
+  it('include every CSS variable the app draws with, once each', () => {
+    const offered = AUDITION_COLOURS.flatMap((c) => (c.css ? [c.css] : []));
+    expect([...offered].sort()).toEqual(Object.keys(CSS_VARS).sort());
+  });
+
+  it('have distinct ids', () => {
+    const ids = AUDITION_COLOURS.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  // A variable taken `from` the theme is the same colour as its palette entry, so one choice sets both.
+  it.each(['light', 'dark'] as const)(
+    'pair each theme-derived variable with the palette entry it comes from, in %s',
+    (scheme) => {
+      const theme = themes[scheme];
+      AUDITION_COLOURS.filter(
+        (c) => c.css && 'from' in CSS_VARS[c.css]
+      ).forEach((c) => {
+        expect(c.palette).toBeDefined();
+        const [section, field] = (c.palette as string).split('.');
+        const fromPalette = (
+          theme.palette as unknown as Record<string, Record<string, string>>
+        )[section][field];
+        const { from } = CSS_VARS[c.css as CssVarKey] as {
+          from: typeof CSS_VARS.background.from;
+        };
+        expect(fromPalette).toBe(from(theme));
+      });
+    }
+  );
+});
+
+describe('colour values', () => {
+  it.each([
+    ['#fff', '#ffffff'],
+    ['#FFF5EE', '#fff5ee'],
+    ['rgb(255, 182, 199)', '#ffb6c7'],
+    ['rgba(0, 0, 0, 0.87)', '#000000de'],
+    ['#ffa4b980', '#ffa4b980'],
+  ])('reads %s as %s', (value, hex) => {
+    const rgba = parseColour(value);
+    expect(rgba).not.toBeNull();
+    expect(toHex(rgba!)).toBe(hex);
+  });
+
+  it.each([
+    'dodgerblue',
+    'rgb(300, 0, 0)',
+    'rgba(0,0,0,2)',
+    '#12',
+    'red; } body { display: none',
+    'rgba(1, 2, 3, .)',
+    'rgba(1, 2, 3, 0..5)',
+  ])('does not read %s', (value) => expect(parseColour(value)).toBeNull());
+
+  it('keeps the transparency a colour had when the RGB is picked', () => {
+    expect(withRgb('#ff0000', 'rgba(0, 0, 0, 0.5)')).toBe('#ff000080');
+    expect(withRgb('#ff0000', '#00ff00')).toBe('#ff0000');
+    expect(withRgb('not a colour', '#00ff00')).toBeNull();
+  });
+});
+
+describe('applying choices', () => {
+  it('is no CSS at all when nothing is chosen', () => {
+    expect(cssText(noChoices())).toBe('');
+  });
+
+  it('sets the chosen variables over cssVars.css, light at the root and dark in its media block', () => {
+    const text = cssText({
+      light: { background: '#ffffff', secondary: '#123456' },
+      dark: { divider: '#333333' },
+    });
+    expect(text).toContain(':root:root { --midst-background: #ffffff; }');
+    expect(text).toContain(
+      '@media (prefers-color-scheme: dark) { :root:root { --midst-divider: #333333; } }'
+    );
+    // The palette-only colour has no variable to set.
+    expect(text).not.toContain('#123456');
+  });
+
+  it('puts the chosen palette colours into a copy of the theme', () => {
+    const before = JSON.stringify(themeObj);
+    const options = themeWith(themeObj, {
+      primary: '#010203',
+      secondary: '#040506',
+    });
+    expect(createTheme(options).palette.primary.main).toBe('#010203');
+    expect(createTheme(options).palette.secondary.main).toBe('#040506');
+    expect(createTheme(options).palette.background.default).toBe('#FFF5EE');
+    expect(JSON.stringify(themeObj)).toBe(before);
+  });
+});
+
+describe('keeping choices', () => {
+  const store = (value: string | null) => ({ getItem: () => value });
+
+  it('reads back what was saved', () => {
+    const saved: Record<string, string> = {};
+    const choices = {
+      light: { background: '#ffffff' },
+      dark: { link: '#00ff00' },
+    };
+    expect(
+      saveChoices(
+        {
+          setItem: (k, v) => {
+            saved[k] = v;
+          },
+        },
+        choices
+      )
+    ).toBe(true);
+    expect(loadChoices(store(saved[STORAGE_KEY]))).toEqual(choices);
+  });
+
+  it.each([null, 'not json', '42', '{"light": "x"}'])(
+    'is none for %s',
+    (raw) => {
+      expect(loadChoices(store(raw))).toEqual(noChoices());
+    }
+  );
+
+  it('drops unknown colours and anything that is not a colour', () => {
+    const raw = JSON.stringify({
+      light: {
+        background: 'red; } body { display: none',
+        nonsense: '#ffffff',
+        link: '#00ff00',
+      },
+      dark: { divider: 7 },
+    });
+    expect(loadChoices(store(raw))).toEqual({
+      light: { link: '#00ff00' },
+      dark: {},
+    });
+  });
+
+  it('says so when it cannot save', () => {
+    expect(
+      saveChoices(
+        {
+          setItem: () => {
+            throw new Error('full');
+          },
+        },
+        noChoices()
+      )
+    ).toBe(false);
+  });
+});
+
+describe('the defaults', () => {
+  let style: HTMLStyleElement;
+  beforeEach(() => {
+    style = document.createElement('style');
+    style.textContent = ROOT_CSS;
+    document.head.appendChild(style);
+  });
+  afterEach(() => style.remove());
+
+  it('are cssVars.css as the page loaded it, light and dark, and the themes for palette-only colours', () => {
+    const defaults = defaultsFrom(document, null);
+    expect(defaults.light.background).toBe('#fff5ee');
+    expect(defaults.dark.background).toBe('#1f1a1c');
+    expect(defaults.dark.controlBar).toBe('#4a2f38');
+    expect(defaults.light.secondary).toBe('#FFA4B9');
+    expect(defaults.dark.paper).toBe('#2B2427');
+    AUDITION_COLOURS.forEach((c) => {
+      expect(defaults.light[c.id]).not.toBe('');
+      expect(defaults.dark[c.id]).not.toBe('');
+    });
+  });
+
+  it("never take the audition's own choices for defaults", () => {
+    const own = document.createElement('style');
+    own.textContent = ':root { --midst-background: #000001; }';
+    document.head.appendChild(own);
+    try {
+      expect(defaultsFrom(document, own.sheet).light.background).toBe(
+        '#fff5ee'
+      );
+    } finally {
+      own.remove();
+    }
+  });
+});
+
+describe('the panel', () => {
+  const defaults = {
+    light: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#aaaaaa'])),
+    dark: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#222222'])),
+  };
+  const hexBox = (label: string) =>
+    screen.getByLabelText(`${label}, hex code`) as HTMLInputElement;
+
+  it('chooses a typed hex code for the scheme shown, and reverts it', () => {
+    const onChange = jest.fn();
+    const { rerender } = render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.change(hexBox('Background'), { target: { value: '#123456' } });
+    fireEvent.blur(hexBox('Background'));
+    expect(onChange).toHaveBeenLastCalledWith({
+      light: { background: '#123456' },
+      dark: {},
+    });
+
+    rerender(
+      <ColourPanel
+        inForce="light"
+        choices={{ light: { background: '#123456' }, dark: {} }}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    expect(hexBox('Background').value).toBe('#123456');
+    fireEvent.click(screen.getByLabelText('Background, revert'));
+    expect(onChange).toHaveBeenLastCalledWith({ light: {}, dark: {} });
+  });
+
+  it('refuses a hex code it cannot read, and says so', () => {
+    const onChange = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.change(hexBox('Link'), { target: { value: '#12' } });
+    fireEvent.keyDown(hexBox('Link'), { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(hexBox('Link')).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('edits the dark scheme separately, and says how to see it', () => {
+    const onChange = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    expect(screen.queryByRole('note')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Dark' }));
+    expect(screen.getByRole('note')).toHaveTextContent(
+      'View > Appearance > Dark'
+    );
+    expect(hexBox('Background').value).toBe('#222222');
+    fireEvent.change(hexBox('Background'), { target: { value: '#010101' } });
+    fireEvent.blur(hexBox('Background'));
+    expect(onChange).toHaveBeenLastCalledWith({
+      light: {},
+      dark: { background: '#010101' },
+    });
+  });
+
+  it('copies every hex code of the scheme shown', async () => {
+    const writeText = jest.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={{ light: { link: '#00ff00' }, dark: {} }}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Copy hex codes' }));
+    });
+    const copied = writeText.mock.calls[0][0] as string;
+    expect(copied).toContain('Text / Link: #00ff00');
+    expect(copied).toContain('Primary (the beige) / Background: #aaaaaa');
+    expect(copied.split('\n')).toHaveLength(AUDITION_COLOURS.length + 1);
+    expect(screen.getByRole('status')).toHaveTextContent('Copied.');
+  });
+
+  it('closes on Escape', () => {
+    const onClose = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={onClose}
+      />
+    );
+    fireEvent.keyDown(hexBox('Link'), { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('the host', () => {
+  let opened: (() => void) | undefined;
+  beforeEach(() => {
+    opened = undefined;
+    window.localStorage.clear();
+    Object.assign(window, {
+      electron: {
+        ipcRenderer: {
+          on: (channel: string, listener: () => void) => {
+            if (channel === 'choose-colours') opened = listener;
+            return () => {};
+          },
+        },
+      },
+    });
+  });
+
+  it('opens from View > Colours…, applies a choice to the page and keeps it across a restart', () => {
+    const { unmount } = render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(screen.getByText('poem')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    act(() => opened!());
+    expect(screen.getByRole('dialog', { name: 'Colours' })).toBeInTheDocument();
+
+    const box = screen.getByLabelText('Settings divider, hex code');
+    fireEvent.change(box, { target: { value: '#abcdef' } });
+    fireEvent.blur(box);
+    expect(document.getElementById(STYLE_ID)?.textContent).toContain(
+      '--midst-divider: #abcdef;'
+    );
+    expect(
+      JSON.parse(window.localStorage.getItem(STORAGE_KEY)!).light.divider
+    ).toBe('#abcdef');
+
+    unmount();
+    expect(document.getElementById(STYLE_ID)).toBeNull();
+    render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(document.getElementById(STYLE_ID)?.textContent).toContain(
+      '--midst-divider: #abcdef;'
+    );
+  });
+});

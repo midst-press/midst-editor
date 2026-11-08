@@ -5,7 +5,7 @@ import { Route, MemoryRouter as Router, Routes } from 'react-router-dom';
 import './fonts/fonts.css';
 import './cssVars.css';
 import './App.css';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, ReactNode } from 'react';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
@@ -17,6 +17,17 @@ import { LocaleContext, useMenuLocale } from './locale';
 import FontPicker from './poemFont/FontPicker';
 import { PoemFontContext, usePoemFontState } from './poemFont/PoemFontContext';
 import { PoemSizeContext, usePoemSizeState } from './fontSize/PoemSizeContext';
+
+// View > Colours… (GitHub #119), only in an audition build: with the flag off the require is never reached, and
+// webpack bundles none of the folder. To remove it, see src/renderer/colourAudition/README.md.
+function PassThrough({ children }: { children: ReactNode }) {
+  return children;
+}
+const ColourAudition: typeof PassThrough =
+  process.env.MIDST_COLOUR_AUDITION === 'true'
+    ? // eslint-disable-next-line global-require, lingui/no-unlocalized-strings -- a module path
+      require('./colourAudition/ColourAudition').default
+    : PassThrough;
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);
@@ -127,29 +138,31 @@ export default function App() {
     <>
       <CssBaseline />
       <ThemeProvider theme={theme}>
-        <LocaleContext.Provider value={locale}>
-          <TextContext.Provider value={textContextValue}>
-            <HistoryContext.Provider value={historyContextValue}>
-              <Router initialEntries={[startAt]}>
-                <PoemFontContext.Provider value={poemFont}>
-                  <PoemSizeContext.Provider value={poemSize}>
-                    <WindowTitle
-                      filename={filename}
-                      notSaved={notSaved}
-                      untitledEdited={untitledEdited}
-                    />
-                    <FontPicker />
-                    <Routes>
-                      <Route path="/editor" element={<Editor />} />
-                      <Route path="/replay" element={<Replay />} />
-                      <Route path="/" element={<LandingDialog />} />
-                    </Routes>
-                  </PoemSizeContext.Provider>
-                </PoemFontContext.Provider>
-              </Router>
-            </HistoryContext.Provider>
-          </TextContext.Provider>
-        </LocaleContext.Provider>
+        <ColourAudition>
+          <LocaleContext.Provider value={locale}>
+            <TextContext.Provider value={textContextValue}>
+              <HistoryContext.Provider value={historyContextValue}>
+                <Router initialEntries={[startAt]}>
+                  <PoemFontContext.Provider value={poemFont}>
+                    <PoemSizeContext.Provider value={poemSize}>
+                      <WindowTitle
+                        filename={filename}
+                        notSaved={notSaved}
+                        untitledEdited={untitledEdited}
+                      />
+                      <FontPicker />
+                      <Routes>
+                        <Route path="/editor" element={<Editor />} />
+                        <Route path="/replay" element={<Replay />} />
+                        <Route path="/" element={<LandingDialog />} />
+                      </Routes>
+                    </PoemSizeContext.Provider>
+                  </PoemFontContext.Provider>
+                </Router>
+              </HistoryContext.Provider>
+            </TextContext.Provider>
+          </LocaleContext.Provider>
+        </ColourAudition>
       </ThemeProvider>
     </>
   );

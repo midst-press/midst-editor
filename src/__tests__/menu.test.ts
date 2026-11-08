@@ -2030,6 +2030,32 @@ describe('the menu', () => {
       expect(win.webContents.send).toHaveBeenLastCalledWith('choose-font');
     });
 
+    // GitHub #119: only an audition build has View > Colours…; a release never does.
+    it('View > Colours… is only in an audition build, and opens the colour panel', () => {
+      const labels = () =>
+        find(lastBuild(), viewTop).submenu!.map((i) => (i as Item).label);
+      const before = process.env.MIDST_COLOUR_AUDITION;
+      try {
+        delete process.env.MIDST_COLOUR_AUDITION;
+        build(platform);
+        expect(labels()).not.toContain('Colours…');
+        process.env.MIDST_COLOUR_AUDITION = 'false';
+        buildFromTemplate.mockClear();
+        build(platform);
+        expect(labels()).not.toContain('Colours…');
+
+        process.env.MIDST_COLOUR_AUDITION = 'true';
+        buildFromTemplate.mockClear();
+        const win = makeWindow();
+        const item = sub(build(platform, win), viewTop, 'Colours…');
+        item.click!();
+        expect(win.webContents.send).toHaveBeenLastCalledWith('choose-colours');
+      } finally {
+        if (before === undefined) delete process.env.MIDST_COLOUR_AUDITION;
+        else process.env.MIDST_COLOUR_AUDITION = before;
+      }
+    });
+
     it('Toggle Full Screen flips the window state', () => {
       const win = makeWindow();
       const item = sub(build(platform, win), viewTop, fullScreenLabel);
