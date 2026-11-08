@@ -98,8 +98,8 @@
   border: none;
   border-radius: 50%;
   display: inline-flex;
-  height: 28px;
-  width: 28px;
+  height: 34px;
+  width: 34px;
   justify-content: center;
   align-items: center;
 }
@@ -107,6 +107,13 @@
 .control-icon-gap {
   margin-right: 12px;
   z-index: 10;
+}
+
+/* All toolbar icon SVGs render at one size (GitHub #469). */
+.icon-button svg,
+.control-bar-icon svg {
+  height: 22px;
+  width: 22px;
 }
 
 .control-bar-icon:hover {
