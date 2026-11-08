@@ -19,6 +19,7 @@ import {
   withRgb,
 } from '../renderer/colourAudition/colours';
 import { defaultsFrom } from '../renderer/colourAudition/defaults';
+import KEEPS_FOCUS from '../renderer/keepsFocus';
 import ColourAuditionHost, {
   ColourPanel,
   STYLE_ID,
@@ -322,9 +323,28 @@ describe('the panel', () => {
     });
     const copied = writeText.mock.calls[0][0] as string;
     expect(copied).toContain('Text / Link: #00ff00');
-    expect(copied).toContain('Primary (the beige) / Background: #aaaaaa');
+    expect(copied).toContain('Background (the beige) / Background: #aaaaaa');
     expect(copied.split('\n')).toHaveLength(AUDITION_COLOURS.length + 1);
     expect(screen.getByRole('status')).toHaveTextContent('Copied.');
+  });
+
+  it('is marked so the editor leaves it the focus, and moves to the other side', () => {
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    const panel = screen.getByRole('dialog', { name: 'Colours' });
+    expect(panel).toHaveAttribute(KEEPS_FOCUS);
+    expect(panel).not.toHaveClass('colour-audition-left');
+    fireEvent.click(screen.getByRole('button', { name: 'Move left' }));
+    expect(panel).toHaveClass('colour-audition-left');
+    fireEvent.click(screen.getByRole('button', { name: 'Move right' }));
+    expect(panel).not.toHaveClass('colour-audition-left');
   });
 
   it('closes on Escape', () => {

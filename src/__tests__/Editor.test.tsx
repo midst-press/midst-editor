@@ -7,6 +7,12 @@ import type { Transaction } from '@tiptap/pm/state';
 import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import { FONT_PICKER_CLASS } from '../renderer/poemFont/FontPicker';
+import KEEPS_FOCUS from '../renderer/keepsFocus';
+import {
+  AUDITION_COLOURS,
+  noChoices,
+} from '../renderer/colourAudition/colours';
+import { ColourPanel } from '../renderer/colourAudition/ColourAudition';
 import Editor from '../renderer/components/Editor';
 import {
   PoemSizeContext,
@@ -459,6 +465,58 @@ describe('Editor: content and appearance', () => {
     settleFocus();
     expect(document.activeElement).toBe(search);
     picker.remove();
+  });
+
+  // GitHub #119: a panel marked KEEPS_FOCUS keeps the focus too, whatever its class.
+  it('on a Mac, leaves the focus in a panel marked KEEPS_FOCUS', () => {
+    bridge = installBridge({}, true);
+    mount();
+    settleFocus();
+    const panel = document.createElement('div');
+    panel.setAttribute(KEEPS_FOCUS, '');
+    const field = document.createElement('input');
+    panel.appendChild(field);
+    document.body.appendChild(panel);
+    act(() => field.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(field);
+    panel.remove();
+  });
+
+  // GitHub #119, witnessed in the audition build: on a Mac the editor took the focus back from the Colours
+  // panel's hex field, and the hex code typed there replaced the poem. Remove with src/renderer/colourAudition.
+  it('on a Mac, typing in the Colours panel leaves the poem as it was', () => {
+    bridge = installBridge({}, true);
+    mount({ initialText: '<p>zq</p>' });
+    settleFocus();
+    const before = bridge.values.poem;
+    const defaults = {
+      light: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#aaaaaa'])),
+      dark: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#222222'])),
+    };
+    const onChange = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    const hex = screen.getByLabelText('Link, hex code');
+    act(() => hex.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(hex);
+    fireEvent.change(hex, { target: { value: '#cce5ff' } });
+    fireEvent.keyDown(hex, { key: 'Enter' });
+    settleFocus();
+    expect(onChange).toHaveBeenLastCalledWith({
+      light: { link: '#cce5ff' },
+      dark: {},
+    });
+    expect(bridge.values.poem).toBe(before);
+    expect(proseMirror().textContent).toBe('zq');
   });
 });
 

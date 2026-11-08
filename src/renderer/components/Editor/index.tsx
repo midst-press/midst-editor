@@ -8,6 +8,7 @@ import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import KEEPS_FOCUS from '../../keepsFocus';
 import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
@@ -150,12 +151,13 @@ export default function Editor() {
     editor: EditorType;
     event: FocusEvent;
   }) => {
-    // The find bar and the font picker take the focus on purpose; taking it back would leave the poet unable to
-    // type there, and the font picker's Escape would never reach it (GitHub #112, editor #417).
+    // The find bar, the font picker and anything marked KEEPS_FOCUS take the focus on purpose; taking it back
+    // would leave the poet unable to type there, and the font picker's Escape would never reach it (GitHub #112,
+    // editor #417). Worse, what was typed there went into the poem (View > Colours…, GitHub #119).
     const to = event.relatedTarget;
     if (
       to instanceof Element &&
-      to.closest(`.${FIND_BAR_CLASS}, .${FONT_PICKER_CLASS}`)
+      to.closest(`.${FIND_BAR_CLASS}, .${FONT_PICKER_CLASS}, [${KEEPS_FOCUS}]`)
     )
       return;
     // Without moving the page (GitHub #92): focus() scrolls the caret into view by default, so a click in the
