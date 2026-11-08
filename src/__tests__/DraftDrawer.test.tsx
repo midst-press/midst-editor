@@ -1,8 +1,9 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import DraftDrawer, {
   fitsTheField,
+  LEAVE_MS,
 } from '../renderer/components/DraftMarkers/DraftDrawer';
 
 // Synthetic names only.
@@ -21,7 +22,7 @@ interface HarnessProps {
   startNaming: number | null;
   markers: typeof MARKERS;
   refusal: string | null;
-  canUndo: boolean;
+  deletedAt: number | null;
   onUndo: jest.Mock;
   onClose: jest.Mock;
 }
@@ -34,7 +35,7 @@ function Harness({
   startNaming,
   markers,
   refusal,
-  canUndo,
+  deletedAt,
   onUndo,
   onClose,
 }: HarnessProps) {
@@ -52,7 +53,7 @@ function Harness({
       onJump={onJump}
       onRename={onRename}
       onDelete={onDelete}
-      canUndo={canUndo}
+      deletedAt={deletedAt}
       onUndo={onUndo}
       refusal={refusal}
       showMarkers={showMarkers}
@@ -85,7 +86,7 @@ const show = (given: Partial<HarnessProps> = {}) =>
       startNaming={given.startNaming ?? null}
       markers={given.markers ?? MARKERS}
       refusal={given.refusal ?? null}
-      canUndo={given.canUndo ?? false}
+      deletedAt={given.deletedAt ?? null}
       onUndo={given.onUndo ?? jest.fn()}
       onClose={given.onClose ?? jest.fn()}
     />
@@ -236,14 +237,84 @@ describe('DraftDrawer: refusal', () => {
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
-  it('offers Undo after a delete, and Undo calls back (#277)', () => {
+  // GitHub #117: the deleted draft's own row says so, with Undo at its end, in its place on the Timeline.
+  it("puts Undo in the deleted draft's row, in its place, and Undo calls back (#277)", () => {
     const onUndo = jest.fn();
-    show({ canUndo: true, onUndo });
+    show({ deletedAt: 5, onUndo });
+    const rows = Array.from(document.querySelectorAll('.DraftDrawer li'));
+    expect(rows.map((r) => r.textContent)).toEqual([
+      'xv',
+      'zq',
+      'Draft Marker deleted.Undo',
+      'Draft 2',
+    ]);
+    const deleted = rows[2];
+    expect(deleted).toHaveClass('DraftDeleted');
+    expect(deleted.querySelector('em')).toHaveTextContent(
+      'Draft Marker deleted.'
+    );
     expect(screen.getByRole('status')).toHaveTextContent(
       'Draft Marker deleted.'
     );
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
     expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  describe('when the time to put it back is up', () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    // The panel with `deletedAt` and `markers`, every callback a mock.
+    const panel = (deletedAt: number | null, markers = MARKERS) => (
+      <Harness
+        onJump={jest.fn()}
+        onRename={jest.fn()}
+        onDelete={jest.fn()}
+        onShow={jest.fn()}
+        startNaming={null}
+        markers={markers}
+        refusal={null}
+        deletedAt={deletedAt}
+        onUndo={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+
+    it('fades and closes the row, with no Undo in it, and then the row is gone', () => {
+      const { rerender } = render(panel(5));
+      rerender(panel(null));
+      const leaving = document.querySelector('.DraftDeleted');
+      expect(leaving).toHaveClass('leaving');
+      expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+      act(() => {
+        jest.advanceTimersByTime(LEAVE_MS);
+      });
+      expect(document.querySelector('.DraftDeleted')).toBeNull();
+      expect(names()).toEqual(['xv', 'zq', 'Draft 2']);
+    });
+
+    it('closes no row for a draft that was put back', () => {
+      const { rerender } = render(panel(5));
+      rerender(panel(null, [...MARKERS, { index: 5, label: 'qv' }]));
+      expect(document.querySelector('.DraftDeleted')).toBeNull();
+      expect(names()).toEqual(['xv', 'zq', 'qv', 'Draft 2']);
+    });
+
+    it('closes the first row when a second draft is deleted before it was put back', () => {
+      const { rerender } = render(panel(5));
+      rerender(
+        panel(
+          2,
+          MARKERS.filter((m) => m.index !== 2)
+        )
+      );
+      const deleted = Array.from(document.querySelectorAll('.DraftDeleted'));
+      expect(deleted.map((r) => r.classList.contains('leaving'))).toEqual([
+        true,
+        false,
+      ]);
+      expect(screen.getAllByRole('button', { name: 'Undo' })).toHaveLength(1);
+    });
   });
 
   it('shows no Undo when there is nothing to undo', () => {

@@ -49,8 +49,6 @@ export const refusalMessage = (
       return i18n._('drafts.refused.noMoment');
     case 'position-has-a-marker':
       return i18n._('drafts.refused.alreadyMarked');
-    case 'no-draft-number-left':
-      return i18n._('drafts.refused.noNumberLeft');
     case 'no-marker-there':
       return i18n._('drafts.refused.gone');
     case 'meta-unreadable':
@@ -252,6 +250,8 @@ export default function useDraftMarkers(
     remove,
     unmake,
     canUndoDelete: deleted !== null,
+    // Where on the Timeline the draft that can still be put back was, so Settings shows Undo in its row (GitHub #117).
+    deletedAt: deleted === null ? null : deleted.marker.index,
     undoDelete,
     refusal,
   };
