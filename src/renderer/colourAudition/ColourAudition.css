@@ -62,8 +62,16 @@
   gap: 6px;
 }
 
-.colour-audition-head button {
+.colour-audition-left {
+  right: auto;
+  left: 16px;
+}
+
+.colour-audition-move {
   margin-left: auto;
+}
+
+.colour-audition-head button[aria-label='Close'] {
   border: none;
   display: flex;
 }

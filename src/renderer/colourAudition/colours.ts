@@ -31,8 +31,9 @@ export interface AuditionColour {
   palette?: PalettePath;
 }
 
-const PRIMARY = 'Primary (the beige)';
-const SECONDARY = 'Secondary (the pink)';
+// Named for what Annelyse sees, not MUI's terms: MUI's "primary" is a pink, and the beige is the background.
+const PRIMARY = 'Background (the beige)';
+const SECONDARY = 'Pinks (primary and secondary)';
 const TEXT = 'Text';
 const LINES = 'Dividers and lines';
 const SWITCHES = 'Switches and sliders';
