@@ -47,11 +47,19 @@ jobs:
         id: version
         env:
           GH_TOKEN: ${{ github.token }}
+          COLOUR_AUDITION: ${{ inputs.colour_audition && 'true' || 'false' }}
         run: |
           tools/check_version.sh
           version=$(node -p "require('./release/app/package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "### version $version" >> "$GITHUB_STEP_SUMMARY"
+          # An audition build (GitHub #119) says so where the run is read (#479). It is never released: the release
+          # workflow refuses it (#478). So the check below, which keeps a released version from being rebuilt from
+          # other code, does not apply to it, and an audition build can come from main (#480).
+          if [ "$COLOUR_AUDITION" = true ]; then
+            echo "### audition build: View > Colours… is in it. Never a release." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           [ "$GITHUB_REF" = refs/heads/main ] || exit 0
           # The commit a tag names, lightweight or annotated; empty if there is no such tag. gh
           # prints an API error on STDOUT, so only a successful lookup counts.
