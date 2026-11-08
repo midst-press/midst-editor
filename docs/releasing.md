@@ -145,7 +145,8 @@ Use a Mac, or an account on one, that has no Midst installed.
     **Midst Beta <Chess's version>**);
   - **Customize** at the Installation Type step shows **Delete the Midst that's already installed**,
     unticked, and its description says it permanently deletes it and cannot be undone. The description
-    shows only while its row is selected: click the row's name, not its box, before the screenshot.
+    shows only while its row is selected: click the row's name, not its box, before the screenshot. If
+    the box gets ticked by mistake, untick it before Continue.
 
   Screenshots: `warning-old-version.png` (the warning, naming the old version) and
   `customize-delete-choice.png` (Customize, with the delete choice). On the clean install in the step
@@ -157,9 +158,11 @@ Use a Mac, or an account on one, that has no Midst installed.
 
   - with **Delete the Midst that's already installed** unticked: `poem-unticked.png`. The old one is
     kept as `Midst <old version>.app`;
-  - with it ticked: `poem-ticked.png`. Only the new Midst is left. Install the previous release
-    fresh first (delete both Midsts the unticked run left): straight after the unticked run the new
-    Midst is the one already installed, and ticking would delete it;
+  - with it ticked: `poem-ticked.png`. Only the new Midst is left. Start this one from no Midst:
+    delete `/Applications/Midst.app`, `/Applications/Midst <previous version>.app` and, if it is still
+    there, the stand-in `/Applications/Midst Beta <Chess's version>.app`, then install the previous
+    release again, then this one ticked. Straight after the unticked run, ticking would delete the new
+    Midst that run installed and leave `Midst <previous version>.app`, so it would not show this;
   - over itself (the same version): `poem-same-version.png`.
 
 ### Recording the evidence
