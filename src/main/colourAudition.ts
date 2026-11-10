@@ -24,6 +24,23 @@ export const MAX_IMPORT_BYTES = 64 * 1024;
 
 const isPoem = (path: string) => path.toLowerCase().endsWith('.midst');
 
+// A colour set is written to a new file beside the chosen one and renamed over it, never written onto the
+// chosen file. A rename replaces the folder's entry, so a .txt that is a symbolic link or a hard link to a
+// poem is replaced by the colour set and the poem is left as it was (Alden, #486). Writing onto the chosen
+// file would have followed the link and emptied the poem. 'wx' refuses a temporary name already there.
+let writes = 0;
+export const writeReplacing = (path: string, text: string) => {
+  writes += 1;
+  const partial = `${path}.${process.pid}-${writes}.partial`;
+  fs.writeFileSync(partial, text, { encoding: 'utf8', flag: 'wx' });
+  try {
+    fs.renameSync(partial, path);
+  } catch (error) {
+    fs.rmSync(partial, { force: true });
+    throw error;
+  }
+};
+
 export interface ColourFileDeps {
   // eslint-disable-next-line no-unused-vars -- parameters named in function types
   save: () => string | undefined;
@@ -99,7 +116,7 @@ const depsFor = (
       properties: ['openFile'],
       filters: [{ name: words.filterName, extensions: ['txt'] }],
     }),
-  write: (path, text) => fs.writeFileSync(path, text, 'utf8'),
+  write: writeReplacing,
   size: (path) => fs.statSync(path).size,
   read: (path) => fs.readFileSync(path, 'utf8'),
 });
