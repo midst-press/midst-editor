@@ -502,6 +502,8 @@ describe('Editor: content and appearance', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={{ custom: null, outline: 0 }}
+        onLogoChange={jest.fn()}
       />
     );
     const hex = screen.getByLabelText('Link, hex code');

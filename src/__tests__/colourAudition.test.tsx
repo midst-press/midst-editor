@@ -22,6 +22,7 @@ import {
   withRgb,
 } from '../renderer/colourAudition/colours';
 import { defaultsFrom } from '../renderer/colourAudition/defaults';
+import { NO_LOGO_CHANGE } from '../renderer/colourAudition/logo';
 import KEEPS_FOCUS from '../renderer/keepsFocus';
 import ColourAuditionHost, {
   ColourPanel,
@@ -280,6 +281,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.change(hexBox('Background'), { target: { value: '#123456' } });
@@ -296,6 +299,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(hexBox('Background').value).toBe('#123456');
@@ -312,6 +317,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.change(hexBox('Link'), { target: { value: '#12' } });
@@ -329,6 +336,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(screen.queryByRole('note')).toBeNull();
@@ -355,6 +364,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     await act(async () => {
@@ -375,6 +386,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     const panel = screen.getByRole('dialog', { name: 'Colours' });
@@ -395,6 +408,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={onClose}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.keyDown(hexBox('Link'), { key: 'Escape' });
@@ -611,6 +626,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
@@ -672,6 +689,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: button }));
@@ -697,6 +716,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
@@ -712,6 +733,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(

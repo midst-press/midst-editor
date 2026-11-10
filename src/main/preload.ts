@@ -160,6 +160,17 @@ const electronHandler = {
             path?: string;
             text?: string;
           } => ipcRenderer.sendSync('colours-import', words),
+          // A replacement for the squiggly M, from an .svg file: the same dialog and refusals as importSet.
+          readLogo: (words: {
+            filterName: string;
+            defaultName: string;
+          }): {
+            ok: boolean;
+            failure?: string;
+            error?: string;
+            path?: string;
+            text?: string;
+          } => ipcRenderer.sendSync('colours-logo', words),
         }
       : undefined,
 };
