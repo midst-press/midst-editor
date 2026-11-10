@@ -321,6 +321,13 @@ ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
   logIfRejected('focus mode', () => requestFocusMode(win));
 });
 
+// View > Colours… saving and reading colour sets (GitHub #119), only in an audition build.
+// The require is never reached with the flag off, so webpack bundles none of it.
+if (process.env.MIDST_COLOUR_AUDITION === 'true') {
+  // eslint-disable-next-line global-require, lingui/no-unlocalized-strings -- a module path
+  require('./colourAudition').registerColourFiles(() => mainWindow);
+}
+
 // "Continue writing from here" asks first, in a native box (GitHub #90). No window, no restart.
 ipcMain.on('confirm-continue-writing', (event) => {
   event.returnValue = mainWindow ? confirmContinueWriting(mainWindow) : false;

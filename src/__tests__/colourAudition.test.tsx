@@ -11,8 +11,11 @@ import {
   STORAGE_KEY,
   cssText,
   loadChoices,
+  applyImported,
+  hexList,
   noChoices,
   parseColour,
+  parseHexList,
   saveChoices,
   themeWith,
   toHex,
@@ -411,5 +414,272 @@ describe('the host', () => {
     expect(document.getElementById(STYLE_ID)?.textContent).toContain(
       '--midst-divider: #abcdef;'
     );
+  });
+});
+
+// GitHub #119: saved sets are read back in, and every export so far must still import (Stuart, 10 Nov).
+describe('reading a saved set', () => {
+  const hex = (i: number) =>
+    `#${(0x100000 + i * 0x0a0b0c).toString(16).slice(-6)}`;
+  const lineFor = (
+    c: (typeof AUDITION_COLOURS)[number],
+    i: number,
+    group: string,
+    label: string,
+    tag: boolean
+  ) => `${group} / ${label}${tag ? ` [${c.id}]` : ''}: ${hex(i)}`;
+  const all = Object.fromEntries(
+    AUDITION_COLOURS.map((c, i) => [c.id, hex(i)])
+  );
+
+  it('reads back both sections that hexList writes, with ids or without', () => {
+    const plain = parseHexList(
+      `Midst colours, Light\n${hexList('light', (c) => all[c.id])}`
+    );
+    expect(plain).toEqual({ colours: { light: all }, problems: [] });
+    const text = [
+      `Midst colours, Light\n${hexList('light', (c) => all[c.id], true)}`,
+      `Midst colours, Dark\n${hexList('dark', (c) => all[c.id], true)}`,
+    ].join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    expect(read.colours.light).toEqual(all);
+    expect(read.colours.dark).toEqual(all);
+  });
+
+  // Frida's build (90d71ee): no [id], and two labels #484 renamed.
+  it('imports a 90d71ee export completely, old labels included', () => {
+    const OLD: Record<string, string> = {
+      primaryDark: 'Primary, darker',
+      logo: 'Logo',
+    };
+    const text = [
+      'Midst colours, Dark',
+      ...AUDITION_COLOURS.map((c, i) =>
+        lineFor(c, i, c.group, OLD[c.id] ?? c.label, false)
+      ),
+    ].join('\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    expect(read.colours.dark).toEqual(all);
+    expect(read.colours.light).toBeUndefined();
+  });
+
+  it('imports an export from before #483, with the old group names', () => {
+    const OLD_GROUP: Record<string, string> = {
+      'Background (the beige)': 'Primary (the beige)',
+      'Pinks (primary and secondary)': 'Secondary (the pink)',
+    };
+    const OLD: Record<string, string> = {
+      primaryDark: 'Primary, darker',
+      logo: 'Logo',
+    };
+    const text = [
+      'Midst colours, Light',
+      ...AUDITION_COLOURS.map((c, i) =>
+        lineFor(
+          c,
+          i,
+          OLD_GROUP[c.group] ?? c.group,
+          OLD[c.id] ?? c.label,
+          false
+        )
+      ),
+    ].join('\n');
+    expect(parseHexList(text)).toEqual({
+      colours: { light: all },
+      problems: [],
+    });
+  });
+
+  it('matches by [id] whatever the label now says', () => {
+    const read = parseHexList(
+      'Midst colours, Light\nAnything / Renamed one day [link]: #010203'
+    );
+    expect(read).toEqual({
+      colours: { light: { link: '#010203' } },
+      problems: [],
+    });
+  });
+
+  it('reports what it cannot use, and applies the rest', () => {
+    const read = parseHexList(
+      [
+        'stray line',
+        'Midst colours, Light',
+        'Text / Link [link]: #010203',
+        'Text / Nonexistent: #010203',
+        'Text / Problem [errorLight]: not-a-colour',
+        'Text / Unknown [nosuch]: #010203',
+      ].join('\n')
+    );
+    expect(read.colours).toEqual({ light: { link: '#010203' } });
+    expect(read.problems).toHaveLength(4);
+    expect(read.problems.join('\n')).toMatch(/stray line/);
+    expect(read.problems.join('\n')).toMatch(/Nonexistent/);
+    expect(read.problems.join('\n')).toMatch(/not-a-colour/);
+    expect(read.problems.join('\n')).toMatch(/nosuch/);
+  });
+
+  it('says so when there is no heading at all', () => {
+    expect(parseHexList('').problems).toHaveLength(1);
+  });
+
+  it('applies each section to its own tab, and a colour at its default is no change', () => {
+    const defaults = {
+      light: { link: '#0000ff', divider: '#111111' },
+      dark: { link: '#9ec5ff' },
+    };
+    const before = { light: { divider: '#222222' }, dark: { link: '#123456' } };
+    const next = applyImported(before, defaults, {
+      colours: { light: { link: '#0000ff', divider: '#333333' } },
+      problems: [],
+    });
+    expect(next).toEqual({
+      light: { divider: '#333333' },
+      dark: { link: '#123456' },
+    });
+    expect(before).toEqual({
+      light: { divider: '#222222' },
+      dark: { link: '#123456' },
+    });
+  });
+});
+
+describe('the panel, saving and reading a file', () => {
+  const defaults = {
+    light: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#aaaaaa'])),
+    dark: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#222222'])),
+  };
+  afterEach(() => {
+    delete (window as unknown as { electron?: unknown }).electron;
+  });
+
+  it('exports both schemes, with ids, and imports a set into its own tab', () => {
+    const exportSet = jest
+      .fn()
+      .mockReturnValue({ ok: true, path: '/x/Midst colours.txt' });
+    const importSet = jest.fn().mockReturnValue({
+      ok: true,
+      path: '/x/a.txt',
+      text: 'Midst colours, Dark\nText / Link [link]: #010203',
+    });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet, importSet } },
+    });
+    const onChange = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={{ light: { link: '#00ff00' }, dark: {} }}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
+    const written = exportSet.mock.calls[0][0] as string;
+    expect(written).toContain('Midst colours, Light');
+    expect(written).toContain('Midst colours, Dark');
+    expect(written).toContain('Text / Link [link]: #00ff00');
+    expect(written).toContain('Text / Link [link]: #222222');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      light: { link: '#00ff00' },
+      dark: { link: '#010203' },
+    });
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('list', { name: 'File result' })).toHaveTextContent(
+      'Read 1 colours into Dark.'
+    );
+  });
+
+  // Main sends a refusal as a code; the panel says it in words, and says nothing when the poet cancelled.
+  it.each([
+    [
+      'export',
+      'Export to file…',
+      { failure: 'poem' },
+      'A colour set is never a .midst file, so no poem was touched.',
+    ],
+    [
+      'export',
+      'Export to file…',
+      { failure: 'unwritable', error: 'disk full' },
+      'Could not save: disk full',
+    ],
+    [
+      'import',
+      'Import from file…',
+      { failure: 'tooLarge' },
+      'That file is too large to be a colour set.',
+    ],
+    [
+      'import',
+      'Import from file…',
+      { failure: 'unreadable', error: 'no access' },
+      'Could not read: no access',
+    ],
+  ])('says why a file %s was refused: %s', (_kind, button, refusal, words) => {
+    const call = jest.fn().mockReturnValue({ ok: false, ...refusal });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet: call, importSet: call } },
+    });
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    // The words for main's dialog are the last argument, whichever the call.
+    expect(call.mock.calls[0].at(-1)).toEqual({
+      filterName: 'Text',
+      defaultName: 'Midst colours.txt',
+    });
+    expect(screen.getByRole('list', { name: 'File result' })).toHaveTextContent(
+      words
+    );
+  });
+
+  it('says nothing when the file dialog is cancelled', () => {
+    const call = jest.fn().mockReturnValue({ ok: false, failure: 'cancelled' });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet: call, importSet: call } },
+    });
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
+    expect(screen.queryByRole('list', { name: 'File result' })).toBeNull();
+  });
+
+  it('shows no file buttons where there is no file bridge', () => {
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Export to file…' })
+    ).toBeNull();
   });
 });
