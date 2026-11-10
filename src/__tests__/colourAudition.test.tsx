@@ -90,6 +90,10 @@ describe('colour values', () => {
 
   it.each([
     'tomato',
+    'constructor',
+    '__proto__',
+    'toString',
+    'hasOwnProperty',
     'rgb(300, 0, 0)',
     'rgba(0,0,0,2)',
     '#12',
@@ -98,6 +102,13 @@ describe('colour values', () => {
     'rgba(1, 2, 3, .)',
     'rgba(1, 2, 3, 0..5)',
   ])('does not read %s', (value) => expect(parseColour(value)).toBeNull());
+
+  it('reports a line naming an Object property as not a colour, without throwing', () => {
+    expect(
+      parseHexList('Midst colours, Light\nText / Link [link]: constructor')
+        .problems
+    ).toEqual(['"constructor" is not a colour: Text / Link [link].']);
+  });
 
   it('keeps the transparency a colour had when the RGB is picked', () => {
     expect(withRgb('#ff0000', 'rgba(0, 0, 0, 0.5)')).toBe('#ff000080');

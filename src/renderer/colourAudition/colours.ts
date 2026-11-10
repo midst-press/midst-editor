@@ -132,7 +132,8 @@ const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, '0');
 // development build (light link is dodgerblue; the minified build ships it as #1e90ff). A fixed table, so a name
 // is only ever looked up, never passed on. The round-trip test over every default fails if a default ever uses a
 // name missing here.
-const NAMED: Record<string, string> = { dodgerblue: '#1e90ff' };
+// A Map, so a name such as "constructor" finds nothing rather than Object's own properties (Alden, #487).
+const NAMED = new Map([['dodgerblue', '#1e90ff']]);
 
 // The colour formats cssVars.css and theme.ts use: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() and the names
 // in NAMED. Anything else (any other named colour, say) is null, and the picker shows the value as it is without
@@ -141,7 +142,7 @@ const NAMED: Record<string, string> = { dodgerblue: '#1e90ff' };
 // out as it was and refused on import, so Midst refused a file it had written (Violet, VM check of #486).
 export const parseColour = (value: string): Rgba | null => {
   const trimmed = value.trim().toLowerCase();
-  const v = NAMED[trimmed] ?? trimmed;
+  const v = NAMED.get(trimmed) ?? trimmed;
   let m = v.match(/^#([0-9a-f]{3,4})$/);
   if (m) {
     const [r, g, b, a] = m[1].split('').map((c) => parseInt(c + c, 16));
