@@ -545,3 +545,71 @@ describe('reading a saved set', () => {
     });
   });
 });
+
+describe('the panel, saving and reading a file', () => {
+  const defaults = {
+    light: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#aaaaaa'])),
+    dark: Object.fromEntries(AUDITION_COLOURS.map((c) => [c.id, '#222222'])),
+  };
+  afterEach(() => {
+    delete (window as unknown as { electron?: unknown }).electron;
+  });
+
+  it('exports both schemes, with ids, and imports a set into its own tab', () => {
+    const exportSet = jest
+      .fn()
+      .mockReturnValue({ ok: true, path: '/x/Midst colours.txt' });
+    const importSet = jest.fn().mockReturnValue({
+      ok: true,
+      path: '/x/a.txt',
+      text: 'Midst colours, Dark\nText / Link [link]: #010203',
+    });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet, importSet } },
+    });
+    const onChange = jest.fn();
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={{ light: { link: '#00ff00' }, dark: {} }}
+        defaults={defaults}
+        onChange={onChange}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
+    const written = exportSet.mock.calls[0][0] as string;
+    expect(written).toContain('Midst colours, Light');
+    expect(written).toContain('Midst colours, Dark');
+    expect(written).toContain('Text / Link [link]: #00ff00');
+    expect(written).toContain('Text / Link [link]: #222222');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
+    expect(onChange).toHaveBeenLastCalledWith({
+      light: { link: '#00ff00' },
+      dark: { link: '#010203' },
+    });
+    expect(screen.getByRole('button', { name: 'Dark' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    );
+    expect(screen.getByRole('list', { name: 'File result' })).toHaveTextContent(
+      'Read 1 colours into Dark.'
+    );
+  });
+
+  it('shows no file buttons where there is no file bridge', () => {
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    expect(
+      screen.queryByRole('button', { name: 'Export to file…' })
+    ).toBeNull();
+  });
+});

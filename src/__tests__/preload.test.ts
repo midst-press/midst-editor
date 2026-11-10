@@ -90,6 +90,7 @@ describe('exposure', () => {
     expect(mockExposeInMainWorld.mock.calls[0][0]).toBe('electron');
     expect(Object.keys(api).sort()).toEqual(
       [
+        'colourFiles',
         'confirmContinueWriting',
         'ipcRenderer',
         'languageOrder',
@@ -99,6 +100,33 @@ describe('exposure', () => {
         'versions',
       ].sort()
     );
+  });
+
+  // GitHub #119: the colour-set file calls exist only in an audition build, where main registers their handlers,
+  // so nothing can block on a channel no one listens on.
+  it('has no colour-set file calls outside an audition build', () => {
+    delete process.env.MIDST_COLOUR_AUDITION;
+    expect(loadPreload().colourFiles).toBeUndefined();
+  });
+
+  it('in an audition build, saves and reads colour sets through main', () => {
+    process.env.MIDST_COLOUR_AUDITION = 'true';
+    try {
+      const api = loadPreload();
+      mockIpc.sendSync.mockReturnValue({ ok: true, path: '/x/a.txt' });
+      expect(api.colourFiles?.exportSet('text')).toEqual({
+        ok: true,
+        path: '/x/a.txt',
+      });
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith(
+        'colours-export',
+        'text'
+      );
+      api.colourFiles?.importSet();
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith('colours-import');
+    } finally {
+      delete process.env.MIDST_COLOUR_AUDITION;
+    }
   });
 
   it('reports isMac true on darwin and false elsewhere', () => {
