@@ -128,15 +128,17 @@ export interface Rgba {
 
 const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, '0');
 
-// The colour formats cssVars.css and theme.ts use: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() and the names
-// in NAMED. Anything else (any other named colour, say) is null, and the picker shows the value as it is without offering to edit it in RGB.
-// #rgba is there because a default uses it (dark mutedText, #fff9): without it that default was written out as it
-// was and then refused on import, so Midst refused a file it had written (Violet, VM check of #486).
-// The colour names a default uses, so a default can be written to a file and read back (light link is
-// dodgerblue). A fixed table, so a name is only ever looked up, never passed on. The round-trip test over every
-// default fails if a default ever uses a name missing here.
+// The colour names a default uses in cssVars.css, so a default can be written to a file and read back in a
+// development build (light link is dodgerblue; the minified build ships it as #1e90ff). A fixed table, so a name
+// is only ever looked up, never passed on. The round-trip test over every default fails if a default ever uses a
+// name missing here.
 const NAMED: Record<string, string> = { dodgerblue: '#1e90ff' };
 
+// The colour formats cssVars.css and theme.ts use: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() and the names
+// in NAMED. Anything else (any other named colour, say) is null, and the picker shows the value as it is without
+// offering to edit it in RGB. #rgba is there because the built app's minified stylesheet writes defaults that way
+// (dark mutedText, rgba(255, 255, 255, 0.6) in cssVars.css, ships as #fff9): without it that default was written
+// out as it was and refused on import, so Midst refused a file it had written (Violet, VM check of #486).
 export const parseColour = (value: string): Rgba | null => {
   const trimmed = value.trim().toLowerCase();
   const v = NAMED[trimmed] ?? trimmed;
