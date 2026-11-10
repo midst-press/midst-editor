@@ -9,6 +9,7 @@ import KEEPS_FOCUS from '../keepsFocus';
 import {
   AUDITION_COLOURS,
   AuditionColour,
+  applyImported,
   Choices,
   Scheme,
   SCHEMES,
@@ -17,6 +18,7 @@ import {
   loadChoices,
   noChoices,
   parseColour,
+  parseHexList,
   saveChoices,
   themeWith,
   toHex,
@@ -165,6 +167,59 @@ export function ColourPanel({
     else forScheme[id] = next;
     onChange({ ...choices, [scheme]: forScheme });
   };
+  // Saving a set to a file and reading one back (GitHub #119): both schemes, with row ids, through main's dialogs.
+  const [report, setReport] = useState<string[] | null>(null);
+  const files = window.electron?.colourFiles;
+  const words = { filterName: 'Text', defaultName: 'Midst colours.txt' };
+  // What main's refusal codes mean, in words.
+  const why = (
+    result: { failure?: string; error?: string },
+    fallback: string
+  ) => {
+    switch (result.failure) {
+      case 'poem':
+        return 'A colour set is never a .midst file, so no poem was touched.';
+      case 'tooLarge':
+        return 'That file is too large to be a colour set.';
+      case 'unwritable':
+        return `Could not save: ${result.error ?? 'unknown error'}`;
+      case 'unreadable':
+        return `Could not read: ${result.error ?? 'unknown error'}`;
+      default:
+        return fallback;
+    }
+  };
+  const exportSet = () => {
+    if (!files) return;
+    const text = SCHEMES.map(
+      (s) =>
+        `Midst colours, ${SCHEME_NAMES[s]}\n${hexList(s, (c) => choices[s][c.id] ?? defaults[s][c.id], true)}`
+    ).join('\n\n');
+    const result = files.exportSet(text, words);
+    if (result.ok) setReport([`Saved both schemes to ${result.path}.`]);
+    else if (result.failure !== 'cancelled')
+      setReport([why(result, 'Could not save.')]);
+  };
+  const importSet = () => {
+    if (!files) return;
+    const result = files.importSet(words);
+    if (!result.ok) {
+      if (result.failure !== 'cancelled')
+        setReport([why(result, 'Could not read.')]);
+      return;
+    }
+    const imported = parseHexList(result.text ?? '');
+    onChange(applyImported(choices, defaults, imported));
+    const read = SCHEMES.filter((s) => imported.colours[s]);
+    if (read.length > 0) setScheme(read[0]);
+    setReport([
+      ...read.map(
+        (s) =>
+          `Read ${Object.keys(imported.colours[s] ?? {}).length} colours into ${SCHEME_NAMES[s]}.`
+      ),
+      ...imported.problems,
+    ]);
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(
@@ -225,6 +280,16 @@ export function ColourPanel({
         <button type="button" onClick={copy}>
           Copy hex codes
         </button>
+        {files && (
+          <>
+            <button type="button" onClick={exportSet}>
+              Export to file…
+            </button>
+            <button type="button" onClick={importSet}>
+              Import from file…
+            </button>
+          </>
+        )}
         <button
           type="button"
           onClick={() => onChange({ ...choices, [scheme]: {} })}
@@ -237,6 +302,13 @@ export function ColourPanel({
           {copied === 'no' && 'Could not copy.'}
         </span>
       </div>
+      {report && (
+        <ul className="colour-audition-report" aria-label="File result">
+          {report.map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+      )}
       <div className="colour-audition-list">
         {groups.map((group) => (
           <section key={group} aria-label={group}>

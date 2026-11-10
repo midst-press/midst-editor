@@ -127,3 +127,8 @@
 .colour-audition-bad {
   border-color: #d00;
 }
+
+.colour-audition-report {
+  margin: 0;
+  padding-left: 16px;
+}

@@ -140,6 +140,32 @@ const electronHandler = {
   confirmContinueWriting(): boolean {
     return ipcRenderer.sendSync('confirm-continue-writing') === true;
   },
+  // View > Colours… saving and reading a colour set (GitHub #119): only in an audition build, where main registers
+  // the handlers. Elsewhere it is undefined, so nothing can block on a channel with no listener.
+  colourFiles:
+    process.env.MIDST_COLOUR_AUDITION === 'true'
+      ? {
+          exportSet: (
+            text: string,
+            words: { filterName: string; defaultName: string }
+          ): {
+            ok: boolean;
+            failure?: string;
+            error?: string;
+            path?: string;
+          } => ipcRenderer.sendSync('colours-export', text, words),
+          importSet: (words: {
+            filterName: string;
+            defaultName: string;
+          }): {
+            ok: boolean;
+            failure?: string;
+            error?: string;
+            path?: string;
+            text?: string;
+          } => ipcRenderer.sendSync('colours-import', words),
+        }
+      : undefined,
 };
 
 contextBridge.exposeInMainWorld('electron', electronHandler);

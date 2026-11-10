@@ -56,7 +56,11 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   },
   { ...css('primary', 'Primary', SECONDARY), palette: 'primary.main' },
   {
-    ...css('primaryDark', 'Primary, darker', SECONDARY),
+    ...css(
+      'primaryDark',
+      'Primary, darker: the squiggly M, tooltips, Replay borders',
+      SECONDARY
+    ),
     palette: 'primary.dark',
   },
   {
@@ -74,7 +78,7 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   css('controlBar', 'Replay control bar', SECONDARY),
   css('onControlBar', 'Icons on the control bar', SECONDARY),
   css('controlBarHover', 'Control bar hover', SECONDARY),
-  css('logo', 'Logo', SECONDARY),
+  css('logo', 'Midst wordmark on the welcome card', SECONDARY),
   { ...css('textPrimary', 'Text', TEXT), palette: 'text.primary' },
   css('mutedText', 'Window title and editor icons', TEXT),
   css('link', 'Link', TEXT),
@@ -249,10 +253,118 @@ export const saveChoices = (
 export const hexList = (
   scheme: Scheme,
   // eslint-disable-next-line no-unused-vars -- a parameter named in a function type
-  value: (c: AuditionColour) => string
+  value: (c: AuditionColour) => string,
+  // A saved file carries each row's [id] so a later relabel cannot break its import; Copy hex codes does not,
+  // since it is what Annelyse reads and sends us.
+  withIds = false
 ): string =>
   AUDITION_COLOURS.map((c) => {
     const v = value(c);
     const rgba = parseColour(v);
-    return `${c.group} / ${c.label}: ${rgba ? toHex(rgba) : v}`;
+    return `${c.group} / ${c.label}${withIds ? ` [${c.id}]` : ''}: ${rgba ? toHex(rgba) : v}`;
   }).join('\n');
+
+// ---- Reading a saved set back in ----------------------------------------------------------------------
+
+export interface ImportedSets {
+  // Colour id to hex code, for each scheme whose "Midst colours, Light|Dark" heading the text has.
+  colours: Partial<Record<Scheme, Record<string, string>>>;
+  // Every line that could not be used, with the reason, so nothing is dropped silently.
+  problems: string[];
+}
+
+const HEADING = /^Midst colours, (Light|Dark)$/i;
+
+// Every export so far must still import (Stuart, 10 Nov). Exports before the [id] carried only
+// "group / label", under names since changed: the groups before #483 and two labels before #484.
+const OLD_GROUPS: Record<string, string[]> = {
+  [PRIMARY]: ['Primary (the beige)'],
+  [SECONDARY]: ['Secondary (the pink)'],
+};
+const OLD_LABELS: Record<string, string[]> = {
+  primaryDark: ['Primary, darker'],
+  logo: ['Logo'],
+};
+
+// Each "group / label" an export has ever written for a colour, current and old.
+const namesOf = (c: AuditionColour): string[] =>
+  [c.group, ...(OLD_GROUPS[c.group] ?? [])].flatMap((group) =>
+    [c.label, ...(OLD_LABELS[c.id] ?? [])].map((label) => `${group} / ${label}`)
+  );
+
+const IDS = new Set(AUDITION_COLOURS.map((c) => c.id));
+const BY_NAME = new Map(
+  AUDITION_COLOURS.flatMap((c) =>
+    namesOf(c).map((name) => [name, c.id] as const)
+  )
+);
+
+// The colour a "group / label [id]" names: by its [id] when it has one, which no later relabel can break, and
+// by its name otherwise, old names included.
+const idOf = (key: string): string | undefined => {
+  const tagged = key.match(/ \[(\w+)\]$/);
+  if (tagged) return IDS.has(tagged[1]) ? tagged[1] : undefined;
+  return BY_NAME.get(key);
+};
+
+// Reads what hexList writes: one or both "Midst colours, Light|Dark" sections, each followed by
+// "group / label [id]: #hex" lines (GitHub #119: saved versions of a scheme, and Frida and Annelyse loading each
+// other's). A line is split at its LAST ": ", since a label may hold one. Each heading decides its own tab.
+export const parseHexList = (text: string): ImportedSets => {
+  const result: ImportedSets = { colours: {}, problems: [] };
+  let scheme: Scheme | null = null;
+  text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+    .forEach((line) => {
+      const heading = line.match(HEADING);
+      if (heading) {
+        scheme = heading[1].toLowerCase() as Scheme;
+        result.colours[scheme] = result.colours[scheme] ?? {};
+        return;
+      }
+      if (scheme === null) {
+        result.problems.push(
+          `Before any "Midst colours, Light" or "Midst colours, Dark" heading: ${line}`
+        );
+        return;
+      }
+      const at = line.lastIndexOf(': ');
+      const key = at < 0 ? line : line.slice(0, at);
+      const id = at < 0 ? undefined : idOf(key);
+      const rgba = at < 0 ? null : parseColour(line.slice(at + 2));
+      if (!id) result.problems.push(`No colour called "${key}".`);
+      else if (!rgba)
+        result.problems.push(
+          `"${line.slice(at + 2)}" is not a colour: ${key}.`
+        );
+      else (result.colours[scheme] as Record<string, string>)[id] = toHex(rgba);
+    });
+  if (Object.keys(result.colours).length === 0 && result.problems.length === 0)
+    result.problems.push(
+      'No "Midst colours, Light" or "Midst colours, Dark" heading, so nothing was read.'
+    );
+  return result;
+};
+
+// The choices after an import: each scheme the import names gets its colours, and the others are untouched. A
+// colour imported at its default is no change, so its row is not marked as chosen.
+export const applyImported = (
+  choices: Choices,
+  defaults: Record<Scheme, Record<string, string>>,
+  imported: ImportedSets
+): Choices => {
+  const next: Choices = {
+    light: { ...choices.light },
+    dark: { ...choices.dark },
+  };
+  SCHEMES.forEach((scheme) => {
+    Object.entries(imported.colours[scheme] ?? {}).forEach(([id, hex]) => {
+      const fallback = parseColour(defaults[scheme][id] ?? '');
+      if (fallback && toHex(fallback) === hex) delete next[scheme][id];
+      else next[scheme][id] = hex;
+    });
+  });
+  return next;
+};
