@@ -75,6 +75,9 @@ describe('the colours offered', () => {
 describe('colour values', () => {
   it.each([
     ['#fff', '#ffffff'],
+    ['#fff9', '#ffffff99'],
+    ['DodgerBlue', '#1e90ff'],
+    ['#0000', '#00000000'],
     ['#FFF5EE', '#fff5ee'],
     ['rgb(255, 182, 199)', '#ffb6c7'],
     ['rgba(0, 0, 0, 0.87)', '#000000de'],
@@ -86,14 +89,26 @@ describe('colour values', () => {
   });
 
   it.each([
-    'dodgerblue',
+    'tomato',
+    'constructor',
+    '__proto__',
+    'toString',
+    'hasOwnProperty',
     'rgb(300, 0, 0)',
     'rgba(0,0,0,2)',
     '#12',
+    '#12345',
     'red; } body { display: none',
     'rgba(1, 2, 3, .)',
     'rgba(1, 2, 3, 0..5)',
   ])('does not read %s', (value) => expect(parseColour(value)).toBeNull());
+
+  it('reports a line naming an Object property as not a colour, without throwing', () => {
+    expect(
+      parseHexList('Midst colours, Light\nText / Link [link]: constructor')
+        .problems
+    ).toEqual(['"constructor" is not a colour: Text / Link [link].']);
+  });
 
   it('keeps the transparency a colour had when the RGB is picked', () => {
     expect(withRgb('#ff0000', 'rgba(0, 0, 0, 0.5)')).toBe('#ff000080');
@@ -199,6 +214,27 @@ describe('the defaults', () => {
     document.head.appendChild(style);
   });
   afterEach(() => style.remove());
+
+  // Every default, written out as Export writes it and read back as Import reads it, comes back as itself with
+  // nothing refused (Violet, VM check of #486: dark mutedText's #fff9 was refused).
+  it('survive a file round trip, every one, in both schemes', () => {
+    const defaults = defaultsFrom(document, null);
+    const text = (['light', 'dark'] as const)
+      .map(
+        (s) =>
+          `Midst colours, ${s === 'light' ? 'Light' : 'Dark'}\n${hexList(s, (c) => defaults[s][c.id], true)}`
+      )
+      .join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    (['light', 'dark'] as const).forEach((s) =>
+      AUDITION_COLOURS.forEach((c) =>
+        expect(read.colours[s]?.[c.id]).toBe(
+          toHex(parseColour(defaults[s][c.id])!)
+        )
+      )
+    );
+  });
 
   it('are cssVars.css as the page loaded it, light and dark, and the themes for palette-only colours', () => {
     const defaults = defaultsFrom(document, null);
