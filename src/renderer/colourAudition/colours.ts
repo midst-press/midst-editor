@@ -128,14 +128,22 @@ export interface Rgba {
 
 const hex2 = (n: number) => Math.round(n).toString(16).padStart(2, '0');
 
-// The colour formats cssVars.css and theme.ts use: #rgb, #rrggbb, #rrggbbaa, rgb() and rgba(). Anything else
-// (a named colour, say) is null, and the picker shows the value as it is without offering to edit it in RGB.
+// The colour formats cssVars.css and theme.ts use: #rgb, #rgba, #rrggbb, #rrggbbaa, rgb(), rgba() and the names
+// in NAMED. Anything else (any other named colour, say) is null, and the picker shows the value as it is without offering to edit it in RGB.
+// #rgba is there because a default uses it (dark mutedText, #fff9): without it that default was written out as it
+// was and then refused on import, so Midst refused a file it had written (Violet, VM check of #486).
+// The colour names a default uses, so a default can be written to a file and read back (light link is
+// dodgerblue). A fixed table, so a name is only ever looked up, never passed on. The round-trip test over every
+// default fails if a default ever uses a name missing here.
+const NAMED: Record<string, string> = { dodgerblue: '#1e90ff' };
+
 export const parseColour = (value: string): Rgba | null => {
-  const v = value.trim().toLowerCase();
-  let m = v.match(/^#([0-9a-f]{3})$/);
+  const trimmed = value.trim().toLowerCase();
+  const v = NAMED[trimmed] ?? trimmed;
+  let m = v.match(/^#([0-9a-f]{3,4})$/);
   if (m) {
-    const [r, g, b] = m[1].split('').map((c) => parseInt(c + c, 16));
-    return { r, g, b, a: 1 };
+    const [r, g, b, a] = m[1].split('').map((c) => parseInt(c + c, 16));
+    return { r, g, b, a: a === undefined ? 1 : a / 255 };
   }
   m = v.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})?$/);
   if (m) {
