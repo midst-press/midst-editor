@@ -113,17 +113,22 @@ describe('exposure', () => {
     process.env.MIDST_COLOUR_AUDITION = 'true';
     try {
       const api = loadPreload();
+      const words = { filterName: 'Text', defaultName: 'Midst colours.txt' };
       mockIpc.sendSync.mockReturnValue({ ok: true, path: '/x/a.txt' });
-      expect(api.colourFiles?.exportSet('text')).toEqual({
+      expect(api.colourFiles?.exportSet('text', words)).toEqual({
         ok: true,
         path: '/x/a.txt',
       });
       expect(mockIpc.sendSync).toHaveBeenLastCalledWith(
         'colours-export',
-        'text'
+        'text',
+        words
       );
-      api.colourFiles?.importSet();
-      expect(mockIpc.sendSync).toHaveBeenLastCalledWith('colours-import');
+      api.colourFiles?.importSet(words);
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith(
+        'colours-import',
+        words
+      );
     } finally {
       delete process.env.MIDST_COLOUR_AUDITION;
     }

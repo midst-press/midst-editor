@@ -46,7 +46,7 @@ describe('exporting a colour set', () => {
     (target) => {
       const write = jest.fn();
       const result = exportColours(deps({ save: () => target, write }), 'text');
-      expect(result.ok).toBe(false);
+      expect(result).toEqual({ ok: false, failure: 'poem' });
       expect(write).not.toHaveBeenCalled();
     }
   );
@@ -55,7 +55,7 @@ describe('exporting a colour set', () => {
     const write = jest.fn();
     expect(
       exportColours(deps({ save: () => undefined, write }), 'text')
-    ).toEqual({ ok: false, reason: 'cancelled' });
+    ).toEqual({ ok: false, failure: 'cancelled' });
     expect(write).not.toHaveBeenCalled();
   });
 
@@ -65,7 +65,8 @@ describe('exporting a colour set', () => {
     };
     expect(exportColours(deps({ write }), 'text')).toEqual({
       ok: false,
-      reason: 'Could not save: disk full',
+      failure: 'unwritable',
+      error: 'disk full',
     });
   });
 });
@@ -76,7 +77,7 @@ describe('importing a colour set', () => {
     (source) => {
       const read = jest.fn();
       const result = importColours(deps({ open: () => [source], read }));
-      expect(result.ok).toBe(false);
+      expect(result).toEqual({ ok: false, failure: 'poem' });
       expect(read).not.toHaveBeenCalled();
     }
   );
@@ -84,15 +85,15 @@ describe('importing a colour set', () => {
   it('refuses a file too large to be a colour set, without reading it', () => {
     const read = jest.fn();
     expect(
-      importColours(deps({ size: () => MAX_IMPORT_BYTES + 1, read })).ok
-    ).toBe(false);
+      importColours(deps({ size: () => MAX_IMPORT_BYTES + 1, read }))
+    ).toEqual({ ok: false, failure: 'tooLarge' });
     expect(read).not.toHaveBeenCalled();
   });
 
   it('does nothing when the dialog is cancelled', () => {
     expect(importColours(deps({ open: () => undefined }))).toEqual({
       ok: false,
-      reason: 'cancelled',
+      failure: 'cancelled',
     });
   });
 

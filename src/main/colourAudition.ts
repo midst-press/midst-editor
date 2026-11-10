@@ -1,14 +1,23 @@
-/* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse and Frida (GitHub #119), in English only
-   and never in a release; see src/renderer/colourAudition/README.md */
 import { BrowserWindow, dialog, ipcMain } from 'electron';
 import fs from 'fs';
 
 // View > Colours…: saving a colour set to a text file and reading one back (GitHub #119). The dialogs live here, in
 // main, so their filters and the refusals below are enforced where the file is touched. A colour set is never a
-// poem: a .midst path is refused both ways, so this can neither write over a poem nor try to read one.
+// poem: a .midst path is refused both ways, so this can neither write over a poem nor try to read one. No words live
+// here: a refusal is a code, and the renderer's English-only audition panel says it, so main holds nothing that belongs
+// in the message catalog.
+
+export type ColourFileFailure =
+  | 'cancelled'
+  | 'poem'
+  | 'tooLarge'
+  | 'unwritable'
+  | 'unreadable'
+  | 'unavailable';
 
 export type ColourFileResult =
-  { ok: true; text?: string; path: string } | { ok: false; reason: string };
+  | { ok: true; text?: string; path: string }
+  | { ok: false; failure: ColourFileFailure; error?: string };
 
 // A colour set is a few kilobytes; anything far larger is not one.
 export const MAX_IMPORT_BYTES = 64 * 1024;
@@ -33,53 +42,62 @@ export const exportColours = (
   text: string
 ): ColourFileResult => {
   const path = deps.save();
-  if (!path) return { ok: false, reason: 'cancelled' };
-  if (isPoem(path))
-    return {
-      ok: false,
-      reason:
-        'A colour set is never saved as a .midst file, so no poem was touched.',
-    };
+  if (!path) return { ok: false, failure: 'cancelled' };
+  if (isPoem(path)) return { ok: false, failure: 'poem' };
   try {
     deps.write(path, text);
   } catch (error) {
-    return { ok: false, reason: `Could not save: ${(error as Error).message}` };
+    return {
+      ok: false,
+      failure: 'unwritable',
+      error: (error as Error).message,
+    };
   }
   return { ok: true, path };
 };
 
 export const importColours = (deps: ColourFileDeps): ColourFileResult => {
   const path = deps.open()?.[0];
-  if (!path) return { ok: false, reason: 'cancelled' };
-  if (isPoem(path))
-    return {
-      ok: false,
-      reason: 'That is a poem, not a colour set, so it was not read.',
-    };
+  if (!path) return { ok: false, failure: 'cancelled' };
+  if (isPoem(path)) return { ok: false, failure: 'poem' };
   try {
     if (deps.size(path) > MAX_IMPORT_BYTES)
-      return {
-        ok: false,
-        reason: 'That file is too large to be a colour set.',
-      };
+      return { ok: false, failure: 'tooLarge' };
     return { ok: true, path, text: deps.read(path) };
   } catch (error) {
-    return { ok: false, reason: `Could not read: ${(error as Error).message}` };
+    return {
+      ok: false,
+      failure: 'unreadable',
+      error: (error as Error).message,
+    };
   }
 };
 
-const TEXT_FILTER = [{ name: 'Text', extensions: ['txt'] }];
+// The renderer names the file type and the suggested file name, in the panel's English.
+export interface ColourFileWords {
+  filterName: string;
+  defaultName: string;
+}
 
-const depsFor = (window: BrowserWindow): ColourFileDeps => ({
+const isWords = (words: unknown): words is ColourFileWords =>
+  typeof words === 'object' &&
+  words !== null &&
+  typeof (words as ColourFileWords).filterName === 'string' &&
+  typeof (words as ColourFileWords).defaultName === 'string';
+
+const depsFor = (
+  window: BrowserWindow,
+  words: ColourFileWords
+): ColourFileDeps => ({
   save: () =>
     dialog.showSaveDialogSync(window, {
-      defaultPath: 'Midst colours.txt',
-      filters: TEXT_FILTER,
+      defaultPath: words.defaultName,
+      filters: [{ name: words.filterName, extensions: ['txt'] }],
     }),
   open: () =>
     dialog.showOpenDialogSync(window, {
       properties: ['openFile'],
-      filters: TEXT_FILTER,
+      filters: [{ name: words.filterName, extensions: ['txt'] }],
     }),
   write: (path, text) => fs.writeFileSync(path, text, 'utf8'),
   size: (path) => fs.statSync(path).size,
@@ -88,17 +106,18 @@ const depsFor = (window: BrowserWindow): ColourFileDeps => ({
 
 // Registered from main.ts only in an audition build.
 export const registerColourFiles = (window: () => BrowserWindow | null) => {
-  ipcMain.on('colours-export', (event, text: unknown) => {
+  ipcMain.on('colours-export', (event, text: unknown, words: unknown) => {
     const win = window();
     event.returnValue =
-      win && typeof text === 'string'
-        ? exportColours(depsFor(win), text)
-        : { ok: false, reason: 'no window' };
+      win && typeof text === 'string' && isWords(words)
+        ? exportColours(depsFor(win, words), text)
+        : { ok: false, failure: 'unavailable' };
   });
-  ipcMain.on('colours-import', (event) => {
+  ipcMain.on('colours-import', (event, words: unknown) => {
     const win = window();
-    event.returnValue = win
-      ? importColours(depsFor(win))
-      : { ok: false, reason: 'no window' };
+    event.returnValue =
+      win && isWords(words)
+        ? importColours(depsFor(win, words))
+        : { ok: false, failure: 'unavailable' };
   });
 };

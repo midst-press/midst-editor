@@ -598,6 +598,76 @@ describe('the panel, saving and reading a file', () => {
     );
   });
 
+  // Main sends a refusal as a code; the panel says it in words, and says nothing when the poet cancelled.
+  it.each([
+    [
+      'export',
+      'Export to file…',
+      { failure: 'poem' },
+      'A colour set is never a .midst file, so no poem was touched.',
+    ],
+    [
+      'export',
+      'Export to file…',
+      { failure: 'unwritable', error: 'disk full' },
+      'Could not save: disk full',
+    ],
+    [
+      'import',
+      'Import from file…',
+      { failure: 'tooLarge' },
+      'That file is too large to be a colour set.',
+    ],
+    [
+      'import',
+      'Import from file…',
+      { failure: 'unreadable', error: 'no access' },
+      'Could not read: no access',
+    ],
+  ])('says why a file %s was refused: %s', (_kind, button, refusal, words) => {
+    const call = jest.fn().mockReturnValue({ ok: false, ...refusal });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet: call, importSet: call } },
+    });
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: button }));
+    // The words for main's dialog are the last argument, whichever the call.
+    expect(call.mock.calls[0].at(-1)).toEqual({
+      filterName: 'Text',
+      defaultName: 'Midst colours.txt',
+    });
+    expect(screen.getByRole('list', { name: 'File result' })).toHaveTextContent(
+      words
+    );
+  });
+
+  it('says nothing when the file dialog is cancelled', () => {
+    const call = jest.fn().mockReturnValue({ ok: false, failure: 'cancelled' });
+    Object.assign(window, {
+      electron: { colourFiles: { exportSet: call, importSet: call } },
+    });
+    render(
+      <ColourPanel
+        inForce="light"
+        choices={noChoices()}
+        defaults={defaults}
+        onChange={jest.fn()}
+        onClose={jest.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
+    expect(screen.queryByRole('list', { name: 'File result' })).toBeNull();
+  });
+
   it('shows no file buttons where there is no file bridge', () => {
     render(
       <ColourPanel

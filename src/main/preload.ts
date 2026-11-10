@@ -146,15 +146,24 @@ const electronHandler = {
     process.env.MIDST_COLOUR_AUDITION === 'true'
       ? {
           exportSet: (
-            text: string
-          ): { ok: boolean; reason?: string; path?: string } =>
-            ipcRenderer.sendSync('colours-export', text),
-          importSet: (): {
+            text: string,
+            words: { filterName: string; defaultName: string }
+          ): {
             ok: boolean;
-            reason?: string;
+            failure?: string;
+            error?: string;
+            path?: string;
+          } => ipcRenderer.sendSync('colours-export', text, words),
+          importSet: (words: {
+            filterName: string;
+            defaultName: string;
+          }): {
+            ok: boolean;
+            failure?: string;
+            error?: string;
             path?: string;
             text?: string;
-          } => ipcRenderer.sendSync('colours-import'),
+          } => ipcRenderer.sendSync('colours-import', words),
         }
       : undefined,
 };

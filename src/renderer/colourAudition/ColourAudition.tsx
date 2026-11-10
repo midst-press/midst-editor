@@ -170,23 +170,42 @@ export function ColourPanel({
   // Saving a set to a file and reading one back (GitHub #119): both schemes, with row ids, through main's dialogs.
   const [report, setReport] = useState<string[] | null>(null);
   const files = window.electron?.colourFiles;
+  const words = { filterName: 'Text', defaultName: 'Midst colours.txt' };
+  // What main's refusal codes mean, in words.
+  const why = (
+    result: { failure?: string; error?: string },
+    fallback: string
+  ) => {
+    switch (result.failure) {
+      case 'poem':
+        return 'A colour set is never a .midst file, so no poem was touched.';
+      case 'tooLarge':
+        return 'That file is too large to be a colour set.';
+      case 'unwritable':
+        return `Could not save: ${result.error ?? 'unknown error'}`;
+      case 'unreadable':
+        return `Could not read: ${result.error ?? 'unknown error'}`;
+      default:
+        return fallback;
+    }
+  };
   const exportSet = () => {
     if (!files) return;
     const text = SCHEMES.map(
       (s) =>
         `Midst colours, ${SCHEME_NAMES[s]}\n${hexList(s, (c) => choices[s][c.id] ?? defaults[s][c.id], true)}`
     ).join('\n\n');
-    const result = files.exportSet(text);
+    const result = files.exportSet(text, words);
     if (result.ok) setReport([`Saved both schemes to ${result.path}.`]);
-    else if (result.reason !== 'cancelled')
-      setReport([result.reason ?? 'Could not save.']);
+    else if (result.failure !== 'cancelled')
+      setReport([why(result, 'Could not save.')]);
   };
   const importSet = () => {
     if (!files) return;
-    const result = files.importSet();
+    const result = files.importSet(words);
     if (!result.ok) {
-      if (result.reason !== 'cancelled')
-        setReport([result.reason ?? 'Could not read.']);
+      if (result.failure !== 'cancelled')
+        setReport([why(result, 'Could not read.')]);
       return;
     }
     const imported = parseHexList(result.text ?? '');
