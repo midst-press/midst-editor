@@ -28,6 +28,11 @@ const configuration: webpack.Configuration = {
           },
         },
       },
+      // `import x from './file.svg?raw'` is the file's text (the logo, which preload.ts puts in the page).
+      {
+        resourceQuery: /raw/,
+        type: 'asset/source',
+      },
     ],
   },
 
