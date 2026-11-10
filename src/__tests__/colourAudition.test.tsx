@@ -22,7 +22,11 @@ import {
   withRgb,
 } from '../renderer/colourAudition/colours';
 import { defaultsFrom } from '../renderer/colourAudition/defaults';
-import { NO_LOGO_CHANGE } from '../renderer/colourAudition/logo';
+import {
+  LOGO_STORAGE_KEY,
+  NO_LOGO_CHANGE,
+  forgetOriginalLogo,
+} from '../renderer/colourAudition/logo';
 import KEEPS_FOCUS from '../renderer/keepsFocus';
 import ColourAuditionHost, {
   ColourPanel,
@@ -466,6 +470,45 @@ describe('the host', () => {
       '--midst-divider: #abcdef;'
     );
   });
+
+  // GitHub #119: the logo and its outline are drawn and kept across a restart.
+  it('draws a kept logo and its outline after a restart', () => {
+    forgetOriginalLogo();
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div id="logo-host"><svg id="svg" class="svg" viewBox="0 0 182.2 96"><path d="M5 5"></path></svg></div>'
+    );
+    window.localStorage.setItem(
+      LOGO_STORAGE_KEY,
+      JSON.stringify({
+        custom: { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] },
+        outline: 2,
+      })
+    );
+    const { unmount } = render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    const drawn = document.getElementById('svg')!;
+    expect(drawn.getAttribute('viewBox')).toBe('0 0 10 10');
+    expect(drawn.querySelector('path')?.getAttribute('d')).toBe('M0 0L1 1');
+    expect(document.getElementById(STYLE_ID)?.textContent).toContain(
+      'stroke-width: 2;'
+    );
+    act(() => opened!());
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restore the original logo' })
+    );
+    expect(drawn.getAttribute('viewBox')).toBe('0 0 182.2 96');
+    expect(drawn.querySelector('path')?.getAttribute('d')).toBe('M5 5');
+    expect(JSON.parse(window.localStorage.getItem(LOGO_STORAGE_KEY)!)).toEqual({
+      custom: null,
+      outline: 2,
+    });
+    unmount();
+    document.getElementById('logo-host')?.remove();
+  });
 });
 
 // GitHub #119: saved sets are read back in, and every export so far must still import (Stuart, 10 Nov).
@@ -723,6 +766,112 @@ describe('the panel, saving and reading a file', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
     fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
     expect(screen.queryByRole('list', { name: 'File result' })).toBeNull();
+  });
+
+  // GitHub #119: the squiggly M, from a file, with an outline, and put back.
+  describe('the logo', () => {
+    const SVG =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0L1 1"/><circle r="1"/></svg>';
+    const panel = (readLogo: jest.Mock, logo = NO_LOGO_CHANGE) => {
+      Object.assign(window, {
+        electron: {
+          colourFiles: { exportSet: jest.fn(), importSet: jest.fn(), readLogo },
+        },
+      });
+      const onLogoChange = jest.fn();
+      render(
+        <ColourPanel
+          inForce="light"
+          choices={noChoices()}
+          defaults={defaults}
+          onChange={jest.fn()}
+          onClose={jest.fn()}
+          logo={logo}
+          onLogoChange={onLogoChange}
+        />
+      );
+      return onLogoChange;
+    };
+
+    it('draws a logo read from a file, and says what it left out', () => {
+      const readLogo = jest
+        .fn()
+        .mockReturnValue({ ok: true, path: '/x/l.svg', text: SVG });
+      const onLogoChange = panel(readLogo);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load logo from file…' })
+      );
+      expect(readLogo).toHaveBeenCalledWith({
+        filterName: 'SVG drawing',
+        defaultName: 'Midst logo.svg',
+      });
+      expect(onLogoChange).toHaveBeenCalledWith({
+        custom: { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] },
+        outline: 0,
+      });
+      const report = screen.getByRole('list', { name: 'File result' });
+      expect(report).toHaveTextContent(
+        'Drew the logo from /x/l.svg, 1 path(s).'
+      );
+      expect(report).toHaveTextContent(
+        '1 shape(s) that are not paths were left out.'
+      );
+    });
+
+    it.each([
+      [
+        { ok: false, failure: 'tooLarge' },
+        'That file is too large to be a logo.',
+      ],
+      [
+        { ok: false, failure: 'poem' },
+        'That is a poem, not a logo, so it was not read.',
+      ],
+      [
+        { ok: true, path: '/x/l.svg', text: 'not a drawing' },
+        'That file is not an SVG drawing.',
+      ],
+    ])('draws nothing when the file is refused: %p', (result, words) => {
+      const onLogoChange = panel(jest.fn().mockReturnValue(result));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load logo from file…' })
+      );
+      expect(onLogoChange).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('list', { name: 'File result' })
+      ).toHaveTextContent(words);
+    });
+
+    it('puts the original back only when there is a replacement, and sets the outline', () => {
+      const onLogoChange = panel(jest.fn(), {
+        custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
+        outline: 1,
+      });
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Restore the original logo' })
+      );
+      expect(onLogoChange).toHaveBeenLastCalledWith({
+        custom: null,
+        outline: 1,
+      });
+      fireEvent.change(
+        screen.getByRole('slider', { name: 'Outline thickness' }),
+        {
+          target: { value: '2.5' },
+        }
+      );
+      expect(onLogoChange).toHaveBeenLastCalledWith({
+        custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
+        outline: 2.5,
+      });
+    });
+
+    it('cannot put the original back when it was never replaced', () => {
+      panel(jest.fn());
+      expect(
+        screen.getByRole('button', { name: 'Restore the original logo' })
+      ).toBeDisabled();
+    });
   });
 
   it('shows no file buttons where there is no file bridge', () => {

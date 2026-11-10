@@ -244,6 +244,8 @@ export function ColourPanel({
     if (!result.ok) {
       if (result.failure === 'tooLarge')
         setReport(['That file is too large to be a logo.']);
+      else if (result.failure === 'poem')
+        setReport(['That is a poem, not a logo, so it was not read.']);
       else if (result.failure !== 'cancelled')
         setReport([why(result, 'Could not read.')]);
       return;

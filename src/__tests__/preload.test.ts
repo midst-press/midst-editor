@@ -131,6 +131,8 @@ describe('exposure', () => {
         'colours-import',
         words
       );
+      api.colourFiles?.readLogo(words);
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith('colours-logo', words);
     } finally {
       delete process.env.MIDST_COLOUR_AUDITION;
     }
