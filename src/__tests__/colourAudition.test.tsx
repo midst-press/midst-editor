@@ -11,8 +11,11 @@ import {
   STORAGE_KEY,
   cssText,
   loadChoices,
+  applyImported,
+  hexList,
   noChoices,
   parseColour,
+  parseHexList,
   saveChoices,
   themeWith,
   toHex,
@@ -411,5 +414,134 @@ describe('the host', () => {
     expect(document.getElementById(STYLE_ID)?.textContent).toContain(
       '--midst-divider: #abcdef;'
     );
+  });
+});
+
+// GitHub #119: saved sets are read back in, and every export so far must still import (Stuart, 10 Nov).
+describe('reading a saved set', () => {
+  const hex = (i: number) =>
+    `#${(0x100000 + i * 0x0a0b0c).toString(16).slice(-6)}`;
+  const lineFor = (
+    c: (typeof AUDITION_COLOURS)[number],
+    i: number,
+    group: string,
+    label: string,
+    tag: boolean
+  ) => `${group} / ${label}${tag ? ` [${c.id}]` : ''}: ${hex(i)}`;
+  const all = Object.fromEntries(
+    AUDITION_COLOURS.map((c, i) => [c.id, hex(i)])
+  );
+
+  it('reads back both sections that hexList writes, with ids or without', () => {
+    const plain = parseHexList(
+      `Midst colours, Light\n${hexList('light', (c) => all[c.id])}`
+    );
+    expect(plain).toEqual({ colours: { light: all }, problems: [] });
+    const text = [
+      `Midst colours, Light\n${hexList('light', (c) => all[c.id], true)}`,
+      `Midst colours, Dark\n${hexList('dark', (c) => all[c.id], true)}`,
+    ].join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    expect(read.colours.light).toEqual(all);
+    expect(read.colours.dark).toEqual(all);
+  });
+
+  // Frida's build (90d71ee): no [id], and two labels #484 renamed.
+  it('imports a 90d71ee export completely, old labels included', () => {
+    const OLD: Record<string, string> = {
+      primaryDark: 'Primary, darker',
+      logo: 'Logo',
+    };
+    const text = [
+      'Midst colours, Dark',
+      ...AUDITION_COLOURS.map((c, i) =>
+        lineFor(c, i, c.group, OLD[c.id] ?? c.label, false)
+      ),
+    ].join('\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    expect(read.colours.dark).toEqual(all);
+    expect(read.colours.light).toBeUndefined();
+  });
+
+  it('imports an export from before #483, with the old group names', () => {
+    const OLD_GROUP: Record<string, string> = {
+      'Background (the beige)': 'Primary (the beige)',
+      'Pinks (primary and secondary)': 'Secondary (the pink)',
+    };
+    const OLD: Record<string, string> = {
+      primaryDark: 'Primary, darker',
+      logo: 'Logo',
+    };
+    const text = [
+      'Midst colours, Light',
+      ...AUDITION_COLOURS.map((c, i) =>
+        lineFor(
+          c,
+          i,
+          OLD_GROUP[c.group] ?? c.group,
+          OLD[c.id] ?? c.label,
+          false
+        )
+      ),
+    ].join('\n');
+    expect(parseHexList(text)).toEqual({
+      colours: { light: all },
+      problems: [],
+    });
+  });
+
+  it('matches by [id] whatever the label now says', () => {
+    const read = parseHexList(
+      'Midst colours, Light\nAnything / Renamed one day [link]: #010203'
+    );
+    expect(read).toEqual({
+      colours: { light: { link: '#010203' } },
+      problems: [],
+    });
+  });
+
+  it('reports what it cannot use, and applies the rest', () => {
+    const read = parseHexList(
+      [
+        'stray line',
+        'Midst colours, Light',
+        'Text / Link [link]: #010203',
+        'Text / Nonexistent: #010203',
+        'Text / Problem [errorLight]: not-a-colour',
+        'Text / Unknown [nosuch]: #010203',
+      ].join('\n')
+    );
+    expect(read.colours).toEqual({ light: { link: '#010203' } });
+    expect(read.problems).toHaveLength(4);
+    expect(read.problems.join('\n')).toMatch(/stray line/);
+    expect(read.problems.join('\n')).toMatch(/Nonexistent/);
+    expect(read.problems.join('\n')).toMatch(/not-a-colour/);
+    expect(read.problems.join('\n')).toMatch(/nosuch/);
+  });
+
+  it('says so when there is no heading at all', () => {
+    expect(parseHexList('').problems).toHaveLength(1);
+  });
+
+  it('applies each section to its own tab, and a colour at its default is no change', () => {
+    const defaults = {
+      light: { link: '#0000ff', divider: '#111111' },
+      dark: { link: '#9ec5ff' },
+    };
+    const before = { light: { divider: '#222222' }, dark: { link: '#123456' } };
+    const next = applyImported(before, defaults, {
+      colours: { light: { link: '#0000ff', divider: '#333333' } },
+      problems: [],
+    });
+    expect(next).toEqual({
+      light: { divider: '#333333' },
+      dark: { link: '#123456' },
+    });
+    expect(before).toEqual({
+      light: { divider: '#222222' },
+      dark: { link: '#123456' },
+    });
   });
 });
