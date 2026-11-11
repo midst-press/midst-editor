@@ -148,6 +148,35 @@ describe("putting a replacement's ink where the M's is", () => {
     }
   );
 
+  it.each([1e-6, 1, 1e6])(
+    'fits the same drawing the same way in units %p times as large',
+    (scale) => {
+      const ink = {
+        x: 5 * scale,
+        y: 5 * scale,
+        width: 80 * scale,
+        height: 40 * scale,
+      };
+      const [x, y, w, h] = fittedViewBox(ORIGINAL, M_INK, ink)
+        .split(' ')
+        .map(Number);
+      const [ux, uy, uw, uh] = fittedViewBox(ORIGINAL, M_INK, {
+        x: 5,
+        y: 5,
+        width: 80,
+        height: 40,
+      })
+        .split(' ')
+        .map(Number);
+      [
+        [x, ux],
+        [y, uy],
+        [w, uw],
+        [h, uh],
+      ].forEach(([got, unit]) => expect(got / scale).toBeCloseTo(unit, 3));
+    }
+  );
+
   it('draws a replacement fitted, where the window can measure it', () => {
     forgetOriginalLogo();
     document.body.innerHTML =

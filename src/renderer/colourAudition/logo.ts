@@ -159,7 +159,9 @@ export const fittedViewBox = (
   const aspect = ow / oh;
   const height = Math.max(ink.height / fh, ink.width / (fw * aspect));
   const width = height * aspect;
-  const round = (n: number) => Number(n.toFixed(3));
+  // Significant figures, not decimal places: a drawing's units are its own, and a tiny one must not round to
+  // nothing (Alden, #490).
+  const round = (n: number) => Number(n.toPrecision(7));
   return [ink.x - fx * width, ink.y - fy * height, width, height]
     .map(round)
     .join(' ');
