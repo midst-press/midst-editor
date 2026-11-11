@@ -360,7 +360,11 @@ export function ColourPanel({
         )}
         <button
           type="button"
-          onClick={() => onLogoChange({ ...logo, custom: null })}
+          onClick={() => {
+            onLogoChange({ ...logo, custom: null });
+            // What a load reported describes a logo no longer drawn (Violet, audition 4).
+            setReport(['Put the original logo back.']);
+          }}
           disabled={!logo.custom}
         >
           Restore the original logo

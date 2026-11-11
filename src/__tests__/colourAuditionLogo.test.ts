@@ -6,6 +6,7 @@ import {
   LOGO_STORAGE_KEY,
   NO_LOGO_CHANGE,
   drawLogo,
+  fittedViewBox,
   forgetOriginalLogo,
   loadLogo,
   logoCss,
@@ -106,6 +107,101 @@ describe('drawing it in the page', () => {
   it('changes nothing when the logo is put back before it was ever replaced', () => {
     drawLogo(document, null);
     expect(document.getElementById('svg')!.outerHTML).toBe(APP);
+  });
+});
+
+// Violet, audition 4: a replacement whose ink starts higher in its drawing than the M's ran up into the title bar.
+describe("putting a replacement's ink where the M's is", () => {
+  const ORIGINAL = '0 0 182.2 96';
+  const M_INK = { x: 13, y: 12, width: 150, height: 70 };
+  const frac = (vb: string, x: number, y: number) => {
+    const [vx, vy, vw, vh] = vb.split(' ').map(Number);
+    return [(x - vx) / vw, (y - vy) / vh];
+  };
+
+  it.each([
+    ['wide, like the test logo', { x: 5, y: 5, width: 80, height: 40 }],
+    ['tall', { x: 0, y: 0, width: 10, height: 90 }],
+    ['very wide', { x: -20, y: 3, width: 500, height: 10 }],
+  ])(
+    'keeps the box its shape, and puts %s ink top-left in the M ink box, as large as fits',
+    (_kind, ink) => {
+      const vb = fittedViewBox(ORIGINAL, M_INK, ink);
+      const [, , w, h] = vb.split(' ').map(Number);
+      expect(w / h).toBeCloseTo(182.2 / 96, 3);
+      const [left, top] = frac(vb, ink.x, ink.y);
+      const [right, bottom] = frac(vb, ink.x + ink.width, ink.y + ink.height);
+      const [mLeft, mTop] = frac(ORIGINAL, M_INK.x, M_INK.y);
+      const [mRight, mBottom] = frac(
+        ORIGINAL,
+        M_INK.x + M_INK.width,
+        M_INK.y + M_INK.height
+      );
+      expect(left).toBeCloseTo(mLeft, 3);
+      expect(top).toBeCloseTo(mTop, 3);
+      expect(right).toBeLessThanOrEqual(mRight + 1e-3);
+      expect(bottom).toBeLessThanOrEqual(mBottom + 1e-3);
+      // As large as fits: it reaches the M's right edge or its bottom edge.
+      expect(
+        Math.abs(right - mRight) < 1e-3 || Math.abs(bottom - mBottom) < 1e-3
+      ).toBe(true);
+    }
+  );
+
+  it.each([1e-6, 1, 1e6])(
+    'fits the same drawing the same way in units %p times as large',
+    (scale) => {
+      const ink = {
+        x: 5 * scale,
+        y: 5 * scale,
+        width: 80 * scale,
+        height: 40 * scale,
+      };
+      const [x, y, w, h] = fittedViewBox(ORIGINAL, M_INK, ink)
+        .split(' ')
+        .map(Number);
+      const [ux, uy, uw, uh] = fittedViewBox(ORIGINAL, M_INK, {
+        x: 5,
+        y: 5,
+        width: 80,
+        height: 40,
+      })
+        .split(' ')
+        .map(Number);
+      [
+        [x, ux],
+        [y, uy],
+        [w, uw],
+        [h, uh],
+      ].forEach(([got, unit]) => expect(got / scale).toBeCloseTo(unit, 3));
+    }
+  );
+
+  it('draws a replacement fitted, where the window can measure it', () => {
+    forgetOriginalLogo();
+    document.body.innerHTML =
+      '<svg id="svg" class="svg" viewBox="0 0 182.2 96"><path d="M5 5"></path></svg>';
+    const proto = window.SVGElement.prototype as unknown as {
+      getBBox?: () => unknown;
+    };
+    // eslint-disable-next-line func-names -- a method, so `this` is the element measured
+    proto.getBBox = function () {
+      return (this as unknown as Element)
+        .querySelector('path')
+        ?.getAttribute('d') === 'M5 5'
+        ? M_INK
+        : { x: 5, y: 5, width: 80, height: 40 };
+    };
+    try {
+      drawLogo(document, { viewBox: '0 0 100 50', paths: ['M5,45 L25,5'] });
+      expect(document.getElementById('svg')!.getAttribute('viewBox')).toBe(
+        fittedViewBox(ORIGINAL, M_INK, { x: 5, y: 5, width: 80, height: 40 })
+      );
+      // The scratch drawings it measured in are gone.
+      expect(document.body.children).toHaveLength(1);
+    } finally {
+      delete proto.getBBox;
+    }
   });
 });
 
