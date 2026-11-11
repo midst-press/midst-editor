@@ -284,25 +284,7 @@ export default function Replay() {
                 <PlayArrowIcon fontSize="small" />
               )}
             </ReasonButton>
-            <TimelineSlider
-              poemHistory={poemHistory}
-              maxStep={maxStep}
-              step={step}
-              onScrub={jumpTo}
-              showTimestamp={showTimestamp.on}
-              markers={drafts.markers}
-              showMarkers={showMarkers}
-              showLabels={showLabels}
-              naming={timelineNaming}
-              newMarker={newMarker}
-              setNaming={setTimelineNaming}
-              onJump={jumpTo}
-              onLeaveNaming={leaveTimelineNaming}
-              onRename={drafts.rename}
-              onDelete={drafts.remove}
-              onUndoNew={undoNewMarker}
-            />
-            {/* The speedometer first on the left of the bottom-right buttons, then scroll speed (GitHub #49). */}
+            {/* Speed controls right of the play button: all transport controls together (GitHub #120 round 2). */}
             <PaceControl
               setting={FPS}
               value={fps.value}
@@ -322,6 +304,24 @@ export default function Replay() {
                 speed: scrollSpeed.value.toFixed(1),
               })}
               icon={<AutoscrollIcon fontSize="small" />}
+            />
+            <TimelineSlider
+              poemHistory={poemHistory}
+              maxStep={maxStep}
+              step={step}
+              onScrub={jumpTo}
+              showTimestamp={showTimestamp.on}
+              markers={drafts.markers}
+              showMarkers={showMarkers}
+              showLabels={showLabels}
+              naming={timelineNaming}
+              newMarker={newMarker}
+              setNaming={setTimelineNaming}
+              onJump={jumpTo}
+              onLeaveNaming={leaveTimelineNaming}
+              onRename={drafts.rename}
+              onDelete={drafts.remove}
+              onUndoNew={undoNewMarker}
             />
             {/* Draft Marker first, then Continue writing from here, then Settings (GitHub #90, #469). */}
             <ReasonButton
