@@ -1,4 +1,3 @@
-import BookmarkAddIcon from '@mui/icons-material/BookmarkAdd';
 import HistoryIcon from '@mui/icons-material/History';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
@@ -8,6 +7,7 @@ import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
+import { AddBookmarkIconV2 } from '../../icons/AnnelyseIcons';
 import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
@@ -339,7 +339,7 @@ export default function Editor() {
               disabled={draftReason !== null}
               onClick={markThisMoment}
             >
-              <BookmarkAddIcon fontSize="small" />
+              <AddBookmarkIconV2 fontSize="small" />
             </button>
             {draftReason && (
               <span id="editor-draft-reason" hidden>

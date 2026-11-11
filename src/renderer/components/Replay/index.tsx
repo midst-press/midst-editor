@@ -23,7 +23,7 @@ import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
 import {
   SettingsIcon,
-  AddBookmarkIcon,
+  AddBookmarkIconV2,
   AutoscrollIcon,
 } from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
@@ -342,7 +342,7 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIcon fontSize="small" />
+              <AddBookmarkIconV2 fontSize="small" />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip
