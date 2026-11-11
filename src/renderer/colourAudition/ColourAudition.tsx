@@ -26,6 +26,16 @@ import {
   withRgb,
 } from './colours';
 import { Defaults, defaultsFrom } from './defaults';
+import {
+  LogoState,
+  MAX_OUTLINE,
+  NO_LOGO_CHANGE,
+  drawLogo,
+  loadLogo,
+  logoCss,
+  readLogo,
+  saveLogo,
+} from './logo';
 import './ColourAudition.css';
 
 // View > Colours… (GitHub #119): Annelyse auditions the app's colours, light and dark separately, and sends us
@@ -146,6 +156,8 @@ interface PanelProps {
   defaults: Defaults;
   onChange: (choices: Choices) => void;
   onClose: () => void;
+  logo: LogoState;
+  onLogoChange: (logo: LogoState) => void;
 }
 /* eslint-enable no-unused-vars */
 
@@ -155,6 +167,8 @@ export function ColourPanel({
   defaults,
   onChange,
   onClose,
+  logo,
+  onLogoChange,
 }: PanelProps) {
   const [scheme, setScheme] = useState<Scheme>(inForce);
   // Top right by default, over the toolbar's end; the poet can move it to the left to see what is under it.
@@ -219,6 +233,33 @@ export function ColourPanel({
           `Read ${Object.keys(imported.colours[s] ?? {}).length} colours into ${SCHEME_NAMES[s]}.`
       ),
       ...imported.problems,
+    ]);
+  };
+  // A replacement for the squiggly M, from an .svg file (GitHub #119).
+  const loadLogoFile = () => {
+    if (!files) return;
+    const result = files.readLogo({
+      filterName: 'SVG drawing',
+      defaultName: 'Midst logo.svg',
+    });
+    if (!result.ok) {
+      if (result.failure === 'tooLarge')
+        setReport(['That file is too large to be a logo.']);
+      else if (result.failure === 'poem')
+        setReport(['That is a poem, not a logo, so it was not read.']);
+      else if (result.failure !== 'cancelled')
+        setReport([why(result, 'Could not read.')]);
+      return;
+    }
+    const read = readLogo(result.text ?? '');
+    if (read.logo) onLogoChange({ ...logo, custom: read.logo });
+    setReport([
+      ...(read.logo
+        ? [
+            `Drew the logo from ${result.path}, ${read.logo.paths.length} path(s).`,
+          ]
+        : []),
+      ...read.problems,
     ]);
   };
   const copy = async () => {
@@ -310,6 +351,35 @@ export function ColourPanel({
           ))}
         </ul>
       )}
+      <section className="colour-audition-logo" aria-label="The squiggly M">
+        <h3>The squiggly M</h3>
+        {files && (
+          <button type="button" onClick={loadLogoFile}>
+            Load logo from file…
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onLogoChange({ ...logo, custom: null })}
+          disabled={!logo.custom}
+        >
+          Restore the original logo
+        </button>
+        <span id="colour-audition-outline-label">Outline thickness</span>
+        <input
+          id="colour-audition-outline"
+          aria-labelledby="colour-audition-outline-label"
+          type="range"
+          min={0}
+          max={MAX_OUTLINE}
+          step={0.5}
+          value={logo.outline}
+          onChange={(e) =>
+            onLogoChange({ ...logo, outline: Number(e.target.value) })
+          }
+        />
+        <span aria-hidden="true">{logo.outline}</span>
+      </section>
       <div className="colour-audition-list">
         {groups.map((group) => (
           <section key={group} aria-label={group}>
@@ -347,6 +417,10 @@ export default function ColourAuditionHost({
     const kept = storage();
     return kept ? loadChoices(kept) : noChoices();
   });
+  const [logo, setLogo] = useState<LogoState>(() => {
+    const kept = storage();
+    return kept ? loadLogo(kept) : NO_LOGO_CHANGE;
+  });
   const [open, setOpen] = useState(false);
   const [defaults, setDefaults] = useState<Defaults | null>(null);
   const style = useRef<HTMLStyleElement | null>(null);
@@ -363,11 +437,20 @@ export default function ColourAuditionHost({
   }, []);
 
   useEffect(() => {
-    if (style.current) style.current.textContent = cssText(choices);
+    if (style.current)
+      style.current.textContent = [cssText(choices), logoCss(logo.outline)]
+        .filter(Boolean)
+        .join('\n');
     window.electron?.titlebarColours?.set(titlebarBackgrounds(choices));
     const kept = storage();
     if (kept) saveChoices(kept, choices);
-  }, [choices]);
+  }, [choices, logo.outline]);
+
+  useEffect(() => {
+    drawLogo(document, logo.custom);
+    const kept = storage();
+    if (kept) saveLogo(kept, logo);
+  }, [logo]);
 
   useEffect(
     () =>
@@ -400,6 +483,8 @@ export default function ColourAuditionHost({
           defaults={defaults}
           onChange={setChoices}
           onClose={() => setOpen(false)}
+          logo={logo}
+          onLogoChange={setLogo}
         />
       )}
     </ThemeProvider>
