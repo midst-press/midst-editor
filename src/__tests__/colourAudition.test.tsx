@@ -894,6 +894,25 @@ describe('the panel, saving and reading a file', () => {
       );
     });
 
+    it('replaces what a load reported once the original is put back', () => {
+      const readLogo = jest
+        .fn()
+        .mockReturnValue({ ok: true, path: '/x/l.svg', text: SVG });
+      panel(readLogo, {
+        custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
+        outline: 0,
+      });
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load logo from file…' })
+      );
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Restore the original logo' })
+      );
+      const report = screen.getByRole('list', { name: 'File result' });
+      expect(report).toHaveTextContent('Put the original logo back.');
+      expect(report).not.toHaveTextContent('Drew the logo');
+    });
+
     it.each([
       [
         { ok: false, failure: 'tooLarge' },
