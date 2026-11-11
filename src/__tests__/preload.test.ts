@@ -1,4 +1,6 @@
 // Synthetic content only: invented words, never a poem.
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { ElectronHandler } from '../main/preload';
 
 const mockIpc = {
@@ -129,6 +131,8 @@ describe('exposure', () => {
         'colours-import',
         words
       );
+      api.colourFiles?.readLogo(words);
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith('colours-logo', words);
     } finally {
       delete process.env.MIDST_COLOUR_AUDITION;
     }
@@ -422,6 +426,22 @@ describe('DOMContentLoaded', () => {
     expect(first.querySelector('svg.svg')).not.toBeNull();
     expect(document.getElementById('zq')).not.toBeNull();
     expect(document.body.children).toHaveLength(2);
+  });
+
+  // The logo is assets/midst-logo.svg, the file a designer edits, with the app's own id and classes added.
+  it('draws the logo from assets/midst-logo.svg, hidden until a screen shows it', () => {
+    loadPreload();
+    fireDomContentLoaded();
+    const file = readFileSync(
+      join(__dirname, '..', '..', 'assets', 'midst-logo.svg'),
+      'utf8'
+    );
+    const drawn = document.getElementById('svg');
+    expect(drawn?.getAttribute('class')).toBe('svg hide');
+    expect(drawn?.getAttribute('viewBox')).toBe('0 0 182.2 96');
+    const d = drawn?.querySelector('path')?.getAttribute('d');
+    expect(d).toMatch(/^M22\.51,82\.3/);
+    expect(file).toContain(`d="${d}"`);
   });
 
   it('does not add the linux class to the logo on darwin', () => {

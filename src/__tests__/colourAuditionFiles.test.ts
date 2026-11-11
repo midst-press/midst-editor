@@ -10,13 +10,26 @@ import {
   parseHexList,
 } from '../renderer/colourAudition/colours';
 
-jest.mock('electron', () => ({ dialog: {}, ipcMain: { on: jest.fn() } }));
+const mockDialog = { showOpenDialogSync: jest.fn() };
+// eslint-disable-next-line no-unused-vars -- parameters named in a function type
+type Handler = (...args: unknown[]) => void;
+const mockHandlers: Record<string, Handler> = {};
+jest.mock('electron', () => ({
+  dialog: mockDialog,
+  ipcMain: {
+    on: (channel: string, handler: Handler) => {
+      mockHandlers[channel] = handler;
+    },
+  },
+}));
 // eslint-disable-next-line import/first -- after the mock it needs
 import {
   ColourFileDeps,
   MAX_IMPORT_BYTES,
+  MAX_LOGO_BYTES,
   exportColours,
   importColours,
+  registerColourFiles,
   writeReplacing,
 } from '../main/colourAudition';
 
@@ -196,5 +209,52 @@ describe('exporting onto another name for a poem', () => {
       'My poem.midst',
     ]);
     expect(fs.readFileSync(poem, 'utf8')).toBe(SENTINEL);
+  });
+});
+
+// GitHub #119: a replacement logo is read through main's Open dialog, SVG only, with the same refusals as a colour
+// set and a larger cap. Through the registered handler, as the panel reaches it.
+describe('reading a replacement logo', () => {
+  let dir: string;
+  const words = { filterName: 'SVG drawing', defaultName: 'Midst logo.svg' };
+  const read = (chosen: string) => {
+    mockDialog.showOpenDialogSync.mockReturnValue([chosen]);
+    const event: { returnValue?: unknown } = {};
+    mockHandlers['colours-logo'](event, words);
+    return event.returnValue;
+  };
+  beforeAll(() => registerColourFiles(() => ({}) as never));
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-logo-'));
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it('asks for an SVG, and reads one larger than a colour set may be', () => {
+    const file = path.join(dir, 'logo.svg');
+    const text = `<svg>${'x'.repeat(MAX_IMPORT_BYTES)}</svg>`;
+    fs.writeFileSync(file, text);
+    expect(read(file)).toEqual({ ok: true, path: file, text });
+    expect(mockDialog.showOpenDialogSync).toHaveBeenLastCalledWith(
+      expect.anything(),
+      {
+        properties: ['openFile'],
+        filters: [{ name: 'SVG drawing', extensions: ['svg'] }],
+      }
+    );
+  });
+
+  it('refuses a poem, and a file too large to be a logo, reading neither', () => {
+    const poem = path.join(dir, 'My poem.midst');
+    fs.writeFileSync(poem, 'a poem');
+    expect(read(poem)).toEqual({ ok: false, failure: 'poem' });
+    const big = path.join(dir, 'big.svg');
+    fs.writeFileSync(big, 'x'.repeat(MAX_LOGO_BYTES + 1));
+    expect(read(big)).toEqual({ ok: false, failure: 'tooLarge' });
+  });
+
+  it('refuses a request without its words', () => {
+    const event: { returnValue?: unknown } = {};
+    mockHandlers['colours-logo'](event, undefined);
+    expect(event.returnValue).toEqual({ ok: false, failure: 'unavailable' });
   });
 });

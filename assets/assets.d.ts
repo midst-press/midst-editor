@@ -9,6 +9,12 @@ declare module '*.svg' {
   export default content;
 }
 
+// The file's text, by webpack's asset/source (webpack.config.base.ts) and, in Jest, .erb/mocks/rawTransform.js.
+declare module '*.svg?raw' {
+  const content: string;
+  export default content;
+}
+
 declare module '*.png' {
   const content: string;
   export default content;
