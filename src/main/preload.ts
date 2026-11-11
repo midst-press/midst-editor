@@ -11,14 +11,20 @@ import { StoreKey, StoreSchema } from '../shared/storeSchema';
 import { MainToWindow, WindowToMain } from '../shared/channels';
 
 let titlebar: CustomTitlebar | null = null;
+// View > Colours… (GitHub #119, audition builds only): a title-bar background chosen for a scheme, drawn in
+// place of the app's own until it is cleared.
+const chosenTitlebar: { light?: string; dark?: string } = {};
+let redrawTitlebar = () => {};
 
 window.addEventListener('DOMContentLoaded', () => {
   // The title bar takes the page background of the scheme in force, and changes with it (GitHub #16).
   const darkScheme = window.matchMedia?.('(prefers-color-scheme: dark)');
-  const titlebarBackground = () =>
-    TitlebarColor.fromHex(
-      darkScheme?.matches ? TITLEBAR_BACKGROUND.dark : TITLEBAR_BACKGROUND.light
+  const titlebarBackground = () => {
+    const scheme = darkScheme?.matches ? 'dark' : 'light';
+    return TitlebarColor.fromHex(
+      chosenTitlebar[scheme] ?? TITLEBAR_BACKGROUND[scheme]
     );
+  };
   // Title bar implementation
   // eslint-disable-next-line no-new, no-import-assign
   titlebar = new CustomTitlebar({
@@ -35,9 +41,8 @@ window.addEventListener('DOMContentLoaded', () => {
     titlebar.updateMenuPosition('bottom');
     titlebar.updateTitleAlignment('left');
   }
-  darkScheme?.addEventListener('change', () =>
-    titlebar?.updateBackground(titlebarBackground())
-  );
+  redrawTitlebar = () => titlebar?.updateBackground(titlebarBackground());
+  darkScheme?.addEventListener('change', redrawTitlebar);
 });
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -171,6 +176,27 @@ const electronHandler = {
             path?: string;
             text?: string;
           } => ipcRenderer.sendSync('colours-logo', words),
+        }
+      : undefined,
+  // View > Colours… (GitHub #119): the title bar is drawn here, not by the renderer's stylesheet, so its colour is
+  // set through this. Only in an audition build.
+  titlebarColours:
+    process.env.MIDST_COLOUR_AUDITION === 'true'
+      ? {
+          // The title-bar backgrounds chosen, by scheme. Only #rrggbb or #rrggbbaa is drawn: the title bar's
+          // colour parser draws anything it cannot read as red.
+          set: (colours: { light?: string; dark?: string }) => {
+            (['light', 'dark'] as const).forEach((scheme) => {
+              const value = colours[scheme];
+              if (
+                typeof value === 'string' &&
+                /^#([0-9a-f]{6}|[0-9a-f]{8})$/i.test(value)
+              )
+                chosenTitlebar[scheme] = value;
+              else delete chosenTitlebar[scheme];
+            });
+            redrawTitlebar();
+          },
         }
       : undefined,
 };

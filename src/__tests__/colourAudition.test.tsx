@@ -18,6 +18,7 @@ import {
   parseHexList,
   saveChoices,
   themeWith,
+  titlebarBackgrounds,
   toHex,
   withRgb,
 } from '../renderer/colourAudition/colours';
@@ -140,6 +141,24 @@ describe('applying choices', () => {
     expect(text).not.toContain('#123456');
   });
 
+  // The window title has no variable of its own, so its choice is a rule over App.css's, in its scheme only.
+  it('colours the window title on its own, in its own scheme', () => {
+    const text = cssText({ light: {}, dark: { titlebarTitle: '#abcdef' } });
+    expect(text).toBe(
+      '@media (prefers-color-scheme: dark) { :root:root .cet-title { color: #abcdef; } }'
+    );
+  });
+
+  it('hands the preload script the title-bar colour chosen for each scheme, and nothing else', () => {
+    expect(
+      titlebarBackgrounds({
+        light: { titlebarBackground: '#ABCDEF', background: '#000000' },
+        dark: {},
+      })
+    ).toEqual({ light: '#abcdef' });
+    expect(titlebarBackgrounds(noChoices())).toEqual({});
+  });
+
   it('puts the chosen palette colours into a copy of the theme', () => {
     const before = JSON.stringify(themeObj);
     const options = themeWith(themeObj, {
@@ -248,6 +267,10 @@ describe('the defaults', () => {
     expect(defaults.dark.controlBar).toBe('#4a2f38');
     expect(defaults.light.secondary).toBe('#FFA4B9');
     expect(defaults.dark.paper).toBe('#2B2427');
+    // The title bar's own, from appearance.ts, and the window title following muted text until chosen.
+    expect(defaults.light.titlebarBackground).toBe('#FFF5EE');
+    expect(defaults.dark.titlebarBackground).toBe('#1F1A1C');
+    expect(defaults.dark.titlebarTitle).toBe(defaults.dark.mutedText);
     AUDITION_COLOURS.forEach((c) => {
       expect(defaults.light[c.id]).not.toBe('');
       expect(defaults.dark[c.id]).not.toBe('');
@@ -508,6 +531,59 @@ describe('the host', () => {
     });
     unmount();
     document.getElementById('logo-host')?.remove();
+  });
+
+  // GitHub #119: the title bar is drawn by the preload script, so the host hands it the choice, live and at start.
+  it('hands the title bar its chosen colour, live and after a restart', () => {
+    const set = jest.fn();
+    Object.assign(window.electron, { titlebarColours: { set } });
+    const { unmount } = render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(set).toHaveBeenLastCalledWith({});
+    act(() => opened!());
+    const box = screen.getByLabelText('Title bar, hex code');
+    fireEvent.change(box, { target: { value: '#123456' } });
+    fireEvent.blur(box);
+    expect(set).toHaveBeenLastCalledWith({ light: '#123456' });
+    unmount();
+    set.mockClear();
+    render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(set).toHaveBeenLastCalledWith({ light: '#123456' });
+  });
+});
+
+// A file from audition 3 has every colour but the two title-bar ones. It must import completely, with the
+// title-bar rows left as their defaults (Stuart's standing condition, GitHub #119).
+describe('a file from before the title-bar colours', () => {
+  it('imports completely, and leaves the title bar as it was', () => {
+    const NEW = new Set(['titlebarBackground', 'titlebarTitle']);
+    const before = AUDITION_COLOURS.filter((c) => !NEW.has(c.id));
+    const hex = (i: number) =>
+      `#${(0x100000 + i * 0x0a0b0c).toString(16).slice(-6)}`;
+    const text = (['Light', 'Dark'] as const)
+      .map(
+        (name) =>
+          `Midst colours, ${name}\n${before
+            .map((c, i) => `${c.group} / ${c.label} [${c.id}]: ${hex(i)}`)
+            .join('\n')}`
+      )
+      .join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    const applied = applyImported(noChoices(), { light: {}, dark: {} }, read);
+    (['light', 'dark'] as const).forEach((s) => {
+      expect(Object.keys(applied[s]).sort()).toEqual(
+        before.map((c) => c.id).sort()
+      );
+      NEW.forEach((id) => expect(applied[s][id]).toBeUndefined());
+    });
   });
 });
 

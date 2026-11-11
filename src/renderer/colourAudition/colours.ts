@@ -6,7 +6,9 @@ import { CSS_VARS, CssVarKey } from '../cssVars';
 // The colours Annelyse can audition (GitHub #119), light and dark separately. Each is a CSS variable from
 // cssVars.ts, an entry in the MUI palette, or both: where cssVars.ts takes a variable `from` the theme, the one
 // choice sets both, so the two cannot disagree. The palette-only entries are colours MUI draws with that have
-// no variable of their own.
+// no variable of their own. The two title-bar entries are neither: preload.ts draws the title bar outside the
+// renderer's stylesheet, so its background is set through the preload script, and the window title is set by its
+// own rule.
 
 export type Scheme = 'light' | 'dark';
 export const SCHEMES: Scheme[] = ['light', 'dark'];
@@ -29,6 +31,7 @@ export interface AuditionColour {
   group: string;
   css?: CssVarKey;
   palette?: PalettePath;
+  titlebar?: 'background' | 'title';
 }
 
 // Named for what Annelyse sees, not MUI's terms: MUI's "primary" is a pink, and the beige is the background.
@@ -53,6 +56,12 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   {
     ...css('background', 'Background', PRIMARY),
     palette: 'background.default',
+  },
+  {
+    id: 'titlebarBackground',
+    label: 'Title bar',
+    group: PRIMARY,
+    titlebar: 'background',
   },
   { ...css('primary', 'Primary', SECONDARY), palette: 'primary.main' },
   {
@@ -81,6 +90,12 @@ export const AUDITION_COLOURS: AuditionColour[] = [
   css('logo', 'Midst wordmark on the welcome card', SECONDARY),
   { ...css('textPrimary', 'Text', TEXT), palette: 'text.primary' },
   css('mutedText', 'Window title and editor icons', TEXT),
+  {
+    id: 'titlebarTitle',
+    label: 'Window title only, over the line above',
+    group: TEXT,
+    titlebar: 'title',
+  },
   css('link', 'Link', TEXT),
   { ...css('errorLight', 'Problem', TEXT), palette: 'error.light' },
   css('divider', 'Settings divider', LINES),
@@ -185,6 +200,7 @@ export const withRgb = (rgbHex: string, previous: string): string | null => {
 // whatever order the stylesheets load in. Each scheme's choices sit in that scheme's media block, light
 // included: cssVars.css's light values apply in both schemes until its dark block overrides them, so a light
 // choice outside a media block would outrank the dark defaults too (alden-ec2221c7, review of #472).
+// The window title has no variable of its own (App.css gives it --midst-muted-text), so a choice for it is a rule.
 export const cssText = (choices: Choices): string => {
   const block = (scheme: Scheme) =>
     AUDITION_COLOURS.filter((c) => c.css && choices[scheme][c.id] !== undefined)
@@ -192,15 +208,31 @@ export const cssText = (choices: Choices): string => {
         (c) => `${CSS_VARS[c.css as CssVarKey].name}: ${choices[scheme][c.id]};`
       )
       .join(' ');
-  const light = block('light');
-  const dark = block('dark');
-  return [
-    light && `@media (prefers-color-scheme: light) { :root:root { ${light} } }`,
-    dark && `@media (prefers-color-scheme: dark) { :root:root { ${dark} } }`,
-  ]
+  const title = (scheme: Scheme) => choices[scheme].titlebarTitle;
+  return SCHEMES.flatMap((scheme) => {
+    const vars = block(scheme);
+    const media = `@media (prefers-color-scheme: ${scheme})`;
+    return [
+      vars && `${media} { :root:root { ${vars} } }`,
+      title(scheme) !== undefined &&
+        `${media} { :root:root .cet-title { color: ${title(scheme)}; } }`,
+    ];
+  })
     .filter(Boolean)
     .join('\n');
 };
+
+// The title-bar background chosen for each scheme, for the preload script to draw. A scheme with no choice
+// keeps the app's own.
+export const titlebarBackgrounds = (
+  choices: Choices
+): Partial<Record<Scheme, string>> =>
+  Object.fromEntries(
+    SCHEMES.flatMap((scheme) => {
+      const rgba = parseColour(choices[scheme].titlebarBackground ?? '');
+      return rgba ? [[scheme, toHex(rgba)]] : [];
+    })
+  );
 
 // The scheme's MUI theme options with the chosen palette colours in place.
 export const themeWith = (

@@ -14,6 +14,7 @@ import {
   Scheme,
   SCHEMES,
   cssText,
+  titlebarBackgrounds,
   hexList,
   loadChoices,
   noChoices,
@@ -440,6 +441,7 @@ export default function ColourAuditionHost({
       style.current.textContent = [cssText(choices), logoCss(logo.outline)]
         .filter(Boolean)
         .join('\n');
+    window.electron?.titlebarColours?.set(titlebarBackgrounds(choices));
     const kept = storage();
     if (kept) saveChoices(kept, choices);
   }, [choices, logo.outline]);
