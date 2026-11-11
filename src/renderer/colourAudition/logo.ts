@@ -106,6 +106,77 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // The app's own logo, as preload.ts drew it, kept the first time it is replaced so it can be put back.
 let original: { viewBox: string | null; children: Node[] } | null = null;
 
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const numbers = (viewBox: string) =>
+  viewBox
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number);
+
+// Where the given paths' ink lies, in their own units, measured in a scratch drawing that is never seen: the
+// logo itself is often hidden (the opening screen hides it), and a hidden drawing measures as nothing. Null
+// where the window cannot measure (a test without layout) or the ink has no size.
+const inkOf = (doc: Document, paths: Node[]): Box | null => {
+  const scratch = doc.createElementNS(SVG_NS, 'svg') as SVGSVGElement;
+  scratch.setAttribute(
+    'style',
+    'position: absolute; visibility: hidden; width: 0; height: 0'
+  );
+  const group = doc.createElementNS(SVG_NS, 'g') as SVGGElement;
+  group.append(...paths);
+  scratch.append(group);
+  doc.body.append(scratch);
+  try {
+    if (typeof group.getBBox !== 'function') return null;
+    const { x, y, width, height } = group.getBBox();
+    return width > 0 && height > 0 ? { x, y, width, height } : null;
+  } catch {
+    return null;
+  } finally {
+    scratch.remove();
+  }
+};
+
+// The viewBox that puts a replacement's ink where the app's own logo has its ink, so a replacement neither runs
+// up into the title bar nor sits lower than the M did (Violet, audition 4). The logo's box keeps its shape, so
+// its size on screen does not change: the ink is made as large as fits, top and left aligned with the M's.
+export const fittedViewBox = (
+  originalViewBox: string,
+  originalInk: Box,
+  ink: Box
+): string => {
+  const [ox, oy, ow, oh] = numbers(originalViewBox);
+  const fx = (originalInk.x - ox) / ow;
+  const fy = (originalInk.y - oy) / oh;
+  const fw = originalInk.width / ow;
+  const fh = originalInk.height / oh;
+  const aspect = ow / oh;
+  const height = Math.max(ink.height / fh, ink.width / (fw * aspect));
+  const width = height * aspect;
+  // Significant figures, not decimal places: a drawing's units are its own, and a tiny one must not round to
+  // nothing (Alden, #490).
+  const round = (n: number) => Number(n.toPrecision(7));
+  return [ink.x - fx * width, ink.y - fy * height, width, height]
+    .map(round)
+    .join(' ');
+};
+
+const pathsFor = (doc: Document, logo: Logo) =>
+  logo.paths.map((d) => {
+    const path = doc.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    return path;
+  });
+
+// The app's own logo's ink, measured once, from copies of its paths.
+let originalInk: Box | null = null;
+
 export const drawLogo = (doc: Document, logo: Logo | null) => {
   const svg = doc.getElementById('svg');
   if (!svg) return;
@@ -115,6 +186,10 @@ export const drawLogo = (doc: Document, logo: Logo | null) => {
       viewBox: svg.getAttribute('viewBox'),
       children: Array.from(svg.childNodes),
     };
+    originalInk = inkOf(
+      doc,
+      original.children.map((node) => node.cloneNode(true))
+    );
   }
   if (!logo) {
     if (original.viewBox === null) svg.removeAttribute('viewBox');
@@ -122,19 +197,20 @@ export const drawLogo = (doc: Document, logo: Logo | null) => {
     svg.replaceChildren(...original.children);
     return;
   }
-  svg.setAttribute('viewBox', logo.viewBox);
-  svg.replaceChildren(
-    ...logo.paths.map((d) => {
-      const path = doc.createElementNS(SVG_NS, 'path');
-      path.setAttribute('d', d);
-      return path;
-    })
+  const ink = inkOf(doc, pathsFor(doc, logo));
+  svg.setAttribute(
+    'viewBox',
+    original.viewBox && originalInk && ink
+      ? fittedViewBox(original.viewBox, originalInk, ink)
+      : logo.viewBox
   );
+  svg.replaceChildren(...pathsFor(doc, logo));
 };
 
 // For tests: forget the app's own logo, as a fresh window would.
 export const forgetOriginalLogo = () => {
   original = null;
+  originalInk = null;
 };
 
 // The outline: a stroke in the logo's own colour, so its lines draw thicker (Frida, GitHub #119).
