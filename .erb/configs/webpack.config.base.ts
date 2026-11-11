@@ -28,6 +28,11 @@ const configuration: webpack.Configuration = {
           },
         },
       },
+      // `import x from './file.svg?raw'` is the file's text (the logo, which preload.ts puts in the page).
+      {
+        resourceQuery: /raw/,
+        type: 'asset/source',
+      },
     ],
   },
 
@@ -57,6 +62,8 @@ const configuration: webpack.Configuration = {
   plugins: [
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'production',
+      // View > Colours… (GitHub #119): only in an audition build, never a release. src/renderer/colourAudition/README.md
+      MIDST_COLOUR_AUDITION: 'false',
     }),
   ],
 };

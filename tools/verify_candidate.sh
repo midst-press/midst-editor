@@ -8,7 +8,9 @@
 #   - build-info for macos, windows and linux, all at one version and that commit;
 #   - the macOS installer signed AND notarised;
 #   - every installer build-info lists present, with the SHA-256 it recorded at build time,
-#     so what is released is byte-for-byte what was built and tested.
+#     so what is released is byte-for-byte what was built and tested;
+#   - not an audition build (GitHub #119): no build-info with colourAudition other than absent or
+#     false, and no artifact named for one. An audition build has View > Colours… in it.
 # On success it prints the version, and writes <download dir>/release/ holding the installers
 # (spaces in names replaced, as GitHub would) and SHA256SUMS.
 set -euo pipefail
@@ -28,6 +30,7 @@ const all = new Map();
 for (const sub of fs.readdirSync(dir)) {
   const p = path.join(dir, sub);
   if (!fs.statSync(p).isDirectory() || sub === 'release') continue;
+  if (sub.includes('colour-audition')) fail(`${sub} is an audition build (View > Colours…), never a release`);
   for (const f of fs.readdirSync(p)) all.set(f, path.join(p, f));
 }
 
@@ -45,6 +48,9 @@ for (const i of infos) {
   if (i.commit !== commit) fail(`${i.platform} was built from ${i.commit}, not ${commit}`);
   if (i.ref !== 'refs/heads/main') fail(`${i.platform} was built from ${i.ref}, not main`);
   if (!i.files || i.files.length === 0) fail(`${i.platform} recorded no installers`);
+  // Absent in builds from before the audition existed; anything but absent or false is refused.
+  if (i.colourAudition !== undefined && i.colourAudition !== false)
+    fail(`${i.platform} is an audition build (colourAudition=${JSON.stringify(i.colourAudition)}), never a release`);
 }
 const mac = infos[0];
 if (!mac.signed || !mac.notarised) fail(`the macOS installer was not signed and notarised (signed=${mac.signed}, notarised=${mac.notarised})`);

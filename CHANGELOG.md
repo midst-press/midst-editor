@@ -1,3 +1,13 @@
+# 0.12.0
+
+- **New toolbar icons drawn by Annelyse** for focus mode, autoscroll, making the text larger and smaller, and adding a
+  Draft Marker. All the toolbar icons are now the same size and 20% larger, the magic wand sits between the Draft
+  Marker and Settings, and the Midst logo is back to its original size, clear of the window buttons (GitHub #120).
+- **Settings numbers the Draft Markers in Timeline order.** A marker you have named shows its name instead of a
+  number (GitHub #117).
+- **Undo appears in the row of the Draft Marker you deleted**, and fades away after a moment (GitHub #117).
+- **A little more space beside each switch** in Settings (GitHub #117).
+
 # 0.11.0
 
 - **Turning Check Spelling on or off no longer asks to recover your poem.** Before, it offered to recover the poem
