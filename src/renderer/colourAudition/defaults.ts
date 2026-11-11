@@ -1,6 +1,7 @@
 import { createTheme } from '@mui/material/styles';
 import themeObj, { darkThemeObj } from '../theme';
 import { CSS_VARS } from '../cssVars';
+import { TITLEBAR_BACKGROUND } from '../../main/appearance';
 import { AUDITION_COLOURS, AuditionColour, Scheme, SCHEMES } from './colours';
 
 // The colours as the app ships them, so the picker can show each default and revert to it. The variables are
@@ -68,6 +69,9 @@ export const defaultsFrom = (
   const value = (scheme: Scheme, c: AuditionColour) =>
     (c.css && vars[scheme][CSS_VARS[c.css].name]) ||
     (c.palette && fromPalette(scheme, c.palette)) ||
+    (c.titlebar === 'background' && TITLEBAR_BACKGROUND[scheme]) ||
+    // The window title is --midst-muted-text until it is chosen on its own (App.css).
+    (c.titlebar === 'title' && vars[scheme][CSS_VARS.mutedText.name]) ||
     '';
   const defaults: Defaults = { light: {}, dark: {} };
   SCHEMES.forEach((scheme) => {

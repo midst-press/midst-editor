@@ -1,4 +1,6 @@
 // Synthetic content only: invented words, never a poem.
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import type { ElectronHandler } from '../main/preload';
 
 const mockIpc = {
@@ -97,6 +99,7 @@ describe('exposure', () => {
         'log',
         'store',
         'titlebar',
+        'titlebarColours',
         'versions',
       ].sort()
     );
@@ -129,6 +132,8 @@ describe('exposure', () => {
         'colours-import',
         words
       );
+      api.colourFiles?.readLogo(words);
+      expect(mockIpc.sendSync).toHaveBeenLastCalledWith('colours-logo', words);
     } finally {
       delete process.env.MIDST_COLOUR_AUDITION;
     }
@@ -389,6 +394,60 @@ describe('DOMContentLoaded', () => {
         [{ hex: '#FFF5EE' }],
       ]);
     });
+
+    // GitHub #119: a title-bar colour chosen in View > Colours… is drawn in its own scheme only, and cleared back
+    // to the app's own.
+    it('has no title-bar colour call outside an audition build', () => {
+      delete process.env.MIDST_COLOUR_AUDITION;
+      expect(loadPreload().titlebarColours).toBeUndefined();
+    });
+
+    describe('in an audition build', () => {
+      beforeEach(() => {
+        process.env.MIDST_COLOUR_AUDITION = 'true';
+      });
+      afterEach(() => {
+        delete process.env.MIDST_COLOUR_AUDITION;
+      });
+
+      it("draws the chosen colour for the scheme in force, and the app's own when cleared", () => {
+        const api = loadPreload();
+        fireDomContentLoaded();
+        const { updateBackground } = mockTitlebarInstances[0];
+        api.titlebarColours?.set({ light: '#112233', dark: '#445566aa' });
+        scheme.matches = true;
+        listeners.forEach((fn) => fn());
+        api.titlebarColours?.set({ light: '#112233' });
+        expect(updateBackground.mock.calls).toEqual([
+          [{ hex: '#112233' }],
+          [{ hex: '#445566aa' }],
+          [{ hex: '#1F1A1C' }],
+        ]);
+      });
+
+      it.each(['red', '#fff', '#12345', '#1122334', 'url(x)'])(
+        'never draws %s, which the title bar would draw as red',
+        (value) => {
+          const api = loadPreload();
+          fireDomContentLoaded();
+          api.titlebarColours?.set({ light: value });
+          expect(
+            mockTitlebarInstances[0].updateBackground
+          ).toHaveBeenLastCalledWith({
+            hex: '#FFF5EE',
+          });
+        }
+      );
+
+      it('starts with a colour chosen before the title bar was drawn', () => {
+        const api = loadPreload();
+        api.titlebarColours?.set({ light: '#112233' });
+        fireDomContentLoaded();
+        expect(mockTitlebarInstances[0].options).toMatchObject({
+          backgroundColor: { hex: '#112233' },
+        });
+      });
+    });
   });
 
   it('leaves menu position and title alignment alone on darwin', () => {
@@ -422,6 +481,22 @@ describe('DOMContentLoaded', () => {
     expect(first.querySelector('svg.svg')).not.toBeNull();
     expect(document.getElementById('zq')).not.toBeNull();
     expect(document.body.children).toHaveLength(2);
+  });
+
+  // The logo is assets/midst-logo.svg, the file a designer edits, with the app's own id and classes added.
+  it('draws the logo from assets/midst-logo.svg, hidden until a screen shows it', () => {
+    loadPreload();
+    fireDomContentLoaded();
+    const file = readFileSync(
+      join(__dirname, '..', '..', 'assets', 'midst-logo.svg'),
+      'utf8'
+    );
+    const drawn = document.getElementById('svg');
+    expect(drawn?.getAttribute('class')).toBe('svg hide');
+    expect(drawn?.getAttribute('viewBox')).toBe('0 0 182.2 96');
+    const d = drawn?.querySelector('path')?.getAttribute('d');
+    expect(d).toMatch(/^M22\.51,82\.3/);
+    expect(file).toContain(`d="${d}"`);
   });
 
   it('does not add the linux class to the logo on darwin', () => {

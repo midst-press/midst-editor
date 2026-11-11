@@ -21,6 +21,8 @@ export type ColourFileResult =
 
 // A colour set is a few kilobytes; anything far larger is not one.
 export const MAX_IMPORT_BYTES = 64 * 1024;
+// A logo drawing is larger than a colour set; one far larger than this is not a logo.
+export const MAX_LOGO_BYTES = 512 * 1024;
 
 const isPoem = (path: string) => path.toLowerCase().endsWith('.midst');
 
@@ -73,13 +75,15 @@ export const exportColours = (
   return { ok: true, path };
 };
 
-export const importColours = (deps: ColourFileDeps): ColourFileResult => {
+export const importColours = (
+  deps: ColourFileDeps,
+  maxBytes = MAX_IMPORT_BYTES
+): ColourFileResult => {
   const path = deps.open()?.[0];
   if (!path) return { ok: false, failure: 'cancelled' };
   if (isPoem(path)) return { ok: false, failure: 'poem' };
   try {
-    if (deps.size(path) > MAX_IMPORT_BYTES)
-      return { ok: false, failure: 'tooLarge' };
+    if (deps.size(path) > maxBytes) return { ok: false, failure: 'tooLarge' };
     return { ok: true, path, text: deps.read(path) };
   } catch (error) {
     return {
@@ -104,17 +108,18 @@ const isWords = (words: unknown): words is ColourFileWords =>
 
 const depsFor = (
   window: BrowserWindow,
-  words: ColourFileWords
+  words: ColourFileWords,
+  extension = 'txt'
 ): ColourFileDeps => ({
   save: () =>
     dialog.showSaveDialogSync(window, {
       defaultPath: words.defaultName,
-      filters: [{ name: words.filterName, extensions: ['txt'] }],
+      filters: [{ name: words.filterName, extensions: [extension] }],
     }),
   open: () =>
     dialog.showOpenDialogSync(window, {
       properties: ['openFile'],
-      filters: [{ name: words.filterName, extensions: ['txt'] }],
+      filters: [{ name: words.filterName, extensions: [extension] }],
     }),
   write: writeReplacing,
   size: (path) => fs.statSync(path).size,
@@ -135,6 +140,14 @@ export const registerColourFiles = (window: () => BrowserWindow | null) => {
     event.returnValue =
       win && isWords(words)
         ? importColours(depsFor(win, words))
+        : { ok: false, failure: 'unavailable' };
+  });
+  // A replacement logo (GitHub #119): read as a colour set is, a .midst refused, an SVG only.
+  ipcMain.on('colours-logo', (event, words: unknown) => {
+    const win = window();
+    event.returnValue =
+      win && isWords(words)
+        ? importColours(depsFor(win, words, 'svg'), MAX_LOGO_BYTES)
         : { ok: false, failure: 'unavailable' };
   });
 };

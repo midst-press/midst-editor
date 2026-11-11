@@ -18,10 +18,16 @@ import {
   parseHexList,
   saveChoices,
   themeWith,
+  titlebarBackgrounds,
   toHex,
   withRgb,
 } from '../renderer/colourAudition/colours';
 import { defaultsFrom } from '../renderer/colourAudition/defaults';
+import {
+  LOGO_STORAGE_KEY,
+  NO_LOGO_CHANGE,
+  forgetOriginalLogo,
+} from '../renderer/colourAudition/logo';
 import KEEPS_FOCUS from '../renderer/keepsFocus';
 import ColourAuditionHost, {
   ColourPanel,
@@ -75,6 +81,9 @@ describe('the colours offered', () => {
 describe('colour values', () => {
   it.each([
     ['#fff', '#ffffff'],
+    ['#fff9', '#ffffff99'],
+    ['DodgerBlue', '#1e90ff'],
+    ['#0000', '#00000000'],
     ['#FFF5EE', '#fff5ee'],
     ['rgb(255, 182, 199)', '#ffb6c7'],
     ['rgba(0, 0, 0, 0.87)', '#000000de'],
@@ -86,14 +95,26 @@ describe('colour values', () => {
   });
 
   it.each([
-    'dodgerblue',
+    'tomato',
+    'constructor',
+    '__proto__',
+    'toString',
+    'hasOwnProperty',
     'rgb(300, 0, 0)',
     'rgba(0,0,0,2)',
     '#12',
+    '#12345',
     'red; } body { display: none',
     'rgba(1, 2, 3, .)',
     'rgba(1, 2, 3, 0..5)',
   ])('does not read %s', (value) => expect(parseColour(value)).toBeNull());
+
+  it('reports a line naming an Object property as not a colour, without throwing', () => {
+    expect(
+      parseHexList('Midst colours, Light\nText / Link [link]: constructor')
+        .problems
+    ).toEqual(['"constructor" is not a colour: Text / Link [link].']);
+  });
 
   it('keeps the transparency a colour had when the RGB is picked', () => {
     expect(withRgb('#ff0000', 'rgba(0, 0, 0, 0.5)')).toBe('#ff000080');
@@ -118,6 +139,24 @@ describe('applying choices', () => {
     );
     // The palette-only colour has no variable to set.
     expect(text).not.toContain('#123456');
+  });
+
+  // The window title has no variable of its own, so its choice is a rule over App.css's, in its scheme only.
+  it('colours the window title on its own, in its own scheme', () => {
+    const text = cssText({ light: {}, dark: { titlebarTitle: '#abcdef' } });
+    expect(text).toBe(
+      '@media (prefers-color-scheme: dark) { :root:root .cet-title { color: #abcdef; } }'
+    );
+  });
+
+  it('hands the preload script the title-bar colour chosen for each scheme, and nothing else', () => {
+    expect(
+      titlebarBackgrounds({
+        light: { titlebarBackground: '#ABCDEF', background: '#000000' },
+        dark: {},
+      })
+    ).toEqual({ light: '#abcdef' });
+    expect(titlebarBackgrounds(noChoices())).toEqual({});
   });
 
   it('puts the chosen palette colours into a copy of the theme', () => {
@@ -200,6 +239,27 @@ describe('the defaults', () => {
   });
   afterEach(() => style.remove());
 
+  // Every default, written out as Export writes it and read back as Import reads it, comes back as itself with
+  // nothing refused (Violet, VM check of #486: dark mutedText's #fff9 was refused).
+  it('survive a file round trip, every one, in both schemes', () => {
+    const defaults = defaultsFrom(document, null);
+    const text = (['light', 'dark'] as const)
+      .map(
+        (s) =>
+          `Midst colours, ${s === 'light' ? 'Light' : 'Dark'}\n${hexList(s, (c) => defaults[s][c.id], true)}`
+      )
+      .join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    (['light', 'dark'] as const).forEach((s) =>
+      AUDITION_COLOURS.forEach((c) =>
+        expect(read.colours[s]?.[c.id]).toBe(
+          toHex(parseColour(defaults[s][c.id])!)
+        )
+      )
+    );
+  });
+
   it('are cssVars.css as the page loaded it, light and dark, and the themes for palette-only colours', () => {
     const defaults = defaultsFrom(document, null);
     expect(defaults.light.background).toBe('#fff5ee');
@@ -207,6 +267,10 @@ describe('the defaults', () => {
     expect(defaults.dark.controlBar).toBe('#4a2f38');
     expect(defaults.light.secondary).toBe('#FFA4B9');
     expect(defaults.dark.paper).toBe('#2B2427');
+    // The title bar's own, from appearance.ts, and the window title following muted text until chosen.
+    expect(defaults.light.titlebarBackground).toBe('#FFF5EE');
+    expect(defaults.dark.titlebarBackground).toBe('#1F1A1C');
+    expect(defaults.dark.titlebarTitle).toBe(defaults.dark.mutedText);
     AUDITION_COLOURS.forEach((c) => {
       expect(defaults.light[c.id]).not.toBe('');
       expect(defaults.dark[c.id]).not.toBe('');
@@ -244,6 +308,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.change(hexBox('Background'), { target: { value: '#123456' } });
@@ -260,6 +326,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(hexBox('Background').value).toBe('#123456');
@@ -276,6 +344,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.change(hexBox('Link'), { target: { value: '#12' } });
@@ -293,6 +363,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(screen.queryByRole('note')).toBeNull();
@@ -319,6 +391,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     await act(async () => {
@@ -339,6 +413,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     const panel = screen.getByRole('dialog', { name: 'Colours' });
@@ -359,6 +435,8 @@ describe('the panel', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={onClose}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.keyDown(hexBox('Link'), { key: 'Escape' });
@@ -414,6 +492,98 @@ describe('the host', () => {
     expect(document.getElementById(STYLE_ID)?.textContent).toContain(
       '--midst-divider: #abcdef;'
     );
+  });
+
+  // GitHub #119: the logo and its outline are drawn and kept across a restart.
+  it('draws a kept logo and its outline after a restart', () => {
+    forgetOriginalLogo();
+    document.body.insertAdjacentHTML(
+      'afterbegin',
+      '<div id="logo-host"><svg id="svg" class="svg" viewBox="0 0 182.2 96"><path d="M5 5"></path></svg></div>'
+    );
+    window.localStorage.setItem(
+      LOGO_STORAGE_KEY,
+      JSON.stringify({
+        custom: { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] },
+        outline: 2,
+      })
+    );
+    const { unmount } = render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    const drawn = document.getElementById('svg')!;
+    expect(drawn.getAttribute('viewBox')).toBe('0 0 10 10');
+    expect(drawn.querySelector('path')?.getAttribute('d')).toBe('M0 0L1 1');
+    expect(document.getElementById(STYLE_ID)?.textContent).toContain(
+      'stroke-width: 2;'
+    );
+    act(() => opened!());
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Restore the original logo' })
+    );
+    expect(drawn.getAttribute('viewBox')).toBe('0 0 182.2 96');
+    expect(drawn.querySelector('path')?.getAttribute('d')).toBe('M5 5');
+    expect(JSON.parse(window.localStorage.getItem(LOGO_STORAGE_KEY)!)).toEqual({
+      custom: null,
+      outline: 2,
+    });
+    unmount();
+    document.getElementById('logo-host')?.remove();
+  });
+
+  // GitHub #119: the title bar is drawn by the preload script, so the host hands it the choice, live and at start.
+  it('hands the title bar its chosen colour, live and after a restart', () => {
+    const set = jest.fn();
+    Object.assign(window.electron, { titlebarColours: { set } });
+    const { unmount } = render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(set).toHaveBeenLastCalledWith({});
+    act(() => opened!());
+    const box = screen.getByLabelText('Title bar, hex code');
+    fireEvent.change(box, { target: { value: '#123456' } });
+    fireEvent.blur(box);
+    expect(set).toHaveBeenLastCalledWith({ light: '#123456' });
+    unmount();
+    set.mockClear();
+    render(
+      <ColourAuditionHost>
+        <p>poem</p>
+      </ColourAuditionHost>
+    );
+    expect(set).toHaveBeenLastCalledWith({ light: '#123456' });
+  });
+});
+
+// A file from audition 3 has every colour but the two title-bar ones. It must import completely, with the
+// title-bar rows left as their defaults (Stuart's standing condition, GitHub #119).
+describe('a file from before the title-bar colours', () => {
+  it('imports completely, and leaves the title bar as it was', () => {
+    const NEW = new Set(['titlebarBackground', 'titlebarTitle']);
+    const before = AUDITION_COLOURS.filter((c) => !NEW.has(c.id));
+    const hex = (i: number) =>
+      `#${(0x100000 + i * 0x0a0b0c).toString(16).slice(-6)}`;
+    const text = (['Light', 'Dark'] as const)
+      .map(
+        (name) =>
+          `Midst colours, ${name}\n${before
+            .map((c, i) => `${c.group} / ${c.label} [${c.id}]: ${hex(i)}`)
+            .join('\n')}`
+      )
+      .join('\n\n');
+    const read = parseHexList(text);
+    expect(read.problems).toEqual([]);
+    const applied = applyImported(noChoices(), { light: {}, dark: {} }, read);
+    (['light', 'dark'] as const).forEach((s) => {
+      expect(Object.keys(applied[s]).sort()).toEqual(
+        before.map((c) => c.id).sort()
+      );
+      NEW.forEach((id) => expect(applied[s][id]).toBeUndefined());
+    });
   });
 });
 
@@ -575,6 +745,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
@@ -636,6 +808,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: button }));
@@ -661,11 +835,119 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     fireEvent.click(screen.getByRole('button', { name: 'Export to file…' }));
     fireEvent.click(screen.getByRole('button', { name: 'Import from file…' }));
     expect(screen.queryByRole('list', { name: 'File result' })).toBeNull();
+  });
+
+  // GitHub #119: the squiggly M, from a file, with an outline, and put back.
+  describe('the logo', () => {
+    const SVG =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><path d="M0 0L1 1"/><circle r="1"/></svg>';
+    const panel = (readLogo: jest.Mock, logo = NO_LOGO_CHANGE) => {
+      Object.assign(window, {
+        electron: {
+          colourFiles: { exportSet: jest.fn(), importSet: jest.fn(), readLogo },
+        },
+      });
+      const onLogoChange = jest.fn();
+      render(
+        <ColourPanel
+          inForce="light"
+          choices={noChoices()}
+          defaults={defaults}
+          onChange={jest.fn()}
+          onClose={jest.fn()}
+          logo={logo}
+          onLogoChange={onLogoChange}
+        />
+      );
+      return onLogoChange;
+    };
+
+    it('draws a logo read from a file, and says what it left out', () => {
+      const readLogo = jest
+        .fn()
+        .mockReturnValue({ ok: true, path: '/x/l.svg', text: SVG });
+      const onLogoChange = panel(readLogo);
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load logo from file…' })
+      );
+      expect(readLogo).toHaveBeenCalledWith({
+        filterName: 'SVG drawing',
+        defaultName: 'Midst logo.svg',
+      });
+      expect(onLogoChange).toHaveBeenCalledWith({
+        custom: { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] },
+        outline: 0,
+      });
+      const report = screen.getByRole('list', { name: 'File result' });
+      expect(report).toHaveTextContent(
+        'Drew the logo from /x/l.svg, 1 path(s).'
+      );
+      expect(report).toHaveTextContent(
+        '1 shape(s) that are not paths were left out.'
+      );
+    });
+
+    it.each([
+      [
+        { ok: false, failure: 'tooLarge' },
+        'That file is too large to be a logo.',
+      ],
+      [
+        { ok: false, failure: 'poem' },
+        'That is a poem, not a logo, so it was not read.',
+      ],
+      [
+        { ok: true, path: '/x/l.svg', text: 'not a drawing' },
+        'That file is not an SVG drawing.',
+      ],
+    ])('draws nothing when the file is refused: %p', (result, words) => {
+      const onLogoChange = panel(jest.fn().mockReturnValue(result));
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Load logo from file…' })
+      );
+      expect(onLogoChange).not.toHaveBeenCalled();
+      expect(
+        screen.getByRole('list', { name: 'File result' })
+      ).toHaveTextContent(words);
+    });
+
+    it('puts the original back only when there is a replacement, and sets the outline', () => {
+      const onLogoChange = panel(jest.fn(), {
+        custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
+        outline: 1,
+      });
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Restore the original logo' })
+      );
+      expect(onLogoChange).toHaveBeenLastCalledWith({
+        custom: null,
+        outline: 1,
+      });
+      fireEvent.change(
+        screen.getByRole('slider', { name: 'Outline thickness' }),
+        {
+          target: { value: '2.5' },
+        }
+      );
+      expect(onLogoChange).toHaveBeenLastCalledWith({
+        custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
+        outline: 2.5,
+      });
+    });
+
+    it('cannot put the original back when it was never replaced', () => {
+      panel(jest.fn());
+      expect(
+        screen.getByRole('button', { name: 'Restore the original logo' })
+      ).toBeDisabled();
+    });
   });
 
   it('shows no file buttons where there is no file bridge', () => {
@@ -676,6 +958,8 @@ describe('the panel, saving and reading a file', () => {
         defaults={defaults}
         onChange={jest.fn()}
         onClose={jest.fn()}
+        logo={NO_LOGO_CHANGE}
+        onLogoChange={jest.fn()}
       />
     );
     expect(
