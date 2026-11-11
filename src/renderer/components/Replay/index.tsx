@@ -14,7 +14,6 @@ import Zoom from '@mui/material/Zoom';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import SettingsIcon from '@mui/icons-material/Settings';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Grow from '@mui/material/Grow';
@@ -22,7 +21,11 @@ import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { AddBookmarkIcon, AutoscrollIcon } from '../../icons/AnnelyseIcons';
+import {
+  SettingsIcon,
+  AddBookmarkIcon,
+  AutoscrollIcon,
+} from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
