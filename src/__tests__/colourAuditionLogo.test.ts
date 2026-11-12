@@ -4,6 +4,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   LOGO_STORAGE_KEY,
+  LOGO_STORAGE_KEY_V1,
   NO_LOGO_CHANGE,
   drawLogo,
   fittedViewBox,
@@ -234,6 +235,39 @@ describe('the outline', () => {
 });
 
 describe('keeping it across a restart', () => {
+  // Cora, #497: "no stroke" survives a reload, apart from the 0 every window kept before the app had a stroke.
+  it('keeps a chosen outline of 0 as 0', () => {
+    const kept: Record<string, string> = {};
+    saveLogo(
+      {
+        setItem: (k, v) => {
+          kept[k] = v;
+        },
+      },
+      { custom: null, outline: 0 }
+    );
+    expect(Object.keys(kept)).toEqual([LOGO_STORAGE_KEY]);
+    expect(loadLogo({ getItem: (k) => kept[k] ?? null })).toEqual({
+      custom: null,
+      outline: 0,
+    });
+  });
+
+  it('reads what an older window kept, its 0 as the app’s own, until it keeps its own', () => {
+    const custom = { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] };
+    const v1 = JSON.stringify({ custom, outline: 0 });
+    expect(
+      loadLogo({ getItem: (k) => (k === LOGO_STORAGE_KEY_V1 ? v1 : null) })
+    ).toEqual({ custom, outline: null });
+    const v2 = JSON.stringify({ custom: null, outline: 1 });
+    expect(
+      loadLogo({
+        getItem: (k) =>
+          ({ [LOGO_STORAGE_KEY_V1]: v1, [LOGO_STORAGE_KEY]: v2 })[k] ?? null,
+      })
+    ).toEqual({ custom: null, outline: 1 });
+  });
+
   const store = (value: unknown) => ({
     getItem: (key: string) =>
       key === LOGO_STORAGE_KEY ? JSON.stringify(value) : null,
@@ -270,8 +304,6 @@ describe('keeping it across a restart', () => {
     ['no paths', { custom: { viewBox: '0 0 1 1', paths: [] } }],
     ['an outline out of range', { outline: 99 }],
     ['an outline that is not a number', { outline: '2' }],
-    // Every window kept 0 for an untouched outline before the app's logo had a stroke of its own.
-    ['an outline of 0, kept before the app had a stroke', { outline: 0 }],
   ])(
     'starts from the app’s own logo when what was kept is %s',
     (_kind, value) => {

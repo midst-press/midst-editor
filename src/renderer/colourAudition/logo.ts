@@ -233,13 +233,21 @@ export const appOutline = (doc: Document): number => {
 
 // ---- Keeping it -----------------------------------------------------------------------------------------
 
-export const LOGO_STORAGE_KEY = 'midst.colourAudition.logo.v1';
+// v2 keeps a chosen 0 (no stroke) apart from v1's 0, which every window kept for "untouched" before the app's
+// logo had a stroke of its own (Cora, #497). A window with no v2 yet reads v1 once, its 0 as the app's own.
+export const LOGO_STORAGE_KEY = 'midst.colourAudition.logo.v2';
+export const LOGO_STORAGE_KEY_V1 = 'midst.colourAudition.logo.v1';
 
 // What was kept, checked as a file is, so a stored value can never put anything but path data in the page.
 export const loadLogo = (storage: Pick<Storage, 'getItem'>): LogoState => {
   let raw: unknown;
+  let fromV1 = false;
   try {
-    raw = JSON.parse(storage.getItem(LOGO_STORAGE_KEY) ?? 'null');
+    const v2 = storage.getItem(LOGO_STORAGE_KEY);
+    fromV1 = v2 === null;
+    raw = JSON.parse(
+      (fromV1 ? storage.getItem(LOGO_STORAGE_KEY_V1) : v2) ?? 'null'
+    );
   } catch {
     return NO_LOGO_CHANGE;
   }
@@ -250,14 +258,14 @@ export const loadLogo = (storage: Pick<Storage, 'getItem'>): LogoState => {
       ? (custom as Record<string, unknown>)
       : null;
   const paths = Array.isArray(kept?.paths) ? kept.paths : [];
+  const lowest = fromV1 ? Number.MIN_VALUE : 0;
   return {
     custom:
       kept && isViewBox(kept.viewBox) && paths.length > 0 && paths.every(isPath)
         ? { viewBox: kept.viewBox, paths: paths as string[] }
         : null,
-    // A kept 0 is the app's own: before the app's logo had a stroke, every window kept 0 for "untouched".
     outline:
-      typeof outline === 'number' && outline > 0 && outline <= MAX_OUTLINE
+      typeof outline === 'number' && outline >= lowest && outline <= MAX_OUTLINE
         ? outline
         : null,
   };

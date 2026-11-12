@@ -8,7 +8,7 @@ none of this folder's code is bundled.
 Her choices are kept in the window's localStorage (`midst.colourAudition.v1`), on that computer only.
 
 The panel can also draw a replacement for the squiggly M, read from an `.svg` file, and give it an outline
-(`logo.ts`). That is kept in `midst.colourAudition.logo.v1`. The app's own logo is `assets/midst-logo.svg`,
+(`logo.ts`). That is kept in `midst.colourAudition.logo.v2` (a window with only the older `.v1` reads that once). The app's own logo is `assets/midst-logo.svg`,
 which stays when this folder goes.
 
 ## Removing it entirely
