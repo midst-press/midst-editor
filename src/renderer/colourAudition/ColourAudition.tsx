@@ -29,6 +29,7 @@ import { Defaults, defaultsFrom } from './defaults';
 import {
   LogoState,
   MAX_OUTLINE,
+  appOutline,
   NO_LOGO_CHANGE,
   drawLogo,
   loadLogo,
@@ -235,6 +236,8 @@ export function ColourPanel({
       ...imported.problems,
     ]);
   };
+  // The slider starts at the app's own outline and shows it until one is chosen, so moving it never jumps.
+  const outline = logo.outline ?? appOutline(document);
   // A replacement for the squiggly M, from an .svg file (GitHub #119).
   const loadLogoFile = () => {
     if (!files) return;
@@ -377,12 +380,22 @@ export function ColourPanel({
           min={0}
           max={MAX_OUTLINE}
           step={0.5}
-          value={logo.outline}
+          value={outline}
           onChange={(e) =>
             onLogoChange({ ...logo, outline: Number(e.target.value) })
           }
         />
-        <span aria-hidden="true">{logo.outline}</span>
+        <span aria-hidden="true">
+          {outline}
+          {logo.outline === null ? ' (the app’s own)' : ''}
+        </span>
+        <button
+          type="button"
+          onClick={() => onLogoChange({ ...logo, outline: null })}
+          disabled={logo.outline === null}
+        >
+          Revert outline
+        </button>
       </section>
       <div className="colour-audition-list">
         {groups.map((group) => (

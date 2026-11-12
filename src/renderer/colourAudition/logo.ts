@@ -17,11 +17,12 @@ export interface Logo {
 export interface LogoState {
   // A replacement drawn in place of the app's own, or none.
   custom: Logo | null;
-  // The outline's width, in the drawing's own units; 0 is none.
-  outline: number;
+  // The outline's width, in the drawing's own units, chosen in place of the app's own; null keeps the app's own
+  // (App.css may give the logo a stroke: Annelyse's weight ships, #469). 0 is a choice: no stroke at all.
+  outline: number | null;
 }
 
-export const NO_LOGO_CHANGE: LogoState = { custom: null, outline: 0 };
+export const NO_LOGO_CHANGE: LogoState = { custom: null, outline: null };
 export const MAX_OUTLINE = 6;
 
 const NUMBER = '[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?';
@@ -214,10 +215,21 @@ export const forgetOriginalLogo = () => {
 };
 
 // The outline: a stroke in the logo's own colour, so its lines draw thicker (Frida, GitHub #119).
-export const logoCss = (outline: number): string =>
-  outline > 0
+export const logoCss = (outline: number | null): string =>
+  outline !== null
     ? `:root:root .svg path { stroke: var(--midst-primary-dark); stroke-width: ${outline}; stroke-linejoin: round; stroke-linecap: round; }`
     : '';
+
+// The app's own outline: the stroke App.css gives the logo, as the page has it, in the drawing's units, or 0 for
+// none. Read while no outline is chosen, so the audition's own rule is not what it reads.
+export const appOutline = (doc: Document): number => {
+  const path = doc.querySelector('#svg path');
+  if (!path) return 0;
+  const style = doc.defaultView?.getComputedStyle(path);
+  if (!style || style.stroke === '' || style.stroke === 'none') return 0;
+  const width = parseFloat(style.strokeWidth);
+  return Number.isFinite(width) && width > 0 ? width : 0;
+};
 
 // ---- Keeping it -----------------------------------------------------------------------------------------
 
@@ -243,10 +255,11 @@ export const loadLogo = (storage: Pick<Storage, 'getItem'>): LogoState => {
       kept && isViewBox(kept.viewBox) && paths.length > 0 && paths.every(isPath)
         ? { viewBox: kept.viewBox, paths: paths as string[] }
         : null,
+    // A kept 0 is the app's own: before the app's logo had a stroke, every window kept 0 for "untouched".
     outline:
       typeof outline === 'number' && outline > 0 && outline <= MAX_OUTLINE
         ? outline
-        : 0,
+        : null,
   };
 };
 

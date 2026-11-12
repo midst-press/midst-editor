@@ -10,6 +10,7 @@ import {
   forgetOriginalLogo,
   loadLogo,
   logoCss,
+  appOutline,
   readLogo,
   saveLogo,
 } from '../renderer/colourAudition/logo';
@@ -206,7 +207,24 @@ describe("putting a replacement's ink where the M's is", () => {
 });
 
 describe('the outline', () => {
-  it('is no CSS at all at 0', () => expect(logoCss(0)).toBe(''));
+  it("is no CSS at all when none is chosen, so the app's own stroke shows", () =>
+    expect(logoCss(null)).toBe(''));
+
+  // Annelyse's stroke ships in App.css (#469), so 0 is a real choice: no stroke, thinner than the app's.
+  it('is a stroke of 0 when 0 is chosen', () =>
+    expect(logoCss(0)).toContain('stroke-width: 0;'));
+
+  it.each([
+    ['a stroke', '.svg path { stroke: red; stroke-width: 2px }', 2],
+    ['no stroke', '.svg path { stroke-width: 3px }', 0],
+    ['no stylesheet', '', 0],
+  ])("reads the app's own outline from the page: %s", (_kind, css, width) => {
+    document.head.innerHTML = css ? `<style>${css}</style>` : '';
+    document.body.innerHTML =
+      '<svg id="svg" class="svg"><path d="M0 0"></path></svg>';
+    expect(appOutline(document)).toBe(width);
+    document.head.innerHTML = '';
+  });
 
   it("is a stroke in the logo's own colour", () => {
     expect(logoCss(2.5)).toBe(
@@ -252,6 +270,8 @@ describe('keeping it across a restart', () => {
     ['no paths', { custom: { viewBox: '0 0 1 1', paths: [] } }],
     ['an outline out of range', { outline: 99 }],
     ['an outline that is not a number', { outline: '2' }],
+    // Every window kept 0 for an untouched outline before the app's logo had a stroke of its own.
+    ['an outline of 0, kept before the app had a stroke', { outline: 0 }],
   ])(
     'starts from the app’s own logo when what was kept is %s',
     (_kind, value) => {
