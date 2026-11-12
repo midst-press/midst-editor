@@ -4,15 +4,15 @@ import { useCurrentEditor, useEditorState } from '@tiptap/react';
 // come in through vendor/midst-format, which this file does not import, so without this line a compile of this
 // file alone (ts-jest on a cold cache) does not see them (#231).
 import type {} from '@tiptap/starter-kit';
-import FormatBoldIcon from '@mui/icons-material/FormatBoldOutlined';
-import FormatItalicIcon from '@mui/icons-material/FormatItalicOutlined';
-import FormatUnderlinedIcon from '@mui/icons-material/FormatUnderlinedOutlined';
-import StrikethroughIcon from '@mui/icons-material/StrikethroughSOutlined';
 import type { ReactNode } from 'react';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { useId } from 'react';
 import {
+  BoldIcon as FormatBoldIcon,
+  ItalicIcon as FormatItalicIcon,
+  UnderlineIcon as FormatUnderlinedIcon,
+  StrikethroughIcon,
   FocusModeIcon,
   FontIncreaseIcon,
   FontDecreaseIcon,

@@ -1,4 +1,3 @@
-import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -7,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
 import RefusalAlert from './RefusalAlert';
 import { i18n } from '../../../shared/i18n';
+import { XIcon as CloseIcon } from '../../icons/AnnelyseIcons';
 
 /* eslint-disable no-unused-vars -- the names in these function types say what each argument is */
 interface Props {

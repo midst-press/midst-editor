@@ -11,9 +11,6 @@ import { reconstructHTML } from '@midst-press/midst-format/history';
 import { Glide } from '@midst-press/midst-format/follow';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import CloseIcon from '@mui/icons-material/Close';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import PauseIcon from '@mui/icons-material/Pause';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Grow from '@mui/material/Grow';
@@ -22,6 +19,9 @@ import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
 import {
+  XIcon as CloseIcon,
+  PlayIcon as PlayArrowIcon,
+  PauseIcon,
   SettingsIcon,
   AddBookmarkIconV2,
   AutoscrollIcon,
@@ -342,7 +342,10 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIconV2 fontSize="small" />
+              <AddBookmarkIconV2
+                fontSize="small"
+                className="bookmark-plus-pink"
+              />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip
