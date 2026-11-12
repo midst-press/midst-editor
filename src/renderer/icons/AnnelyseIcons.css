@@ -1,0 +1,15 @@
+/* The add-bookmark icon's colours (Annelyse, GitHub #119). Its + is a hole in the bookmark, and is also drawn on its
+   own, unfilled unless the icon asks for a pink +. */
+svg.annelyse-bookmark .bookmark-plus {
+  fill: none;
+}
+
+/* Edit mode: the bookmark pink, the background through the +. */
+svg.annelyse-bookmark.bookmark-pink {
+  color: var(--midst-primary-dark);
+}
+
+/* The Timeline: the bookmark in the light colour, the + pink. */
+svg.annelyse-bookmark.bookmark-plus-pink .bookmark-plus {
+  fill: var(--midst-primary-dark);
+}

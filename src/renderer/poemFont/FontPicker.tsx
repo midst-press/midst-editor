@@ -1,9 +1,9 @@
-import CloseIcon from '@mui/icons-material/Close';
 import { KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { i18n } from '../../shared/i18n';
 import { BUNDLED_FONTS, poemFontStack } from './poemFont';
 import { ChooseResult, usePoemFont } from './PoemFontContext';
 import './FontPicker.css';
+import { XIcon as CloseIcon } from '../icons/AnnelyseIcons';
 
 // View > Font… (#240; Annelyse, GitHub #73): any font installed on the poet's computer, one font for the
 // whole poem. Each font is listed in its own face, which a native menu cannot draw, so the choice is
