@@ -126,7 +126,7 @@ const depsFor = (
   read: (path) => fs.readFileSync(path, 'utf8'),
 });
 
-// Registered from main.ts only in an audition build.
+// Registered from main.ts only while MIDST_COLOUR_AUDITION is on (the default; GitHub #119).
 export const registerColourFiles = (window: () => BrowserWindow | null) => {
   ipcMain.on('colours-export', (event, text: unknown, words: unknown) => {
     const win = window();
