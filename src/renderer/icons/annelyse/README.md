@@ -4,14 +4,15 @@ Every icon in the app as a labelled SVG, for Annelyse.
 
 ## Annelyse's originals (thin-line style)
 
-| File                   | Icon                                |
-| ---------------------- | ----------------------------------- |
-| `focus-mode.svg`       | Focus Mode (thin stroke, preferred) |
-| `focus-mode-thick.svg` | Focus Mode (thick stroke, not used) |
-| `autoscroll.svg`       | Autoscroll                          |
-| `font-decrease.svg`    | Decrease text size                  |
-| `font-increase.svg`    | Increase text size                  |
-| `add-bookmark.svg`     | Add bookmark                        |
+| File                                | Icon                                         |
+| ----------------------------------- | -------------------------------------------- |
+| `focus-mode.svg`                    | Focus Mode (thin stroke, preferred)          |
+| `focus-mode-thick.svg`              | Focus Mode (thick stroke, not used)          |
+| `autoscroll.svg`                    | Autoscroll                                   |
+| `annelyse-gh119-autoscroll_alt.svg` | Autoscroll (GitHub #119, in use from 0.13.1) |
+| `font-decrease.svg`                 | Decrease text size                           |
+| `font-increase.svg`                 | Increase text size                           |
+| `add-bookmark.svg`                  | Add bookmark                                 |
 
 ## MUI Material Icons (filled glyph style)
 
