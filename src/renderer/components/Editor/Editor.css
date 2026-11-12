@@ -123,9 +123,9 @@
 }
 
 .is-active {
+  /* Colour marks active; no bold, which hurts legibility (GitHub #120 round 2, item 4). */
   transition: background-color 0.1s ease;
   stroke: var(--midst-active-icon);
-  stroke-width: 1px;
   color: var(--midst-active-icon);
 }
 
