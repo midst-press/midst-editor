@@ -502,7 +502,7 @@ describe('Editor: content and appearance', () => {
         defaults={defaults}
         onChange={onChange}
         onClose={jest.fn()}
-        logo={{ custom: null, outline: 0 }}
+        logo={{ custom: null, outline: null }}
         onLogoChange={jest.fn()}
       />
     );

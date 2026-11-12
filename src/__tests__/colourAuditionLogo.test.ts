@@ -4,12 +4,14 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import {
   LOGO_STORAGE_KEY,
+  LOGO_STORAGE_KEY_V1,
   NO_LOGO_CHANGE,
   drawLogo,
   fittedViewBox,
   forgetOriginalLogo,
   loadLogo,
   logoCss,
+  appOutline,
   readLogo,
   saveLogo,
 } from '../renderer/colourAudition/logo';
@@ -206,7 +208,24 @@ describe("putting a replacement's ink where the M's is", () => {
 });
 
 describe('the outline', () => {
-  it('is no CSS at all at 0', () => expect(logoCss(0)).toBe(''));
+  it("is no CSS at all when none is chosen, so the app's own stroke shows", () =>
+    expect(logoCss(null)).toBe(''));
+
+  // Annelyse's stroke ships in App.css (#469), so 0 is a real choice: no stroke, thinner than the app's.
+  it('is a stroke of 0 when 0 is chosen', () =>
+    expect(logoCss(0)).toContain('stroke-width: 0;'));
+
+  it.each([
+    ['a stroke', '.svg path { stroke: red; stroke-width: 2px }', 2],
+    ['no stroke', '.svg path { stroke-width: 3px }', 0],
+    ['no stylesheet', '', 0],
+  ])("reads the app's own outline from the page: %s", (_kind, css, width) => {
+    document.head.innerHTML = css ? `<style>${css}</style>` : '';
+    document.body.innerHTML =
+      '<svg id="svg" class="svg"><path d="M0 0"></path></svg>';
+    expect(appOutline(document)).toBe(width);
+    document.head.innerHTML = '';
+  });
 
   it("is a stroke in the logo's own colour", () => {
     expect(logoCss(2.5)).toBe(
@@ -216,6 +235,39 @@ describe('the outline', () => {
 });
 
 describe('keeping it across a restart', () => {
+  // Cora, #497: "no stroke" survives a reload, apart from the 0 every window kept before the app had a stroke.
+  it('keeps a chosen outline of 0 as 0', () => {
+    const kept: Record<string, string> = {};
+    saveLogo(
+      {
+        setItem: (k, v) => {
+          kept[k] = v;
+        },
+      },
+      { custom: null, outline: 0 }
+    );
+    expect(Object.keys(kept)).toEqual([LOGO_STORAGE_KEY]);
+    expect(loadLogo({ getItem: (k) => kept[k] ?? null })).toEqual({
+      custom: null,
+      outline: 0,
+    });
+  });
+
+  it('reads what an older window kept, its 0 as the app’s own, until it keeps its own', () => {
+    const custom = { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] };
+    const v1 = JSON.stringify({ custom, outline: 0 });
+    expect(
+      loadLogo({ getItem: (k) => (k === LOGO_STORAGE_KEY_V1 ? v1 : null) })
+    ).toEqual({ custom, outline: null });
+    const v2 = JSON.stringify({ custom: null, outline: 1 });
+    expect(
+      loadLogo({
+        getItem: (k) =>
+          ({ [LOGO_STORAGE_KEY_V1]: v1, [LOGO_STORAGE_KEY]: v2 })[k] ?? null,
+      })
+    ).toEqual({ custom: null, outline: 1 });
+  });
+
   const store = (value: unknown) => ({
     getItem: (key: string) =>
       key === LOGO_STORAGE_KEY ? JSON.stringify(value) : null,

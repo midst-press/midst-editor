@@ -18,8 +18,8 @@ import FontPicker from './poemFont/FontPicker';
 import { PoemFontContext, usePoemFontState } from './poemFont/PoemFontContext';
 import { PoemSizeContext, usePoemSizeState } from './fontSize/PoemSizeContext';
 
-// View > Colours… (GitHub #119), only in an audition build: with the flag off the require is never reached, and
-// webpack bundles none of the folder. To remove it, see src/renderer/colourAudition/README.md.
+// View > Colours… (GitHub #119), in pre-release builds by Stuart's decision of 12 Nov 2026: with the flag off the
+// require is never reached, and webpack bundles none of the folder. To remove it, see src/renderer/colourAudition/README.md.
 function PassThrough({ children }: { children: ReactNode }) {
   return children;
 }
