@@ -14,7 +14,6 @@ import Zoom from '@mui/material/Zoom';
 import CloseIcon from '@mui/icons-material/Close';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
-import SettingsIcon from '@mui/icons-material/Settings';
 
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import Grow from '@mui/material/Grow';
@@ -22,7 +21,11 @@ import Box from '@mui/material/Box';
 import { EditorContent, useEditor } from '@tiptap/react';
 import poemExtensions from '@midst-press/midst-format/extensions';
 import { HistoryContext, TextContext } from 'renderer/context';
-import { AddBookmarkIcon, AutoscrollIcon } from '../../icons/AnnelyseIcons';
+import {
+  SettingsIcon,
+  AddBookmarkIconV2,
+  AutoscrollIcon,
+} from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
 import useFontSize from '../../fontSize/useFontSize';
 import DraftDrawer from '../DraftMarkers/DraftDrawer';
@@ -281,25 +284,7 @@ export default function Replay() {
                 <PlayArrowIcon fontSize="small" />
               )}
             </ReasonButton>
-            <TimelineSlider
-              poemHistory={poemHistory}
-              maxStep={maxStep}
-              step={step}
-              onScrub={jumpTo}
-              showTimestamp={showTimestamp.on}
-              markers={drafts.markers}
-              showMarkers={showMarkers}
-              showLabels={showLabels}
-              naming={timelineNaming}
-              newMarker={newMarker}
-              setNaming={setTimelineNaming}
-              onJump={jumpTo}
-              onLeaveNaming={leaveTimelineNaming}
-              onRename={drafts.rename}
-              onDelete={drafts.remove}
-              onUndoNew={undoNewMarker}
-            />
-            {/* The speedometer first on the left of the bottom-right buttons, then scroll speed (GitHub #49). */}
+            {/* Speed controls right of the play button: all transport controls together (GitHub #120 round 2). */}
             <PaceControl
               setting={FPS}
               value={fps.value}
@@ -320,6 +305,24 @@ export default function Replay() {
               })}
               icon={<AutoscrollIcon fontSize="small" />}
             />
+            <TimelineSlider
+              poemHistory={poemHistory}
+              maxStep={maxStep}
+              step={step}
+              onScrub={jumpTo}
+              showTimestamp={showTimestamp.on}
+              markers={drafts.markers}
+              showMarkers={showMarkers}
+              showLabels={showLabels}
+              naming={timelineNaming}
+              newMarker={newMarker}
+              setNaming={setTimelineNaming}
+              onJump={jumpTo}
+              onLeaveNaming={leaveTimelineNaming}
+              onRename={drafts.rename}
+              onDelete={drafts.remove}
+              onUndoNew={undoNewMarker}
+            />
             {/* Draft Marker first, then Continue writing from here, then Settings (GitHub #90, #469). */}
             <ReasonButton
               label={i18n._('drafts.mark')}
@@ -339,7 +342,7 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIcon fontSize="small" />
+              <AddBookmarkIconV2 fontSize="small" />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip
