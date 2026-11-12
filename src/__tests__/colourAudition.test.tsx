@@ -883,7 +883,7 @@ describe('the panel, saving and reading a file', () => {
       });
       expect(onLogoChange).toHaveBeenCalledWith({
         custom: { viewBox: '0 0 10 10', paths: ['M0 0L1 1'] },
-        outline: 0,
+        outline: null,
       });
       const report = screen.getByRole('list', { name: 'File result' });
       expect(report).toHaveTextContent(
@@ -958,6 +958,46 @@ describe('the panel, saving and reading a file', () => {
       expect(onLogoChange).toHaveBeenLastCalledWith({
         custom: { viewBox: '0 0 1 1', paths: ['M0 0'] },
         outline: 2.5,
+      });
+    });
+
+    // Cora, #494: the app's logo has a stroke of its own (Annelyse's weight), so the slider starts there and only
+    // moving it chooses one; Revert outline goes back to the app's own.
+    it("starts at the app's own outline, chooses only when moved, and reverts to it", () => {
+      document.head.insertAdjacentHTML(
+        'beforeend',
+        '<style id="app-stroke">.svg path { stroke: red; stroke-width: 2px }</style>'
+      );
+      document.body.insertAdjacentHTML(
+        'afterbegin',
+        '<svg id="svg" class="svg"><path d="M0 0"></path></svg>'
+      );
+      try {
+        const onLogoChange = panel(jest.fn());
+        const slider = screen.getByRole('slider', {
+          name: 'Outline thickness',
+        });
+        expect(slider).toHaveValue('2');
+        expect(
+          screen.getByRole('button', { name: 'Revert outline' })
+        ).toBeDisabled();
+        fireEvent.change(slider, { target: { value: '0.5' } });
+        expect(onLogoChange).toHaveBeenLastCalledWith({
+          custom: null,
+          outline: 0.5,
+        });
+      } finally {
+        document.getElementById('app-stroke')?.remove();
+        document.getElementById('svg')?.remove();
+      }
+    });
+
+    it('reverts a chosen outline to the app’s own', () => {
+      const onLogoChange = panel(jest.fn(), { custom: null, outline: 3 });
+      fireEvent.click(screen.getByRole('button', { name: 'Revert outline' }));
+      expect(onLogoChange).toHaveBeenLastCalledWith({
+        custom: null,
+        outline: null,
       });
     });
 
