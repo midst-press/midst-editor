@@ -106,8 +106,8 @@
 }
 
 .size-icon path {
+  /* No CSS stroke-width: weight comes from SVG geometry, matching the magnifying glasses (GitHub #120 round 2, item 6). */
   stroke: rgb(164, 164, 164);
-  stroke-width: 1px;
 }
 
 /* All toolbar icon SVGs render at one size (GitHub #469). */
