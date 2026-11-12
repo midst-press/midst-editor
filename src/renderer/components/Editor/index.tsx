@@ -1,4 +1,3 @@
-import HistoryIcon from '@mui/icons-material/History';
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
 import { Editor as EditorType } from '@tiptap/core';
@@ -7,7 +6,10 @@ import { useState, useEffect, useContext, useRef, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
-import { AddBookmarkIconV2 } from '../../icons/AnnelyseIcons';
+import {
+  TimelineModeIcon as HistoryIcon,
+  AddBookmarkIconV2,
+} from '../../icons/AnnelyseIcons';
 import KEEPS_FOCUS from '../../keepsFocus';
 import useFontSize from '../../fontSize/useFontSize';
 import {

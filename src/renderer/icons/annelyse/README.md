@@ -4,15 +4,24 @@ Every icon in the app as a labelled SVG, for Annelyse.
 
 ## Annelyse's originals (thin-line style)
 
-| File                                | Icon                                         |
-| ----------------------------------- | -------------------------------------------- |
-| `focus-mode.svg`                    | Focus Mode (thin stroke, preferred)          |
-| `focus-mode-thick.svg`              | Focus Mode (thick stroke, not used)          |
-| `autoscroll.svg`                    | Autoscroll                                   |
-| `annelyse-gh119-autoscroll_alt.svg` | Autoscroll (GitHub #119, in use from 0.13.1) |
-| `font-decrease.svg`                 | Decrease text size                           |
-| `font-increase.svg`                 | Increase text size                           |
-| `add-bookmark.svg`                  | Add bookmark                                 |
+| File                                | Icon                                             |
+| ----------------------------------- | ------------------------------------------------ |
+| `focus-mode.svg`                    | Focus Mode (thin stroke, preferred)              |
+| `focus-mode-thick.svg`              | Focus Mode (thick stroke, not used)              |
+| `autoscroll.svg`                    | Autoscroll                                       |
+| `annelyse-gh119-autoscroll_alt.svg` | Autoscroll (GitHub #119, in use from 0.13.1)     |
+| `annelyse-gh119-X.svg`              | Close, everywhere (GitHub #119, lined)           |
+| `annelyse-gh119-timeline_mode.svg`  | Replay button in the editor (GitHub #119, lined) |
+| `annelyse-gh119-play.svg`           | Play (GitHub #119, lined)                        |
+| `annelyse-gh119-pause.svg`          | Pause (GitHub #119, lined)                       |
+| `annelyse-gh119-magic_alt.svg`      | Restart from here (GitHub #119, lined)           |
+| `annelyse-gh119-bold.svg`           | Bold (GitHub #119, lined)                        |
+| `annelyse-gh119-italics.svg`        | Italic (GitHub #119, lined)                      |
+| `annelyse-gh119-underline.svg`      | Underline (GitHub #119, lined)                   |
+| `annelyse-gh119-strikethrough.svg`  | Strikethrough (GitHub #119, lined)               |
+| `font-decrease.svg`                 | Decrease text size                               |
+| `font-increase.svg`                 | Increase text size                               |
+| `add-bookmark.svg`                  | Add bookmark                                     |
 
 ## MUI Material Icons (filled glyph style)
 

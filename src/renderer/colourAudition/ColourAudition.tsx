@@ -1,6 +1,5 @@
 /* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse (GitHub #119), in English only. It
    is in pre-release builds, releases included, by Stuart's decision of 12 Nov 2026; see README.md in this folder */
-import CloseIcon from '@mui/icons-material/Close';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { ReactNode, useEffect, useMemo, useRef, useState } from 'react';
@@ -38,6 +37,7 @@ import {
   saveLogo,
 } from './logo';
 import './ColourAudition.css';
+import { XIcon as CloseIcon } from '../icons/AnnelyseIcons';
 
 // View > Colours… (GitHub #119): Annelyse auditions the app's colours, light and dark separately, and sends us
 // the hex codes she settles on. Built only when MIDST_COLOUR_AUDITION is 'true'; see README.md here.

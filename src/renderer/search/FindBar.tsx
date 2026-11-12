@@ -1,4 +1,3 @@
-import CloseIcon from '@mui/icons-material/Close';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import { Editor as EditorType } from '@tiptap/core';
@@ -8,6 +7,7 @@ import findInText, { Match } from './findInText';
 import { CURRENT_CLASS, withHighlights } from './searchHighlight';
 import './FindBar.css';
 import { i18n } from '../../shared/i18n';
+import { XIcon as CloseIcon } from '../icons/AnnelyseIcons';
 
 // The find bar (GitHub #27): Edit > Find opens it, it searches the poem as it stands now, and it
 // selects each match in the poem in turn. Earlier frames are not searched.

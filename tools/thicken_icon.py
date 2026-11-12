@@ -22,12 +22,25 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.svgLib.path import parse_path
 
 
-def thicken(paths: list[str], width: float) -> str:
-    """Return one path: the union of every path and its stroke of ``width``."""
+def thicken(paths: list[tuple[str, str]], width: float) -> str:
+    """Return one path: the union of every path and its stroke of ``width``.
+
+    Args:
+        paths: Each path's data and its fill rule, ``"evenodd"`` or ``"nonzero"``. An even-odd outline whose inner
+            contours wind the same way as its outer one would otherwise be read as filled solid.
+        width: The full width added to each line, in the icon's own units.
+
+    Returns:
+        SVG path data for the thickened shape, with nonzero winding.
+    """
     shape = pathops.Path()
-    for d in paths:
-        path = pathops.Path()
+    for d, rule in paths:
+        fill = (
+            pathops.FillType.EVEN_ODD if rule == "evenodd" else pathops.FillType.WINDING
+        )
+        path = pathops.Path(fillType=fill)
         parse_path(d, path.getPen())
+        path.simplify(fix_winding=True)
         stroke = pathops.Path(path)
         stroke.stroke(width, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
         stroke.convertConicsToQuads()
@@ -44,7 +57,15 @@ def main() -> None:
     if len(sys.argv) != 3:
         sys.exit("usage: uv run tools/thicken_icon.py <icon.svg> <width>")
     with open(sys.argv[1], encoding="utf-8") as f:
-        paths = re.findall(r'\bd="([^"]+)"', f.read())
+        text = f.read()
+    whole = "evenodd" if re.search(r'<svg[^>]*fill-rule="evenodd"', text) else "nonzero"
+    paths = [
+        (
+            re.search(r'\bd="([^"]+)"', tag).group(1),
+            "evenodd" if 'fill-rule="evenodd"' in tag else whole,
+        )
+        for tag in re.findall(r"<path\b[^>]*>", text)
+    ]
     if not paths:
         sys.exit(f"{sys.argv[1]}: no path data")
     print(thicken(paths, float(sys.argv[2])))
