@@ -1,3 +1,9 @@
+# 0.13.1
+
+- **Annelyse's autoscroll icon** in Replay, at the magnifying glasses' size and line weight (GitHub #119).
+- **The moon is drawn at the magnifying glasses' weight**, the same size as before (GitHub #119).
+- **Pressed styling icons (B, I, U, S) are no bolder than unpressed:** colour alone shows they are on (GitHub #119).
+
 # 0.13.0
 
 - **View** > **Colours… lets you try the app's colours**, light and dark separately, and see each change straight

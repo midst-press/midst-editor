@@ -125,7 +125,7 @@
 .is-active {
   /* Colour marks active; no bold, which hurts legibility (GitHub #120 round 2, item 4). */
   transition: background-color 0.1s ease;
-  stroke: var(--midst-active-icon);
+  /* No stroke: the icon paths inherited it, which drew B, I, U and S 1px bolder when pressed (GitHub #119). */
   color: var(--midst-active-icon);
 }
 
