@@ -1,3 +1,9 @@
+# 0.13.2
+
+- **Annelyse's lined icons** for Close, Replay (the timeline button), play, pause, continue writing, and B, I, U and S, all at the magnifying glasses' 2px line (GitHub #119).
+- **The add-bookmark icon is inverted:** pink in Edit mode with the background showing through the +, and the light colour with a pink + in Timeline mode (GitHub #119).
+- **The moon and the autoscroll icon are at the full 2px line** (0.13.1 drew them a little lighter) (GitHub #119).
+
 # 0.13.1
 
 - **Annelyse's autoscroll icon** in Replay, at the magnifying glasses' size and line weight (GitHub #119).
