@@ -28,7 +28,8 @@ def thicken(paths: list[tuple[str, str]], width: float) -> str:
     Args:
         paths: Each path's data and its fill rule, ``"evenodd"`` or ``"nonzero"``. An even-odd outline whose inner
             contours wind the same way as its outer one would otherwise be read as filled solid.
-        width: The full width added to each line, in the icon's own units.
+        width: The full width added to each line, in the icon's own units. A negative width thins instead:
+            the shape minus its own outline's stroke, so each line loses half of it on either side.
 
     Returns:
         SVG path data for the thickened shape, with nonzero winding.
@@ -42,11 +43,16 @@ def thicken(paths: list[tuple[str, str]], width: float) -> str:
         parse_path(d, path.getPen())
         path.simplify(fix_winding=True)
         stroke = pathops.Path(path)
-        stroke.stroke(width, pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4)
-        stroke.convertConicsToQuads()
-        shape = pathops.op(
-            shape, pathops.op(path, stroke, pathops.PathOp.UNION), pathops.PathOp.UNION
+        stroke.stroke(
+            abs(width), pathops.LineCap.ROUND_CAP, pathops.LineJoin.ROUND_JOIN, 4
         )
+        stroke.convertConicsToQuads()
+        grown = pathops.op(
+            path,
+            stroke,
+            pathops.PathOp.UNION if width >= 0 else pathops.PathOp.DIFFERENCE,
+        )
+        shape = pathops.op(shape, grown, pathops.PathOp.UNION)
     pen = SVGPathPen(None, ntos=lambda n: f"{n:.2f}".rstrip("0").rstrip("."))
     shape.draw(pen)
     return pen.getCommands()

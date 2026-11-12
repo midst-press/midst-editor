@@ -342,7 +342,10 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIconV2 fontSize="small" />
+              <AddBookmarkIconV2
+                fontSize="small"
+                className="bookmark-plus-pink"
+              />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip

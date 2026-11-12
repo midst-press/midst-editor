@@ -3,6 +3,7 @@
 
 import { SvgIcon } from '@mui/material';
 import type { SvgIconProps } from '@mui/material';
+import './AnnelyseIcons.css';
 
 // The moon at the magnifying glasses' 2px line, keeping its own size (GitHub #119): Annelyse's path thickened by
 // 42 units into one filled shape (tools/thicken_icon.py). Measured at 22px by line width at the ink's centre.
@@ -58,13 +59,22 @@ export function SettingsIcon(props: SvgIconProps) {
   );
 }
 
-// The add-bookmark icon inverted (Annelyse, GitHub #119): the bookmark filled, the + cut out of it, so the
-// background shows through the +.
-export function AddBookmarkIconV2(props: SvgIconProps) {
+// The add-bookmark icon inverted (Annelyse, GitHub #119): the bookmark filled with the + cut out, and the + also
+// drawn on its own, unfilled. In Edit mode the bookmark is pink and the background shows through the +
+// (.bookmark-pink); on the Timeline it is the light colour with a pink + (.bookmark-plus-pink). AnnelyseIcons.css.
+export function AddBookmarkIconV2({ className, ...props }: SvgIconProps) {
   return (
-    /* eslint-disable-next-line react/jsx-props-no-spreading */
-    <SvgIcon {...props} viewBox="0 0 1200 1200">
+    <SvgIcon
+      /* eslint-disable-next-line react/jsx-props-no-spreading */
+      {...props}
+      className={`annelyse-bookmark${className ? ` ${className}` : ''}`}
+      viewBox="0 0 1200 1200"
+    >
       <path d="M315.47 1042H315.46C300.46 1054.66 277.02 1043.41 277.49 1023.95V175.98C277.49 163.09 288.04 152.54 300.93 152.54H899.53C912.42 152.54 922.97 163.09 922.97 175.98V1023.95C922.97 1043.64 899.53 1054.42 884.53 1042L600 808.1ZM623.44 605.63V504.15H724.92C737.81 504.15 748.36 493.6 748.36 480.71C748.36 467.82 737.81 457.27 724.92 457.27H623.44V355.79C623.44 342.9 612.89 332.36 600 332.36C587.11 332.36 576.56 342.9 576.56 355.79V457.27H475.08C462.19 457.27 451.65 467.82 451.65 480.71C451.65 493.6 462.19 504.15 475.08 504.15H576.56V605.63C576.56 618.52 587.11 629.07 600 629.07C612.89 629.07 623.44 618.76 623.44 605.63Z" />
+      <path
+        className="bookmark-plus"
+        d="m623.44 605.63v-101.48h101.48c12.891 0 23.438-10.547 23.438-23.438s-10.547-23.438-23.438-23.438h-101.48v-101.48c0-12.891-10.547-23.438-23.438-23.438s-23.438 10.547-23.438 23.438v101.48h-101.48c-12.891 0-23.438 10.547-23.438 23.438s10.547 23.438 23.438 23.438h101.48v101.48c0 12.891 10.547 23.438 23.438 23.438s23.438-10.312 23.438-23.438z"
+      />
     </SvgIcon>
   );
 }
@@ -155,7 +165,7 @@ export function MagicIcon(props: SvgIconProps) {
 }
 
 // Annelyse's lined bold (GitHub #119, annelyse/annelyse-gh119-bold.svg), in the frame B, I, U and S share. Drawn
-// heavier than 2px (2.5px measured at 22px), so left as drawn: thinning her outlines is hers to decide.
+// heavier than the glasses' 2px, so thinned by 20 units (tools/thicken_icon.py, a negative width) to a 2px line.
 export function BoldIcon(props: SvgIconProps) {
   return (
     <SvgIcon
@@ -163,7 +173,7 @@ export function BoldIcon(props: SvgIconProps) {
       {...props}
       viewBox="-150 -150 1500 1500"
     >
-      <path d="M337.5 112.5H581.25C736.58 112.5 862.5 238.42 862.5 393.75C862.5 447.25 847.56 497.26 821.63 539.84C932.62 577.48 1012.5 682.54 1012.5 806.25C1012.5 961.58 886.58 1087.5 731.25 1087.5H337.5C254.66 1087.5 187.5 1020.34 187.5 937.5V262.5C187.5 179.66 254.66 112.5 337.5 112.5ZM337.5 675V937.5H731.25C803.74 937.5 862.5 878.74 862.5 806.25C862.5 733.76 803.74 675 731.25 675ZM581.25 525C653.74 525 712.5 466.24 712.5 393.75C712.5 321.26 653.74 262.5 581.25 262.5H337.5V525Z" />
+      <path d="M337.5 122.5H581.25Q636.44 122.5 686.83 143.81Q735.5 164.4 773.05 201.95Q810.6 239.49 831.18 288.17Q852.5 338.56 852.5 393.75Q852.5 469.92 813.09 534.64Q810.93 538.18 811.91 542.2Q812.89 546.23 816.43 548.38Q817.37 548.96 818.42 549.31Q858.32 562.84 892.33 587.99Q925.97 612.86 950.61 646.66Q975.54 680.86 988.79 720.87Q1002.5 762.24 1002.5 806.25Q1002.5 861.44 981.19 911.83Q960.6 960.51 923.05 998.05Q885.51 1035.6 836.83 1056.19Q786.44 1077.5 731.25 1077.5H337.5Q309.01 1077.5 283.01 1066.5Q257.89 1055.88 238.5 1036.49Q219.12 1017.11 208.5 991.99Q197.5 965.99 197.5 937.5V262.5Q197.5 234.01 208.5 208.01Q219.12 182.89 238.5 163.5Q257.89 144.12 283.01 133.5Q309.01 122.5 337.5 122.5ZM327.5 675V937.5Q327.5 941.64 330.43 944.57Q333.36 947.5 337.5 947.5H731.25Q759.98 947.5 786.23 936.4Q811.58 925.67 831.13 906.13Q850.67 886.58 861.4 861.23Q872.5 834.98 872.5 806.25Q872.5 777.52 861.4 751.27Q850.67 725.92 831.13 706.37Q811.58 686.83 786.23 676.1Q759.98 665 731.25 665H337.5Q333.36 665 330.43 667.93Q327.5 670.86 327.5 675ZM581.25 535Q609.98 535 636.23 523.9Q661.58 513.17 681.13 493.63Q700.67 474.08 711.4 448.73Q722.5 422.48 722.5 393.75Q722.5 365.02 711.4 338.77Q700.67 313.42 681.13 293.87Q661.58 274.33 636.23 263.6Q609.98 252.5 581.25 252.5H337.5Q333.36 252.5 330.43 255.43Q327.5 258.36 327.5 262.5V525Q327.5 529.14 330.43 532.07Q333.36 535 337.5 535Z" />
     </SvgIcon>
   );
 }
@@ -183,7 +193,7 @@ export function ItalicIcon(props: SvgIconProps) {
 }
 
 // Annelyse's lined underline (GitHub #119, annelyse/annelyse-gh119-underline.svg), in the frame B, I, U and S share. Drawn
-// heavier than 2px (2.25px measured at 22px), so left as drawn: thinning her outlines is hers to decide.
+// heavier than the glasses' 2px, so thinned by 14 units (tools/thicken_icon.py, a negative width) to a 2px line.
 export function UnderlineIcon(props: SvgIconProps) {
   return (
     <SvgIcon
@@ -191,7 +201,7 @@ export function UnderlineIcon(props: SvgIconProps) {
       {...props}
       viewBox="-150 -150 1500 1500"
     >
-      <path d="M262.5 37.5C303.92 37.5 337.5 71.08 337.5 112.5V525C337.5 669.98 455.02 787.5 600 787.5C744.98 787.5 862.5 669.98 862.5 525V112.5C862.5 71.08 896.08 37.5 937.5 37.5C978.92 37.5 1012.5 71.08 1012.5 112.5V525C1012.5 752.82 827.82 937.5 600 937.5C372.18 937.5 187.5 752.82 187.5 525V112.5C187.5 71.08 221.08 37.5 262.5 37.5ZM150 1087.5C150 1066.79 166.79 1050 187.5 1050H1012.5C1033.21 1050 1050 1066.79 1050 1087.5C1050 1108.21 1033.21 1125 1012.5 1125H187.5C166.79 1125 150 1108.21 150 1087.5Z" />
+      <path d="M262.5 44.5Q290.67 44.5 310.58 64.42Q330.5 84.33 330.5 112.5V525Q330.5 579.83 351.68 629.91Q372.14 678.27 409.43 715.57Q446.73 752.86 495.09 773.32Q545.17 794.5 600 794.5Q654.83 794.5 704.91 773.32Q753.27 752.86 790.57 715.57Q827.86 678.27 848.32 629.91Q869.5 579.83 869.5 525V112.5Q869.5 84.33 889.42 64.42Q909.33 44.5 937.5 44.5Q965.67 44.5 985.58 64.42Q1005.5 84.33 1005.5 112.5V525Q1005.5 607.5 973.64 682.84Q942.86 755.61 886.73 811.73Q830.61 867.86 757.84 898.64Q682.5 930.5 600 930.5Q517.5 930.5 442.16 898.64Q369.39 867.86 313.27 811.73Q257.14 755.61 226.36 682.84Q194.5 607.5 194.5 525V112.5Q194.5 84.33 214.42 64.42Q234.33 44.5 262.5 44.5ZM157 1087.5Q157 1074.87 165.93 1065.93Q174.87 1057 187.5 1057H1012.5Q1025.13 1057 1034.07 1065.93Q1043 1074.87 1043 1087.5Q1043 1100.13 1034.07 1109.07Q1025.13 1118 1012.5 1118H187.5Q174.87 1118 165.93 1109.07Q157 1100.13 157 1087.5Z" />
     </SvgIcon>
   );
 }

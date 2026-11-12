@@ -343,7 +343,7 @@ export default function Editor() {
               disabled={draftReason !== null}
               onClick={markThisMoment}
             >
-              <AddBookmarkIconV2 fontSize="small" />
+              <AddBookmarkIconV2 fontSize="small" className="bookmark-pink" />
             </button>
             {draftReason && (
               <span id="editor-draft-reason" hidden>
