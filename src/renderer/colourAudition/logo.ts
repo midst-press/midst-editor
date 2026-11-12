@@ -1,5 +1,5 @@
-/* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse and Frida (GitHub #119), in English
-   only and never in a release; see README.md in this folder */
+/* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse and Frida (GitHub #119), in English only. It
+   is in pre-release builds, releases included, by Stuart's decision of 12 Nov 2026; see README.md in this folder */
 
 // View > Colours…: auditioning the squiggly M (GitHub #119). The app's logo is assets/midst-logo.svg, which
 // preload.ts puts in the page as #svg. Here a replacement can be read from a file, drawn in its place, given an

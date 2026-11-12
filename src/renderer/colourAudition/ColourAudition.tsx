@@ -1,5 +1,5 @@
-/* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse (GitHub #119), in English only and
-   never in a release; see README.md in this folder */
+/* eslint-disable lingui/no-unlocalized-strings -- an audition tool for Annelyse (GitHub #119), in English only. It
+   is in pre-release builds, releases included, by Stuart's decision of 12 Nov 2026; see README.md in this folder */
 import CloseIcon from '@mui/icons-material/Close';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { ThemeProvider, createTheme } from '@mui/material/styles';

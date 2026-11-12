@@ -10,7 +10,9 @@
 #   - every installer build-info lists present, with the SHA-256 it recorded at build time,
 #     so what is released is byte-for-byte what was built and tested;
 #   - not an audition build (GitHub #119): no build-info with colourAudition other than absent or
-#     false, and no artifact named for one. An audition build has View > Colours… in it.
+#     false, and no artifact named for one. An audition build was one made with package.yml's
+#     colour_audition option, removed for 0.13.0: View > Colours… is now in every build (Stuart,
+#     12 Nov 2026), so no build is named or flagged for it, and this refuses one made before.
 # On success it prints the version, and writes <download dir>/release/ holding the installers
 # (spaces in names replaced, as GitHub would) and SHA256SUMS.
 set -euo pipefail
