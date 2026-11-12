@@ -50,6 +50,14 @@ body {
 }
 
 /* The squiggly M, restored to its original size (GitHub #469). */
+/* Logo stroke weight matches icons (GitHub #469 item 3). The audition slider overrides this. */
+.svg path {
+  stroke: var(--midst-primary-dark);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 .svg {
   fill: var(--midst-primary-dark);
   opacity: 70%;
