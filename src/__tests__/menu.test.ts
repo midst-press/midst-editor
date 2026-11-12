@@ -2030,7 +2030,8 @@ describe('the menu', () => {
       expect(win.webContents.send).toHaveBeenLastCalledWith('choose-font');
     });
 
-    // GitHub #119: only an audition build has View > Colours…; a release never does.
+    // GitHub #119: View > Colours… is there only while MIDST_COLOUR_AUDITION is on, which webpack makes the default
+    // (Stuart, 12 Nov 2026); a build with it off has none.
     it('View > Colours… is only in an audition build, and opens the colour panel', () => {
       const labels = () =>
         find(lastBuild(), viewTop).submenu!.map((i) => (i as Item).label);

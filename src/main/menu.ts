@@ -832,8 +832,8 @@ export default class MenuBuilder {
         label: this.label(i18n._('menu.view.font')),
         click: () => sendToWindow(this.mainWindow, 'choose-font'),
       },
-      // View > Colours… (GitHub #119): only in an audition build, never a release. In English only, like the
-      // panel it opens; see src/renderer/colourAudition/README.md.
+      // View > Colours… (GitHub #119): in pre-release builds, releases included, by Stuart's decision of 12 Nov
+      // 2026. In English only, like the panel it opens; see src/renderer/colourAudition/README.md.
       ...(process.env.MIDST_COLOUR_AUDITION === 'true'
         ? [
             {
