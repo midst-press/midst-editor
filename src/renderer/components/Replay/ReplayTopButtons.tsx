@@ -1,8 +1,11 @@
 import Tooltip from '@mui/material/Tooltip';
 import Zoom from '@mui/material/Zoom';
-import TextIncreaseIcon from '@mui/icons-material/TextIncrease';
-import TextDecreaseIcon from '@mui/icons-material/TextDecrease';
-import VerticalAlignCenterIcon from '@mui/icons-material/VerticalAlignCenter';
+import {
+  FontIncreaseIcon,
+  FontDecreaseIcon,
+  AutoscrollIcon,
+} from '../../icons/AnnelyseIcons';
+
 import { i18n } from '../../../shared/i18n';
 import ReasonButton from './ReasonButton';
 
@@ -33,7 +36,7 @@ export default function ReplayTopButtons({
         onClick={fontSize.increase}
         className="icon-button size-icon"
       >
-        <TextIncreaseIcon fontSize="small" />
+        <FontIncreaseIcon fontSize="small" />
       </ReasonButton>
       <ReasonButton
         label={i18n._('textSize.decrease')}
@@ -42,7 +45,7 @@ export default function ReplayTopButtons({
         onClick={fontSize.decrease}
         className="icon-button size-icon"
       >
-        <TextDecreaseIcon fontSize="small" />
+        <FontDecreaseIcon fontSize="small" />
       </ReasonButton>
       <Tooltip
         title={
@@ -60,7 +63,7 @@ export default function ReplayTopButtons({
           style={following ? undefined : { opacity: 0.5 }}
           onClick={toggleFollowing}
         >
-          <VerticalAlignCenterIcon fontSize="small" />
+          <AutoscrollIcon fontSize="small" />
         </button>
       </Tooltip>
     </div>

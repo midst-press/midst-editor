@@ -321,7 +321,7 @@ ipcMain.on('focus-mode-requested', (_event, args: unknown) => {
   logIfRejected('focus mode', () => requestFocusMode(win));
 });
 
-// View > Colours… saving and reading colour sets (GitHub #119), only in an audition build.
+// View > Colours… saving and reading colour sets (GitHub #119), while MIDST_COLOUR_AUDITION is on (the default).
 // The require is never reached with the flag off, so webpack bundles none of it.
 if (process.env.MIDST_COLOUR_AUDITION === 'true') {
   // eslint-disable-next-line global-require, lingui/no-unlocalized-strings -- a module path

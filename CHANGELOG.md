@@ -1,3 +1,17 @@
+# 0.13.0
+
+- **View** > **Colours… lets you try the app's colours**, light and dark separately, and see each change straight
+  away. It covers the title bar and the window title too. Your choices are kept, can be saved to a text file with
+  **Export…** and read back with **Import…**, and never touch a poem. It is in this pre-release so the colours can
+  be designed in the app itself, and will be taken out later (GitHub #119).
+- **The Midst logo can be tried out too:** in the same panel, **Load logo from file…** draws a replacement squiggly
+  M from an .svg file (only its paths, in the space the M takes up), an outline slider makes its lines thicker, and
+  **Restore** puts the original back (GitHub #119).
+- **More of Annelyse's icons:** a new settings icon drawn in lines, one add-a-Draft-Marker icon with a plus in both
+  editing and Replay, magnifying glasses for the text size and the mouse for autoscroll in Replay too, and active
+  icons shown by colour alone, not bold. The Midst logo's lines are a little heavier, towards the icons' weight. The
+  speed controls now sit right of the play button, with the other playback controls (GitHub #120).
+
 # 0.12.0
 
 - **New toolbar icons drawn by Annelyse** for focus mode, autoscroll, making the text larger and smaller, and adding a
