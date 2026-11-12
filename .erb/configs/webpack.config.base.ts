@@ -62,8 +62,10 @@ const configuration: webpack.Configuration = {
   plugins: [
     new webpack.EnvironmentPlugin({
       NODE_ENV: 'production',
-      // View > Colours… (GitHub #119): only in an audition build, never a release. src/renderer/colourAudition/README.md
-      MIDST_COLOUR_AUDITION: 'false',
+      // View > Colours… (GitHub #119): in every build, releases included, while Midst is pre-release (Stuart's
+      // decision of 12 Nov 2026). The one switch: set MIDST_COLOUR_AUDITION=false to build without it, or follow
+      // src/renderer/colourAudition/README.md to remove it.
+      MIDST_COLOUR_AUDITION: 'true',
     }),
   ],
 };

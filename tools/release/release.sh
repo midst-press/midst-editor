@@ -42,7 +42,8 @@ trap 'rm -rf "$work"' EXIT
 commit=$(gh run view "$run" -R "$gh_repo" --json headSha --jq .headSha) || cannot "cannot read package run $run on $gh_repo"
 gh run download "$run" -R "$gh_repo" -p 'midst-macos-*' -D "$work/pkg" > "$work/download.log" 2>&1 \
   || { cat "$work/download.log" >&2; cannot "cannot download run $run's macOS package"; }
-# An audition build (GitHub #119) is never released; release.yml refuses it too (tools/verify_candidate.sh).
+# An audition build (GitHub #119), made with package.yml's colour_audition option before 0.13.0 removed it, is
+# never released; release.yml refuses it too (tools/verify_candidate.sh).
 for d in "$work"/pkg/midst-macos-*; do
   case "$d" in *colour-audition*) say "REFUSED: run $run is an audition build ($(basename "$d")), never a release"; exit 1 ;; esac
 done

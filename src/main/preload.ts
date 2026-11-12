@@ -11,7 +11,7 @@ import { StoreKey, StoreSchema } from '../shared/storeSchema';
 import { MainToWindow, WindowToMain } from '../shared/channels';
 
 let titlebar: CustomTitlebar | null = null;
-// View > Colours… (GitHub #119, audition builds only): a title-bar background chosen for a scheme, drawn in
+// View > Colours… (GitHub #119, while MIDST_COLOUR_AUDITION is on): a title-bar background chosen for a scheme, drawn in
 // place of the app's own until it is cleared.
 const chosenTitlebar: { light?: string; dark?: string } = {};
 let redrawTitlebar = () => {};
@@ -141,8 +141,8 @@ const electronHandler = {
   confirmContinueWriting(): boolean {
     return ipcRenderer.sendSync('confirm-continue-writing') === true;
   },
-  // View > Colours… saving and reading a colour set (GitHub #119): only in an audition build, where main registers
-  // the handlers. Elsewhere it is undefined, so nothing can block on a channel with no listener.
+  // View > Colours… saving and reading a colour set (GitHub #119): only while MIDST_COLOUR_AUDITION is on, when
+  // main registers the handlers. Elsewhere it is undefined, so nothing can block on a channel with no listener.
   colourFiles:
     process.env.MIDST_COLOUR_AUDITION === 'true'
       ? {
@@ -179,7 +179,7 @@ const electronHandler = {
         }
       : undefined,
   // View > Colours… (GitHub #119): the title bar is drawn here, not by the renderer's stylesheet, so its colour is
-  // set through this. Only in an audition build.
+  // set through this. Only while MIDST_COLOUR_AUDITION is on.
   titlebarColours:
     process.env.MIDST_COLOUR_AUDITION === 'true'
       ? {
