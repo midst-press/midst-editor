@@ -366,6 +366,8 @@ const setSaveEnabled = (enabled: boolean) => {
     const item = app.applicationMenu?.getMenuItemById(id);
     if (item) item.enabled = enabled;
   });
+  // The title bar on Windows and Linux draws a copy of the menu, made when it was built (#502).
+  sendToWindow(mainWindow, 'menu-changed');
 };
 ipcMain.on('enable-save', () => {
   setEditorShowing(true);

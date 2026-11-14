@@ -52,7 +52,7 @@ jest.mock('electron', () => ({
   Menu: { buildFromTemplate: jest.fn(), setApplicationMenu: jest.fn() },
   shell: { openExternal: jest.fn(), showItemInFolder: jest.fn() },
   nativeTheme: { themeSource: 'system' },
-  BrowserWindow: jest.fn(),
+  BrowserWindow: Object.assign(jest.fn(), { getAllWindows: jest.fn(() => []) }),
   ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
@@ -2287,6 +2287,19 @@ describe('the menu', () => {
         expect(sub(lastBuild(), '&Edit', 'Focus &Mode').checked).toBe(false);
       });
 
+      // #502: on Windows and Linux the title bar draws a copy of the menu, so the check must be redrawn there.
+      it('tells every window the menu changed when the mark changes', () => {
+        const win = makeWindow();
+        const other = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win, other]);
+        setFocusModeMark(true);
+        expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
+        expect(other.webContents.send).toHaveBeenCalledWith('menu-changed');
+        setFocusModeMark(false);
+      });
+
       // No accelerator, still (GitHub #25): a bare modifier chord is macOS input methods', and
       // the guide's shortcut table (shortcutTable.ts) stays unchanged until the editor names one.
       it('has no accelerator', () => {
@@ -2488,6 +2501,9 @@ describe('the menu', () => {
         expect(win.webContents.on).not.toHaveBeenCalled();
         expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
         expect(other.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
+        // #502: the title bar on Windows and Linux draws a copy of the menu, so a rebuild tells the windows.
+        expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
+        expect(other.webContents.send).toHaveBeenCalledWith('menu-changed');
       });
     });
   });

@@ -43,6 +43,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   redrawTitlebar = () => titlebar?.updateBackground(titlebarBackground());
   darkScheme?.addEventListener('change', redrawTitlebar);
+  // The title bar's menu is a copy of the app's, taken when it was built; main says when the menu changes,
+  // and the copy is taken again, so Save is no longer greyed out on Windows once the editor shows (#502).
+  ipcRenderer.on('menu-changed', () => {
+    titlebar?.refreshMenu();
+  });
 });
 
 window.addEventListener('DOMContentLoaded', () => {
