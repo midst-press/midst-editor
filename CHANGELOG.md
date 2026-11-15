@@ -1,3 +1,8 @@
+# 0.13.3
+
+- **Windows: Save and Save As work.** They were greyed out because the Windows title bar never redrew the menu once a poem was open (GitHub #133).
+- **Windows and Linux: the Focus Mode check mark and a language change now show in the title bar's menu** straight away (GitHub #133).
+
 # 0.13.2
 
 - **Annelyse's lined icons** for Close, Replay (the timeline button), play, pause, continue writing, and B, I, U and S, all at the magnifying glasses' 2px line (GitHub #119).
