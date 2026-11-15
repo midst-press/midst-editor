@@ -187,6 +187,8 @@ jobs:
           $state = @(query session 2>$null | Where-Object { $_ -match "\s$sid\s+(\w+)" } | ForEach-Object { $Matches[1] })[0]
           "$env:COMPUTERNAME as $env:USERNAME, session $sid ($state), node $node"
           if ($sid -eq 0 -or $state -ne 'Active') { throw "desktop session disconnected: session $sid is '$state', not Active. Reconnect Remote Desktop as rdpuser." }
+          # query.exe exits 1 even when it answers, and the runner's wrapper exits with the last program's code.
+          exit 0
       - name: npm ci
         run: |
           $ErrorActionPreference = 'Stop'
