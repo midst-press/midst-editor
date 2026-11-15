@@ -474,6 +474,22 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
       await hideText(win);
       // What was typed, and the last red counts per line, so a failure says which lines (#510).
       const lines = await linesShown(win);
+      // DIAGNOSTIC for #510, to be removed before review: the counts over 15 s, and where the focus is.
+      const timeline: string[] = [];
+      const t0 = Date.now();
+      while (Date.now() - t0 < 15_000) {
+        // eslint-disable-next-line no-await-in-loop -- samples in time order
+        const c = await redPerLine(app, win);
+        timeline.push(`${Date.now() - t0}:${c.join(',')}`);
+        // eslint-disable-next-line no-await-in-loop -- samples in time order
+        await win.waitForTimeout(1_000);
+      }
+      const focus = await win.evaluate(
+        () =>
+          `${document.activeElement?.className} hasFocus=${document.hasFocus()}`
+      );
+      // eslint-disable-next-line no-console
+      console.log(`DIAG510 focus=${focus} timeline=${timeline.join(' ')}`);
       let counts: number[] = [];
       await expect
         .poll(
