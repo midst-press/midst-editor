@@ -2,6 +2,9 @@
 
 - **Windows: Save and Save As work.** They were greyed out because the Windows title bar never redrew the menu once a poem was open (GitHub #133).
 - **Windows and Linux: the Focus Mode check mark and a language change now show in the title bar's menu** straight away (GitHub #133).
+- **Windows: spellcheck marks every misspelled line when it is turned on.** It now gives Windows' spellchecker 100 ms per line instead of 30, so turning spellcheck on for a long poem takes longer to reach the last line on Windows (about 33 s for 300 lines); the lines on screen are marked first (GitHub #133).
+- **View > Font… keeps the focus in its search field**, so Escape closes it, even when it is opened just as a poem finishes opening (GitHub #133).
+- **Typing is saved before New, Open, Save or closing go ahead**, so the last second of typing always reaches its own poem's file (GitHub #133).
 
 # 0.13.2
 
