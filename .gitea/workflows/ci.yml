@@ -18,7 +18,7 @@
 #
 # The end-to-end suite runs in job e2e-linux, on the Linux runner (an Ubuntu arm64 container on the Mac Studio,
 # label ubuntu-arm-latest, #260): the macOS runners have no window-server session for an Electron window. pree2e
-# downloads the Linux Electron, which `npm ci --ignore-scripts` does not.
+# downloads the Linux Electron, which `npm ci --ignore-scripts` does not. Job e2e-windows runs it on the Lenovo (#507).
 #
 # Heavy jobs on a PR's turn (midst-infra #102), as in midst-web: gates runs on every event; e2e-linux runs on a
 # push to main, and on a PR only while it carries `ci-turn` (the merge sweep's: this PR is next to merge) or
@@ -127,3 +127,51 @@ jobs:
       # pree2e puts the Linux Electron in place (tools/install-electron.cjs).
       - name: end-to-end tests, headed under Xvfb
         run: xvfb-run -a --server-args="-screen 0 1440x1000x24" npm run e2e
+
+  # The end-to-end suite on Windows (#507), the platform Annelyse uses: the Lenovo, Windows 10 Pro, whose runner alone
+  # carries lenovo-windows-canary. It runs as a service, in session 0 with no desktop, as the manual trials over ssh
+  # did. On the same turn as e2e-linux. Windows PowerShell does not fail a step when a program it ran fails, so every
+  # program's exit code is checked by hand.
+  e2e-windows:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed')) && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: lenovo-windows-canary
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The Node .nvmrc names, as e2e-linux; the Lenovo's own install is older.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+      - name: who and where
+        run: |
+          "$env:COMPUTERNAME as $env:USERNAME, session $((Get-Process -Id $PID).SessionId), node $(node --version)"
+      - name: npm ci
+        run: |
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: build
+        run: |
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself.
+      - name: Chromium for Playwright
+        run: |
+          npx playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # pree2e puts the Windows Electron in place (tools/install-electron.cjs).
+      - name: end-to-end tests
+        run: |
+          npm run e2e
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # A test that fails before it ends Midst leaves it running, and the runner keeps it for the next job. Only this
+      # job's Electron is stopped: the Lenovo also runs other work, and other runs of the suite over ssh.
+      - name: no Electron of this job left running
+        if: always()
+        run: |
+          $mine = Join-Path $env:GITHUB_WORKSPACE 'node_modules'
+          $left = @(Get-Process electron -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($mine) })
+          if ($left.Count) { "stopping $($left.Count) electron process(es) the tests left"; $left | Stop-Process -Force }
+          else { 'none left' }
