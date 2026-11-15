@@ -155,9 +155,10 @@ jobs:
           $major = (Get-Content .nvmrc -Raw).Trim().TrimStart('v')
           $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node'
           New-Item -ItemType Directory -Force $root | Out-Null
+          Get-ChildItem $root -Directory -Filter '.partial-*' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
           $byVersion = { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-win-x64$', '$1') }
           $cached = @(Get-ChildItem $root -Directory -Filter "node-v$major.*-win-x64" |
-            Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+-win-x64$' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+            Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+-win-x64$' -and (Test-Path (Join-Path $_.FullName 'node.exe')) -and (Test-Path (Join-Path $_.FullName 'npm.cmd')) } |
             Sort-Object -Property @{ Expression = $byVersion } -Descending)
           $checked = Join-Path $root "checked-v$major.txt"
           $fresh = (Test-Path $checked) -and ((Get-Item $checked).LastWriteTime -gt (Get-Date).AddDays(-7))
@@ -171,7 +172,8 @@ jobs:
             $ver = @($releases | Where-Object { $_.version -like "v$major.*" })[0].version
             if (-not $ver -or $ver -notmatch '^v\d+\.\d+\.\d+$') { throw "no single Node release for .nvmrc '$major' (got '$ver')" }
             $name = "node-$ver-win-x64"
-            if (-not (Test-Path (Join-Path $root "$name\node.exe"))) {
+            $dest = Join-Path $root $name
+            if (-not ((Test-Path (Join-Path $dest 'node.exe')) -and (Test-Path (Join-Path $dest 'npm.cmd')))) {
               $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
               # curl.exe (Windows ships it): Invoke-WebRequest's GET of the zip got 400 from nodejs.org here.
               curl.exe -fsSL -o $zip "https://nodejs.org/dist/$ver/$name.zip"
@@ -182,9 +184,17 @@ jobs:
               $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
               if (-not $want -or $got -ne $want.Trim()) { throw "checksum of $name.zip: got $got, SHASUMS256.txt says '$want'" }
               # tar.exe, which Windows ships, unpacks the 1938 files in about 3 s; Expand-Archive took minutes here.
-              tar.exe -xf $zip -C $root
+              # Into a folder of its own first, renamed into place only when complete: a job cancelled mid-unpack
+              # (cancel-in-progress) must not leave a partial Node that the next week's jobs take as cached.
+              $partial = Join-Path $root ".partial-$name-$PID"
+              New-Item -ItemType Directory -Force $partial | Out-Null
+              tar.exe -xf $zip -C $partial
               if ($LASTEXITCODE) { throw "unpacking $name.zip failed: tar exit $LASTEXITCODE" }
-              if (-not (Test-Path (Join-Path $root "$name\node.exe"))) { throw "unpacked $name.zip but there is no $name\node.exe" }
+              $got = Join-Path $partial $name
+              if (-not ((Test-Path (Join-Path $got 'node.exe')) -and (Test-Path (Join-Path $got 'npm.cmd')))) { throw "unpacked $name.zip but node.exe or npm.cmd is missing" }
+              if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+              Move-Item $got $dest
+              Remove-Item -Recurse -Force $partial
               Remove-Item $zip
               "downloaded $name"
             } else { "asked nodejs.org: $name is the newest, and is already here" }
