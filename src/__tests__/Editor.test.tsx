@@ -708,12 +708,41 @@ describe('Editor: autosave', () => {
     ]);
     expect(answer).toBeGreaterThan(poem);
     expect(answer).toBeGreaterThan(history);
-    // The menu action does its own save; this one does not, and the pending autosave still runs.
-    expect(bridge.sends('save-file')).toHaveLength(0);
+  });
+
+  // #522: left to run, the pending autosave fired after New or Open had put another document in the store. It
+  // wrote this poem's text to that document's path, or was abandoned with this poem's last keystrokes.
+  it('when the menu asks with an autosave pending, saves at once, before answering, and nothing saves later (#522)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 7);
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    expect(bridge.index('send', 'editor-flushed')).toBeGreaterThan(
+      bridge.index('send', 'save-file')
+    );
+    expect(bridge.index('send', 'save-file')).toBeGreaterThan(
+      bridge.index('store.set', 'poem')
+    );
+    act(() => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+  });
+
+  it('when the menu asks with nothing pending, stores the poem and answers without a save (#157)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    expect(bridge.sends('save-file')).toHaveLength(1);
+    bridge.clear();
+    bridge.emit('flush-editor', 3);
+    expect(bridge.values.poem).toContain('xv');
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    expect(bridge.sends('editor-flushed')).toEqual([
+      { kind: 'send', args: ['editor-flushed', [3]] },
+    ]);
   });
 
   it('after File > Save inside the autosave’s second, the next keystroke marks the document unsaved at once (#113)', () => {

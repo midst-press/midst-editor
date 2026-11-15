@@ -103,17 +103,23 @@ export default function Editor() {
   // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
   // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
   // too, before the unsaved-changes prompt, so the poem they would replace is the poem on screen (#113).
-  // The pending autosave is left to run.
+  // A pending autosave is made now, not left to run (#522): left to run, it fired after New or Open had put
+  // another document in the store, and either wrote this poem's text to that document's path or was
+  // abandoned with this poem's last keystrokes. Its save-file reaches main before the answer, as the store
+  // writes do, so this poem's file is written before main goes on.
+  const { flushNow } = autosave;
   useEffect(
     () =>
       window.electron.ipcRenderer.on('flush-editor', (id) => {
-        const doc = latest.current;
-        typedSinceStored.current = false;
-        window.electron.store.set('poem', doc.htmlString);
-        window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        if (!flushNow()) {
+          const doc = latest.current;
+          typedSinceStored.current = false;
+          window.electron.store.set('poem', doc.htmlString);
+          window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        }
         window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
       }),
-    []
+    [flushNow]
   );
   useEffect(() => {
     saveFileAndUpdateStore();
