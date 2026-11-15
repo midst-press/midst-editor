@@ -137,6 +137,7 @@ const electronHandler = {
   },
   versions: {
     isMac: process.platform === 'darwin',
+    isWindows: process.platform === 'win32',
   },
   // The languages in the order the main process shows them: English, the system's own, the rest (editor #265).
   languageOrder(): string[] {
