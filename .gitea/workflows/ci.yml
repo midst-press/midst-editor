@@ -18,7 +18,7 @@
 #
 # The end-to-end suite runs in job e2e-linux, on the Linux runner (an Ubuntu arm64 container on the Mac Studio,
 # label ubuntu-arm-latest, #260): the macOS runners have no window-server session for an Electron window. pree2e
-# downloads the Linux Electron, which `npm ci --ignore-scripts` does not.
+# downloads the Linux Electron, which `npm ci --ignore-scripts` does not. Job e2e-windows runs it on the Lenovo (#507).
 #
 # Heavy jobs on a PR's turn (midst-infra #102), as in midst-web: gates runs on every event; e2e-linux runs on a
 # push to main, and on a PR only while it carries `ci-turn` (the merge sweep's: this PR is next to merge) or
@@ -127,3 +127,136 @@ jobs:
       # pree2e puts the Linux Electron in place (tools/install-electron.cjs).
       - name: end-to-end tests, headed under Xvfb
         run: xvfb-run -a --server-args="-screen 0 1440x1000x24" npm run e2e
+
+  # The end-to-end suite on Windows (#507), the platform Annelyse uses: the Lenovo, Windows 10 Pro. It runs on the
+  # lenovo-desktop runner, rdpuser's own, started at login in rdpuser's desktop session (Stuart, 15 Nov): Windows'
+  # spellchecker does not mark typed words the same way in session 0, where a service or ssh runs (#510). That runner
+  # is for this job only. On the same turn as e2e-linux. Windows PowerShell does not fail a step when a program it ran
+  # fails, so every program's exit code is checked by hand.
+  e2e-windows:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed')) && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: lenovo-desktop
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The Node .nvmrc names, as e2e-linux; the Lenovo's own install is older. Not setup-node: on this runner its
+      # 7zr.exe fails to extract (exit code 2, run 15190). Node is kept in rdpuser's %LOCALAPPDATA%\midst-ci\node,
+      # which lasts between jobs (RUNNER_TOOL_CACHE does not: the runner makes a new one for each job). A cached
+      # release of the .nvmrc major is used with no network at all. nodejs.org is asked for a newer one at most once
+      # a week, and a release is downloaded only when it is not already here: as a .zip, checked against
+      # SHASUMS256.txt, unpacked with tar.exe. npm's packages, Electron and Playwright's Chromium are cached
+      # in the same profile by their own tools.
+      - name: Node from .nvmrc
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $major = (Get-Content .nvmrc -Raw).Trim().TrimStart('v')
+          $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node'
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $byVersion = { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-win-x64$', '$1') }
+          $cached = @(Get-ChildItem $root -Directory -Filter "node-v$major.*-win-x64" |
+            Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+-win-x64$' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+            Sort-Object -Property @{ Expression = $byVersion } -Descending)
+          $checked = Join-Path $root "checked-v$major.txt"
+          $fresh = (Test-Path $checked) -and ((Get-Item $checked).LastWriteTime -gt (Get-Date).AddDays(-7))
+          if ($cached.Count -and $fresh) {
+            $name = $cached[0].Name
+            "cached, and nodejs.org was asked within the week: no network"
+          } else {
+            # Assigned first: Windows PowerShell passes Invoke-RestMethod's array down a pipe as ONE object, and the
+            # filter then matched every release at once.
+            $releases = Invoke-RestMethod https://nodejs.org/dist/index.json
+            $ver = @($releases | Where-Object { $_.version -like "v$major.*" })[0].version
+            if (-not $ver -or $ver -notmatch '^v\d+\.\d+\.\d+$') { throw "no single Node release for .nvmrc '$major' (got '$ver')" }
+            $name = "node-$ver-win-x64"
+            if (-not (Test-Path (Join-Path $root "$name\node.exe"))) {
+              $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+              # curl.exe (Windows ships it): Invoke-WebRequest's GET of the zip got 400 from nodejs.org here.
+              curl.exe -fsSL -o $zip "https://nodejs.org/dist/$ver/$name.zip"
+              if ($LASTEXITCODE) { throw "download of $name.zip failed: curl exit $LASTEXITCODE" }
+              $sums = curl.exe -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt"
+              if ($LASTEXITCODE) { throw "download of SHASUMS256.txt failed: curl exit $LASTEXITCODE" }
+              $want = ($sums | Where-Object { $_ -match " $name\.zip$" }) -replace ' .*$', ''
+              $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+              if (-not $want -or $got -ne $want.Trim()) { throw "checksum of $name.zip: got $got, SHASUMS256.txt says '$want'" }
+              # tar.exe, which Windows ships, unpacks the 1938 files in about 3 s; Expand-Archive took minutes here.
+              tar.exe -xf $zip -C $root
+              if ($LASTEXITCODE) { throw "unpacking $name.zip failed: tar exit $LASTEXITCODE" }
+              if (-not (Test-Path (Join-Path $root "$name\node.exe"))) { throw "unpacked $name.zip but there is no $name\node.exe" }
+              Remove-Item $zip
+              "downloaded $name"
+            } else { "asked nodejs.org: $name is the newest, and is already here" }
+            Set-Content -Path $checked -Value (Get-Date -Format o)
+          }
+          $dir = Join-Path $root $name
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+          "Node $name from $dir"
+      # Each step sets ErrorActionPreference Stop: a command that is not found then fails the step, where
+      # $LASTEXITCODE alone would stay $null and let the step pass having run nothing.
+      # The desktop session must be connected: when Remote Desktop drops, the session is Disc, and the suite would
+      # then fail as red spellcheck. Fail here instead, in words that say what to do.
+      - name: who and where
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $node = node --version
+          if ($LASTEXITCODE -or -not $node) { throw 'node did not run' }
+          $sid = (Get-Process -Id $PID).SessionId
+          $state = @(query session 2>$null | Where-Object { $_ -match "\s$sid\s+(\w+)" } | ForEach-Object { $Matches[1] })[0]
+          "$env:COMPUTERNAME as $env:USERNAME, session $sid ($state), node $node"
+          if ($sid -eq 0 -or $state -ne 'Active') { throw "desktop session disconnected: session $sid is '$state', not Active. Reconnect Remote Desktop as rdpuser." }
+          # query.exe exits 1 even when it answers, and the runner's wrapper exits with the last program's code.
+          exit 0
+      - name: npm ci
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm ci --ignore-scripts
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself.
+      - name: Chromium for Playwright
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npx playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # pree2e puts the Windows Electron in place (tools/install-electron.cjs).
+      - name: end-to-end tests
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run e2e
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # A test that fails before it ends Midst leaves it running, and the runner keeps it for the next job: an
+      # electron.exe left running locks node_modules\electron\dist, and the next npm ci here fails. Only this job's
+      # Electron, and Playwright's Chromium, are stopped: the Lenovo also runs other work, and runs of the suite over
+      # ssh. Paths are compared in full form and ignoring case, since the runner may give the workspace with / or a
+      # different case.
+      - name: no Electron or Chromium of this job left running
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $full = { param($p) [IO.Path]::GetFullPath($p).TrimEnd('\') + '\' }
+          $roots = @(& $full (Join-Path $env:GITHUB_WORKSPACE 'node_modules'))
+          $browsers = if ($env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH } else { Join-Path $env:LOCALAPPDATA 'ms-playwright' }
+          $roots += & $full $browsers
+          $left = @(Get-Process electron, chrome, chrome-headless-shell -ErrorAction SilentlyContinue | Where-Object {
+            $path = $_.Path
+            $path -and @($roots | Where-Object { [IO.Path]::GetFullPath($path).StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count
+          })
+          "looked under: $($roots -join '; ')"
+          if ($left.Count) {
+            "stopping $($left.Count): $(($left | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')"
+            $left | Stop-Process -Force
+            Start-Sleep -Seconds 2
+          }
+          # Then look again, and fail if anything is still there: a stop that did not take must not read as clean.
+          $still = @(Get-Process electron, chrome, chrome-headless-shell -ErrorAction SilentlyContinue | Where-Object {
+            $path = $_.Path
+            $path -and @($roots | Where-Object { [IO.Path]::GetFullPath($path).StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count
+          })
+          if ($still.Count) { throw "still running after the stop: $(($still | ForEach-Object { "$($_.ProcessName) $($_.Id) $($_.Path)" }) -join ', ')" }
+          'none left'
