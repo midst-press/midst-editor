@@ -1,4 +1,5 @@
 import { Editor } from '@tiptap/core';
+import { focusUnlessKept } from './focusKeepers';
 
 // Where the cursor was when the poet left the editor (GitHub #24). Going to Replay unmounts the editor, and
 // coming back makes a new one from the stored poem, which would start with the cursor at the top. The
@@ -46,7 +47,8 @@ export function restoreCursor(editor: Editor): boolean {
   // setTextSelection keeps the positions inside the document; focus() then scrolls the cursor into view, and
   // the page is put back where it was, which may not be at the cursor.
   editor.commands.setTextSelection({ from: was.anchor, to: was.head });
-  editor.commands.focus();
+  // Unless the find bar, the font picker or a KEEPS_FOCUS panel has it by the next frame (#516).
+  focusUnlessKept(editor);
   const { scrollTop } = was;
   if (typeof scrollTop === 'number') {
     const { dom } = editor.view;

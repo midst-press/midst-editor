@@ -10,7 +10,6 @@ import {
   TimelineModeIcon as HistoryIcon,
   AddBookmarkIconV2,
 } from '../../icons/AnnelyseIcons';
-import KEEPS_FOCUS from '../../keepsFocus';
 import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
@@ -23,14 +22,14 @@ import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
-import { FONT_PICKER_CLASS } from '../../poemFont/FontPicker';
+import FindBar from '../../search/FindBar';
 import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import useFocusMode from './useFocusMode';
 import { rememberCursor, restoreCursor } from './cursorReturn';
+import { focusUnlessKept, keepsFocus } from './focusKeepers';
 import { i18n } from '../../../shared/i18n';
 import { changesMade } from '../../../shared/firstFrame';
 
@@ -153,15 +152,8 @@ export default function Editor() {
     editor: EditorType;
     event: FocusEvent;
   }) => {
-    // The find bar, the font picker and anything marked KEEPS_FOCUS take the focus on purpose; taking it back
-    // would leave the poet unable to type there, and the font picker's Escape would never reach it (GitHub #112,
-    // editor #417). Worse, what was typed there went into the poem (View > Colours…, GitHub #119).
-    const to = event.relatedTarget;
-    if (
-      to instanceof Element &&
-      to.closest(`.${FIND_BAR_CLASS}, .${FONT_PICKER_CLASS}, [${KEEPS_FOCUS}]`)
-    )
-      return;
+    // The find bar, the font picker and anything marked KEEPS_FOCUS keep the focus (focusKeepers.ts).
+    if (keepsFocus(event.relatedTarget)) return;
     // Without moving the page (GitHub #92): focus() scrolls the caret into view by default, so a click in the
     // header or footer of a long poem the poet had scrolled away from jumped back to the caret.
     if (window.electron.versions.isMac) {
@@ -257,7 +249,7 @@ export default function Editor() {
   // before. Leaving, by any route, remembers it.
   const created = useRef<EditorType | null>(null);
   const onCreate = ({ editor }: { editor: EditorType }) => {
-    if (!restoreCursor(editor)) editor.commands.focus();
+    if (!restoreCursor(editor)) focusUnlessKept(editor);
     created.current = editor;
     setMyEditor(editor);
   };
