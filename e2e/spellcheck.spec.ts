@@ -456,30 +456,6 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
       await markingHasBegun(app, win);
       // Through the OS on Windows: its checker marks typed words only when they arrive as real keystrokes (#510).
       await caretToPoemEnd(win);
-      // DIAGNOSTIC for #510, to be removed: the events the typing produced.
-      await win.evaluate(() => {
-        const w = window as unknown as { diag: string[] };
-        w.diag = [];
-        const dom = document.querySelector('.ProseMirror') as HTMLElement;
-        [
-          'keydown',
-          'beforeinput',
-          'compositionstart',
-          'compositionend',
-          'input',
-        ].forEach((type) =>
-          dom.addEventListener(
-            type,
-            (e) => {
-              const k = e as KeyboardEvent & InputEvent;
-              w.diag.push(
-                `${type}:${k.key ?? ''}${k.inputType ?? ''}${k.isComposing ? '*' : ''}`
-              );
-            },
-            true
-          )
-        );
-      });
       await osType(
         app,
         win,
@@ -512,16 +488,6 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
         () =>
           `${document.activeElement?.className} hasFocus=${document.hasFocus()}`
       );
-      const events = await win.evaluate(() => {
-        const ed = (
-          document.querySelector('.ProseMirror') as unknown as {
-            editor: { view: { composing: boolean } };
-          }
-        ).editor;
-        return `composing=${ed.view.composing} ${(window as unknown as { diag: string[] }).diag.join(' ')}`;
-      });
-      // eslint-disable-next-line no-console
-      console.log(`DIAG510 events ${events}`);
       // eslint-disable-next-line no-console
       console.log(`DIAG510 focus=${focus} timeline=${timeline.join(' ')}`);
       let counts: number[] = [];
