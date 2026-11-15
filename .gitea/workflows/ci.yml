@@ -241,7 +241,12 @@ jobs:
             if ((Get-Item node_modules -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { cmd /c rmdir node_modules }
             else { Remove-Item -Recurse -Force node_modules }
           }
-          if (Test-Path (Join-Path $entry 'complete.txt')) {
+          # A hit needs the marker AND the copy's own contents: if a workspace delete ever followed the junction, the
+          # marker would outlive an emptied copy, and every job with this lockfile would fail (Cyril).
+          $whole = (Test-Path (Join-Path $entry 'complete.txt')) -and
+            (Test-Path (Join-Path $cached '.package-lock.json')) -and
+            (Test-Path (Join-Path $cached 'electron\package.json'))
+          if ($whole) {
             "cache hit: $key"
           } else {
             "cache miss: $key; npm ci"
