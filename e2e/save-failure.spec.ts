@@ -1,15 +1,12 @@
 import { test, expect } from '@playwright/test';
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-} from 'fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { basename, join } from 'path';
 import { makeMidst } from './fixtures';
 import {
+  allowAgain,
+  DENIED,
+  denyWritingIn,
   dialogsSeen,
   launch,
   openDocument,
@@ -49,9 +46,9 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
     await win.waitForTimeout(SETTLE_MS);
     const saved = readFileSync(poemPath, 'utf8');
 
-    chmodSync(folder, 0o555);
+    denyWritingIn(folder);
     // CONTROL: this user cannot create a file in the folder, or the test proves nothing (root can).
-    expect(() => writeFileSync(join(folder, 'probe'), '')).toThrow(/EACCES/);
+    expect(() => writeFileSync(join(folder, 'probe'), '')).toThrow(DENIED);
     // CONTROL: the log is readable and has no failed save yet, and no dialog has been shown.
     expect(readLog(logDir).length).toBeGreaterThan(0);
     expect(readLog(logDir).map((r) => r.msg)).not.toContain(NOT_WRITTEN);
@@ -102,7 +99,9 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
         source: 'main',
         meta: { filename: poemPath },
       });
-      expect((f.meta as { reason: string }).reason).toMatch(/^EACCES/);
+      expect((f.meta as { reason: string }).reason).toMatch(
+        new RegExp(`^${DENIED}`)
+      );
     });
 
     // The poem's file is as it was, and no word of the poem is in the log.
@@ -112,7 +111,7 @@ test('a save into a read-only folder: the poet is told, main.log says why, and t
       expect(logged).not.toContain(word)
     );
   } finally {
-    chmodSync(folder, 0o755);
+    allowAgain(folder, 0o755);
     await app.close();
     delete process.env.MIDST_LOG_DIR;
   }

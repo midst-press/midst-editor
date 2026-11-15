@@ -8,6 +8,7 @@ import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import { FONT_PICKER_CLASS } from '../renderer/poemFont/FontPicker';
 import KEEPS_FOCUS from '../renderer/keepsFocus';
+import { FIND_BAR_CLASS } from '../renderer/search/FindBar';
 import {
   AUDITION_COLOURS,
   noChoices,
@@ -400,6 +401,46 @@ describe('Editor: content and appearance', () => {
     expect(document.activeElement).toBe(proseMirror());
   });
 
+  // #516, seen on the Windows desktop runner: the editor's first focus lands a frame after it is created, and
+  // View > Font… opened in between lost its search field to the poem, so Escape no longer closed it. Whatever keeps
+  // the focus by that frame keeps it, on every platform.
+  it.each([
+    [
+      'the font picker',
+      (el: HTMLElement) => el.classList.add(FONT_PICKER_CLASS),
+    ],
+    ['the find bar', (el: HTMLElement) => el.classList.add(FIND_BAR_CLASS)],
+    [
+      'a panel marked KEEPS_FOCUS',
+      (el: HTMLElement) => el.setAttribute(KEEPS_FOCUS, ''),
+    ],
+  ])(
+    'does not take the focus from %s focused before its first frame',
+    (_name, mark) => {
+      // A text no earlier test left a cursor in, so this is onCreate's own focus, not the return from Replay.
+      mount({ initialText: `<p>zq516 ${_name}</p>` }); // created: its focus waits for the next frame
+      const panel = document.createElement('div');
+      mark(panel);
+      const field = document.createElement('input');
+      panel.appendChild(field);
+      document.body.appendChild(panel);
+      act(() => field.focus());
+      settleFocus();
+      expect(document.activeElement).toBe(field);
+      panel.remove();
+    }
+  );
+
+  it('still takes the focus at its first frame from anything that does not keep it', () => {
+    mount({ initialText: '<p>zq516 control</p>' });
+    const other = document.createElement('input');
+    document.body.appendChild(other);
+    act(() => other.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(proseMirror());
+    other.remove();
+  });
+
   it('on a Mac, takes focus back when the editor loses it; elsewhere it does not', () => {
     bridge = installBridge({}, true);
     const { unmount } = mount();
@@ -667,12 +708,41 @@ describe('Editor: autosave', () => {
     ]);
     expect(answer).toBeGreaterThan(poem);
     expect(answer).toBeGreaterThan(history);
-    // The menu action does its own save; this one does not, and the pending autosave still runs.
-    expect(bridge.sends('save-file')).toHaveLength(0);
+  });
+
+  // #522: left to run, the pending autosave fired after New or Open had put another document in the store. It
+  // wrote this poem's text to that document's path, or was abandoned with this poem's last keystrokes.
+  it('when the menu asks with an autosave pending, saves at once, before answering, and nothing saves later (#522)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
+    bridge.clear();
+    bridge.emit('flush-editor', 7);
+    expect(bridge.sends('save-file')).toHaveLength(1);
+    expect(bridge.index('send', 'editor-flushed')).toBeGreaterThan(
+      bridge.index('send', 'save-file')
+    );
+    expect(bridge.index('send', 'save-file')).toBeGreaterThan(
+      bridge.index('store.set', 'poem')
+    );
+    act(() => {
+      jest.advanceTimersByTime(10_000);
+    });
+    expect(bridge.sends('save-file')).toHaveLength(1);
+  });
+
+  it('when the menu asks with nothing pending, stores the poem and answers without a save (#157)', () => {
+    mount({ initialText: '<p>zq</p>' });
+    typeText('xv');
     act(() => {
       jest.advanceTimersByTime(1000);
     });
-    expect(bridge.sends('save-file')).toHaveLength(1);
+    bridge.clear();
+    bridge.emit('flush-editor', 3);
+    expect(bridge.values.poem).toContain('xv');
+    expect(bridge.sends('save-file')).toHaveLength(0);
+    expect(bridge.sends('editor-flushed')).toEqual([
+      { kind: 'send', args: ['editor-flushed', [3]] },
+    ]);
   });
 
   it('after File > Save inside the autosave’s second, the next keystroke marks the document unsaved at once (#113)', () => {
