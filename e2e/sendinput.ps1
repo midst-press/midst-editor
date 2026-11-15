@@ -43,6 +43,43 @@ public static class MidstKeys {
   public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")]
   public static extern bool SetForegroundWindow(IntPtr hWnd);
+  [DllImport("user32.dll")]
+  static extern bool BringWindowToTop(IntPtr hWnd);
+  [DllImport("user32.dll")]
+  static extern bool IsIconic(IntPtr hWnd);
+  [DllImport("user32.dll")]
+  static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+  [DllImport("user32.dll")]
+  static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+  [DllImport("user32.dll")]
+  static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+  [DllImport("kernel32.dll")]
+  static extern uint GetCurrentThreadId();
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+  static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
+
+  // Windows lets a process bring a window to the front only if it owns the foreground, so this joins the input
+  // queue of the window that is in front for the moment it asks, and no keystroke goes to that window.
+  public static void Bring(IntPtr target) {
+    if (IsIconic(target)) ShowWindow(target, 9);
+    IntPtr front = GetForegroundWindow();
+    uint ignored;
+    uint frontThread = GetWindowThreadProcessId(front, out ignored);
+    uint me = GetCurrentThreadId();
+    bool joined = frontThread != 0 && frontThread != me && AttachThreadInput(me, frontThread, true);
+    BringWindowToTop(target);
+    SetForegroundWindow(target);
+    if (joined) AttachThreadInput(me, frontThread, false);
+  }
+
+  // Which window is in front, for a failure message: its handle, title and process id.
+  public static string Describe(IntPtr hWnd) {
+    System.Text.StringBuilder title = new System.Text.StringBuilder(256);
+    GetWindowText(hWnd, title, title.Capacity);
+    uint pid;
+    GetWindowThreadProcessId(hWnd, out pid);
+    return hWnd + " \"" + title + "\" (process " + pid + ")";
+  }
 
   static void Send(INPUT[] inputs) {
     uint sent = SendInput((uint)inputs.Length, inputs, Marshal.SizeOf(typeof(INPUT)));
@@ -70,13 +107,17 @@ public static class MidstKeys {
 '@
 
 $target = [IntPtr][Int64]$Hwnd
-[void][MidstKeys]::SetForegroundWindow($target)
-Start-Sleep -Milliseconds 200
+foreach ($try in 1..5) {
+  [MidstKeys]::Bring($target)
+  Start-Sleep -Milliseconds 200
+  if ([MidstKeys]::GetForegroundWindow() -eq $target) { break }
+}
 
 function Assert-Foreground {
   $now = [MidstKeys]::GetForegroundWindow()
   if ($now -ne $target) {
-    [Console]::Error.WriteLine("sendinput: the foreground window is $now, not Midst's $target; nothing more sent")
+    $front = [MidstKeys]::Describe($now)
+    [Console]::Error.WriteLine("sendinput: the foreground window is $front, not Midst's $target; nothing more sent")
     exit 3
   }
 }

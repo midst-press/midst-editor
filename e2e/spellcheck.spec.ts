@@ -472,16 +472,26 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
         POET_MS
       );
       await hideText(win);
+      // What was typed, and the last red counts per line, so a failure says which lines (#510).
+      const lines = await linesShown(win);
+      let counts: number[] = [];
       await expect
         .poll(
-          async () =>
-            (await redPerLine(app, win)).slice(1, 4).every((n) => n > 0),
+          async () => {
+            counts = await redPerLine(app, win);
+            return counts.slice(1, 4).every((n) => n > 0);
+          },
           {
-            message: 'not every misspelled line is marked',
+            message: `not every misspelled line is marked; the lines were ${lines}`,
             timeout: 5_000,
           }
         )
-        .toBe(true);
+        .toBe(true)
+        .catch((e: Error) => {
+          throw new Error(
+            `${e.message}\nred per line, last sample: ${counts.join(',')}`
+          );
+        });
     } finally {
       await app.close();
     }
