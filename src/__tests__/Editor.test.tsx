@@ -8,6 +8,7 @@ import type { ElectronHandler } from 'main/preload';
 import { ChangeObj } from '@midst-press/midst-format/history';
 import { FONT_PICKER_CLASS } from '../renderer/poemFont/FontPicker';
 import KEEPS_FOCUS from '../renderer/keepsFocus';
+import { FIND_BAR_CLASS } from '../renderer/search/FindBar';
 import {
   AUDITION_COLOURS,
   noChoices,
@@ -398,6 +399,45 @@ describe('Editor: content and appearance', () => {
     mount();
     settleFocus();
     expect(document.activeElement).toBe(proseMirror());
+  });
+
+  // #516, seen on the Windows desktop runner: the editor's first focus lands a frame after it is created, and
+  // View > Font… opened in between lost its search field to the poem, so Escape no longer closed it. Whatever keeps
+  // the focus by that frame keeps it, on every platform.
+  it.each([
+    [
+      'the font picker',
+      (el: HTMLElement) => el.classList.add(FONT_PICKER_CLASS),
+    ],
+    ['the find bar', (el: HTMLElement) => el.classList.add(FIND_BAR_CLASS)],
+    [
+      'a panel marked KEEPS_FOCUS',
+      (el: HTMLElement) => el.setAttribute(KEEPS_FOCUS, ''),
+    ],
+  ])(
+    'does not take the focus from %s focused before its first frame',
+    (_name, mark) => {
+      mount(); // created: its focus waits for the next frame
+      const panel = document.createElement('div');
+      mark(panel);
+      const field = document.createElement('input');
+      panel.appendChild(field);
+      document.body.appendChild(panel);
+      act(() => field.focus());
+      settleFocus();
+      expect(document.activeElement).toBe(field);
+      panel.remove();
+    }
+  );
+
+  it('still takes the focus at its first frame from anything that does not keep it', () => {
+    mount();
+    const other = document.createElement('input');
+    document.body.appendChild(other);
+    act(() => other.focus());
+    settleFocus();
+    expect(document.activeElement).toBe(proseMirror());
+    other.remove();
   });
 
   it('on a Mac, takes focus back when the editor loses it; elsewhere it does not', () => {
