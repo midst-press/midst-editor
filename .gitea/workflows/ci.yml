@@ -143,37 +143,56 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # The Node .nvmrc names, as e2e-linux; the Lenovo's own install is older. Not setup-node: on this runner its
-      # 7zr.exe fails to extract (exit code 2, run 15190). The newest release of the .nvmrc major comes from
-      # nodejs.org as a .zip, is checked against SHASUMS256.txt, unpacked with Expand-Archive, and kept between jobs.
+      # 7zr.exe fails to extract (exit code 2, run 15190). Node is kept in rdpuser's %LOCALAPPDATA%\midst-ci\node,
+      # which lasts between jobs (RUNNER_TOOL_CACHE does not: the runner makes a new one for each job). A cached
+      # release of the .nvmrc major is used with no network at all. nodejs.org is asked for a newer one at most once
+      # a week, and a release is downloaded only when it is not already here: as a .zip, checked against
+      # SHASUMS256.txt, unpacked with tar.exe. npm's packages, Electron and Playwright's Chromium are cached
+      # in the same profile by their own tools.
       - name: Node from .nvmrc
         run: |
           $ErrorActionPreference = 'Stop'
           $major = (Get-Content .nvmrc -Raw).Trim().TrimStart('v')
-          # Assigned first: Windows PowerShell passes Invoke-RestMethod's array down a pipe as ONE object, and the
-          # filter then matched every release at once.
-          $releases = Invoke-RestMethod https://nodejs.org/dist/index.json
-          $ver = @($releases | Where-Object { $_.version -like "v$major.*" })[0].version
-          if (-not $ver -or $ver -notmatch '^v\d+\.\d+\.\d+$') { throw "no single Node release for .nvmrc '$major' (got '$ver')" }
-          $name = "node-$ver-win-x64"
-          # The runner's tool cache when it names one; otherwise C:\kindled-ci, where this runner's jobs keep things.
-          $cache = if ($env:RUNNER_TOOL_CACHE) { $env:RUNNER_TOOL_CACHE } else { 'C:\kindled-ci' }
-          $root = Join-Path $cache 'midst-node'
-          $dir = Join-Path $root $name
-          if (-not (Test-Path (Join-Path $dir 'node.exe'))) {
-            New-Item -ItemType Directory -Force $root | Out-Null
-            $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
-            # curl.exe (Windows ships it): Invoke-WebRequest's GET of the zip got 400 from nodejs.org here.
-            curl.exe -fsSL -o $zip "https://nodejs.org/dist/$ver/$name.zip"
-            if ($LASTEXITCODE) { throw "download of $name.zip failed: curl exit $LASTEXITCODE" }
-            $sums = curl.exe -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt"
-            if ($LASTEXITCODE) { throw "download of SHASUMS256.txt failed: curl exit $LASTEXITCODE" }
-            $want = ($sums | Where-Object { $_ -match " $name\.zip$" }) -replace ' .*$', ''
-            $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-            if (-not $want -or $got -ne $want.Trim()) { throw "checksum of $name.zip: got $got, SHASUMS256.txt says '$want'" }
-            Expand-Archive $zip -DestinationPath $root -Force
+          $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node'
+          New-Item -ItemType Directory -Force $root | Out-Null
+          $byVersion = { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-win-x64$', '$1') }
+          $cached = @(Get-ChildItem $root -Directory -Filter "node-v$major.*-win-x64" |
+            Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+-win-x64$' -and (Test-Path (Join-Path $_.FullName 'node.exe')) } |
+            Sort-Object -Property @{ Expression = $byVersion } -Descending)
+          $checked = Join-Path $root "checked-v$major.txt"
+          $fresh = (Test-Path $checked) -and ((Get-Item $checked).LastWriteTime -gt (Get-Date).AddDays(-7))
+          if ($cached.Count -and $fresh) {
+            $name = $cached[0].Name
+            "cached, and nodejs.org was asked within the week: no network"
+          } else {
+            # Assigned first: Windows PowerShell passes Invoke-RestMethod's array down a pipe as ONE object, and the
+            # filter then matched every release at once.
+            $releases = Invoke-RestMethod https://nodejs.org/dist/index.json
+            $ver = @($releases | Where-Object { $_.version -like "v$major.*" })[0].version
+            if (-not $ver -or $ver -notmatch '^v\d+\.\d+\.\d+$') { throw "no single Node release for .nvmrc '$major' (got '$ver')" }
+            $name = "node-$ver-win-x64"
+            if (-not (Test-Path (Join-Path $root "$name\node.exe"))) {
+              $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+              # curl.exe (Windows ships it): Invoke-WebRequest's GET of the zip got 400 from nodejs.org here.
+              curl.exe -fsSL -o $zip "https://nodejs.org/dist/$ver/$name.zip"
+              if ($LASTEXITCODE) { throw "download of $name.zip failed: curl exit $LASTEXITCODE" }
+              $sums = curl.exe -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt"
+              if ($LASTEXITCODE) { throw "download of SHASUMS256.txt failed: curl exit $LASTEXITCODE" }
+              $want = ($sums | Where-Object { $_ -match " $name\.zip$" }) -replace ' .*$', ''
+              $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+              if (-not $want -or $got -ne $want.Trim()) { throw "checksum of $name.zip: got $got, SHASUMS256.txt says '$want'" }
+              # tar.exe, which Windows ships, unpacks the 1938 files in about 3 s; Expand-Archive took minutes here.
+              tar.exe -xf $zip -C $root
+              if ($LASTEXITCODE) { throw "unpacking $name.zip failed: tar exit $LASTEXITCODE" }
+              if (-not (Test-Path (Join-Path $root "$name\node.exe"))) { throw "unpacked $name.zip but there is no $name\node.exe" }
+              Remove-Item $zip
+              "downloaded $name"
+            } else { "asked nodejs.org: $name is the newest, and is already here" }
+            Set-Content -Path $checked -Value (Get-Date -Format o)
           }
+          $dir = Join-Path $root $name
           Add-Content -Path $env:GITHUB_PATH -Value $dir
-          "Node $ver from $dir"
+          "Node $name from $dir"
       # Each step sets ErrorActionPreference Stop: a command that is not found then fails the step, where
       # $LASTEXITCODE alone would stay $null and let the step pass having run nothing.
       # The desktop session must be connected: when Remote Desktop drops, the session is Disc, and the suite would
