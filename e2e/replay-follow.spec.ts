@@ -422,6 +422,10 @@ test('the recorder tells a forced clamp from a jump that rides along with a shri
             ps[Math.floor(t / 20) + 2].textContent += 'x';
           }, startTop);
           await page.waitForTimeout(200);
+          // Wait for at least one sampled frame after the edit, so the shrink has a predecessor (river-2fc1630e).
+          await page.waitForFunction(
+            () => (globalThis as any).fs && (globalThis as any).fs.length > 0
+          );
           // Shrink to 45 lines and, in the same task, optionally set scrollTop.
           await page.evaluate((to) => {
             const ps = Array.from(document.querySelectorAll('.ProseMirror p'));
