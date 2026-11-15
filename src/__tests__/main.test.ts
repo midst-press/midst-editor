@@ -86,6 +86,11 @@ jest.mock('electron', () => {
     // The window an IPC event came from: tests below have one window.
     static fromWebContents = jest.fn(() => (state.windows as unknown[]).at(-1));
 
+    // The open windows, as Electron answers: a closed one is not among them.
+    static getAllWindows = jest.fn(() =>
+      (state.windows as BrowserWindow[]).filter((w) => !w.isDestroyed())
+    );
+
     options: Record<string, unknown>;
 
     handlers: Record<string, Handler[]> = {};
@@ -987,6 +992,17 @@ describe('main process', () => {
       expect(state.menuItems['menu.file.saveAs'].enabled).toBe(false);
     });
 
+    // #502: on Windows the title bar draws a copy of the menu, so each change must tell the window.
+    it.each(['enable-save', 'disable-save'])(
+      '%s tells the window the menu changed',
+      async (channel) => {
+        const { fireIpc, win } = await boot();
+        win().webContents.send.mockClear();
+        await fireIpc(channel);
+        expect(win().webContents.send).toHaveBeenCalledWith('menu-changed');
+      }
+    );
+
     // vivian's cases at 77665af and 2b3758b, at the half that was missing: the mark lives in
     // main's memory, so it must leave with the WINDOW — disable-save cannot carry it (it comes
     // from React's effect cleanup, which never runs when the page is destroyed), and closing in
@@ -1010,12 +1026,13 @@ describe('main process', () => {
         // Toggle Timeline: /editor and /replay are sibling routes (App.tsx), the editor
         // unmounts and its cleanup sends disable-save — and the mode WAITS, not cleared:
         // whether a trip to the Timeline keeps focus mode is Annelyse's call, and no message
-        // this page can send decides it. disable-save sends nothing at all.
+        // this page can send decides it. disable-save sends nothing about focus mode (only
+        // 'menu-changed', for the title bar's copy of the menu, #502).
         const sendsBefore = win().webContents.send.mock.calls.length;
         await fireIpc('disable-save');
-        expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual(
-          []
-        );
+        expect(win().webContents.send.mock.calls.slice(sendsBefore)).toEqual([
+          ['menu-changed'],
+        ]);
         // Back: the editor remounts (useFocusMode.ts sends 'focus-mode-changed' on mount)
         // and asks — and is answered on: the mode survived the trip, the mark is its one
         // copy, and no message on the way here cleared it.

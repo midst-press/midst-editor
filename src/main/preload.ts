@@ -43,6 +43,11 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   redrawTitlebar = () => titlebar?.updateBackground(titlebarBackground());
   darkScheme?.addEventListener('change', redrawTitlebar);
+  // The title bar's menu is a copy of the app's, taken when it was built; main says when the menu changes,
+  // and the copy is taken again, so Save is no longer greyed out on Windows once the editor shows (#502).
+  ipcRenderer.on('menu-changed', () => {
+    titlebar?.refreshMenu();
+  });
 });
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -132,6 +137,7 @@ const electronHandler = {
   },
   versions: {
     isMac: process.platform === 'darwin',
+    isWindows: process.platform === 'win32',
   },
   // The languages in the order the main process shows them: English, the system's own, the rest (editor #265).
   languageOrder(): string[] {

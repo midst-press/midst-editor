@@ -1,9 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'fs';
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { MIDST_VERSION_HEADER } from './fixtures';
-import { dialogsSeen, launch, readStore, waitUntil } from './harness';
+import {
+  allowAgain,
+  DENIED,
+  denyReading,
+  dialogsSeen,
+  launch,
+  readStore,
+  waitUntil,
+} from './harness';
 import { readLog, type LogRecord } from './log';
 
 // A poem that cannot be opened (#160), in the running app: the poet is told, main.log has one entry for it with
@@ -63,10 +71,10 @@ test('a file that cannot be read: the poet is told, and main.log says why', asyn
     poemPath,
     `${MIDST_VERSION_HEADER}\n{"text": "<p>${WORDS.join(' ')}</p>"}`
   );
-  chmodSync(poemPath, 0o000);
+  denyReading(poemPath);
   try {
     // CONTROL: unreadable to this user, or the test proves nothing (root reads it anyway).
-    expect(() => readFileSync(poemPath)).toThrow(/EACCES/);
+    expect(() => readFileSync(poemPath)).toThrow(DENIED);
     const { seen, opens, logged, openedFile } = await openFailing(
       work,
       poemPath
@@ -74,20 +82,20 @@ test('a file that cannot be read: the poet is told, and main.log says why', asyn
 
     expect(seen).toHaveLength(1);
     expect(
-      seen[0].startsWith(`The file ${poemPath} could not be opened: EACCES`)
+      seen[0].startsWith(`The file ${poemPath} could not be opened: ${DENIED}`)
     ).toBe(true);
     expect(opens).toEqual([
       expect.objectContaining({
         level: 'error',
         source: 'main',
         msg: 'open: the file could not be read',
-        meta: { filePath: poemPath, code: 'EACCES' },
+        meta: { filePath: poemPath, code: DENIED },
       }),
     ]);
     expect(openedFile).not.toBe(poemPath);
     WORDS.forEach((word) => expect(logged).not.toContain(word));
   } finally {
-    chmodSync(poemPath, 0o644);
+    allowAgain(poemPath, 0o644);
   }
 });
 
