@@ -417,7 +417,8 @@ describe('Editor: content and appearance', () => {
   ])(
     'does not take the focus from %s focused before its first frame',
     (_name, mark) => {
-      mount(); // created: its focus waits for the next frame
+      // A text no earlier test left a cursor in, so this is onCreate's own focus, not the return from Replay.
+      mount({ initialText: `<p>zq516 ${_name}</p>` }); // created: its focus waits for the next frame
       const panel = document.createElement('div');
       mark(panel);
       const field = document.createElement('input');
@@ -431,7 +432,7 @@ describe('Editor: content and appearance', () => {
   );
 
   it('still takes the focus at its first frame from anything that does not keep it', () => {
-    mount();
+    mount({ initialText: '<p>zq516 control</p>' });
     const other = document.createElement('input');
     document.body.appendChild(other);
     act(() => other.focus());
