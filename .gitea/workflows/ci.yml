@@ -233,13 +233,16 @@ jobs:
           $key = "$lock-nvmrc$nvmrc-$node"
           $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node_modules'
           New-Item -ItemType Directory -Force $root | Out-Null
-          Get-ChildItem $root -Directory -Filter '.partial-*' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          # Cached copies hold npm's junction to a checkout's vendor\midst-format, so they are deleted with rmdir /s /q,
+          # which removes a junction as a link and never follows it.
+          $rmTree = { param($dir) cmd /c "rmdir /s /q `"$dir`" 2>nul"; if (Test-Path $dir) { throw "could not delete $dir" } }
+          Get-ChildItem $root -Directory -Filter '.partial-*' | ForEach-Object { & $rmTree $_.FullName }
           $entry = Join-Path $root $key
           $cached = Join-Path $entry 'node_modules'
           # A node_modules left in the workspace: a junction is removed as a link (rmdir), never followed.
           if (Test-Path node_modules) {
             if ((Get-Item node_modules -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { cmd /c rmdir node_modules }
-            else { Remove-Item -Recurse -Force node_modules }
+            else { & $rmTree (Resolve-Path node_modules).Path }
           }
           # A hit needs the marker AND the copy's own contents: if a workspace delete ever followed the junction, the
           # marker would outlive an emptied copy, and every job with this lockfile would fail (Cyril).
@@ -257,7 +260,7 @@ jobs:
             # A rename on the same drive, not a copy.
             [IO.Directory]::Move((Resolve-Path node_modules).Path, (Join-Path $partial 'node_modules'))
             Set-Content -Path (Join-Path $partial 'complete.txt') -Value (Get-Date -Format o)
-            if (Test-Path $entry) { Remove-Item -Recurse -Force $entry }
+            if (Test-Path $entry) { & $rmTree $entry }
             [IO.Directory]::Move($partial, $entry)
             "cached as $key"
           }
@@ -276,7 +279,7 @@ jobs:
             $link = Join-Path (Get-Location) $name
             $target = Join-Path (Get-Location) $resolved
             if (-not (Test-Path $target)) { throw "linked package ${name}: $resolved is not in this checkout" }
-            # Test-Path is False for a junction whose target is gone, which is the case here: remove it regardless.
+            # Removed regardless of what Test-Path says: rmdir on a junction removes only the link.
             cmd /c "rmdir `"$link`" 2>nul"
             New-Item -ItemType Directory -Force (Split-Path $link) | Out-Null
             cmd /c mklink /J $link $target | Out-Null
@@ -286,7 +289,7 @@ jobs:
           (Get-Item $entry).LastWriteTime = Get-Date
           Get-ChildItem $root -Directory | Where-Object { $_.Name -notlike '.partial-*' } |
             Sort-Object LastWriteTime -Descending | Select-Object -Skip 3 |
-            ForEach-Object { "pruning $($_.Name)"; Remove-Item -Recurse -Force $_.FullName }
+            ForEach-Object { "pruning $($_.Name)"; & $rmTree $_.FullName }
       - name: build
         run: |
           $ErrorActionPreference = 'Stop'
@@ -327,6 +330,11 @@ jobs:
           $roots = @(& $full (Join-Path $env:GITHUB_WORKSPACE 'node_modules'))
           $browsers = if ($env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH } else { Join-Path $env:LOCALAPPDATA 'ms-playwright' }
           $roots += & $full $browsers
+          # Electron found through the node_modules junction runs from the junction's target, the cached copy
+          # (require('electron') resolves its real path; measured on the Lenovo). Only this runner, one job at a time,
+          # uses that cache.
+          $nmCache = Join-Path $env:LOCALAPPDATA 'midst-ci\node_modules'
+          if (Test-Path $nmCache) { $roots += & $full $nmCache }
           $left = @(Get-Process electron, chrome, chrome-headless-shell -ErrorAction SilentlyContinue | Where-Object {
             $path = $_.Path
             $path -and @($roots | Where-Object { [IO.Path]::GetFullPath($path).StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count
