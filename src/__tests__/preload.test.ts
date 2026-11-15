@@ -17,6 +17,7 @@ const mockTitlebarInstances: {
   updateMenuPosition: jest.Mock;
   updateTitleAlignment: jest.Mock;
   updateBackground: jest.Mock;
+  refreshMenu: jest.Mock;
 }[] = [];
 
 jest.mock('electron', () => ({
@@ -41,6 +42,7 @@ jest.mock('@jshafto/custom-electron-titlebar-update', () => ({
       updateMenuPosition: jest.fn(),
       updateTitleAlignment: jest.fn(),
       updateBackground: jest.fn(),
+      refreshMenu: jest.fn(),
     };
     mockTitlebarInstances.push(instance);
     return instance;
@@ -473,6 +475,19 @@ describe('DOMContentLoaded', () => {
       ).toHaveBeenCalledWith('left');
     }
   );
+
+  // #502: on Windows the title bar draws a copy of the menu, taken when it was built, so Save stayed greyed out
+  // after main enabled it. Main's 'menu-changed' has the copy taken again.
+  it('takes the menu again when main says it changed', () => {
+    setPlatform('win32');
+    loadPreload();
+    fireDomContentLoaded();
+    const call = mockIpc.on.mock.calls.find(([c]) => c === 'menu-changed');
+    expect(call).toBeDefined();
+    expect(mockTitlebarInstances[0].refreshMenu).not.toHaveBeenCalled();
+    (call![1] as () => void)();
+    expect(mockTitlebarInstances[0].refreshMenu).toHaveBeenCalledTimes(1);
+  });
 
   it('inserts the logo as the first child of the body', () => {
     loadPreload();

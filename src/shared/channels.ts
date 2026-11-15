@@ -23,6 +23,8 @@ export interface MainToWindow {
   'choose-font': [];
   'choose-colours': []; // View > Colours…, while MIDST_COLOUR_AUDITION is on (GitHub #119)
   'cancel-save': [];
+  // The menu changed in main. On Windows and Linux the title bar draws a copy of it, which this refreshes (#502).
+  'menu-changed': [];
 }
 
 // Sent by the window with sendMessage, as one array.

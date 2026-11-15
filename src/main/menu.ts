@@ -101,6 +101,10 @@ const setSpellcheck = (mainWindow: BrowserWindow, on: boolean) => {
   store.set('spellcheck', String(on));
   sendToWindow(mainWindow, 'toggle-spellcheck');
 };
+// On Windows and Linux the title bar draws a copy of the menu, made when it was built, so every change to the
+// menu here tells the windows to draw it again (#502). On macOS the menu bar is the menu itself.
+export const menuChanged = () =>
+  BrowserWindow.getAllWindows().forEach((w) => sendToWindow(w, 'menu-changed'));
 // Focus Mode (GitHub #25) is a checkbox marked by the menu and by the moon alike, so the state's
 // one owner is main: menu.ts's memory, mirrored onto the live checkbox by id (getMenuItemById,
 // the same way the save items are enabled) and onto the screen by the send (vivian & cora,
@@ -134,6 +138,7 @@ export const setFocusModeMark = (on: boolean) => {
   focusModeOn = on;
   const item = app.applicationMenu?.getMenuItemById('menu.edit.focusMode');
   if (item) item.checked = on;
+  menuChanged();
 };
 // The menu's click: Electron has already flipped the mark, and the screen follows it (one path
 // for both halves, so there is nothing left to hold a second copy of the state).
@@ -171,6 +176,9 @@ export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
   store.set('language', used);
   // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
   new MenuBuilder(mainWindow).applyMenu();
+  // Not in applyMenu: at launch the title bar takes its copy as it is built, and a message then only slows the
+  // window's first render, which a New sent at once can lose to (#505's e2e).
+  menuChanged();
   BrowserWindow.getAllWindows().forEach((w) =>
     sendToWindow(w, 'set-locale', used)
   );
