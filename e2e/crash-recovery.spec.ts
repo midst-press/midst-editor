@@ -13,7 +13,9 @@ import { coverageEnv } from './coverage';
 import {
   APP_DIR,
   clickMenuItem,
+  crash,
   launch,
+  mainPid,
   readStore,
   SETTLE_MS,
   waitUntil,
@@ -32,6 +34,26 @@ const recoveryCopies = (userData: string) => {
     ? readdirSync(dir).filter((n) => /^[0-9a-f-]{36}\.midst$/.test(n))
     : [];
 };
+
+// When the process with this id started, as the system reports it: ps, or on Windows (no ps) Get-Process.
+const startOf = (pid: number) =>
+  process.platform === 'win32'
+    ? Number(
+        execFileSync('powershell', [
+          '-NoProfile',
+          '-Command',
+          `[DateTimeOffset]::new((Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`,
+        ])
+          .toString()
+          .trim()
+      )
+    : Date.parse(
+        execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
+          env: { ...process.env, LC_ALL: 'C' },
+        })
+          .toString()
+          .trim()
+      );
 
 // New, type, wait for the recovery copy to hold the text, then kill Midst.
 async function typeAndCrash(work: string) {
@@ -54,8 +76,8 @@ async function typeAndCrash(work: string) {
   expect(written, 'autosave wrote a recovery copy with the text').toBe(true);
   // CONTROL: no Save panel was asked for, and the poem has no file.
   expect(readStore(userData).filename ?? '').toBe('');
-  // The owner file names this Midst so that another launch knows it is live: the start it recorded is the start ps
-  // reports for it, within recovery.ts's 10 s.
+  // The owner file names this Midst so that another launch knows it is live: the start it recorded is the start the
+  // system reports for it, within recovery.ts's 10 s.
   const [copy] = recoveryCopies(userData);
   const owner = JSON.parse(
     readFileSync(
@@ -63,21 +85,10 @@ async function typeAndCrash(work: string) {
       'utf8'
     )
   );
-  const pid = app.process().pid!;
+  const pid = await mainPid(app);
   expect(owner.pid).toBe(pid);
-  const psStart = Date.parse(
-    execFileSync('ps', ['-p', String(pid), '-o', 'lstart='], {
-      env: { ...process.env, LC_ALL: 'C' },
-    })
-      .toString()
-      .trim()
-  );
-  expect(Math.abs(psStart - owner.started)).toBeLessThan(10_000);
-  app.process().kill('SIGKILL');
-  await new Promise<void>((resolve) => {
-    if (app.process().exitCode !== null) resolve();
-    else app.process().once('exit', () => resolve());
-  });
+  expect(Math.abs(startOf(pid) - owner.started)).toBeLessThan(10_000);
+  await crash(app, pid);
   return { userData, copy: recoveryCopies(userData)[0] };
 }
 

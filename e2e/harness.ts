@@ -8,7 +8,15 @@ import {
   type ElectronApplication,
   type Page,
 } from 'playwright';
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'fs';
+import { execFileSync } from 'child_process';
+import {
+  chmodSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  existsSync,
+} from 'fs';
+import { userInfo } from 'os';
 import { join, resolve as resolvePath } from 'path';
 import { collectCoverage, coverageEnv } from './coverage';
 
@@ -95,6 +103,59 @@ export function waitUntil(pred: () => boolean, ms: number): Promise<boolean> {
       }
     }, 100);
   });
+}
+
+// Midst's main process. On Windows app.process() is the cmd.exe that started Electron, and main is its child
+// (measured on the Lenovo, #507): killing app.process() there leaves Midst running.
+export const mainPid = (app: ElectronApplication): Promise<number> =>
+  app.evaluate(() => process.pid);
+
+export const isRunning = (pid: number) => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+// Waits until Midst's main process (from mainPid, read while it was alive) has ended. Fails when it has not.
+export async function mainEnded(pid: number, ms = 15_000) {
+  expect(
+    await waitUntil(() => !isRunning(pid), ms),
+    `Midst's main process ${pid} ended`
+  ).toBe(true);
+}
+
+// Taking access away from this user, and giving it back. chmod does nothing to access on Windows, where an ACL deny
+// does it, and Node then reports EPERM rather than EACCES (measured on the Lenovo, #507). A folder denied writing
+// still lets a file in it be overwritten in place; creating a file or renaming one into it fails, and a save writes a
+// partial file and renames it.
+export const DENIED = process.platform === 'win32' ? 'EPERM' : 'EACCES';
+const icacls = (...args: string[]) =>
+  execFileSync('icacls', args, { stdio: 'ignore' });
+export function denyReading(file: string) {
+  if (process.platform === 'win32')
+    icacls(file, '/deny', `${userInfo().username}:(R)`);
+  else chmodSync(file, 0o000);
+}
+export function denyWritingIn(folder: string) {
+  if (process.platform === 'win32')
+    icacls(folder, '/deny', `${userInfo().username}:(W)`);
+  else chmodSync(folder, 0o555);
+}
+export function allowAgain(path: string, mode: number) {
+  if (process.platform === 'win32')
+    icacls(path, '/remove:d', userInfo().username);
+  else chmodSync(path, mode);
+}
+
+// Ends Midst the way a crash does: no close handler or quit path runs, so what is on disk is all the next launch
+// has. Kills main itself, not app.process(), which on Windows is only the cmd.exe that started it.
+export async function crash(app: ElectronApplication, pid?: number) {
+  const main = pid ?? (await mainPid(app));
+  process.kill(main, 'SIGKILL');
+  await mainEnded(main);
 }
 
 // WHY global-setup copies a preload: main.ts:107 picks the preload path on app.isPackaged, which is
