@@ -7,7 +7,7 @@ const AUTOSAVE_MS = 1000;
 const AUTOSAVE_CEILING_MS = 10000;
 
 // Saving a second after the poet stops typing, or ten seconds after the first unsaved change if they never stop.
-// `schedule` replaces the pending save; `cancel` drops it; unmounting drops it too. The timer is a ref: holding it in state re-rendered the
+// `schedule` replaces the pending save; `cancel` drops it; `flushNow` makes it at once; unmounting drops it too. The timer is a ref: holding it in state re-rendered the
 // editor on every keystroke and re-registered the listeners that cleared it.
 //
 // The generation captured when a save is scheduled identifies the document being typed into: if a
@@ -51,7 +51,17 @@ export default function useAutosave(
     }, delay);
   }, [latest, save]);
 
+  // The pending save, now, instead of later; false when none is pending. Asked for before another document replaces
+  // this one (the 'flush-editor' message, #522): a save left pending past that point either went to the next
+  // document's path or was abandoned, losing the poet's last second.
+  const flushNow = useCallback(() => {
+    if (timer.current === undefined) return false;
+    cancel();
+    save();
+    return true;
+  }, [cancel, save]);
+
   useEffect(() => cancel, [cancel]);
 
-  return { schedule, cancel };
+  return { schedule, cancel, flushNow };
 }
