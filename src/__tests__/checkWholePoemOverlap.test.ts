@@ -5,6 +5,7 @@ import {
   FIRST_MS,
   MISMATCH_LOG,
   PAUSE_MS,
+  WINDOWS_PAUSE_MS,
   checkWholePoemSoon,
 } from '../renderer/spellcheck/checkWholePoem';
 
@@ -110,3 +111,28 @@ it('cancelled while the second is waiting, it finishes the first and starts no s
   jest.advanceTimersByTime(2 * LONG * PAUSE_MS);
   expect(typed.reduce((a, b) => a + b)).toBe(reached);
 });
+
+// #510: on Windows each paragraph's space stays WINDOWS_PAUSE_MS, not PAUSE_MS; elsewhere it stays PAUSE_MS.
+it.each([
+  ['Windows', true, WINDOWS_PAUSE_MS],
+  ['elsewhere', false, PAUSE_MS],
+])(
+  '%s, the next paragraph is edited after its own pause',
+  (_where, isWindows, pause) => {
+    const w = window as unknown as { electron?: unknown };
+    const before = w.electron;
+    w.electron = { versions: { isMac: false, isWindows } };
+    try {
+      open(3);
+      checkWholePoemSoon(editor.view, () => {});
+      jest.advanceTimersByTime(FIRST_MS);
+      expect(typed).toEqual([1, 0, 0]);
+      jest.advanceTimersByTime(pause - 1);
+      expect(typed).toEqual([1, 0, 0]);
+      jest.advanceTimersByTime(1);
+      expect(typed).toEqual([1, 1, 0]);
+    } finally {
+      w.electron = before;
+    }
+  }
+);

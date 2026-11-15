@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { makeMidst } from './fixtures';
+import { osType, POET_MS } from './osKeys';
 import {
   checkSpellingMark,
   clickCheckSpelling,
@@ -389,12 +390,17 @@ const linesShown = (win: Win) =>
     )
   );
 
-async function typeAtEnd(win: Win, keys: (string | 'Enter')[]) {
+// The caret to the end of the poem.
+async function caretToPoemEnd(win: Win) {
   await win.locator('.ProseMirror').click();
   await win.keyboard.press(
     process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
   );
   await caretAt(win, 'end');
+}
+
+async function typeAtEnd(win: Win, keys: (string | 'Enter')[]) {
+  await caretToPoemEnd(win);
   // Keystrokes in order.
   await keys.reduce(
     (sofar, k) =>
@@ -448,27 +454,44 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
     try {
       await turnSpellcheckOn(app, win, userData);
       await markingHasBegun(app, win);
-      await typeAtEnd(win, [
-        'Enter',
-        'dsflkaj',
-        'Enter',
-        'qwzpxvb',
-        'Enter',
-        'vbnmtrw',
-        'Enter',
-        'q',
-      ]);
+      // Through the OS on Windows: its checker marks typed words only when they arrive as real keystrokes (#510).
+      await caretToPoemEnd(win);
+      await osType(
+        app,
+        win,
+        [
+          'Enter',
+          'dsflkaj',
+          'Enter',
+          'qwzpxvb',
+          'Enter',
+          'vbnmtrw',
+          'Enter',
+          'q',
+        ],
+        POET_MS
+      );
       await hideText(win);
+      // What was typed, and the last red counts per line, so a failure says which lines (#510).
+      const lines = await linesShown(win);
+      let counts: number[] = [];
       await expect
         .poll(
-          async () =>
-            (await redPerLine(app, win)).slice(1, 4).every((n) => n > 0),
+          async () => {
+            counts = await redPerLine(app, win);
+            return counts.slice(1, 4).every((n) => n > 0);
+          },
           {
-            message: 'not every misspelled line is marked',
+            message: `not every misspelled line is marked; the lines were ${lines}`,
             timeout: 5_000,
           }
         )
-        .toBe(true);
+        .toBe(true)
+        .catch((e: Error) => {
+          throw new Error(
+            `${e.message}\nred per line, last sample: ${counts.join(',')}`
+          );
+        });
     } finally {
       await app.close();
     }
@@ -545,16 +568,14 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
       try {
         await turnSpellcheckOn(app, win, userData);
         await markingHasBegun(app, win);
-        await win.locator('.ProseMirror').click();
-        await win.keyboard.press(
-          process.platform === 'darwin' ? 'Meta+ArrowDown' : 'Control+End'
+        await caretToPoemEnd(win);
+        // At a poet's pace, not all at once, and through the OS on Windows (#510).
+        await osType(
+          app,
+          win,
+          ['Enter', `dlskfaj${after}`, 'Enter', `sdfa${after}`],
+          POET_MS
         );
-        await caretAt(win, 'end');
-        // At a poet's pace, not all at once.
-        await win.keyboard.press('Enter');
-        await win.keyboard.type(`dlskfaj${after}`, { delay: 120 });
-        await win.keyboard.press('Enter');
-        await win.keyboard.type(`sdfa${after}`, { delay: 120 });
         await caretToEndOfLine(win, 1);
         await hideText(win);
         // CONTROL: sdfa is marked before the break. If it never is, her case cannot be set up this way.
@@ -564,7 +585,7 @@ test.describe("Annelyse's spellcheck cases (GitHub #71, editor #238)", () => {
             timeout: 5_000,
           })
           .toBeGreaterThan(0);
-        await win.keyboard.press('Enter');
+        await osType(app, win, ['Enter']);
         const samples: number[] = [];
         const until = Date.now() + 2_500;
         while (Date.now() < until) {

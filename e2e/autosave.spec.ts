@@ -61,7 +61,7 @@ test('autosave stores the text as it stands when the timer fires', async () => {
   }
 });
 
-test('an autosave pending from one poem must not land in the next', async () => {
+test('an autosave pending from one poem must not land in the next, and is not lost from its own', async () => {
   // The SECOND route into #12. The fix in b5d4741 passes the document explicitly through the
   // 'open-file' handler, which closes the synchronous route. A timer scheduled while poem A was
   // being typed is a different carrier: it holds A's text in its defaults and fires ~1s later,
@@ -123,6 +123,13 @@ test('an autosave pending from one poem must not land in the next', async () => 
       onDisk.history.length,
       "Poem B's history was replaced by Poem A's"
     ).not.toBe(A.historyLength);
+
+    // And A keeps what was typed into it (#522). Left to run, the pending save was abandoned once B had replaced A,
+    // or went to B's path; either way A's file never had its last keystrokes.
+    expect(
+      parseMidst(readFileSync(pathA, 'utf8')).text,
+      "Poem A's file lost what was typed into it before B was opened"
+    ).toContain(TYPED);
   } finally {
     await app.close();
   }

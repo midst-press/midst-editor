@@ -18,7 +18,7 @@
 #
 # The end-to-end suite runs in job e2e-linux, on the Linux runner (an Ubuntu arm64 container on the Mac Studio,
 # label ubuntu-arm-latest, #260): the macOS runners have no window-server session for an Electron window. pree2e
-# downloads the Linux Electron, which `npm ci --ignore-scripts` does not.
+# downloads the Linux Electron, which `npm ci --ignore-scripts` does not. Job e2e-windows runs it on the Lenovo (#507).
 #
 # Heavy jobs on a PR's turn (midst-infra #102), as in midst-web: gates runs on every event; e2e-linux runs on a
 # push to main, and on a PR only while it carries `ci-turn` (the merge sweep's: this PR is next to merge) or
@@ -127,3 +127,236 @@ jobs:
       # pree2e puts the Linux Electron in place (tools/install-electron.cjs).
       - name: end-to-end tests, headed under Xvfb
         run: xvfb-run -a --server-args="-screen 0 1440x1000x24" npm run e2e
+
+  # The end-to-end suite on Windows (#507), the platform Annelyse uses: the Lenovo, Windows 10 Pro. It runs on the
+  # lenovo-desktop runner, rdpuser's own, started at login in rdpuser's desktop session (Stuart, 15 Nov): Windows'
+  # spellchecker does not mark typed words the same way in session 0, where a service or ssh runs (#510). That runner
+  # is for this job only. On the same turn as e2e-linux. Windows PowerShell does not fail a step when a program it ran
+  # fails, so every program's exit code is checked by hand.
+  e2e-windows:
+    if: (github.head_ref != 'github-main' || contains(github.event.pull_request.labels.*.name, 'github-reviewed')) && (github.event_name == 'push' || contains(github.event.pull_request.labels.*.name, 'ci-turn') || contains(github.event.pull_request.labels.*.name, 'full-ci'))
+    runs-on: lenovo-desktop
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      # The Node .nvmrc names, as e2e-linux; the Lenovo's own install is older. Not setup-node: on this runner its
+      # 7zr.exe fails to extract (exit code 2, run 15190). Node is kept in rdpuser's %LOCALAPPDATA%\midst-ci\node,
+      # which lasts between jobs (RUNNER_TOOL_CACHE does not: the runner makes a new one for each job). A cached
+      # release of the .nvmrc major is used with no network at all. nodejs.org is asked for a newer one at most once
+      # a week, and a release is downloaded only when it is not already here: as a .zip, checked against
+      # SHASUMS256.txt, unpacked with tar.exe. npm's packages, Electron and Playwright's Chromium are cached
+      # in the same profile by their own tools.
+      - name: Node from .nvmrc
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $major = (Get-Content .nvmrc -Raw).Trim().TrimStart('v')
+          $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node'
+          New-Item -ItemType Directory -Force $root | Out-Null
+          Get-ChildItem $root -Directory -Filter '.partial-*' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          $byVersion = { [version]($_.Name -replace '^node-v(\d+\.\d+\.\d+)-win-x64$', '$1') }
+          $cached = @(Get-ChildItem $root -Directory -Filter "node-v$major.*-win-x64" |
+            Where-Object { $_.Name -match '^node-v\d+\.\d+\.\d+-win-x64$' -and (Test-Path (Join-Path $_.FullName 'node.exe')) -and (Test-Path (Join-Path $_.FullName 'npm.cmd')) } |
+            Sort-Object -Property @{ Expression = $byVersion } -Descending)
+          $checked = Join-Path $root "checked-v$major.txt"
+          $fresh = (Test-Path $checked) -and ((Get-Item $checked).LastWriteTime -gt (Get-Date).AddDays(-7))
+          if ($cached.Count -and $fresh) {
+            $name = $cached[0].Name
+            "cached, and nodejs.org was asked within the week: no network"
+          } else {
+            # Assigned first: Windows PowerShell passes Invoke-RestMethod's array down a pipe as ONE object, and the
+            # filter then matched every release at once.
+            $releases = Invoke-RestMethod https://nodejs.org/dist/index.json
+            $ver = @($releases | Where-Object { $_.version -like "v$major.*" })[0].version
+            if (-not $ver -or $ver -notmatch '^v\d+\.\d+\.\d+$') { throw "no single Node release for .nvmrc '$major' (got '$ver')" }
+            $name = "node-$ver-win-x64"
+            $dest = Join-Path $root $name
+            if (-not ((Test-Path (Join-Path $dest 'node.exe')) -and (Test-Path (Join-Path $dest 'npm.cmd')))) {
+              $zip = Join-Path $env:RUNNER_TEMP "$name.zip"
+              # curl.exe (Windows ships it): Invoke-WebRequest's GET of the zip got 400 from nodejs.org here.
+              curl.exe -fsSL -o $zip "https://nodejs.org/dist/$ver/$name.zip"
+              if ($LASTEXITCODE) { throw "download of $name.zip failed: curl exit $LASTEXITCODE" }
+              $sums = curl.exe -fsSL "https://nodejs.org/dist/$ver/SHASUMS256.txt"
+              if ($LASTEXITCODE) { throw "download of SHASUMS256.txt failed: curl exit $LASTEXITCODE" }
+              $want = ($sums | Where-Object { $_ -match " $name\.zip$" }) -replace ' .*$', ''
+              $got = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+              if (-not $want -or $got -ne $want.Trim()) { throw "checksum of $name.zip: got $got, SHASUMS256.txt says '$want'" }
+              # tar.exe, which Windows ships, unpacks the 1938 files in about 3 s; Expand-Archive took minutes here.
+              # Into a folder of its own first, renamed into place only when complete: a job cancelled mid-unpack
+              # (cancel-in-progress) must not leave a partial Node that the next week's jobs take as cached.
+              $partial = Join-Path $root ".partial-$name-$PID"
+              New-Item -ItemType Directory -Force $partial | Out-Null
+              tar.exe -xf $zip -C $partial
+              if ($LASTEXITCODE) { throw "unpacking $name.zip failed: tar exit $LASTEXITCODE" }
+              $got = Join-Path $partial $name
+              if (-not ((Test-Path (Join-Path $got 'node.exe')) -and (Test-Path (Join-Path $got 'npm.cmd')))) { throw "unpacked $name.zip but node.exe or npm.cmd is missing" }
+              if (Test-Path $dest) { Remove-Item -Recurse -Force $dest }
+              Move-Item $got $dest
+              Remove-Item -Recurse -Force $partial
+              Remove-Item $zip
+              "downloaded $name"
+            } else { "asked nodejs.org: $name is the newest, and is already here" }
+            Set-Content -Path $checked -Value (Get-Date -Format o)
+          }
+          $dir = Join-Path $root $name
+          Add-Content -Path $env:GITHUB_PATH -Value $dir
+          "Node $name from $dir"
+      # Each step sets ErrorActionPreference Stop: a command that is not found then fails the step, where
+      # $LASTEXITCODE alone would stay $null and let the step pass having run nothing.
+      # The desktop session must be connected: when Remote Desktop drops, the session is Disc, and the suite would
+      # then fail as red spellcheck. Fail here instead, in words that say what to do.
+      - name: who and where
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $node = node --version
+          if ($LASTEXITCODE -or -not $node) { throw 'node did not run' }
+          $sid = (Get-Process -Id $PID).SessionId
+          $state = @(query session 2>$null | Where-Object { $_ -match "\s$sid\s+(\w+)" } | ForEach-Object { $Matches[1] })[0]
+          "$env:COMPUTERNAME as $env:USERNAME, session $sid ($state), node $node"
+          if ($sid -eq 0 -or $state -ne 'Active') { throw "desktop session disconnected: session $sid is '$state', not Active. Reconnect Remote Desktop as rdpuser." }
+          # query.exe exits 1 even when it answers, and the runner's wrapper exits with the last program's code.
+          exit 0
+      # npm ci writes about 1900 packages of small files, and on this machine's SATA SSD that takes 8 minutes (a Defender
+      # exclusion made no difference). So the node_modules npm ci makes is kept in rdpuser's profile, under a key of
+      # package-lock.json, .nvmrc and the Node version, and a later job with the same key links to it (a directory
+      # junction) instead. A different lockfile is a different key, and npm ci runs again. The cached copy sits in a
+      # folder named node_modules, because Node finds a package's dependencies by walking up from where it really is.
+      # The cleanup step removes the junction before the runner deletes the workspace. The 3 newest keys are kept.
+      - name: node_modules, from the cache or npm ci
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $node = node --version
+          $lock = (Get-FileHash package-lock.json -Algorithm SHA256).Hash.Substring(0, 16)
+          $nvmrc = (Get-Content .nvmrc -Raw).Trim()
+          $key = "$lock-nvmrc$nvmrc-$node"
+          $root = Join-Path $env:LOCALAPPDATA 'midst-ci\node_modules'
+          New-Item -ItemType Directory -Force $root | Out-Null
+          # Cached copies hold npm's junction to a checkout's vendor\midst-format, so they are deleted with rmdir /s /q,
+          # which removes a junction as a link and never follows it.
+          $rmTree = { param($dir) cmd /c "rmdir /s /q `"$dir`" 2>nul"; if (Test-Path $dir) { throw "could not delete $dir" } }
+          Get-ChildItem $root -Directory -Filter '.partial-*' | ForEach-Object { & $rmTree $_.FullName }
+          $entry = Join-Path $root $key
+          $cached = Join-Path $entry 'node_modules'
+          # A node_modules left in the workspace: a junction is removed as a link (rmdir), never followed.
+          if (Test-Path node_modules) {
+            if ((Get-Item node_modules -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) { cmd /c rmdir node_modules }
+            else { & $rmTree (Resolve-Path node_modules).Path }
+          }
+          # A hit needs the marker AND the copy's own contents: if a workspace delete ever followed the junction, the
+          # marker would outlive an emptied copy, and every job with this lockfile would fail (Cyril).
+          $whole = (Test-Path (Join-Path $entry 'complete.txt')) -and
+            (Test-Path (Join-Path $cached '.package-lock.json')) -and
+            (Test-Path (Join-Path $cached 'electron\package.json'))
+          if ($whole) {
+            "cache hit: $key"
+          } else {
+            "cache miss: $key; npm ci"
+            npm ci --ignore-scripts
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            $partial = Join-Path $root ".partial-$key-$PID"
+            New-Item -ItemType Directory -Force $partial | Out-Null
+            # A rename on the same drive, not a copy.
+            [IO.Directory]::Move((Resolve-Path node_modules).Path, (Join-Path $partial 'node_modules'))
+            Set-Content -Path (Join-Path $partial 'complete.txt') -Value (Get-Date -Format o)
+            if (Test-Path $entry) { & $rmTree $entry }
+            [IO.Directory]::Move($partial, $entry)
+            "cached as $key"
+          }
+          # What a build or test wrote inside the shared copy on an earlier run does not carry over.
+          Remove-Item -Recurse -Force (Join-Path $cached '.cache') -ErrorAction SilentlyContinue
+          cmd /c mklink /J node_modules $cached | Out-Null
+          if ($LASTEXITCODE) { throw "mklink /J node_modules failed: exit $LASTEXITCODE" }
+          # A local package (file:, as vendor/midst-format is) is a junction npm made with the absolute path of the
+          # checkout it ran in, and every job checks out into a new folder. Point each one at this checkout.
+          # Read with node: Windows PowerShell's ConvertFrom-Json refuses the lockfile's "" key (the root package).
+          $links = node -e "const p=require('./package-lock.json').packages;for(const[k,v]of Object.entries(p))if(v.link)console.log(k+'\t'+v.resolved)"
+          if ($LASTEXITCODE) { throw "reading package-lock.json failed: exit $LASTEXITCODE" }
+          foreach ($line in @($links)) {
+            if (-not $line) { continue }
+            $name, $resolved = $line -split "`t"
+            $link = Join-Path (Get-Location) $name
+            $target = Join-Path (Get-Location) $resolved
+            if (-not (Test-Path $target)) { throw "linked package ${name}: $resolved is not in this checkout" }
+            # Removed regardless of what Test-Path says: rmdir on a junction removes only the link.
+            cmd /c "rmdir `"$link`" 2>nul"
+            New-Item -ItemType Directory -Force (Split-Path $link) | Out-Null
+            cmd /c mklink /J $link $target | Out-Null
+            if ($LASTEXITCODE) { throw "mklink /J $name failed: exit $LASTEXITCODE" }
+            "linked $name -> $resolved"
+          }
+          (Get-Item $entry).LastWriteTime = Get-Date
+          Get-ChildItem $root -Directory | Where-Object { $_.Name -notlike '.partial-*' } |
+            Sort-Object LastWriteTime -Descending | Select-Object -Skip 3 |
+            ForEach-Object { "pruning $($_.Name)"; & $rmTree $_.FullName }
+      - name: build
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run build
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # One replay-follow test drives plain Chromium (no Electron) to check the recorder itself.
+      - name: Chromium for Playwright
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npx playwright install chromium
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # pree2e puts the Windows Electron in place (tools/install-electron.cjs).
+      - name: end-to-end tests
+        run: |
+          $ErrorActionPreference = 'Stop'
+          npm run e2e
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # Playwright's page snapshot for each failed test, into the log: the runner deletes the workspace after the job,
+      # and nobody can read rdpuser's files from outside, so the log is the only place they survive.
+      - name: what the failed tests saw
+        if: failure()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem test-results -Recurse -Filter error-context.md -ErrorAction SilentlyContinue)
+          if (-not $files.Count) { 'no error-context.md'; exit 0 }
+          foreach ($f in $files) { "===== $($f.Directory.Name)"; Get-Content $f.FullName -Raw }
+          exit 0
+      # A test that fails before it ends Midst leaves it running, and the runner keeps it for the next job: an
+      # electron.exe left running locks node_modules\electron\dist, and the next npm ci here fails. Only this job's
+      # Electron, and Playwright's Chromium, are stopped: the Lenovo also runs other work, and runs of the suite over
+      # ssh. Paths are compared in full form and ignoring case, since the runner may give the workspace with / or a
+      # different case.
+      - name: no Electron or Chromium of this job left running
+        if: always()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $full = { param($p) [IO.Path]::GetFullPath($p).TrimEnd('\') + '\' }
+          $roots = @(& $full (Join-Path $env:GITHUB_WORKSPACE 'node_modules'))
+          $browsers = if ($env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH } else { Join-Path $env:LOCALAPPDATA 'ms-playwright' }
+          $roots += & $full $browsers
+          # Electron found through the node_modules junction runs from the junction's target, the cached copy
+          # (require('electron') resolves its real path; measured on the Lenovo). Only this runner, one job at a time,
+          # uses that cache.
+          $nmCache = Join-Path $env:LOCALAPPDATA 'midst-ci\node_modules'
+          if (Test-Path $nmCache) { $roots += & $full $nmCache }
+          $left = @(Get-Process electron, chrome, chrome-headless-shell -ErrorAction SilentlyContinue | Where-Object {
+            $path = $_.Path
+            $path -and @($roots | Where-Object { [IO.Path]::GetFullPath($path).StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count
+          })
+          "looked under: $($roots -join '; ')"
+          if ($left.Count) {
+            "stopping $($left.Count): $(($left | ForEach-Object { "$($_.ProcessName) $($_.Id)" }) -join ', ')"
+            $left | Stop-Process -Force
+            Start-Sleep -Seconds 2
+          }
+          # Then look again, and fail if anything is still there: a stop that did not take must not read as clean.
+          $still = @(Get-Process electron, chrome, chrome-headless-shell -ErrorAction SilentlyContinue | Where-Object {
+            $path = $_.Path
+            $path -and @($roots | Where-Object { [IO.Path]::GetFullPath($path).StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count
+          })
+          if ($still.Count) { throw "still running after the stop: $(($still | ForEach-Object { "$($_.ProcessName) $($_.Id) $($_.Path)" }) -join ', ')" }
+          'none left'
+          # node_modules is a junction to the cache: remove the link, so the runner's delete of the workspace cannot
+          # reach into the cache.
+          $nm = Join-Path $env:GITHUB_WORKSPACE 'node_modules'
+          if ((Test-Path $nm) -and ((Get-Item $nm -Force).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            cmd /c rmdir $nm
+            if (Test-Path $nm) { throw "could not remove the node_modules junction" }
+            'node_modules junction removed'
+          }

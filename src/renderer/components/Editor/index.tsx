@@ -10,7 +10,6 @@ import {
   TimelineModeIcon as HistoryIcon,
   AddBookmarkIconV2,
 } from '../../icons/AnnelyseIcons';
-import KEEPS_FOCUS from '../../keepsFocus';
 import useFontSize from '../../fontSize/useFontSize';
 import {
   checkLinesAfterBreaks,
@@ -23,14 +22,14 @@ import RefusalAlert from '../DraftMarkers/RefusalAlert';
 import useDraftMarkers, {
   UNAVAILABLE_STYLE,
 } from '../DraftMarkers/useDraftMarkers';
-import FindBar, { FIND_BAR_CLASS } from '../../search/FindBar';
-import { FONT_PICKER_CLASS } from '../../poemFont/FontPicker';
+import FindBar from '../../search/FindBar';
 import SearchHighlight from '../../search/searchHighlight';
 import './Editor.css';
 import MenuBar from './MenuBar';
 import useAutosave from './useAutosave';
 import useFocusMode from './useFocusMode';
 import { rememberCursor, restoreCursor } from './cursorReturn';
+import { focusUnlessKept, keepsFocus } from './focusKeepers';
 import { i18n } from '../../../shared/i18n';
 import { changesMade } from '../../../shared/firstFrame';
 
@@ -104,17 +103,23 @@ export default function Editor() {
   // File > Save, Save As and Export read the poem from the store, which the autosave writes only a second
   // after the last keystroke. They ask for it first (#157): write it now, then answer. New and Open ask
   // too, before the unsaved-changes prompt, so the poem they would replace is the poem on screen (#113).
-  // The pending autosave is left to run.
+  // A pending autosave is made now, not left to run (#522): left to run, it fired after New or Open had put
+  // another document in the store, and either wrote this poem's text to that document's path or was
+  // abandoned with this poem's last keystrokes. Its save-file reaches main before the answer, as the store
+  // writes do, so this poem's file is written before main goes on.
+  const { flushNow } = autosave;
   useEffect(
     () =>
       window.electron.ipcRenderer.on('flush-editor', (id) => {
-        const doc = latest.current;
-        typedSinceStored.current = false;
-        window.electron.store.set('poem', doc.htmlString);
-        window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        if (!flushNow()) {
+          const doc = latest.current;
+          typedSinceStored.current = false;
+          window.electron.store.set('poem', doc.htmlString);
+          window.electron.store.set('history', JSON.stringify(doc.poemHistory));
+        }
         window.electron.ipcRenderer.sendMessage('editor-flushed', [id]);
       }),
-    []
+    [flushNow]
   );
   useEffect(() => {
     saveFileAndUpdateStore();
@@ -153,15 +158,8 @@ export default function Editor() {
     editor: EditorType;
     event: FocusEvent;
   }) => {
-    // The find bar, the font picker and anything marked KEEPS_FOCUS take the focus on purpose; taking it back
-    // would leave the poet unable to type there, and the font picker's Escape would never reach it (GitHub #112,
-    // editor #417). Worse, what was typed there went into the poem (View > Colours…, GitHub #119).
-    const to = event.relatedTarget;
-    if (
-      to instanceof Element &&
-      to.closest(`.${FIND_BAR_CLASS}, .${FONT_PICKER_CLASS}, [${KEEPS_FOCUS}]`)
-    )
-      return;
+    // The find bar, the font picker and anything marked KEEPS_FOCUS keep the focus (focusKeepers.ts).
+    if (keepsFocus(event.relatedTarget)) return;
     // Without moving the page (GitHub #92): focus() scrolls the caret into view by default, so a click in the
     // header or footer of a long poem the poet had scrolled away from jumped back to the caret.
     if (window.electron.versions.isMac) {
@@ -257,7 +255,7 @@ export default function Editor() {
   // before. Leaving, by any route, remembers it.
   const created = useRef<EditorType | null>(null);
   const onCreate = ({ editor }: { editor: EditorType }) => {
-    if (!restoreCursor(editor)) editor.commands.focus();
+    if (!restoreCursor(editor)) focusUnlessKept(editor);
     created.current = editor;
     setMyEditor(editor);
   };

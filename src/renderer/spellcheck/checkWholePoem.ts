@@ -46,6 +46,17 @@ import type { EditorView } from '@tiptap/pm/view';
 // historyUndo/historyRedo beforeinput and prevents its default, so the native one never runs.
 
 export const PAUSE_MS = 30;
+// On Windows the checker missed many of the 30 ms rechecks. Measured on #510, on the Windows desktop runner with Annelyse's cases
+// typed as real keystrokes, 3 runs each: at 30 ms 10 of 39 failed (cases 1, 3 and 4), at 100 ms none did, and at
+// 300 ms a 12-line poem was no longer marked within 5 s. Elsewhere 30 ms stays: a longer pause only slows the check.
+export const WINDOWS_PAUSE_MS = 100;
+
+/** The pause between one paragraph's space and the next, for this platform. */
+export const pauseMs = (): number =>
+  (window as unknown as { electron?: { versions?: { isWindows?: boolean } } })
+    .electron?.versions?.isWindows
+    ? WINDOWS_PAUSE_MS
+    : PAUSE_MS;
 export const FIRST_MS = 250;
 export const AGAIN_MS = 1500;
 // How long the poet has paused, after the poem gained or lost a line, before those lines are checked.
@@ -253,7 +264,7 @@ export function checkParagraphs(
     inserted = dom.innerHTML;
     if (selection.rangeCount > 0)
       afterSpace = selection.getRangeAt(0).cloneRange();
-    timer = setTimeout(() => step(next + 1), PAUSE_MS);
+    timer = setTimeout(() => step(next + 1), pauseMs());
   };
 
   observer.stop();

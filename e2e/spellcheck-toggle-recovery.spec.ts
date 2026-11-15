@@ -7,9 +7,12 @@ import {
   APP_DIR,
   clickCheckSpelling,
   clickMenuItem,
+  crash,
+  mainPid,
   readStore,
   seedStore,
   SETTLE_MS,
+  isRunning,
   waitUntil,
 } from './harness';
 
@@ -72,20 +75,17 @@ async function untitledPoemWithText(answer: number) {
   expect(written, 'autosave wrote a recovery copy with the text').toBe(true);
   // CONTROL: nothing was asked before the toggle.
   expect(seen().filter((l) => l.startsWith('dialog '))).toEqual([]);
-  return { app, win, work, userData, seen };
+  // Read while main is alive: on Windows app.process() is not main (harness.ts, mainPid).
+  const pid = await mainPid(app);
+  return { app, win, work, userData, seen, pid };
 }
 
 type Started = Awaited<ReturnType<typeof untitledPoemWithText>>;
 
 // Ends Midst without its quit path. The poem is unsaved, so a close asks about it, and every dialog here gets the same
 // answer, which for No cancels the quit and leaves app.close() waiting for ever (run 14191).
-async function end(app: Started['app']) {
-  const exited = new Promise<void>((resolve) => {
-    if (app.process().exitCode !== null) resolve();
-    else app.process().once('exit', () => resolve());
-  });
-  app.process().kill('SIGKILL');
-  await exited;
+async function end({ app, pid }: Pick<Started, 'app' | 'pid'>) {
+  if (isRunning(pid)) await crash(app, pid);
 }
 
 // Check Spelling, then wait past the reloaded page's first render, when main's ready-to-show handler would offer.
@@ -155,7 +155,7 @@ async function toggle({ app, win, userData }: Started) {
         `nothing crashed, so nothing is asked or trashed: ${facts}`
       ).toEqual([]);
     } finally {
-      await end(app);
+      await end(started);
     }
   });
 });
@@ -164,7 +164,7 @@ async function toggle({ app, win, userData }: Started) {
 // just before the toggle, with no time for autosave to write the recovery copy again.
 test('after Yes on the toggle offer, the poem is the latest typing, not the older recovery copy', async () => {
   const started = await untitledPoemWithText(0);
-  const { app, win, userData, seen } = started;
+  const { win, userData, seen } = started;
   try {
     const LATER = 'QZXLATER';
     await win.keyboard.type(` ${LATER}`);
@@ -186,7 +186,7 @@ test('after Yes on the toggle offer, the poem is the latest typing, not the olde
       true
     );
   } finally {
-    await end(app);
+    await end(started);
   }
 });
 
@@ -195,27 +195,19 @@ test('after Yes on the toggle offer, the poem is the latest typing, not the olde
 // up. The next launch must still have the poem.
 test('Midst ending while the toggle offer is up still leaves the poem for the next launch', async () => {
   const started = await untitledPoemWithText(0);
-  const { app, work, userData } = started;
+  const { app, work, userData, pid } = started;
   await app.evaluate(({ dialog }) => {
     dialog.showMessageBoxSync = (() => {
       process.kill(process.pid, 'SIGKILL');
       return 0;
     }) as typeof dialog.showMessageBoxSync;
   });
-  const ended = new Promise<void>((resolve) => {
-    if (app.process().exitCode !== null) resolve();
-    else app.process().once('exit', () => resolve());
-  });
   await clickCheckSpelling(app).catch(() => {});
-  // If no offer comes, nothing kills it: then end it here, as a quit with nothing asked.
-  const killedByOffer = await Promise.race([
-    ended.then(() => true),
-    new Promise<boolean>((resolve) => {
-      setTimeout(() => resolve(false), 30_000);
-    }),
-  ]);
+  // If no offer comes, nothing kills it: then end it here, as a quit with nothing asked. Main itself is watched, not
+  // app.process(), which on Windows is only the cmd.exe that started it.
+  const killedByOffer = await waitUntil(() => !isRunning(pid), 30_000);
   if (!killedByOffer) {
-    await end(app);
+    await end(started);
   }
   const again = await start(work, userData, 0);
   try {
