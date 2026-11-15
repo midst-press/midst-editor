@@ -2482,6 +2482,17 @@ describe('the menu', () => {
         expect(win.webContents.send).toHaveBeenCalledWith('set-locale', 'en');
       });
 
+      // #505's e2e: at launch the title bar takes its copy as it is built, so the first build sends nothing. A
+      // message then delayed the window's first render, and a New sent at once was lost.
+      it('the first build at launch does not say the menu changed', () => {
+        const win = makeWindow();
+        (
+          BrowserWindow as unknown as { getAllWindows: jest.Mock }
+        ).getAllWindows = jest.fn(() => [win]);
+        new MenuBuilder(asWindow(win)).buildMenu();
+        expect(win.webContents.send).not.toHaveBeenCalledWith('menu-changed');
+      });
+
       it('choosing a language stores it, rebuilds the menus once and tells every window', () => {
         const win = makeWindow();
         const other = makeWindow();

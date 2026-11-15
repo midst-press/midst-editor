@@ -176,6 +176,9 @@ export const setLanguage = (locale: string, mainWindow: BrowserWindow) => {
   store.set('language', used);
   // eslint-disable-next-line no-use-before-define -- the class is declared below, and this runs on a click
   new MenuBuilder(mainWindow).applyMenu();
+  // Not in applyMenu: at launch the title bar takes its copy as it is built, and a message then only slows the
+  // window's first render, which a New sent at once can lose to (#505's e2e).
+  menuChanged();
   BrowserWindow.getAllWindows().forEach((w) =>
     sendToWindow(w, 'set-locale', used)
   );
@@ -756,7 +759,6 @@ export default class MenuBuilder {
 
     const menu = Menu.buildFromTemplate(template);
     Menu.setApplicationMenu(menu);
-    menuChanged();
 
     return menu;
   }
