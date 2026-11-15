@@ -423,6 +423,9 @@ test('the recorder tells a forced clamp from a jump that rides along with a shri
           }, startTop);
           await page.waitForTimeout(200);
           // Wait for at least one sampled frame after the edit, so the shrink has a predecessor (river-2fc1630e).
+          // fs.length > 0 means a frame after the edit was sampled, but only if a frame ran before the edit to fill
+          // last. If none did, the first frame only fills last, and this waits until the test times out — a loud
+          // failure, not a silent pass.
           await page.waitForFunction(
             () => (globalThis as any).fs && (globalThis as any).fs.length > 0
           );
