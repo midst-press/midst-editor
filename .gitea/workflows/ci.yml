@@ -240,6 +240,16 @@ jobs:
           $ErrorActionPreference = 'Stop'
           npm run e2e
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      # Playwright's page snapshot for each failed test, into the log: the runner deletes the workspace after the job,
+      # and nobody can read rdpuser's files from outside, so the log is the only place they survive.
+      - name: what the failed tests saw
+        if: failure()
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $files = @(Get-ChildItem test-results -Recurse -Filter error-context.md -ErrorAction SilentlyContinue)
+          if (-not $files.Count) { 'no error-context.md'; exit 0 }
+          foreach ($f in $files) { "===== $($f.Directory.Name)"; Get-Content $f.FullName -Raw }
+          exit 0
       # A test that fails before it ends Midst leaves it running, and the runner keeps it for the next job: an
       # electron.exe left running locks node_modules\electron\dist, and the next npm ci here fails. Only this job's
       # Electron, and Playwright's Chromium, are stopped: the Lenovo also runs other work, and runs of the suite over
