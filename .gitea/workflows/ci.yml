@@ -265,6 +265,24 @@ jobs:
           Remove-Item -Recurse -Force (Join-Path $cached '.cache') -ErrorAction SilentlyContinue
           cmd /c mklink /J node_modules $cached | Out-Null
           if ($LASTEXITCODE) { throw "mklink /J node_modules failed: exit $LASTEXITCODE" }
+          # A local package (file:, as vendor/midst-format is) is a junction npm made with the absolute path of the
+          # checkout it ran in, and every job checks out into a new folder. Point each one at this checkout.
+          # Read with node: Windows PowerShell's ConvertFrom-Json refuses the lockfile's "" key (the root package).
+          $links = node -e "const p=require('./package-lock.json').packages;for(const[k,v]of Object.entries(p))if(v.link)console.log(k+'\t'+v.resolved)"
+          if ($LASTEXITCODE) { throw "reading package-lock.json failed: exit $LASTEXITCODE" }
+          foreach ($line in @($links)) {
+            if (-not $line) { continue }
+            $name, $resolved = $line -split "`t"
+            $link = Join-Path (Get-Location) $name
+            $target = Join-Path (Get-Location) $resolved
+            if (-not (Test-Path $target)) { throw "linked package ${name}: $resolved is not in this checkout" }
+            # Test-Path is False for a junction whose target is gone, which is the case here: remove it regardless.
+            cmd /c "rmdir `"$link`" 2>nul"
+            New-Item -ItemType Directory -Force (Split-Path $link) | Out-Null
+            cmd /c mklink /J $link $target | Out-Null
+            if ($LASTEXITCODE) { throw "mklink /J $name failed: exit $LASTEXITCODE" }
+            "linked $name -> $resolved"
+          }
           (Get-Item $entry).LastWriteTime = Get-Date
           Get-ChildItem $root -Directory | Where-Object { $_.Name -notlike '.partial-*' } |
             Sort-Object LastWriteTime -Descending | Select-Object -Skip 3 |
