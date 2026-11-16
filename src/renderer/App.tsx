@@ -10,6 +10,7 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
+import ExportVideo from './components/ExportVideo';
 import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
@@ -55,6 +56,11 @@ export default function App() {
   const [startAt] = useState(() => {
     const returnTo = window.sessionStorage.getItem(RETURN_TO);
     window.sessionStorage.removeItem(RETURN_TO);
+    // The hidden export window (#506) is opened with ?export=1.
+    /* eslint-disable lingui/no-unlocalized-strings -- a query parameter and a route, never shown */
+    if (new URLSearchParams(window.location.search).has('export'))
+      return '/export';
+    /* eslint-enable lingui/no-unlocalized-strings */
     return returnTo === '/editor' ? returnTo : '/';
   });
   const [text, setText] = useState(restoreText);
@@ -131,6 +137,17 @@ export default function App() {
         {/* Outside Electron (a browser on the dev server), with no preload: never what a poet sees. */}
         {/* eslint-disable-next-line lingui/no-unlocalized-strings */}
         <ThemeProvider theme={theme}>Hello</ThemeProvider>
+      </>
+    );
+
+  // The hidden export window (#506): the export page alone, with no title bar, menu or font picker to be captured.
+  if (startAt === '/export')
+    return (
+      <>
+        <CssBaseline />
+        <ThemeProvider theme={theme}>
+          <ExportVideo />
+        </ThemeProvider>
       </>
     );
 
