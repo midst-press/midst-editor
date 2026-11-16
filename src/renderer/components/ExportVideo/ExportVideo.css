@@ -1,0 +1,45 @@
+/* The export's page (#506): 1920×1080, the title and last-written date above the poem, no controls. */
+.ExportVideo {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  padding: 72px max(15%, 32px) 0;
+  overflow: hidden;
+}
+
+.ExportVideoHeader h1 {
+  margin: 0;
+  font-size: 56px;
+  font-weight: 500;
+}
+
+.ExportVideoHeader p {
+  margin: 8px 0 40px;
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.ExportVideoPoem {
+  flex: 1;
+  overflow: hidden;
+  font-family: var(
+    --poem-font,
+    Jost,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif
+  );
+  font-size: 36px;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.ExportVideoPoem p {
+  margin: 0;
+  padding: 0;
+}

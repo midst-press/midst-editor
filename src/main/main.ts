@@ -67,6 +67,7 @@ import {
 } from '../shared/i18n';
 import confirmContinueWriting from './continueWriting';
 import sendToWindow from './sendToWindow';
+import { exportAndQuit, exportJobFromEnv } from './exportVideo';
 import { reportChanges, untitledWithEdits } from './untitledEdits';
 
 let mainWindow: BrowserWindow | null = null;
@@ -552,6 +553,16 @@ if (firstCopy)
       // English (editor #265; midst-infra docs/design/message-catalog.md, section 6). A change from the menu
       // rebuilds the menus and tells the window (setLanguage).
       activateLocale(chosenLocale(store.get('language')));
+      // File > Export as Video, proof of concept (#506): a development build given MIDST_EXPORT_VIDEO_IN and _OUT
+      // exports that poem and quits, with no window shown.
+      const exportJob = exportJobFromEnv(app.isPackaged, process.env);
+      if (exportJob) {
+        exportAndQuit(
+          exportJob,
+          path.join(__dirname, '../../.erb/dll/preload.js')
+        );
+        return;
+      }
       createWindow();
       app.on('activate', (_event, hasVisibleWindows) => {
         if (!hasVisibleWindows) {

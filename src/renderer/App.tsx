@@ -10,6 +10,7 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
+import ExportVideo from './components/ExportVideo';
 import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
@@ -55,6 +56,11 @@ export default function App() {
   const [startAt] = useState(() => {
     const returnTo = window.sessionStorage.getItem(RETURN_TO);
     window.sessionStorage.removeItem(RETURN_TO);
+    // The hidden export window (#506) is opened with ?export=1.
+    /* eslint-disable lingui/no-unlocalized-strings -- a query parameter and a route, never shown */
+    if (new URLSearchParams(window.location.search).has('export'))
+      return '/export';
+    /* eslint-enable lingui/no-unlocalized-strings */
     return returnTo === '/editor' ? returnTo : '/';
   });
   const [text, setText] = useState(restoreText);
@@ -154,6 +160,7 @@ export default function App() {
                       <Routes>
                         <Route path="/editor" element={<Editor />} />
                         <Route path="/replay" element={<Replay />} />
+                        <Route path="/export" element={<ExportVideo />} />
                         <Route path="/" element={<LandingDialog />} />
                       </Routes>
                     </PoemSizeContext.Provider>
