@@ -156,6 +156,11 @@ Use a Mac, or an account on one, that has no Midst installed.
       package (`gh release download v<previous> -R midst-press/midst-editor -p '*.pkg'`), then this one
       three times through the GUI, launching Midst and opening a poem after each:
 
+  The poem must be a file Midst saved, or one that starts with the line `midstVersion: 1`. A file without
+  that line, such as one written by midst_heatmaps' synth (the poems in kindled-poems), is taken for a poem
+  from an older Midst: Midst offers **Convert File** instead of opening it, so the step shows the wrong
+  window. Add the line at the top first.
+
   - with **Delete the Midst that's already installed** unticked: `poem-unticked.png`. The old one is
     kept as `Midst <old version>.app`;
   - with it ticked: `poem-ticked.png`. Only the new Midst is left. Start this one from no Midst:

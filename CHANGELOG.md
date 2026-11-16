@@ -1,3 +1,8 @@
+# 0.14.0
+
+- **File > Export as Video…** writes the open poem's writing as an MP4 video: the whole timeline from the blank page, at the pace set on the Timeline, with the poem's title and the date it was last written above it, and the finished poem held for 3 seconds at the end. Silent, 1920×1080 (HD, 16:9), 30 frames a second. Progress shows in the Dock or taskbar, and when it is done Midst says so, with **Show in Folder** (GitHub #134).
+- There is no length limit yet, so a long poem makes a long video and takes about as long to export as it does to replay (GitHub #134).
+
 # 0.13.3
 
 - **Windows: Save and Save As work.** They were greyed out because the Windows title bar never redrew the menu once a poem was open (GitHub #133).

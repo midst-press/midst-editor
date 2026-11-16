@@ -15,6 +15,7 @@ import log from 'electron-log';
 import MenuBuilder, {
   applyStoredAppearance,
   exportRtf,
+  exportVideoFile,
   focusModeMark,
   logIfRejected,
   newFile,
@@ -29,6 +30,7 @@ import { showAbout } from '../main/about';
 import * as recovery from '../main/recovery';
 import { setEditorShowing } from '../main/editorFlush';
 import * as rtf from '../main/rtf';
+import { exportVideo } from '../main/exportVideo';
 import * as saveFailure from '../main/saveFailurePolicy';
 import { activateLocale, catalogs, i18n, languageName } from '../shared/i18n';
 
@@ -43,8 +45,13 @@ jest.mock('electron', () => ({
     addRecentDocument: jest.fn(),
     getPath: (name: string) => `/test-home/${name}`,
     getPreferredSystemLanguages: jest.fn(() => ['en-NZ']),
+    on: jest.fn(),
+    removeListener: jest.fn(),
+    isPackaged: false,
+    applicationMenu: undefined,
   },
   dialog: {
+    showMessageBox: jest.fn(),
     showMessageBoxSync: jest.fn(),
     showSaveDialogSync: jest.fn(),
     showOpenDialogSync: jest.fn(),
@@ -56,6 +63,8 @@ jest.mock('electron', () => ({
   ipcMain: { on: jest.fn() },
 }));
 jest.mock('../main/about', () => ({ showAbout: jest.fn() }));
+// The export itself is exportVideoWait.test.ts's and the e2e's; here, only what the menu does around it (#506).
+jest.mock('../main/exportVideo', () => ({ exportVideo: jest.fn() }));
 // The recovery copies themselves are recovery.test.ts's; here, only when the menu asks for them (#315).
 jest.mock('../main/recovery', () => ({
   writeRecovery: jest.fn(),
@@ -118,6 +127,7 @@ const makeWindow = () => ({
   setDocumentEdited: jest.fn(),
   setRepresentedFilename: jest.fn(),
   setTitle: jest.fn(),
+  setProgressBar: jest.fn(),
   isDestroyed: jest.fn(() => false),
   isFullScreen: jest.fn(() => false),
   setFullScreen: jest.fn(),
@@ -765,6 +775,228 @@ describe('saveAs', () => {
       expect(mockStore.get('edited')).toBe(false);
       expect(dirListing()).toEqual(['xv.midst']);
     });
+  });
+});
+
+describe('exportVideoFile (#506)', () => {
+  const runExport = exportVideo as jest.Mock;
+  const asyncBox = dialog.showMessageBox as jest.Mock;
+  const appMock = app as unknown as {
+    on: jest.Mock;
+    removeListener: jest.Mock;
+    isPackaged: boolean;
+    applicationMenu: unknown;
+  };
+  const quitNow = () => {
+    // The listener of the export running now: the last one added.
+    const call = appMock.on.mock.calls
+      .filter(([e]) => e === 'before-quit')
+      .at(-1);
+    if (!call) throw new Error('no before-quit listener while exporting');
+    call[1]();
+  };
+  const playable = [
+    { inserted: '<p>z</p>', front: 0, end: 0, t: '2020-01-01T00:00:00.000Z' },
+    { inserted: 'q', front: 4, end: 4, t: '2020-01-01T00:00:01.000Z' },
+  ];
+  let menuItem: { enabled: boolean };
+  beforeEach(() => {
+    menuItem = { enabled: true };
+    appMock.isPackaged = false;
+    appMock.applicationMenu = {
+      getMenuItemById: (id: string) =>
+        id === 'menu.file.exportVideo' ? menuItem : null,
+    };
+    runExport.mockResolvedValue({ frames: 3, bytes: 10 });
+    asyncBox.mockResolvedValue({ response: 1, checkboxChecked: false });
+    showMessageBox.mockReturnValue(0); // the error message's OK
+  });
+  afterEach(() => {
+    appMock.applicationMenu = undefined;
+  });
+
+  it('a poem with nothing to play says so, and asks for no file', async () => {
+    seedDocument({ history: '[]' });
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showSaveDialog).not.toHaveBeenCalled();
+    expect(showMessageBox.mock.calls[0][1]).toMatchObject({
+      type: 'error',
+      message: 'Midst could not export the poem as a video.',
+      detail: 'The poem has no writing to play yet.',
+    });
+    expect(runExport).not.toHaveBeenCalled();
+  });
+
+  it('an unreadable stored history is nothing to play, not a crash', async () => {
+    seedDocument({ history: '{not json' });
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showMessageBox.mock.calls[0][1].detail).toBe(
+      'The poem has no writing to play yet.'
+    );
+  });
+
+  it('offers the poem’s own name and folder as .mp4, and a cancel writes nothing', async () => {
+    seedDocument({
+      history: JSON.stringify(playable),
+      filename: path.join(dir, 'zq.midst'),
+    });
+    showSaveDialog.mockReturnValue(undefined);
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join(dir, 'zq.mp4')
+    );
+    expect(showSaveDialog.mock.calls[0][1].filters[0].extensions).toEqual([
+      'mp4',
+    ]);
+    expect(runExport).not.toHaveBeenCalled();
+  });
+
+  it('offers Untitled.mp4 in the dialog folder for a poem with no file', async () => {
+    seedDocument({ history: JSON.stringify(playable), filename: '' });
+    showSaveDialog.mockReturnValue(undefined);
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showSaveDialog.mock.calls[0][1].defaultPath).toBe(
+      path.join('/test-home/documents', 'Untitled.mp4')
+    );
+  });
+
+  it('exports the stored history under the poem’s name, shows progress, and says it is ready', async () => {
+    const chosen = path.join(dir, 'zq.mp4');
+    seedDocument({
+      history: JSON.stringify(playable),
+      filename: path.join(dir, 'zq.midst'),
+    });
+    showSaveDialog.mockReturnValue(chosen);
+    const win = makeWindow();
+    (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+      jest.fn(() => [win]);
+    runExport.mockImplementation(
+      async (_job, _preloads, onProgress, isStopped) => {
+        expect(menuItem.enabled).toBe(false); // unavailable while it runs
+        // ...and the Windows/Linux title bar's copy of the menu is told so (#502).
+        expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
+        win.webContents.send.mockClear();
+        expect(isStopped()).toBe(false);
+        onProgress(0.5);
+        return { frames: 3, bytes: 10 };
+      }
+    );
+    await exportVideoFile(asWindow(win));
+    expect(runExport.mock.calls[0][0]).toEqual({
+      history: playable,
+      title: 'zq',
+      output: chosen,
+    });
+    // A development build tries the development preload first, then the built one.
+    expect(runExport.mock.calls[0][1]).toHaveLength(2);
+    expect(win.setProgressBar.mock.calls.map(([f]) => f)).toEqual([
+      0, 0.5, -1, -1,
+    ]);
+    expect(asyncBox.mock.calls[0][1]).toMatchObject({
+      type: 'info',
+      message: 'The video is ready.',
+    });
+    expect(shell.showItemInFolder).not.toHaveBeenCalled();
+    expect(menuItem.enabled).toBe(true);
+    // ...and told again once it is available.
+    expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
+    expect(appMock.removeListener).toHaveBeenCalledWith(
+      'before-quit',
+      expect.any(Function)
+    );
+  });
+
+  it('Show in Folder shows the file', async () => {
+    const chosen = path.join(dir, 'zq.mp4');
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(chosen);
+    asyncBox.mockResolvedValue({ response: 0, checkboxChecked: false });
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(shell.showItemInFolder).toHaveBeenCalledWith(chosen);
+  });
+
+  it('a packaged app uses the preload beside its main bundle only', async () => {
+    appMock.isPackaged = true;
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(runExport.mock.calls[0][1]).toHaveLength(1);
+    expect(runExport.mock.calls[0][1][0]).toMatch(/preload\.js$/);
+  });
+
+  it('a failed export says why, and the item can be used again', async () => {
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    runExport.mockRejectedValue(new Error('export-ready not received in 30 s'));
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showMessageBox.mock.calls[0][1]).toMatchObject({
+      type: 'error',
+      message: 'Midst could not export the poem as a video.',
+    });
+    expect(showMessageBox.mock.calls[0][1].detail).toContain(
+      'export-ready not received in 30 s'
+    );
+    expect(logError).toHaveBeenCalled();
+    expect(asyncBox).not.toHaveBeenCalled();
+    expect(menuItem.enabled).toBe(true);
+  });
+
+  it('quitting mid-export stops it and tells nobody, whether it then ends or fails', async () => {
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    runExport.mockImplementation(async (_j, _p, _o, isStopped) => {
+      quitNow();
+      expect(isStopped()).toBe(true);
+      return { frames: 1, bytes: 1 };
+    });
+    await exportVideoFile(asWindow(makeWindow()));
+    runExport.mockImplementation(async () => {
+      quitNow();
+      throw new Error('stopped');
+    });
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(asyncBox).not.toHaveBeenCalled();
+    expect(showMessageBox).not.toHaveBeenCalled();
+  });
+
+  it('a window closed mid-export gets no progress and no message', async () => {
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    const win = makeWindow();
+    runExport.mockImplementation(async (_j, _p, onProgress) => {
+      win.isDestroyed.mockReturnValue(true);
+      onProgress(0.5);
+      return { frames: 1, bytes: 1 };
+    });
+    await exportVideoFile(asWindow(win));
+    expect(win.setProgressBar.mock.calls.map(([f]) => f)).toEqual([0]);
+    expect(asyncBox).not.toHaveBeenCalled();
+  });
+
+  it('a second request while one runs does nothing', async () => {
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    let release: () => void = () => {};
+    runExport.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ frames: 1, bytes: 1 });
+        })
+    );
+    const first = exportVideoFile(asWindow(makeWindow()));
+    await exportVideoFile(asWindow(makeWindow()));
+    expect(showSaveDialog).toHaveBeenCalledTimes(1);
+    release();
+    await first;
+  });
+
+  it('works with no application menu to mark', async () => {
+    appMock.applicationMenu = undefined;
+    seedDocument({ history: JSON.stringify(playable) });
+    showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+    await expect(
+      exportVideoFile(asWindow(makeWindow()))
+    ).resolves.toBeUndefined();
   });
 });
 
@@ -1878,6 +2110,27 @@ describe('the menu', () => {
         expect(showMessageBox).toHaveBeenCalledTimes(1);
         expect(showOpenDialog).not.toHaveBeenCalled();
       });
+    });
+
+    it('Export as Video… asks the editor first, then exports', async () => {
+      seedDocument({
+        history: JSON.stringify([
+          {
+            inserted: '<p>z</p>',
+            front: 0,
+            end: 0,
+            t: '2020-01-01T00:00:00.000Z',
+          },
+          { inserted: 'q', front: 4, end: 4, t: '2020-01-01T00:00:01.000Z' },
+        ]),
+      });
+      showSaveDialog.mockReturnValue(path.join(dir, 'zq.mp4'));
+      (exportVideo as jest.Mock).mockResolvedValue({ frames: 1, bytes: 1 });
+      (dialog.showMessageBox as jest.Mock).mockResolvedValue({ response: 1 });
+      const item = sub(build(platform), fileLabels.top, 'Export as Video…');
+      expect(item.enabled).toBe(true);
+      await item.click!();
+      expect(exportVideo).toHaveBeenCalledTimes(1);
     });
 
     it('Export as RTF… asks for a file and writes the poem there as RTF', async () => {

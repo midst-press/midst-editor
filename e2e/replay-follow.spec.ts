@@ -71,6 +71,7 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
       return s;
     };
     g.fs = [];
+    (g as any).fn = 0;
     let last: string[] = [];
     let target: [number, number] | null = null;
     let lastHeight = 0;
@@ -112,6 +113,7 @@ async function record(win: Page, done: () => Promise<void>): Promise<Rec> {
         target = [k, c];
       }
       last = now;
+      (g as any).fn = ((g as any).fn || 0) + 1;
       if (!target || !ps[target[0]]) return;
       const [tk, tc] = target;
       // A Range at character tc of paragraph tk: walk its text nodes.
@@ -416,6 +418,9 @@ test('the recorder tells a forced clamp from a jump that rides along with a shri
       return verdict(
         await record(page, async () => {
           await page.waitForTimeout(100);
+          // Wait for the sampler to have run at least once, so last is filled and the edit will be pushed
+          // as a sample with a predecessor (river-2fc1630e).
+          await page.waitForFunction(() => (globalThis as any).fn > 0);
           // A visible edit near the current view, so there is a target.
           await page.evaluate((t) => {
             const ps = document.querySelectorAll('.ProseMirror p');
