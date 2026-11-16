@@ -86,8 +86,12 @@ test('Export as Video… writes an MP4 of the poem and says it is ready', async 
     expect(moov).toBeGreaterThan(0);
     expect(mdat).toBeGreaterThan(moov);
     expect(bytes.length).toBeGreaterThan(10_000);
-    // No partial file left beside it.
-    expect(readdirSync(work).filter((f) => f.includes('.partial'))).toEqual([]);
+    // No scratch folder or partial file left beside it.
+    expect(
+      readdirSync(work).filter(
+        (f) => f.startsWith('.midst-export-') || f.includes('.partial')
+      )
+    ).toEqual([]);
 
     // The poet is told, and the item can be used again.
     await expect
