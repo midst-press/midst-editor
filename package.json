@@ -328,10 +328,10 @@
       "url": "http://localhost/"
     },
     "testPathIgnorePatterns": [
-      "release/app/dist",
-      ".erb/dll",
-      "test-files",
-      "e2e"
+      "<rootDir>/release/app/dist/",
+      "<rootDir>/.erb/dll/",
+      "/test-files/",
+      "<rootDir>/e2e/"
     ],
     "transform": {
       "\\.(ts|tsx|js|jsx)$": "ts-jest",
