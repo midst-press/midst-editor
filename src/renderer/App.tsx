@@ -140,6 +140,17 @@ export default function App() {
       </>
     );
 
+  // The hidden export window (#506): the export page alone, with no title bar, menu or font picker to be captured.
+  if (startAt === '/export')
+    return (
+      <>
+        <CssBaseline />
+        <ThemeProvider theme={theme}>
+          <ExportVideo />
+        </ThemeProvider>
+      </>
+    );
+
   return (
     <>
       <CssBaseline />
@@ -160,7 +171,6 @@ export default function App() {
                       <Routes>
                         <Route path="/editor" element={<Editor />} />
                         <Route path="/replay" element={<Replay />} />
-                        <Route path="/export" element={<ExportVideo />} />
                         <Route path="/" element={<LandingDialog />} />
                       </Routes>
                     </PoemSizeContext.Provider>

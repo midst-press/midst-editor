@@ -7,6 +7,7 @@ import type { ChangeObj } from '@midst-press/midst-format/history';
 import { WindowToMain } from '../shared/channels';
 import sendToWindow from './sendToWindow';
 import { resolveHtmlPath } from './util';
+import { ExportJob } from './exportJob';
 
 // File > Export as Video, proof of concept (#506). Development builds only, by environment:
 //   MIDST_EXPORT_VIDEO_IN=<poem.midst> MIDST_EXPORT_VIDEO_OUT=<video.mp4>
@@ -16,21 +17,6 @@ import { resolveHtmlPath } from './util';
 
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
-
-export interface ExportJob {
-  input: string;
-  output: string;
-}
-
-export const exportJobFromEnv = (
-  isPackaged: boolean,
-  env: NodeJS.ProcessEnv
-): ExportJob | null => {
-  if (isPackaged) return null;
-  const input = env.MIDST_EXPORT_VIDEO_IN;
-  const output = env.MIDST_EXPORT_VIDEO_OUT;
-  return input && output ? { input, output } : null;
-};
 
 /** The next message on a channel from this window, failing the export if the page reports a failure first. */
 function waitFor<C extends keyof WindowToMain>(
@@ -78,7 +64,10 @@ export async function exportVideo(
   preload: string
 ): Promise<void> {
   const data = fs.readFileSync(job.input, 'utf8');
-  const { history } = JSON.parse(stripVersionInfo(data)) as {
+  const { history } = JSON.parse(
+    // A file written by midst_heatmaps' synth (kindled-poems) has no version line.
+    data.startsWith('midstVersion:') ? stripVersionInfo(data) : data
+  ) as {
     history: ChangeObj[];
   };
   if (!Array.isArray(history) || history.length === 0)

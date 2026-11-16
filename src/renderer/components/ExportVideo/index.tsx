@@ -12,15 +12,11 @@ import {
   VideoSampleSource,
 } from 'mediabunny';
 import { FPS, SCROLL_SPEED, paceFromStore } from '../Replay/usePace';
+import { FRAME_US, VIDEO_FPS, frameCount, glideStep, stepAt } from './timeline';
 
 // File > Export as Video, proof of concept (#506). A hidden window shows this page; main asks for frame n, this
 // page draws it, main captures the window and hands the pixels back here to be encoded, because WebCodecs exists
 // only in a page. Nothing here writes the store or the poem: the history arrives by message and stays in memory.
-
-export const VIDEO_FPS = 30;
-const FRAME_US = 1_000_000 / VIDEO_FPS;
-// The last frame is held this long, so the finished poem can be read.
-const HOLD_S = 3;
 
 interface Job {
   history: ChangeObj[];
@@ -30,26 +26,6 @@ interface Job {
   peak: number; // the poet's scroll speed, viewports per second
   frames: number;
 }
-
-/** The history step frame n shows: the poet's pace decides it, the video's 30 fps only samples it. */
-export const stepAt = (n: number, frameMs: number, maxStep: number) =>
-  Math.min(Math.floor((n * 1000) / VIDEO_FPS / frameMs), maxStep);
-
-/** How many frames: every step at the poet's pace, then the hold. */
-export const frameCount = (maxStep: number, frameMs: number) =>
-  Math.ceil(((maxStep + 1) * frameMs * VIDEO_FPS) / 1000) + HOLD_S * VIDEO_FPS;
-
-/** One frame's scroll toward the target at the poet's peak speed: never past it, never faster than the peak. */
-export const glideStep = (
-  from: number,
-  to: number,
-  viewport: number,
-  peak: number
-) => {
-  const max = (peak * viewport) / VIDEO_FPS;
-  const d = to - from;
-  return Math.abs(d) <= max ? to : from + Math.sign(d) * max;
-};
 
 const twoFrames = () =>
   new Promise<void>((resolve) => {
@@ -86,7 +62,11 @@ export default function ExportVideo() {
       setJob({
         history,
         title,
-        lastWritten: last ? new Date(last).toLocaleDateString() : '',
+        // Spelled out: 07/11/2026 reads as two different days in two countries.
+        lastWritten: last
+          ? // eslint-disable-next-line lingui/no-unlocalized-strings -- an Intl option, not text
+            new Date(last).toLocaleDateString(undefined, { dateStyle: 'long' })
+          : '',
         frameMs,
         peak,
         frames: frameCount(maxStep, frameMs),

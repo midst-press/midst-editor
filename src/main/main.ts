@@ -67,7 +67,8 @@ import {
 } from '../shared/i18n';
 import confirmContinueWriting from './continueWriting';
 import sendToWindow from './sendToWindow';
-import { exportAndQuit, exportJobFromEnv } from './exportVideo';
+import { exportAndQuit } from './exportVideo';
+import { exportJobFromEnv } from './exportJob';
 import { reportChanges, untitledWithEdits } from './untitledEdits';
 
 let mainWindow: BrowserWindow | null = null;

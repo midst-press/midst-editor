@@ -1,12 +1,33 @@
 /* The export's page (#506): 1920×1080, the title and last-written date above the poem, no controls. */
+/* No scrollbars on the page: 100vw counts the scrollbar's width, and one was captured into every frame. */
+html:has(.ExportVideo),
+body:has(.ExportVideo),
+body:has(.ExportVideo) .cet-container {
+  overflow: hidden !important;
+}
+
+/* The preload's custom title bar (its "Midst" label) is not part of the poem. Its container starts below the bar,
+   so it starts at the top instead. */
+body:has(.ExportVideo) .cet-titlebar {
+  display: none !important;
+}
+
+body:has(.ExportVideo) .cet-container {
+  top: 0 !important;
+}
+
 .ExportVideo {
-  width: 100vw;
+  width: 100%;
   height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   padding: 72px max(15%, 32px) 0;
   overflow: hidden;
+}
+
+.ExportVideoHeader {
+  font-family: var(--poem-font, Jost, system-ui, sans-serif);
 }
 
 .ExportVideoHeader h1 {
@@ -16,7 +37,7 @@
 }
 
 .ExportVideoHeader p {
-  margin: 8px 0 40px;
+  margin: 8px 0 0;
   font-size: 28px;
   opacity: 0.6;
 }
@@ -36,6 +57,18 @@
   );
   font-size: 36px;
   line-height: 1.5;
+  /* Lines scrolling under the header and off the foot fade, rather than being cut through. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black 48px,
+    black calc(100% - 48px),
+    transparent 100%
+  );
+  scrollbar-width: none;
+  /* The first line starts below the fade, not inside it. */
+  padding-top: 48px;
+  box-sizing: border-box;
   overflow-wrap: break-word;
 }
 
