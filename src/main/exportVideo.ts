@@ -1,5 +1,6 @@
 import { BrowserWindow, IpcMainEvent, ipcMain } from 'electron';
 import fs from 'fs';
+import path from 'path';
 import log from 'electron-log';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { WindowToMain } from '../shared/channels';
@@ -111,6 +112,25 @@ export const choosePreload = (
   return found;
 };
 
+/**
+ * Write `bytes` to `output` so the file appears only when whole: into a scratch folder this call creates beside it
+ * (mkdtemp, so the name is new and the rename stays on one filesystem), then renamed into place. Only that folder is
+ * removed afterwards, whether or not the write succeeded: a file this call did not create is never touched
+ * (alden-ec2221c7: the old fixed `<output>.<pid>.partial` name was removed even when another file held it).
+ */
+export function publishBeside(output: string, bytes: Uint8Array): void {
+  const scratch = fs.mkdtempSync(
+    path.join(path.dirname(output), '.midst-export-')
+  );
+  try {
+    const tmp = path.join(scratch, 'video.mp4');
+    fs.writeFileSync(tmp, bytes, { flag: 'wx' });
+    fs.renameSync(tmp, output);
+  } finally {
+    fs.rmSync(scratch, { recursive: true, force: true });
+  }
+}
+
 export interface VideoJob {
   history: ChangeObj[];
   title: string; // shown above the poem
@@ -118,8 +138,8 @@ export interface VideoJob {
 }
 
 /**
- * Export the poem's history as an MP4 video (File > Export as Video…). The file is written beside its final name
- * and renamed into place, so a failed or interrupted export leaves no part of a file behind. `onProgress` is called
+ * Export the poem's history as an MP4 video (File > Export as Video…). Nothing is written until the video is
+ * complete, and then only through publishBeside, so a failed or interrupted export leaves no part of a file behind. `onProgress` is called
  * with the fraction done after each frame. `isStopped` is asked between frames: true ends the export, writing
  * nothing (the app is quitting).
  */
@@ -143,7 +163,6 @@ export async function exportVideo(
     webPreferences: { sandbox: false, preload, backgroundThrottling: false },
   });
   const t0 = Date.now();
-  const partial = `${job.output}.${process.pid}.partial`;
   try {
     const ready = waitFor(win, 'export-ready');
     await win.loadURL(`${resolveHtmlPath('index.html')}?export=1`);
@@ -185,8 +204,7 @@ export async function exportVideo(
     const done = waitFor(win, 'export-done', () => true, FINISH_WAIT_MS);
     sendToWindow(win, 'export-finish');
     const [file] = await done;
-    fs.writeFileSync(partial, file, { flag: 'wx' });
-    fs.renameSync(partial, job.output);
+    publishBeside(job.output, file);
     log.info('exportVideo: done', {
       frames,
       bytes: file.byteLength,
@@ -199,7 +217,6 @@ export async function exportVideo(
     });
     return { frames, bytes: file.byteLength };
   } finally {
-    fs.rmSync(partial, { force: true });
     if (!win.isDestroyed()) win.destroy();
   }
 }

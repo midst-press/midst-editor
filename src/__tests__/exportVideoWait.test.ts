@@ -1,9 +1,15 @@
 /** @jest-environment node */
 import { EventEmitter } from 'events';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { BrowserWindow } from 'electron';
 import {
   ExportWindow,
   WAIT_MS,
   choosePreload,
+  exportVideo,
+  publishBeside,
   waitFor,
 } from '../main/exportVideo';
 
@@ -130,5 +136,75 @@ describe('choosePreload', () => {
     expect(() => choosePreload(['/a.js', '/b.js'], () => false)).toThrow(
       'no preload for the export window: /a.js, /b.js'
     );
+  });
+});
+
+// The finished video reaches its file only through a scratch folder this export made (alden-ec2221c7, review of
+// #532): a file it did not create, at the old fixed `<output>.<pid>.partial` name or anywhere else, is never removed.
+describe('the video file and nothing else', () => {
+  let dir: string;
+  let output: string;
+  let oldPartial: string;
+  const scratchLeft = () =>
+    fs.readdirSync(dir).filter((f) => f.startsWith('.midst-export-'));
+  beforeEach(() => {
+    jest.useRealTimers();
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'midst-video-'));
+    output = path.join(dir, 'poem.mp4');
+    oldPartial = `${output}.${process.pid}.partial`;
+    fs.writeFileSync(oldPartial, 'NOT-OURS');
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it('an export that fails before writing leaves a file at the old partial name alone', async () => {
+    const win = makeWindow();
+    Object.assign(win, {
+      isDestroyed: () => false,
+      destroy: jest.fn(),
+      loadURL: jest.fn(async () => {
+        mockIpcMain.emit('export-ready', fromPage(win), []);
+      }),
+    });
+    Object.assign(win.webContents, {
+      send: jest.fn((channel: string) => {
+        // The page fails straight after the history arrives, before any frame.
+        if (channel === 'export-load')
+          setImmediate(() =>
+            mockIpcMain.emit('export-failed', fromPage(win), ['no encoder'])
+          );
+      }),
+    });
+    (BrowserWindow as unknown as jest.Mock).mockImplementation(() => win);
+    const preload = path.join(dir, 'preload.js');
+    fs.writeFileSync(preload, '');
+    await expect(
+      exportVideo(
+        {
+          history: [{ inserted: 'z', front: 0, end: 0, t: new Date(0) }],
+          title: 'zq',
+          output,
+        },
+        [preload]
+      )
+    ).rejects.toThrow('export page: no encoder');
+    expect(fs.readFileSync(oldPartial, 'utf8')).toBe('NOT-OURS');
+    expect(fs.existsSync(output)).toBe(false);
+    expect(scratchLeft()).toEqual([]);
+  });
+
+  it('a written video replaces the output and leaves no scratch, and the old partial name is untouched', () => {
+    fs.writeFileSync(output, 'OLD VIDEO');
+    publishBeside(output, new Uint8Array([1, 2, 3]));
+    expect([...fs.readFileSync(output)]).toEqual([1, 2, 3]);
+    expect(fs.readFileSync(oldPartial, 'utf8')).toBe('NOT-OURS');
+    expect(scratchLeft()).toEqual([]);
+  });
+
+  it('a write that fails removes only its own scratch folder', () => {
+    fs.mkdirSync(output); // a folder where the video should go: the rename fails
+    expect(() => publishBeside(output, new Uint8Array([1]))).toThrow();
+    expect(fs.statSync(output).isDirectory()).toBe(true);
+    expect(fs.readFileSync(oldPartial, 'utf8')).toBe('NOT-OURS');
+    expect(scratchLeft()).toEqual([]);
   });
 });
