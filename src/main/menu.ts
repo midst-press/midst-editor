@@ -485,10 +485,6 @@ export const exportRtf = (mainWindow: BrowserWindow) => {
 // or taskbar shows the progress, the item is unavailable while an export runs, and the poet is told when the file is
 // ready. A failed export leaves no part of a file behind. Exporting changes nothing about the poem or its file.
 let exportingVideo = false;
-let quitting = false;
-app.on('before-quit', () => {
-  quitting = true;
-});
 const EXPORT_VIDEO_ID = 'menu.file.exportVideo';
 const setExportVideoEnabled = (enabled: boolean) => {
   const item = app.applicationMenu?.getMenuItemById(EXPORT_VIDEO_ID);
@@ -511,7 +507,11 @@ const exportPreloads = () =>
 export const exportVideoFile = async (mainWindow: BrowserWindow) => {
   if (exportingVideo) return;
   const cannotExportVideo = (detail: string) =>
-    cannotExport(mainWindow, detail, i18n._('dialog.couldNotExportVideo.message'));
+    cannotExport(
+      mainWindow,
+      detail,
+      i18n._('dialog.couldNotExportVideo.message')
+    );
   let history: ChangeObj[] = [];
   try {
     history = JSON.parse((store.get('history') as string | undefined) || '[]');
@@ -539,6 +539,12 @@ export const exportVideoFile = async (mainWindow: BrowserWindow) => {
 
   exportingVideo = true;
   setExportVideoEnabled(false);
+  // Quitting mid-export stops it between frames and tells nobody: listened for only while an export runs.
+  let quitting = false;
+  const onQuit = () => {
+    quitting = true;
+  };
+  app.on('before-quit', onQuit);
   const progress = (fraction: number) => {
     if (!mainWindow.isDestroyed()) mainWindow.setProgressBar(fraction);
   };
@@ -569,6 +575,7 @@ export const exportVideoFile = async (mainWindow: BrowserWindow) => {
     progress(-1);
     cannotExportVideo(i18n._('dialog.couldNotExport.notWritten', { reason }));
   } finally {
+    app.removeListener('before-quit', onQuit);
     exportingVideo = false;
     setExportVideoEnabled(true);
     if (!mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
