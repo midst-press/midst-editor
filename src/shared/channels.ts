@@ -25,6 +25,16 @@ export interface MainToWindow {
   'cancel-save': [];
   // The menu changed in main. On Windows and Linux the title bar draws a copy of it, which this refreshes (#502).
   'menu-changed': [];
+  // File > Export as Video, proof of concept (#506): to the hidden export window only.
+  'export-load': [history: ChangeObj[], title: string];
+  'export-frame': [n: number];
+  'export-encode': [
+    n: number,
+    pixels: Uint8Array,
+    width: number,
+    height: number,
+  ];
+  'export-finish': [];
 }
 
 // Sent by the window with sendMessage, as one array.
@@ -39,5 +49,12 @@ export interface WindowToMain {
   'disable-save': [];
   'focus-mode-requested': [];
   'focus-mode-changed': [];
+  // From the hidden export window (#506).
+  'export-ready': [];
+  'export-loaded': [frames: number];
+  'export-frame-ready': [n: number];
+  'export-encoded': [n: number];
+  'export-done': [file: Uint8Array];
+  'export-failed': [message: string];
 }
 /* eslint-enable no-unused-vars */

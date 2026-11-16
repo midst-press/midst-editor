@@ -32,6 +32,7 @@ msgstr "No"
 #. js-lingui-explicit-id
 #: src/main/about.ts
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "button.ok"
 msgstr "OK"
@@ -92,6 +93,7 @@ msgstr "There is no poem open to export."
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "dialog.couldNotExport.notWritten"
 msgstr ""
@@ -104,6 +106,18 @@ msgstr ""
 #, fuzzy
 msgid "dialog.couldNotExport.title"
 msgstr "Could not export"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExportVideo.message"
+msgstr "Midst could not export the poem as a video."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.couldNotExportVideo.nothingToPlay"
+msgstr "The poem has no writing to play yet."
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -157,6 +171,31 @@ msgstr "Export as RTF"
 #, fuzzy
 msgid "dialog.exportRtf.title"
 msgstr "Export as RTF"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportVideo.done"
+msgstr "The video is ready."
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportVideo.message"
+msgstr "The poem's writing, played as a video"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportVideo.showInFolder"
+msgstr "Show in Folder"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#: src/main/menu.ts
+#, fuzzy
+msgid "dialog.exportVideo.title"
+msgstr "Export as Video"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -435,6 +474,7 @@ msgstr "Timeline"
 #. js-lingui-explicit-id
 #: src/main/menu.ts
 #: src/main/menu.ts
+#: src/main/menu.ts
 #, fuzzy
 msgid "file.filter.allFiles"
 msgstr "All Files"
@@ -444,6 +484,12 @@ msgstr "All Files"
 #, fuzzy
 msgid "file.filter.midst"
 msgstr "Midst"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "file.filter.mp4"
+msgstr "MP4 Video"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts
@@ -950,6 +996,12 @@ msgstr "Close the window"
 #, fuzzy
 msgid "menu.file.exportRtf"
 msgstr "Export as RTF…"
+
+#. js-lingui-explicit-id
+#: src/main/menu.ts
+#, fuzzy
+msgid "menu.file.exportVideo"
+msgstr "Export as Video…"
 
 #. js-lingui-explicit-id
 #: src/main/menu.ts

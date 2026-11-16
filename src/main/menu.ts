@@ -1,4 +1,5 @@
 import log from 'electron-log';
+import type { ChangeObj } from '@midst-press/midst-format/history';
 import {
   BrowserWindow,
   Menu,
@@ -24,12 +25,13 @@ import { Appearance, APPEARANCES, appearanceOrDefault } from './appearance';
 import { existingConvertedCopy, writeConvertedFile } from './convertedFile';
 import replaceFile from './replaceFile';
 import { poemToRtf } from './rtf';
+import { exportVideo } from './exportVideo';
 import { flushEditor } from './editorFlush';
 import { showAbout } from './about';
 import { logFilePath } from './logFile';
 import installedGuideUrl from './guideLink';
 import { describeError } from '../shared/errorSummary';
-import { emptyFirstFrame } from '../shared/firstFrame';
+import { changesMade, emptyFirstFrame } from '../shared/firstFrame';
 import { loadDataIntoWorkspace, loadRecoveredIntoWorkspace } from './util';
 import {
   adopt,
@@ -420,11 +422,15 @@ const rtfFilters = () => [
   { name: i18n._('file.filter.allFiles'), extensions: ['*'] },
 ];
 
-const cannotExport = (mainWindow: BrowserWindow, detail: string) =>
+const cannotExport = (
+  mainWindow: BrowserWindow,
+  detail: string,
+  message: string = i18n._('dialog.couldNotExport.message')
+) =>
   dialog.showMessageBoxSync(mainWindow, {
     type: 'error',
     title: i18n._('dialog.couldNotExport.title'),
-    message: i18n._('dialog.couldNotExport.message'),
+    message,
     detail,
   });
 
@@ -471,6 +477,110 @@ export const exportRtf = (mainWindow: BrowserWindow) => {
       mainWindow,
       i18n._('dialog.couldNotExport.notWritten', { reason })
     );
+  }
+};
+
+// File > Export as Video… (#506): the poem's history played as a video, at the pace the poet set on the Timeline, in
+// an MP4 file. It reads the stored history, as Save does. A hidden window draws each frame (exportVideo.ts); the Dock
+// or taskbar shows the progress, the item is unavailable while an export runs, and the poet is told when the file is
+// ready. A failed export leaves no part of a file behind. Exporting changes nothing about the poem or its file.
+let exportingVideo = false;
+const EXPORT_VIDEO_ID = 'menu.file.exportVideo';
+const setExportVideoEnabled = (enabled: boolean) => {
+  const item = app.applicationMenu?.getMenuItemById(EXPORT_VIDEO_ID);
+  if (item) item.enabled = enabled;
+  // The Windows and Linux title bar draws a copy of the menu: tell it, or the item looks available (#502).
+  menuChanged();
+};
+const videoFilters = () => [
+  { name: i18n._('file.filter.mp4'), extensions: ['mp4'] },
+  { name: i18n._('file.filter.allFiles'), extensions: ['*'] },
+];
+// The preload the hidden window needs: beside the main bundle when packaged; in development, the development one if
+// it is there (see createWindow in main.ts).
+const exportPreloads = () =>
+  app.isPackaged
+    ? [path.join(__dirname, 'preload.js')]
+    : [
+        path.join(__dirname, '../../.erb/dll/preload.js'),
+        path.join(__dirname, 'preload.js'),
+      ];
+
+export const exportVideoFile = async (mainWindow: BrowserWindow) => {
+  if (exportingVideo) return;
+  const cannotExportVideo = (detail: string) =>
+    cannotExport(
+      mainWindow,
+      detail,
+      i18n._('dialog.couldNotExportVideo.message')
+    );
+  let history: ChangeObj[] = [];
+  try {
+    history = JSON.parse((store.get('history') as string | undefined) || '[]');
+  } catch {
+    history = [];
+  }
+  if (!Array.isArray(history) || !changesMade(history)) {
+    log.warn('exportVideo: nothing to play', { steps: history.length });
+    cannotExportVideo(i18n._('dialog.couldNotExportVideo.nothingToPlay'));
+    return;
+  }
+  const poemFile = store.get('filename') as string | undefined;
+  const title = poemFile ? path.basename(poemFile, '.midst') : untitled();
+  const folder =
+    poemFile && fs.existsSync(path.dirname(poemFile))
+      ? path.dirname(poemFile)
+      : dialogFolder();
+  const filename = dialog.showSaveDialogSync(mainWindow, {
+    title: i18n._('dialog.exportVideo.title'),
+    message: i18n._('dialog.exportVideo.message'),
+    defaultPath: path.join(folder, `${title}.mp4`),
+    filters: videoFilters(),
+  });
+  if (!filename) return;
+
+  exportingVideo = true;
+  setExportVideoEnabled(false);
+  // Quitting mid-export stops it between frames and tells nobody: listened for only while an export runs.
+  let quitting = false;
+  const onQuit = () => {
+    quitting = true;
+  };
+  app.on('before-quit', onQuit);
+  const progress = (fraction: number) => {
+    if (!mainWindow.isDestroyed()) mainWindow.setProgressBar(fraction);
+  };
+  progress(0);
+  try {
+    await exportVideo(
+      { history, title, output: filename },
+      exportPreloads(),
+      progress,
+      () => quitting || mainWindow.isDestroyed()
+    );
+    if (quitting || mainWindow.isDestroyed()) return;
+    progress(-1);
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'info',
+      title: i18n._('dialog.exportVideo.title'),
+      message: i18n._('dialog.exportVideo.done'),
+      buttons: [i18n._('dialog.exportVideo.showInFolder'), i18n._('button.ok')],
+      defaultId: 1,
+      cancelId: 1,
+    });
+    if (response === 0) shell.showItemInFolder(filename);
+  } catch (err) {
+    // Leaving: the export stops, and there is nobody to tell.
+    if (quitting || mainWindow.isDestroyed()) return;
+    const reason = (err as Error).message;
+    log.error('exportVideo: the video was not written', describeError(err));
+    progress(-1);
+    cannotExportVideo(i18n._('dialog.couldNotExport.notWritten', { reason }));
+  } finally {
+    app.removeListener('before-quit', onQuit);
+    exportingVideo = false;
+    setExportVideoEnabled(true);
+    if (!mainWindow.isDestroyed()) mainWindow.setProgressBar(-1);
   }
 };
 
@@ -1002,6 +1112,20 @@ export default class MenuBuilder {
     };
   }
 
+  private exportVideoItem() {
+    return {
+      id: EXPORT_VIDEO_ID,
+      label: this.label(i18n._('menu.file.exportVideo')),
+      enabled: !exportingVideo,
+      // The editor's last keystrokes are in the store before the history is read, as for RTF.
+      click: () =>
+        logIfRejected('exportVideo', async () => {
+          await flushEditor(this.mainWindow);
+          await exportVideoFile(this.mainWindow);
+        }),
+    };
+  }
+
   private aboutItem() {
     return {
       id: 'menu.app.about',
@@ -1150,6 +1274,7 @@ export default class MenuBuilder {
         },
         ...this.saveItems(['Command+S', 'Command+Shift+S'], true),
         this.exportRtfItem(),
+        this.exportVideoItem(),
         {
           id: 'menu.file.open',
           label: this.label(i18n._('menu.file.open')),
@@ -1248,6 +1373,7 @@ export default class MenuBuilder {
         submenu: [
           ...this.saveItems(['Ctrl+S', 'Ctrl+Shift+S'], false),
           this.exportRtfItem(),
+          this.exportVideoItem(),
           {
             id: 'menu.file.new',
             label: this.label(i18n._('menu.file.new')),
