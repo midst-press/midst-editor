@@ -489,6 +489,8 @@ const EXPORT_VIDEO_ID = 'menu.file.exportVideo';
 const setExportVideoEnabled = (enabled: boolean) => {
   const item = app.applicationMenu?.getMenuItemById(EXPORT_VIDEO_ID);
   if (item) item.enabled = enabled;
+  // The Windows and Linux title bar draws a copy of the menu: tell it, or the item looks available (#502).
+  menuChanged();
 };
 const videoFilters = () => [
   { name: i18n._('file.filter.mp4'), extensions: ['mp4'] },

@@ -868,9 +868,14 @@ describe('exportVideoFile (#506)', () => {
     });
     showSaveDialog.mockReturnValue(chosen);
     const win = makeWindow();
+    (BrowserWindow as unknown as { getAllWindows: jest.Mock }).getAllWindows =
+      jest.fn(() => [win]);
     runExport.mockImplementation(
       async (_job, _preloads, onProgress, isStopped) => {
         expect(menuItem.enabled).toBe(false); // unavailable while it runs
+        // ...and the Windows/Linux title bar's copy of the menu is told so (#502).
+        expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
+        win.webContents.send.mockClear();
         expect(isStopped()).toBe(false);
         onProgress(0.5);
         return { frames: 3, bytes: 10 };
@@ -893,6 +898,8 @@ describe('exportVideoFile (#506)', () => {
     });
     expect(shell.showItemInFolder).not.toHaveBeenCalled();
     expect(menuItem.enabled).toBe(true);
+    // ...and told again once it is available.
+    expect(win.webContents.send).toHaveBeenCalledWith('menu-changed');
     expect(appMock.removeListener).toHaveBeenCalledWith(
       'before-quit',
       expect.any(Function)
