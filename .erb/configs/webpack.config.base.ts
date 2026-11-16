@@ -66,9 +66,6 @@ const configuration: webpack.Configuration = {
       // decision of 12 Nov 2026). The one switch: set MIDST_COLOUR_AUDITION=false to build without it, or follow
       // src/renderer/colourAudition/README.md to remove it.
       MIDST_COLOUR_AUDITION: 'true',
-      // File > Export as Video, proof of concept (#506): off unless built with MIDST_EXPORT_VIDEO=true, so the export
-      // page and Mediabunny (MPL-2.0) are in no installer until it ships (vivian-1a61bc9a, review of #527).
-      MIDST_EXPORT_VIDEO: 'false',
     }),
   ],
 };

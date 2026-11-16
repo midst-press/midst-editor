@@ -1,17 +1,12 @@
-import { app, BrowserWindow, IpcMainEvent, ipcMain } from 'electron';
+import { BrowserWindow, IpcMainEvent, ipcMain } from 'electron';
 import fs from 'fs';
-import path from 'path';
 import log from 'electron-log';
-import { stripVersionInfo } from '@midst-press/midst-format/convert';
 import type { ChangeObj } from '@midst-press/midst-format/history';
 import { WindowToMain } from '../shared/channels';
 import sendToWindow from './sendToWindow';
 import { resolveHtmlPath } from './util';
-import { ExportJob } from './exportJob';
 
-// File > Export as Video, proof of concept (#506). Development builds only, by environment:
-//   MIDST_EXPORT_VIDEO_IN=<poem.midst> MIDST_EXPORT_VIDEO_OUT=<video.mp4>
-// A hidden 1920×1080 window shows the export page (renderer/components/ExportVideo). For each frame, main asks it to
+// File > Export as Video… (#506). A hidden 1920×1080 window shows the export page (renderer/components/ExportVideo). For each frame, main asks it to
 // draw frame n, captures the window, and hands the pixels back to the page, which encodes them (WebCodecs exists
 // only in a page) and muxes them with Mediabunny. Nothing is shown and the poet's store is not written.
 
@@ -116,21 +111,28 @@ export const choosePreload = (
   return found;
 };
 
+export interface VideoJob {
+  history: ChangeObj[];
+  title: string; // shown above the poem
+  output: string; // the file the poet chose
+}
+
+/**
+ * Export the poem's history as an MP4 video (File > Export as Video…). The file is written beside its final name
+ * and renamed into place, so a failed or interrupted export leaves no part of a file behind. `onProgress` is called
+ * with the fraction done after each frame. `isStopped` is asked between frames: true ends the export, writing
+ * nothing (the app is quitting).
+ */
 export async function exportVideo(
-  job: ExportJob,
-  preloads: string[]
-): Promise<void> {
+  job: VideoJob,
+  preloads: string[],
+  // eslint-disable-next-line no-unused-vars -- the label says what the callback receives
+  onProgress: (fraction: number) => void = () => {},
+  isStopped: () => boolean = () => false
+): Promise<{ frames: number; bytes: number }> {
   const preload = choosePreload(preloads);
-  const data = fs.readFileSync(job.input, 'utf8');
-  const { history } = JSON.parse(
-    // A file written by midst_heatmaps' synth (kindled-poems) has no version line.
-    data.startsWith('midstVersion:') ? stripVersionInfo(data) : data
-  ) as {
-    history: ChangeObj[];
-  };
-  if (!Array.isArray(history) || history.length === 0)
+  if (job.history.length === 0)
     throw new Error('the poem has no history to export');
-  const title = path.basename(job.input).replace(/\.midst$/i, '');
 
   const win = new BrowserWindow({
     show: false,
@@ -141,19 +143,22 @@ export async function exportVideo(
     webPreferences: { sandbox: false, preload, backgroundThrottling: false },
   });
   const t0 = Date.now();
+  const partial = `${job.output}.${process.pid}.partial`;
   try {
     const ready = waitFor(win, 'export-ready');
     await win.loadURL(`${resolveHtmlPath('index.html')}?export=1`);
     await ready;
     const loaded = waitFor(win, 'export-loaded');
-    sendToWindow(win, 'export-load', history, title);
+    sendToWindow(win, 'export-load', job.history, job.title);
     const [frames] = await loaded;
-    log.info('export: started', { steps: history.length, frames });
+    // Counts only: never the title, which can be the poem's own words.
+    log.info('exportVideo: started', { steps: job.history.length, frames });
 
     let draw = 0;
     let capture = 0;
     let encode = 0;
     for (let n = 0; n < frames; n += 1) {
+      if (isStopped()) throw new Error('stopped');
       let t = Date.now();
       const drawn = waitFor(win, 'export-frame-ready', ([i]) => i === n);
       sendToWindow(win, 'export-frame', n);
@@ -164,6 +169,7 @@ export async function exportVideo(
       // eslint-disable-next-line no-await-in-loop
       let image = await win.webContents.capturePage();
       const size = image.getSize();
+      // A scaled display captures at its own scale; every frame must be the size the encoder was set up for.
       if (size.width !== WIDTH || size.height !== HEIGHT)
         image = image.resize({ width: WIDTH, height: HEIGHT });
       const pixels = new Uint8Array(image.toBitmap());
@@ -174,12 +180,14 @@ export async function exportVideo(
       // eslint-disable-next-line no-await-in-loop
       await encoded;
       encode += Date.now() - t;
+      onProgress((n + 1) / frames);
     }
     const done = waitFor(win, 'export-done', () => true, FINISH_WAIT_MS);
     sendToWindow(win, 'export-finish');
     const [file] = await done;
-    fs.writeFileSync(job.output, file);
-    log.info('export: done', {
+    fs.writeFileSync(partial, file, { flag: 'wx' });
+    fs.renameSync(partial, job.output);
+    log.info('exportVideo: done', {
       frames,
       bytes: file.byteLength,
       totalMs: Date.now() - t0,
@@ -189,21 +197,9 @@ export async function exportVideo(
         encode: +(encode / frames).toFixed(1),
       },
     });
+    return { frames, bytes: file.byteLength };
   } finally {
+    fs.rmSync(partial, { force: true });
     if (!win.isDestroyed()) win.destroy();
-  }
-}
-
-/** Export, then quit: exit code 1 and the error in the log if it failed. */
-export async function exportAndQuit(
-  job: ExportJob,
-  preloads: string[]
-): Promise<void> {
-  try {
-    await exportVideo(job, preloads);
-    app.quit();
-  } catch (err) {
-    log.error('export: failed', err);
-    app.exit(1);
   }
 }

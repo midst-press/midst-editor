@@ -4,10 +4,8 @@ import {
   glideStep,
   stepAt,
 } from '../renderer/components/ExportVideo/timeline';
-import { exportJobFromEnv } from '../main/exportJob';
 
-// File > Export as Video, proof of concept (#506): the clock that decides what each frame shows, and the
-// development-only switch that starts an export.
+// File > Export as Video… (#506): the clock that decides what each frame shows.
 
 describe('stepAt', () => {
   it('follows the poet’s pace, not the video’s frame rate', () => {
@@ -59,37 +57,5 @@ describe('glideStep', () => {
 
   it('stays put at the target', () => {
     expect(glideStep(300, 300, 1000, 5)).toBe(300);
-  });
-});
-
-describe('exportJobFromEnv', () => {
-  const env = {
-    MIDST_EXPORT_VIDEO_IN: '/p/poem.midst',
-    MIDST_EXPORT_VIDEO_OUT: '/p/poem.mp4',
-  };
-
-  it('a development build made with the switch, given both paths, exports', () => {
-    expect(exportJobFromEnv(false, true, env)).toEqual({
-      input: '/p/poem.midst',
-      output: '/p/poem.mp4',
-    });
-  });
-
-  it('a packaged app never exports, whatever its environment', () => {
-    expect(exportJobFromEnv(true, true, env)).toBeNull();
-  });
-
-  it('a build without the switch has no export page, so never exports', () => {
-    expect(exportJobFromEnv(false, false, env)).toBeNull();
-  });
-
-  it('either path missing or empty is no export', () => {
-    expect(
-      exportJobFromEnv(false, true, { MIDST_EXPORT_VIDEO_IN: '/p/poem.midst' })
-    ).toBeNull();
-    expect(
-      exportJobFromEnv(false, true, { ...env, MIDST_EXPORT_VIDEO_OUT: '' })
-    ).toBeNull();
-    expect(exportJobFromEnv(false, true, {})).toBeNull();
   });
 });
