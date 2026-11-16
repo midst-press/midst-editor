@@ -68,24 +68,28 @@ describe('exportJobFromEnv', () => {
     MIDST_EXPORT_VIDEO_OUT: '/p/poem.mp4',
   };
 
-  it('a development build with both paths exports', () => {
-    expect(exportJobFromEnv(false, env)).toEqual({
+  it('a development build made with the switch, given both paths, exports', () => {
+    expect(exportJobFromEnv(false, true, env)).toEqual({
       input: '/p/poem.midst',
       output: '/p/poem.mp4',
     });
   });
 
   it('a packaged app never exports, whatever its environment', () => {
-    expect(exportJobFromEnv(true, env)).toBeNull();
+    expect(exportJobFromEnv(true, true, env)).toBeNull();
+  });
+
+  it('a build without the switch has no export page, so never exports', () => {
+    expect(exportJobFromEnv(false, false, env)).toBeNull();
   });
 
   it('either path missing or empty is no export', () => {
     expect(
-      exportJobFromEnv(false, { MIDST_EXPORT_VIDEO_IN: '/p/poem.midst' })
+      exportJobFromEnv(false, true, { MIDST_EXPORT_VIDEO_IN: '/p/poem.midst' })
     ).toBeNull();
     expect(
-      exportJobFromEnv(false, { ...env, MIDST_EXPORT_VIDEO_OUT: '' })
+      exportJobFromEnv(false, true, { ...env, MIDST_EXPORT_VIDEO_OUT: '' })
     ).toBeNull();
-    expect(exportJobFromEnv(false, {})).toBeNull();
+    expect(exportJobFromEnv(false, true, {})).toBeNull();
   });
 });

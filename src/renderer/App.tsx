@@ -10,7 +10,6 @@ import { ChangeObj } from '@midst-press/midst-format/history';
 import Editor from './components/Editor';
 import LandingDialog from './components/LandingDialog';
 import Replay from './components/Replay';
-import ExportVideo from './components/ExportVideo';
 import WindowTitle from './WindowTitle';
 import themeObj, { darkThemeObj } from './theme';
 import { TextContext, HistoryContext, RETURN_TO } from './context';
@@ -29,6 +28,14 @@ const ColourAudition: typeof PassThrough =
     ? // eslint-disable-next-line global-require, lingui/no-unlocalized-strings -- a module path
       require('./colourAudition/ColourAudition').default
     : PassThrough;
+
+// File > Export as Video, proof of concept (#506): only in a build made with MIDST_EXPORT_VIDEO=true. Otherwise the
+// require is never reached and webpack bundles neither the export page nor Mediabunny.
+const ExportVideo: (() => ReactNode) | null =
+  process.env.MIDST_EXPORT_VIDEO === 'true'
+    ? // eslint-disable-next-line global-require, lingui/no-unlocalized-strings -- a module path
+      require('./components/ExportVideo').default
+    : null;
 
 const lightTheme = createTheme(themeObj);
 const darkTheme = createTheme(darkThemeObj);
@@ -58,7 +65,10 @@ export default function App() {
     window.sessionStorage.removeItem(RETURN_TO);
     // The hidden export window (#506) is opened with ?export=1.
     /* eslint-disable lingui/no-unlocalized-strings -- a query parameter and a route, never shown */
-    if (new URLSearchParams(window.location.search).has('export'))
+    if (
+      ExportVideo &&
+      new URLSearchParams(window.location.search).has('export')
+    )
       return '/export';
     /* eslint-enable lingui/no-unlocalized-strings */
     return returnTo === '/editor' ? returnTo : '/';
@@ -141,7 +151,7 @@ export default function App() {
     );
 
   // The hidden export window (#506): the export page alone, with no title bar, menu or font picker to be captured.
-  if (startAt === '/export')
+  if (ExportVideo && startAt === '/export')
     return (
       <>
         <CssBaseline />

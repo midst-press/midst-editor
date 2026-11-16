@@ -556,12 +556,16 @@ if (firstCopy)
       activateLocale(chosenLocale(store.get('language')));
       // File > Export as Video, proof of concept (#506): a development build given MIDST_EXPORT_VIDEO_IN and _OUT
       // exports that poem and quits, with no window shown.
-      const exportJob = exportJobFromEnv(app.isPackaged, process.env);
+      const exportJob = exportJobFromEnv(
+        app.isPackaged,
+        process.env.MIDST_EXPORT_VIDEO === 'true',
+        process.env
+      );
       if (exportJob) {
-        exportAndQuit(
-          exportJob,
-          path.join(__dirname, '../../.erb/dll/preload.js')
-        );
+        exportAndQuit(exportJob, [
+          path.join(__dirname, '../../.erb/dll/preload.js'),
+          path.join(__dirname, 'preload.js'),
+        ]);
         return;
       }
       createWindow();

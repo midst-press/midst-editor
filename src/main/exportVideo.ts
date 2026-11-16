@@ -18,26 +18,63 @@ import { ExportJob } from './exportJob';
 export const WIDTH = 1920;
 export const HEIGHT = 1080;
 
-/** The next message on a channel from this window, failing the export if the page reports a failure first. */
-function waitFor<C extends keyof WindowToMain>(
-  win: BrowserWindow,
+// How long main waits for the page before giving up: a page that never answers (no preload, a crashed renderer)
+// must end the export with a reason in the log, not hang it (river-2fc1630e, review of #527).
+export const WAIT_MS = 30_000;
+export const FINISH_WAIT_MS = 120_000;
+
+/** The window's part of BrowserWindow that waitFor uses, so it can be tested without Electron's. */
+/* eslint-disable no-unused-vars -- the labels say what each method receives */
+export interface ExportWindow {
+  webContents: {
+    on(
+      event: 'render-process-gone',
+      listener: (...a: unknown[]) => void
+    ): unknown;
+    removeListener(
+      event: 'render-process-gone',
+      listener: (...a: unknown[]) => void
+    ): unknown;
+  };
+  on(event: 'closed', listener: () => void): unknown;
+  removeListener(event: 'closed', listener: () => void): unknown;
+}
+/* eslint-enable no-unused-vars */
+
+/**
+ * The next message on a channel from this window. Fails the export, naming the channel, if the page reports a
+ * failure, its renderer goes, the window closes, or nothing comes within `timeoutMs`.
+ */
+export function waitFor<C extends keyof WindowToMain>(
+  win: ExportWindow,
   channel: C,
   // eslint-disable-next-line no-unused-vars -- the label says what the predicate receives
-  match: (payload: WindowToMain[C]) => boolean = () => true
+  match: (payload: WindowToMain[C]) => boolean = () => true,
+  timeoutMs: number = WAIT_MS
 ): Promise<WindowToMain[C]> {
   return new Promise((resolve, reject) => {
-    const fromWin = (e: IpcMainEvent) => e.sender === win.webContents;
+    const fromWin = (e: IpcMainEvent) =>
+      (e.sender as unknown) === win.webContents;
     /* eslint-disable no-unused-vars -- the labels say what each handler receives */
     const handlers: {
       message?: (e: IpcMainEvent, args: WindowToMain[C]) => void;
       fail?: (e: IpcMainEvent, args: WindowToMain['export-failed']) => void;
       closed?: () => void;
+      gone?: (...a: unknown[]) => void;
     } = {};
     /* eslint-enable no-unused-vars */
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
+      clearTimeout(timer);
       if (handlers.message) ipcMain.removeListener(channel, handlers.message);
       if (handlers.fail) ipcMain.removeListener('export-failed', handlers.fail);
       if (handlers.closed) win.removeListener('closed', handlers.closed);
+      if (handlers.gone)
+        win.webContents.removeListener('render-process-gone', handlers.gone);
+    };
+    const failWith = (message: string) => {
+      cleanup();
+      reject(new Error(message));
     };
     handlers.message = (e, args) => {
       if (!fromWin(e) || !match(args)) return;
@@ -45,24 +82,45 @@ function waitFor<C extends keyof WindowToMain>(
       resolve(args);
     };
     handlers.fail = (e, args) => {
-      if (!fromWin(e)) return;
-      cleanup();
-      reject(new Error(`export page: ${args[0]}`));
+      if (fromWin(e)) failWith(`export page: ${args[0]}`);
     };
-    handlers.closed = () => {
-      cleanup();
-      reject(new Error('export window closed'));
-    };
+    handlers.closed = () => failWith('export window closed');
+    handlers.gone = (_event, details) =>
+      failWith(
+        `export page's renderer gone (${
+          (details as { reason?: string } | undefined)?.reason ?? 'unknown'
+        }) while waiting for ${channel}`
+      );
+    timer = setTimeout(
+      () => failWith(`${channel} not received in ${timeoutMs / 1000} s`),
+      timeoutMs
+    );
     ipcMain.on(channel, handlers.message);
     ipcMain.on('export-failed', handlers.fail);
     win.on('closed', handlers.closed);
+    win.webContents.on('render-process-gone', handlers.gone);
   });
 }
 
+/** The first preload that exists: the development one, else the one built beside the main bundle. */
+export const choosePreload = (
+  candidates: string[],
+  // eslint-disable-next-line no-unused-vars -- the label says what the check receives
+  exists: (file: string) => boolean = fs.existsSync
+): string => {
+  const found = candidates.find((c) => exists(c));
+  if (!found)
+    throw new Error(
+      `no preload for the export window: ${candidates.join(', ')}`
+    );
+  return found;
+};
+
 export async function exportVideo(
   job: ExportJob,
-  preload: string
+  preloads: string[]
 ): Promise<void> {
+  const preload = choosePreload(preloads);
   const data = fs.readFileSync(job.input, 'utf8');
   const { history } = JSON.parse(
     // A file written by midst_heatmaps' synth (kindled-poems) has no version line.
@@ -117,7 +175,7 @@ export async function exportVideo(
       await encoded;
       encode += Date.now() - t;
     }
-    const done = waitFor(win, 'export-done');
+    const done = waitFor(win, 'export-done', () => true, FINISH_WAIT_MS);
     sendToWindow(win, 'export-finish');
     const [file] = await done;
     fs.writeFileSync(job.output, file);
@@ -139,10 +197,10 @@ export async function exportVideo(
 /** Export, then quit: exit code 1 and the error in the log if it failed. */
 export async function exportAndQuit(
   job: ExportJob,
-  preload: string
+  preloads: string[]
 ): Promise<void> {
   try {
-    await exportVideo(job, preload);
+    await exportVideo(job, preloads);
     app.quit();
   } catch (err) {
     log.error('export: failed', err);
