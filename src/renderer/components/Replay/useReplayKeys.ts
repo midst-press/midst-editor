@@ -46,7 +46,7 @@ export default function useReplayKeys(
         )
       )
         return;
-      if (e.key === 'Escape' || e.key === 'Enter') {
+      if (e.key === 'Escape') {
         backToEdit();
         return;
       }
@@ -58,6 +58,10 @@ export default function useReplayKeys(
         target?.closest?.(CONTROL) && !target.closest('input[type="range"]')
       );
       if (onControl) return;
+      if (e.key === 'Enter') {
+        backToEdit();
+        return;
+      }
       if (e.key === ' ') {
         e.preventDefault();
         if (!e.repeat) playPauseButton.current?.click();

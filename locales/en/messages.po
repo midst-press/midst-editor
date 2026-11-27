@@ -1218,7 +1218,7 @@ msgstr "Edit"
 #: src/renderer/components/Replay/ReplayTopButtons.tsx
 #, fuzzy
 msgid "replay.follow"
-msgstr "Follow the writing"
+msgstr "Auto-scroll to follow edits"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/Replay/ReplayTopButtons.tsx
