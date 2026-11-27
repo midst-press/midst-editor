@@ -1,7 +1,7 @@
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
 import FormControlLabel from '@mui/material/FormControlLabel';
-import Switch from '@mui/material/Switch';
+import Checkbox from '@mui/material/Checkbox';
 import { useEffect, useRef, useState } from 'react';
 import { ShownMarker } from 'renderer/tracking/draftMarkers';
 import RefusalAlert from './RefusalAlert';
@@ -157,7 +157,7 @@ export default function DraftDrawer({
       <RefusalAlert message={refusal} />
       <FormControlLabel
         control={
-          <Switch
+          <Checkbox
             size="small"
             checked={showMarkers}
             onChange={(e) => setShowMarkers(e.target.checked)}
@@ -167,7 +167,7 @@ export default function DraftDrawer({
       />
       <FormControlLabel
         control={
-          <Switch
+          <Checkbox
             size="small"
             checked={showLabels}
             onChange={(e) => setShowLabels(e.target.checked)}
@@ -251,7 +251,7 @@ export default function DraftDrawer({
       <FormControlLabel
         className="ShowTimestamp"
         control={
-          <Switch
+          <Checkbox
             size="small"
             checked={showTimestamp}
             onChange={(e) => setShowTimestamp(e.target.checked)}

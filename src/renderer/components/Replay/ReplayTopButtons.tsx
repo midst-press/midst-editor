@@ -1,10 +1,6 @@
-import Tooltip from '@mui/material/Tooltip';
-import Zoom from '@mui/material/Zoom';
-import {
-  FontIncreaseIcon,
-  FontDecreaseIcon,
-  AutoscrollIcon,
-} from '../../icons/AnnelyseIcons';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import { FontIncreaseIcon, FontDecreaseIcon } from '../../icons/AnnelyseIcons';
 
 import { i18n } from '../../../shared/i18n';
 import ReasonButton from './ReasonButton';
@@ -47,25 +43,16 @@ export default function ReplayTopButtons({
       >
         <FontDecreaseIcon fontSize="small" />
       </ReasonButton>
-      <Tooltip
-        title={
-          following ? i18n._('replay.follow.on') : i18n._('replay.follow.off')
+      <FormControlLabel
+        control={
+          <Checkbox
+            size="small"
+            checked={following}
+            onChange={toggleFollowing}
+          />
         }
-        TransitionComponent={Zoom}
-        enterDelay={1000}
-        arrow
-      >
-        <button
-          aria-label={i18n._('replay.follow')}
-          aria-pressed={following}
-          type="button"
-          className="icon-button size-icon"
-          style={following ? undefined : { opacity: 0.5 }}
-          onClick={toggleFollowing}
-        >
-          <AutoscrollIcon fontSize="small" />
-        </button>
-      </Tooltip>
+        label={i18n._('replay.follow')}
+      />
     </div>
   );
 }
