@@ -13,3 +13,8 @@ svg.annelyse-bookmark.bookmark-pink {
 svg.annelyse-bookmark.bookmark-plus-pink .bookmark-plus {
   fill: var(--midst-primary-dark);
 }
+
+/* The map pin (draft marker) in Edit mode: pink, as the bookmark was. */
+svg.annelyse-map-pin.bookmark-pink {
+  color: var(--midst-primary-dark);
+}
