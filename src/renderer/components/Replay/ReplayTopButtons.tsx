@@ -1,10 +1,4 @@
-import Tooltip from '@mui/material/Tooltip';
-import Zoom from '@mui/material/Zoom';
-import {
-  FontIncreaseIcon,
-  FontDecreaseIcon,
-  AutoscrollIcon,
-} from '../../icons/AnnelyseIcons';
+import { FontIncreaseIcon, FontDecreaseIcon } from '../../icons/AnnelyseIcons';
 
 import { i18n } from '../../../shared/i18n';
 import ReasonButton from './ReasonButton';
@@ -16,16 +10,10 @@ interface ReplayTopButtonsProps {
     increase: () => void;
     decrease: () => void;
   };
-  following: boolean;
-  toggleFollowing: () => void;
 }
 
-// Above the poem in Replay: the text size, and whether the view follows the writing.
-export default function ReplayTopButtons({
-  fontSize,
-  following,
-  toggleFollowing,
-}: ReplayTopButtonsProps) {
+// Above the poem in Replay: the text size.
+export default function ReplayTopButtons({ fontSize }: ReplayTopButtonsProps) {
   return (
     <div className="TopButtons">
       {/* In the centre, where the editor's text size is, so it stays put when the mode changes (GitHub #139). */}
@@ -50,27 +38,7 @@ export default function ReplayTopButtons({
           <FontDecreaseIcon fontSize="small" />
         </ReasonButton>
       </div>
-      <div className="top-buttons-rest">
-        <Tooltip
-          title={
-            following ? i18n._('replay.follow.on') : i18n._('replay.follow.off')
-          }
-          TransitionComponent={Zoom}
-          enterDelay={1000}
-          arrow
-        >
-          <button
-            aria-label={i18n._('replay.follow')}
-            aria-pressed={following}
-            type="button"
-            className="icon-button size-icon"
-            style={following ? undefined : { opacity: 0.5 }}
-            onClick={toggleFollowing}
-          >
-            <AutoscrollIcon fontSize="small" />
-          </button>
-        </Tooltip>
-      </div>
+      {/* The follow button that stood to its right is in Settings now, as "Auto-scroll to follow edits" (#535). */}
     </div>
   );
 }

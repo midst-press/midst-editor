@@ -250,11 +250,7 @@ export default function Replay() {
           .filter(Boolean)
           .join(' ')}
       >
-        <ReplayTopButtons
-          fontSize={fontSize}
-          following={follow.on}
-          toggleFollowing={follow.toggle}
-        />
+        <ReplayTopButtons fontSize={fontSize} />
         <div className="ReplayContainer">
           <EditorContent editor={editor} />
         </div>
@@ -416,6 +412,8 @@ export default function Replay() {
         setShowLabels={setShowLabels}
         showTimestamp={showTimestamp.on}
         setShowTimestamp={showTimestamp.set}
+        following={follow.on}
+        toggleFollowing={follow.toggle}
       />
       <FindNotHere message={findInReplay(window.electron.versions.isMac)} />
     </div>

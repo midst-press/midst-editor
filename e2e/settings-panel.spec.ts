@@ -75,17 +75,10 @@ const look = (win: Page) =>
       ...Array.from(panel.querySelectorAll('.MuiFormControlLabel-label')),
       ...Array.from(panel.querySelectorAll('.draft-name')),
     ];
-    const tracks = Array.from(panel.querySelectorAll('.MuiSwitch-root')).map(
-      (root) => {
-        const track = root.querySelector('.MuiSwitch-track')!;
-        return {
-          on: (root.querySelector('input') as HTMLInputElement).checked,
-          track: style(track).backgroundColor,
-          opacity: style(track).opacity,
-          thumb: style(root.querySelector('.MuiSwitch-thumb')!).color,
-        };
-      }
-    );
+    // The settings are checkboxes (editor #537), not switches.
+    const boxes = Array.from(
+      panel.querySelectorAll('.MuiCheckbox-root input')
+    ).map((input) => ({ on: (input as HTMLInputElement).checked }));
     const gear = Array.from(
       document.querySelectorAll('.ControlBar button')
     ).find((b) => b.getAttribute('aria-label') === 'Settings')!;
@@ -122,7 +115,7 @@ const look = (win: Page) =>
       },
       belowTitle: box(h3).top - headerBox.bottom,
       belowDrafts: box(timestamp).top - box(list).bottom,
-      // Between each switch and its label (GitHub #117, the gap she asked for after #458).
+      // Between each checkbox and its label (GitHub #117, the gap she asked for after #458).
       switchGaps: Array.from(
         panel.querySelectorAll('.MuiFormControlLabel-root')
       ).map((label) => {
@@ -131,13 +124,13 @@ const look = (win: Page) =>
         words.selectNodeContents(text);
         return (
           words.getBoundingClientRect().left -
-          box(label.querySelector('.MuiSwitch-root')!).right
+          box(label.querySelector('.MuiCheckbox-root')!).right
         );
       }),
       closeInHeader:
         box(panel.querySelector('.SettingsClose')!).right >
         (headerBox.left + headerBox.right) / 2,
-      tracks,
+      boxes,
       gear: style(gear).color,
     };
   });
@@ -155,11 +148,6 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // The divider follows the timeline as it moves up for the names: wait for that to finish.
     await win.waitForTimeout(600);
-    // Show timestamp starts off, so a switch of each kind is on screen.
-
-    const pink = await resolved(win, 'var(--midst-switch-on)');
-    const grey = await resolved(win, 'var(--midst-switch-off)');
-    const white = await resolved(win, '#fff');
     const lavender = await resolved(win, '#b57edc');
 
     const checkScheme = async (scheme: 'light' | 'dark') => {
@@ -191,17 +179,9 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
         );
       }
 
-      // Item 4: on is pink with a white circle, off is grey; every circle white.
-      const on = seen.tracks.filter((t) => t.on);
-      const off = seen.tracks.filter((t) => !t.on);
-      expect(on.length).toBeGreaterThan(0);
-      expect(off.length).toBeGreaterThan(0);
-      if (scheme === 'light') {
-        on.forEach((t) => expect(t.track).toBe(pink));
-        off.forEach((t) => expect(t.track).toBe(grey));
-        seen.tracks.forEach((t) => expect(t.opacity).toBe('1'));
-      }
-      seen.tracks.forEach((t) => expect(t.thumb).toBe(white));
+      // Item 4 (now checkboxes): Show timestamp starts off and Auto-scroll to follow edits on, so one of each shows.
+      expect(seen.boxes.some((t) => t.on)).toBe(true);
+      expect(seen.boxes.some((t) => !t.on)).toBe(true);
 
       // Item 5: the title centred, a dotted line under it with a little space between and small side margins.
       expect(seen.titleOffCentre).toBeLessThanOrEqual(1);
@@ -215,7 +195,9 @@ test('the Settings panel as Annelyse designed it (GitHub #117)', async () => {
       // Item 6: the X at the right of the title, and room under the title. Item 8: room under the drafts.
       expect(seen.closeInHeader).toBe(true);
       seen.switchGaps.forEach((between) =>
-        expect(between, 'a switch touches its label').toBeGreaterThanOrEqual(4)
+        expect(between, 'a checkbox touches its label').toBeGreaterThanOrEqual(
+          4
+        )
       );
       expect(seen.belowTitle).toBeGreaterThanOrEqual(24);
       expect(seen.belowDrafts).toBeGreaterThanOrEqual(24);

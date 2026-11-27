@@ -91,11 +91,12 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
     const mark = win.getByRole('button', { name: MARK });
     await expect(mark).toBeDisabled();
 
-    // With Settings open and nothing in it touched yet, Enter stays with the list and does not reach
-    // playback. Space plays and pauses, with the list open too (GitHub #98).
+    // With Settings open, Space plays and pauses (GitHub #98). Enter goes back to Edit, as it does with the list
+    // closed (GitHub #139): a button clicked with the mouse gives up the focus, so Enter does not belong to it.
     const thumb = win.locator('.MuiSlider-thumb input');
     await expect(thumb).toHaveValue(String(last));
-    await win.getByRole('button', { name: 'Settings', exact: true }).click();
+    const settings = win.getByRole('button', { name: 'Settings', exact: true });
+    await settings.click();
     await expect(win.locator('.DraftDrawer')).toBeVisible();
     // One key at a time: the two together would start playback and stop it again. Read once, not
     // with a retrying expect: a retry would wait until the playback it is meant to catch had run to
@@ -109,21 +110,30 @@ test('a draft is marked from the editor, named, joined by a second, and deleted'
       ];
     };
     expect(
-      await pressAndRead('Enter'),
-      'Enter started playback behind the open list'
-    ).toEqual([String(last), 0]);
-    expect(
       (await pressAndRead('Space'))[1],
       'Space did not play with the list open'
     ).toBe(1);
     await win.keyboard.press('Space');
     await expect(win.locator('[data-testid="PlayArrowIcon"]')).toHaveCount(1);
-    // Back to the last frame, where the next step starts from.
+    // Back to the last frame, then Enter, from the page with the list still open.
     await thumb.press('End');
     await expect(thumb).toHaveValue(String(last));
-    await win.keyboard.press('Escape');
+    await win.evaluate(() =>
+      (document.activeElement as HTMLElement | null)?.blur()
+    );
+    await win.keyboard.press('Enter');
+    await expect(
+      win.locator('.ReplayContainer'),
+      'Enter with the list open did not go back to Edit'
+    ).toBeHidden();
+    // And back to the Timeline, where the next step starts from: still the last frame, and not playing.
+    await win.getByRole('link', { name: 'Timeline' }).click();
+    await expect(win.locator('.ReplayContainer')).toBeVisible({
+      timeout: 25_000,
+    });
+    await expect(thumb).toHaveValue(String(last));
+    await expect(win.locator('[data-testid="PauseIcon"]')).toHaveCount(0);
     await expect(win.locator('.DraftDrawer')).toBeHidden();
-    await expect(win.locator('.ReplayContainer')).toBeVisible();
     await expect(win.locator('.MuiSlider-mark')).toHaveCount(1);
 
     // 4. A marker made on the Timeline is named there too, and Enter stays on its frame (GitHub #95).

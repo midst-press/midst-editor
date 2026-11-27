@@ -1215,24 +1215,6 @@ msgid "replay.edit"
 msgstr "Edit"
 
 #. js-lingui-explicit-id
-#: src/renderer/components/Replay/ReplayTopButtons.tsx
-#, fuzzy
-msgid "replay.follow"
-msgstr "Follow the writing"
-
-#. js-lingui-explicit-id
-#: src/renderer/components/Replay/ReplayTopButtons.tsx
-#, fuzzy
-msgid "replay.follow.off"
-msgstr "Not following the writing: the page stays where you put it. Click to follow."
-
-#. js-lingui-explicit-id
-#: src/renderer/components/Replay/ReplayTopButtons.tsx
-#, fuzzy
-msgid "replay.follow.on"
-msgstr "Following the writing as it plays. Click to stop scrolling."
-
-#. js-lingui-explicit-id
 #: src/renderer/components/Replay/index.tsx
 #, fuzzy
 msgid "replay.fps"
@@ -1358,6 +1340,12 @@ msgstr "\"{type}\""
 #, fuzzy
 msgid "settings.close"
 msgstr "Close Settings"
+
+#. js-lingui-explicit-id
+#: src/renderer/components/DraftMarkers/DraftDrawer.tsx
+#, fuzzy
+msgid "settings.follow"
+msgstr "Auto-scroll to follow edits"
 
 #. js-lingui-explicit-id
 #: src/renderer/components/DraftMarkers/DraftDrawer.tsx
