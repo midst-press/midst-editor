@@ -92,6 +92,33 @@ export function AddBookmarkIcon(props: SvgIconProps) {
 
 /* eslint-disable lingui/no-unlocalized-strings, react/jsx-props-no-spreading -- each test id names the MUI icon it
    replaces, not words a person reads; props pass through to SvgIcon */
+// Annelyse's U-turn (GitHub #139, annelyse/annelyse-gh139-uturn.svg), for "Continue writing from here": her path as
+// drawn, filled in the current colour.
+export function UTurnIcon(props: SvgIconProps) {
+  return (
+    /* eslint-disable-next-line react/jsx-props-no-spreading */
+    <SvgIcon data-testid="UTurnIcon" {...props} viewBox="0 0 1200 1200">
+      <path d="m1076.5 926.48-150 150c-14.625 14.625-38.344 14.625-52.969 0l-150-150c-13.781-14.766-13.359-37.781 0.89062-52.078 14.297-14.25 37.312-14.672 52.078-0.89062l86.016 86.016v-435.05c0-120.56-64.312-231.98-168.74-292.26-104.44-60.281-233.06-60.281-337.5 0s-168.74 171.71-168.74 292.26v525.52c0 20.719-16.781 37.5-37.5 37.5s-37.5-16.781-37.5-37.5v-525.52c0-147.37 78.609-283.55 206.26-357.24 127.64-73.691 284.86-73.688 412.5 0 127.64 73.688 206.26 209.86 206.26 357.24v435l86.016-86.016v0.046875c14.766-13.781 37.781-13.359 52.078 0.89062 14.25 14.297 14.672 37.312 0.89062 52.078z" />
+    </SvgIcon>
+  );
+}
+
+// Annelyse's map pin (GitHub #139, annelyse/annelyse-gh139-map_pin.svg), for the draft marker: her path as drawn,
+// filled in the current colour (pink in Edit mode via .bookmark-pink, the light colour on the Timeline).
+export function MapPinIcon({ className, ...props }: SvgIconProps) {
+  return (
+    <SvgIcon
+      data-testid="MapPinIcon"
+      /* eslint-disable-next-line react/jsx-props-no-spreading */
+      {...props}
+      className={`annelyse-map-pin${className ? ` ${className}` : ''}`}
+      viewBox="0 0 1200 1200"
+    >
+      <path d="m600 275.04c-134.23 0-234.27 105.8-234.27 236.63 0 157.49 111.49 281.96 228.6 410.68 1.4375 1.6289 3.5 2.5586 5.668 2.5586 2.1719 0 4.2344-0.92969 5.668-2.5586 117.11-128.73 228.61-253.19 228.61-410.68 0-130.83-100.04-236.63-234.27-236.63zm0 15.117c126.34 0 219.16 98.336 219.16 221.52 0 147.8-104.41 267.87-219.16 394.15-114.75-126.28-219.16-246.35-219.16-394.15 0-123.18 92.816-221.52 219.16-221.52zm0.23828 105.09c-63.445 0-115.48 50.273-115.48 112.89 0 62.609 51.98 113.83 115.48 113.83 63.5 0 115.01-51.277 115.01-113.83 0-58.672-45.398-107.09-103.44-112.89-4.5703-0.45703-8.3438 0-11.57 0zm0 15.113c4.207 0 7.25-0.26562 9.918 0 50.551 5.0469 89.977 46.883 89.977 97.773 0 54.309-44.461 98.715-99.895 98.715-55.434 0-100.37-44.461-100.37-98.715 0-54.258 44.879-97.773 100.37-97.773z" />
+    </SvgIcon>
+  );
+}
+
 // Each lined icon keeps the data-testid MUI gave the icon it replaces, so tests and e2e find it as before.
 // Annelyse's lined X (GitHub #119, annelyse/annelyse-gh119-X.svg), at the magnifying glasses' weight:
 // measured at 22px, thickened by 6 units into one filled shape (tools/thicken_icon.py) for a 2px line, in a 16.5px box.
