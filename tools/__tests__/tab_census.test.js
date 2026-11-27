@@ -90,7 +90,15 @@ describe('the command', () => {
     expect(r.out).toContain('P1  raw 5 (styled 1, plain 4)  converted 5\n');
     expect(r.out).not.toContain('P2 ');
     expect(r.out).toMatch(/poems with fewer tabs converted\s+0/);
-    expect(r.out).not.toMatch(/zq|xv|a\.midst/);
+    // The log line names the temp folder, whose random suffix can itself contain "zq" or "xv"
+    // (CI, 27 Nov 2026: tab-census-NPohzq). Take the folder out, then look for poem text and names.
+    const withoutDir = r.out
+      .split(fs.realpathSync(dir))
+      .join('<dir>')
+      .split(dir)
+      .join('<dir>');
+    expect(withoutDir).toContain('<dir>');
+    expect(withoutDir).not.toMatch(/zq|xv|a\.midst/);
   });
 
   it('marks a poem that loses a tab and exits 1', () => {
