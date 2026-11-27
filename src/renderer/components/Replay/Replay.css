@@ -24,6 +24,8 @@
   box-sizing: border-box;
   overflow-wrap: break-word;
   overflow-y: scroll;
+  /* As the editor's (Editor.css): the text starts about one line lower, and in the same place in both modes (GitHub #139). */
+  padding-top: 24px;
 }
 
 .history-height-tall {
@@ -59,10 +61,22 @@
 
 .TopButtons {
   height: 36px;
-  display: flex;
+  display: grid;
+  /* The text size is the middle column, in the same place in the editor and the Timeline (GitHub #139); the other
+     icons start where it ends. */
+  grid-template-columns: 1fr auto 1fr;
   align-items: start;
-  justify-content: flex-end;
-  margin-right: 15px;
+}
+
+.top-buttons-size {
+  grid-column: 2;
+  display: flex;
+}
+
+.top-buttons-rest {
+  grid-column: 3;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .MuiSlider-valueLabelLabel {
@@ -287,22 +301,6 @@
 /* A little room between each switch and its label (GitHub #117). */
 .DraftDrawer .MuiFormControlLabel-label {
   padding-left: 6px;
-}
-
-/* The switches: pink with a white circle when on, light grey when off; the circle white in both schemes
-   (GitHub #117, item 4). */
-.DraftDrawer .MuiSwitch-thumb {
-  color: var(--midst-switch-thumb);
-}
-
-.DraftDrawer .MuiSwitch-switchBase + .MuiSwitch-track {
-  background-color: var(--midst-switch-off);
-  opacity: 1;
-}
-
-.DraftDrawer .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
-  background-color: var(--midst-switch-on);
-  opacity: 1;
 }
 
 .DraftDrawer .draft-name,

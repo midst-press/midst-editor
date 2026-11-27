@@ -23,7 +23,7 @@ import {
   PlayIcon as PlayArrowIcon,
   PauseIcon,
   SettingsIcon,
-  AddBookmarkIconV2,
+  MapPinIcon,
   AutoscrollIcon,
 } from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
@@ -250,11 +250,7 @@ export default function Replay() {
           .filter(Boolean)
           .join(' ')}
       >
-        <ReplayTopButtons
-          fontSize={fontSize}
-          following={follow.on}
-          toggleFollowing={follow.toggle}
-        />
+        <ReplayTopButtons fontSize={fontSize} />
         <div className="ReplayContainer">
           <EditorContent editor={editor} />
         </div>
@@ -342,10 +338,7 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIconV2
-                fontSize="small"
-                className="bookmark-plus-pink"
-              />
+              <MapPinIcon fontSize="small" />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip
@@ -419,6 +412,8 @@ export default function Replay() {
         setShowLabels={setShowLabels}
         showTimestamp={showTimestamp.on}
         setShowTimestamp={showTimestamp.set}
+        following={follow.on}
+        toggleFollowing={follow.toggle}
       />
       <FindNotHere message={findInReplay(window.electron.versions.isMac)} />
     </div>

@@ -8,7 +8,7 @@ import { launch, openDocument } from './harness';
 // In Timeline mode Space only plays and pauses (#374, GitHub #98). A control clicked with the mouse keeps the
 // focus, and Chromium clicks a focused button, or toggles a focused switch, when Space comes back up. Replay's own
 // Space handler had already played or paused on the way down, so the two together undid each other on Play
-// (GitHub #98, bug 2), turned Follow the writing over and drew its focus ring (bug 1), and turned Show timestamp
+// (GitHub #98, bug 2), turned Auto-scroll to follow edits over and drew its focus ring (bug 1), and turned Show timestamp
 // over in Settings (bug 5).
 
 const TEXT = 'the quick brown fox jumps over the lazy dog '.repeat(6).trim();
@@ -74,21 +74,20 @@ test('after Play is clicked with the mouse, Space pauses, and Space again plays'
   }
 });
 
-test('with Follow the writing clicked, Space plays and leaves Follow as it was, with no focus ring', async () => {
+test('with Auto-scroll to follow edits clicked in Settings, Space plays and leaves it as it was', async () => {
   const { win, close, failures } = await openTimeline('follow');
   try {
-    const follow = win.getByRole('button', { name: 'Follow the writing' });
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
+    const follow = win.getByLabel('Auto-scroll to follow edits');
     await follow.click();
-    const pressed = await follow.getAttribute('aria-pressed');
-    expect(await focusRing(win), 'a mouse click drew a focus ring').toBe(false);
+    const checked = await follow.isChecked();
     await win.keyboard.press('Space');
     await expect(playButton(win)).toHaveAttribute('aria-label', 'Pause');
     await win.waitForTimeout(300);
     expect(
-      await follow.getAttribute('aria-pressed'),
-      'Space turned Follow the writing over'
-    ).toBe(pressed);
-    expect(await focusRing(win), 'Space drew a focus ring').toBe(false);
+      await follow.isChecked(),
+      'Space turned Auto-scroll to follow edits over'
+    ).toBe(checked);
     expect(failures).toEqual([]);
   } finally {
     await close();
@@ -120,12 +119,12 @@ test('from the keyboard, Enter on a focused control works it, keeps the focus ri
   // works them, with the ring showing where the focus is.
   const { win, close, failures } = await openTimeline('enter');
   try {
-    const follow = win.getByRole('button', { name: 'Follow the writing' });
-    await follow.focus();
-    const pressed = await follow.getAttribute('aria-pressed');
+    // The Settings button: Enter opens the panel, and does not go back to Edit (Enter does that only off a control).
+    const settings = win.getByRole('button', { name: 'Settings', exact: true });
+    await settings.focus();
     await win.keyboard.press('Enter');
-    await expect(follow).not.toHaveAttribute('aria-pressed', pressed ?? '');
-    await expect(follow).toBeFocused();
+    await expect(win.locator('.DraftDrawer')).toBeVisible();
+    await expect(win.locator('.ReplayContainer')).toBeVisible();
     expect(await focusRing(win), 'a keyboard user lost the focus ring').toBe(
       true
     );

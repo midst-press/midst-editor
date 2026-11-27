@@ -1,7 +1,6 @@
 import { RefObject, useEffect } from 'react';
 
-// Replay's keys: Escape back to Edit, Space to play or pause, and Enter to play or pause when no control has
-// the focus.
+// Replay's keys: Escape and Enter back to Edit, Space to play or pause.
 //
 // Space plays or pauses (#374, GitHub #98), with the drafts list open or not, and is cancelled. A button clicked with
 // the mouse used to keep the focus, and Chromium clicks a focused button, or turns a focused switch over, when Space
@@ -13,15 +12,14 @@ import { RefObject, useEffect } from 'react';
 // the "red circle" of GitHub #98, in the system accent colour). A click from the keyboard (detail 0) leaves the
 // focus where it is, so a keyboard user keeps both the focus and the ring.
 //
-// A control that still has the focus was reached from the keyboard, so Space and Enter belong to it, as everywhere
-// else: Tab reaches every button and switch. With no control focused, Space plays or pauses, and so does Enter
-// unless the drafts list is open.
+// A control that still has the focus was reached from the keyboard, so Space works it: Tab reaches every button and
+// switch. With no control focused, Space plays or pauses. Enter goes back to Edit, like Escape (GitHub #139).
 //
 // Escape closes the drafts list from wherever the focus is, the timeline and the list's switches included; in the
 // name field it also keeps the old name. The list is not a modal (#313), so this asks whether it is open, not
 // where the focus is. Closed from inside, the focus goes back to the Drafts button, as the modal's did, rather
 // than to the page: after the list has gone, so the name field is not blurred first and does not save what was
-// typed. With the list closed, Escape goes back to Edit, except from text entry, which keeps it.
+// typed. With the list closed, Escape and Enter go back to Edit, except from text entry, which keeps them.
 const CONTROL =
   // eslint-disable-next-line lingui/no-unlocalized-strings -- a CSS selector, not text for the poet
   'button, a[href], input, select, [role="switch"], [role="menuitem"]';
@@ -54,13 +52,17 @@ export default function useReplayKeys(
       }
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // A control that has the focus was reached from the keyboard (a mouse click gives it up, below), so Space and
-      // Enter work it: a switch turns over on Space and ignores Enter (cora-2f1e43dc, review of 36eb9b5). The slider
+      // Space works it: a switch turns over on Space (cora-2f1e43dc, review of 36eb9b5). The slider
       // is not a control here: it takes no Space or Enter.
       const onControl = Boolean(
         target?.closest?.(CONTROL) && !target.closest('input[type="range"]')
       );
       if (onControl) return;
-      if (e.key === ' ' || (e.key === 'Enter' && !listOpen)) {
+      if (e.key === 'Enter') {
+        backToEdit();
+        return;
+      }
+      if (e.key === ' ') {
         e.preventDefault();
         if (!e.repeat) playPauseButton.current?.click();
       }

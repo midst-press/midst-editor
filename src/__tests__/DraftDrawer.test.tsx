@@ -19,6 +19,7 @@ interface HarnessProps {
   onRename: jest.Mock;
   onDelete: jest.Mock;
   onShow: jest.Mock;
+  onFollow: jest.Mock;
   startNaming: number | null;
   markers: typeof MARKERS;
   refusal: string | null;
@@ -32,6 +33,7 @@ function Harness({
   onRename,
   onDelete,
   onShow,
+  onFollow,
   startNaming,
   markers,
   refusal,
@@ -43,6 +45,7 @@ function Harness({
   const [showMarkers, setShowMarkers] = useState(true);
   const [showLabels, setShowLabels] = useState(true);
   const [showTimestamp, setShowTimestamp] = useState(false);
+  const [following, setFollowing] = useState(true);
   return (
     <DraftDrawer
       open
@@ -71,6 +74,11 @@ function Harness({
         onShow('timestamp', shown);
         setShowTimestamp(shown);
       }}
+      following={following}
+      toggleFollowing={() => {
+        onFollow(!following);
+        setFollowing(!following);
+      }}
     />
   );
 }
@@ -83,6 +91,7 @@ const show = (given: Partial<HarnessProps> = {}) =>
       onRename={given.onRename ?? jest.fn()}
       onDelete={given.onDelete ?? jest.fn()}
       onShow={given.onShow ?? jest.fn()}
+      onFollow={given.onFollow ?? jest.fn()}
       startNaming={given.startNaming ?? null}
       markers={given.markers ?? MARKERS}
       refusal={given.refusal ?? null}
@@ -210,6 +219,22 @@ describe('DraftDrawer', () => {
     expect(onRename).not.toHaveBeenCalled();
   });
 
+  // Editor #537: Auto-scroll to follow edits moved here from the Replay top row; on at first, and it works.
+  it('has Auto-scroll to follow edits, on at first, that turns over when clicked', () => {
+    const onFollow = jest.fn();
+    show({ onFollow });
+    const follow = screen.getByRole('checkbox', {
+      name: 'Auto-scroll to follow edits',
+    });
+    expect(follow).toBeChecked();
+    fireEvent.click(follow);
+    expect(onFollow).toHaveBeenLastCalledWith(false);
+    expect(follow).not.toBeChecked();
+    fireEvent.click(follow);
+    expect(onFollow).toHaveBeenLastCalledWith(true);
+    expect(follow).toBeChecked();
+  });
+
   it('switches the timeline markers and their names on and off', () => {
     const onShow = jest.fn();
     show({ onShow });
@@ -271,6 +296,7 @@ describe('DraftDrawer: refusal', () => {
         onRename={jest.fn()}
         onDelete={jest.fn()}
         onShow={jest.fn()}
+        onFollow={jest.fn()}
         startNaming={null}
         markers={markers}
         refusal={null}

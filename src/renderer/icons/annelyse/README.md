@@ -22,6 +22,8 @@ Every icon in the app as a labelled SVG, for Annelyse.
 | `font-decrease.svg`                 | Decrease text size                               |
 | `font-increase.svg`                 | Increase text size                               |
 | `add-bookmark.svg`                  | Add bookmark                                     |
+| `annelyse-gh139-uturn.svg`          | Continue writing from here (GitHub #139)         |
+| `annelyse-gh139-map_pin.svg`        | Draft marker (GitHub #139)                       |
 
 ## MUI Material Icons (filled glyph style)
 

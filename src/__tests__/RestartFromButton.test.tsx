@@ -438,8 +438,8 @@ describe('Restart from here', () => {
     seek(1);
     const { container } = render(<RestartIcon />);
     const testId = container.querySelector('svg')?.getAttribute('data-testid');
-    // A magic wand (GitHub #90).
-    expect(testId).toBe('AutoFixHighIcon');
+    // A U-turn (GitHub #139).
+    expect(testId).toBe('UTurnIcon');
     expect(
       restartButton().querySelector(`[data-testid="${testId}"]`)
     ).not.toBeNull();

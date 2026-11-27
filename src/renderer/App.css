@@ -64,11 +64,15 @@ body {
   height: 80px;
   position: absolute;
   z-index: 1000;
-  left: 76px;
+  /* Clicks pass through: in a narrow window the logo overlaps toolbar buttons (review of #536). */
+  pointer-events: none;
+  /* The upper right-hand corner (GitHub #139). */
+  right: 16px;
   top: 4px;
 }
 
+/* Windows and Linux draw the window's own buttons in the corner, so the logo sits to their left. */
 .svg-linux {
-  left: 200px;
+  right: 150px;
   height: 60px;
 }
