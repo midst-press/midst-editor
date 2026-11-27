@@ -8,7 +8,7 @@ import { TextContext, HistoryContext, RETURN_TO } from 'renderer/context';
 import { ChangeObj, compareStrings } from '@midst-press/midst-format/history';
 import {
   TimelineModeIcon as HistoryIcon,
-  AddBookmarkIconV2,
+  MapPinIcon,
 } from '../../icons/AnnelyseIcons';
 import useFontSize from '../../fontSize/useFontSize';
 import {
@@ -341,7 +341,7 @@ export default function Editor() {
               disabled={draftReason !== null}
               onClick={markThisMoment}
             >
-              <AddBookmarkIconV2 fontSize="small" className="bookmark-pink" />
+              <MapPinIcon fontSize="small" className="bookmark-pink" />
             </button>
             {draftReason && (
               <span id="editor-draft-reason" hidden>

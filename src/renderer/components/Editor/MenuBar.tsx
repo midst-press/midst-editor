@@ -240,15 +240,19 @@ function MenuBar({ focused, onToggleFocus, fontSize }: MenuBarProps) {
 
   return (
     <div className="TopButtons">
+      {/* The text size sits in the centre, where the Timeline's does too, so it stays put when the mode changes
+          (GitHub #139); the other icons follow it to the right. */}
       {focused ? (
-        moon
+        <div className="top-buttons-rest">{moon}</div>
       ) : (
         <>
-          {sizeControls}
-          <span className="focus-mode-gap" aria-hidden="true" />
-          {stylingControls}
-          <span className="focus-mode-gap-wide" aria-hidden="true" />
-          {moon}
+          <div className="top-buttons-size">{sizeControls}</div>
+          <div className="top-buttons-rest">
+            <span className="focus-mode-gap" aria-hidden="true" />
+            {stylingControls}
+            <span className="focus-mode-gap-wide" aria-hidden="true" />
+            {moon}
+          </div>
         </>
       )}
     </div>

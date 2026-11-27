@@ -23,7 +23,7 @@ import {
   PlayIcon as PlayArrowIcon,
   PauseIcon,
   SettingsIcon,
-  AddBookmarkIconV2,
+  MapPinIcon,
   AutoscrollIcon,
 } from '../../icons/AnnelyseIcons';
 import { cssVar } from '../../cssVars';
@@ -342,10 +342,7 @@ export default function Replay() {
               // A delete from the timeline offers no Undo here (GitHub #98): Annelyse asked for it to go.
               after={<RefusalAlert message={drafts.refusal} />}
             >
-              <AddBookmarkIconV2
-                fontSize="small"
-                className="bookmark-plus-pink"
-              />
+              <MapPinIcon fontSize="small" />
             </ReasonButton>
             <RestartFromButton step={step} pause={pause} />
             <Tooltip
