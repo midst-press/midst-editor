@@ -31,6 +31,9 @@ interface Props {
   setShowLabels: (show: boolean) => void;
   showTimestamp: boolean;
   setShowTimestamp: (show: boolean) => void;
+  // Whether Replay scrolls to follow the writing, and turning that over (GitHub #23).
+  following: boolean;
+  toggleFollowing: () => void;
 }
 /* eslint-enable no-unused-vars */
 
@@ -90,6 +93,8 @@ export default function DraftDrawer({
   setShowLabels,
   showTimestamp,
   setShowTimestamp,
+  following,
+  toggleFollowing,
 }: Props) {
   const labelOf = (at: number | null) =>
     markers.find(({ index }) => index === at)?.label;
@@ -247,6 +252,17 @@ export default function DraftDrawer({
           )
         )}
       </ul>
+      <FormControlLabel
+        className="FollowWriting"
+        control={
+          <Checkbox
+            size="small"
+            checked={following}
+            onChange={toggleFollowing}
+          />
+        }
+        label={i18n._('settings.follow')}
+      />
       {/* At the bottom, as Annelyse placed it (GitHub #94). */}
       <FormControlLabel
         className="ShowTimestamp"

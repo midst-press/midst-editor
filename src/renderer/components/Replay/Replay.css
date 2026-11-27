@@ -289,22 +289,6 @@
   padding-left: 6px;
 }
 
-/* The switches: pink with a white circle when on, light grey when off; the circle white in both schemes
-   (GitHub #117, item 4). */
-.DraftDrawer .MuiSwitch-thumb {
-  color: var(--midst-switch-thumb);
-}
-
-.DraftDrawer .MuiSwitch-switchBase + .MuiSwitch-track {
-  background-color: var(--midst-switch-off);
-  opacity: 1;
-}
-
-.DraftDrawer .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track {
-  background-color: var(--midst-switch-on);
-  opacity: 1;
-}
-
 .DraftDrawer .draft-name,
 .DraftDrawer li input {
   flex: 1;

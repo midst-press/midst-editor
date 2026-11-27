@@ -1,5 +1,3 @@
-import Checkbox from '@mui/material/Checkbox';
-import FormControlLabel from '@mui/material/FormControlLabel';
 import { FontIncreaseIcon, FontDecreaseIcon } from '../../icons/AnnelyseIcons';
 
 import { i18n } from '../../../shared/i18n';
@@ -12,16 +10,10 @@ interface ReplayTopButtonsProps {
     increase: () => void;
     decrease: () => void;
   };
-  following: boolean;
-  toggleFollowing: () => void;
 }
 
-// Above the poem in Replay: the text size, and whether the view follows the writing.
-export default function ReplayTopButtons({
-  fontSize,
-  following,
-  toggleFollowing,
-}: ReplayTopButtonsProps) {
+// Above the poem in Replay: the text size.
+export default function ReplayTopButtons({ fontSize }: ReplayTopButtonsProps) {
   return (
     <div className="TopButtons">
       {/* At the largest or smallest size the button says so (#273, GitHub #66), as the play button does. */}
@@ -43,16 +35,6 @@ export default function ReplayTopButtons({
       >
         <FontDecreaseIcon fontSize="small" />
       </ReasonButton>
-      <FormControlLabel
-        control={
-          <Checkbox
-            size="small"
-            checked={following}
-            onChange={toggleFollowing}
-          />
-        }
-        label={i18n._('replay.follow')}
-      />
     </div>
   );
 }

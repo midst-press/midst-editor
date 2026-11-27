@@ -489,9 +489,9 @@ WINDOWS.forEach((w) =>
   })
 );
 
-// "Follow the writing" turned off (GitHub #23): the page stays where the poet put it while the writing goes
+// "Auto-scroll to follow edits" turned off (GitHub #23): the page stays where the poet put it while the writing goes
 // off screen, the choice survives a restart, and turning it back on follows again.
-test('with Follow the writing off, replay does not scroll; on again after a restart, it follows', async () => {
+test('with Auto-scroll to follow edits off, replay does not scroll; on again after a restart, it follows', async () => {
   const doc = makeJumpingMidst('end');
   const poemPath = join(
     mkdtempSync(join(tmpdir(), 'midst-follow-off-')),
@@ -507,14 +507,22 @@ test('with Follow the writing off, replay does not scroll; on again after a rest
       ).toContainText('z'.repeat(doc.typed), { timeout: 60_000 });
       await win.waitForTimeout(SETTLE_MS + 200);
     });
-  const follow = (win: Page) =>
-    win.getByRole('button', { name: 'Follow the writing' });
+  // The checkbox is in Settings (editor #537): open the panel, read or set it, close the panel.
+  const follow = (win: Page) => win.getByLabel('Auto-scroll to follow edits');
+  const withSettings = async <T>(win: Page, act: () => Promise<T>) => {
+    await win.getByRole('button', { name: 'Settings', exact: true }).click();
+    const result = await act();
+    await win.getByRole('button', { name: 'Close Settings' }).click();
+    return result;
+  };
 
   const first = await openReplay(poemPath);
   try {
-    await expect(follow(first.win)).toHaveAttribute('aria-pressed', 'true');
-    await follow(first.win).click();
-    await expect(follow(first.win)).toHaveAttribute('aria-pressed', 'false');
+    await withSettings(first.win, async () => {
+      await expect(follow(first.win)).toBeChecked();
+      await follow(first.win).click();
+      await expect(follow(first.win)).not.toBeChecked();
+    });
     const off = verdict(await playToEnd(first.win));
     // eslint-disable-next-line no-console -- the measurement is the report
     console.log(`replay follow [off]: ${JSON.stringify(off)}`);
@@ -530,9 +538,11 @@ test('with Follow the writing off, replay does not scroll; on again after a rest
 
   const second = await openReplay(poemPath, null, false);
   try {
-    await expect(follow(second.win)).toHaveAttribute('aria-pressed', 'false');
-    await follow(second.win).click();
-    await expect(follow(second.win)).toHaveAttribute('aria-pressed', 'true');
+    await withSettings(second.win, async () => {
+      await expect(follow(second.win)).not.toBeChecked();
+      await follow(second.win).click();
+      await expect(follow(second.win)).toBeChecked();
+    });
     assertFollows('on again', verdict(await playToEnd(second.win)));
   } finally {
     await second.app.close();

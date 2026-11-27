@@ -387,14 +387,14 @@ describe('Replay: playback', () => {
   });
 
   // #237: the slider keeps the focus after a scrub; Space, Enter and Escape still work from it.
-  it('takes Space and Enter from the focused slider after a scrub', () => {
+  it('takes Space, and Enter back to Edit, from the focused slider after a scrub', () => {
     mount();
     seek(10);
     slider().focus();
     fireEvent.keyDown(slider(), { key: ' ' });
     expect(pauseButton()).toBeInTheDocument();
     fireEvent.keyDown(slider(), { key: 'Enter' });
-    expect(playButton()).toBeInTheDocument();
+    expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
   });
 
   it('leaves the timeline with Escape from the focused slider after a scrub', () => {
@@ -425,18 +425,40 @@ describe('Replay: playback', () => {
     expect(pauseButton()).toHaveAccessibleName('Pause');
   });
 
-  it('starts and stops playback from Space and Enter, and ignores them in a text field', () => {
+  it('starts and stops playback from Space, and ignores Space and Enter in a text field', () => {
     mount();
     seek(10);
     fireEvent.keyDown(document.body, { key: ' ' });
     expect(pauseButton()).toBeInTheDocument();
-    fireEvent.keyDown(document.body, { key: 'Enter' });
+    fireEvent.keyDown(document.body, { key: ' ' });
     expect(playButton()).toBeInTheDocument();
     const field = document.createElement('input');
     document.body.appendChild(field);
     fireEvent.keyDown(field, { key: ' ' });
+    fireEvent.keyDown(field, { key: 'Enter' });
     expect(playButton()).toBeInTheDocument();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
     field.remove();
+  });
+
+  // Enter goes back to Edit like Escape (GitHub #139), but belongs to a focused control, which it works alone.
+  it('Enter goes back to Edit, without playing', () => {
+    mount();
+    seek(10);
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
+    expect(screen.queryByTestId('PauseIcon')).toBeNull();
+  });
+
+  it('Enter on a focused control works only that control, and stays on the Timeline', () => {
+    mount();
+    const gear = screen.getByRole('button', { name: 'Settings' });
+    gear.focus();
+    // A browser clicks a focused button on Enter; jsdom does not, so the click is made here.
+    fireEvent.keyDown(gear, { key: 'Enter' });
+    fireEvent.click(gear);
+    expect(document.querySelector('.DraftDrawer')).not.toBeNull();
+    expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 
   it('stays paused when paused during the wait before playing from the start (#110)', () => {
@@ -561,34 +583,49 @@ describe('Replay: text size', () => {
 });
 
 describe('Replay: following the writing (GitHub #23)', () => {
-  const follow = () =>
-    screen.getByRole('button', { name: 'Follow the writing' });
+  // In Settings, not the top row (editor #537).
+  const follow = () => {
+    if (!document.querySelector('.DraftDrawer')) {
+      fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
+    }
+    return screen.getByRole('checkbox', {
+      name: 'Auto-scroll to follow edits',
+    });
+  };
+
+  it('is not in the top row, which keeps only the text size buttons', () => {
+    mount();
+    const top = document.querySelector('.TopButtons') as HTMLElement;
+    expect(top.querySelector('input')).toBeNull();
+    expect(top.querySelectorAll('button')).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: /follow/i })).toBeNull();
+  });
 
   it('follows by default, and says so', () => {
     mount();
-    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+    expect(follow()).toBeChecked();
   });
 
   it('turns off and on again, and remembers each choice', () => {
     mount();
     fireEvent.click(follow());
-    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+    expect(follow()).not.toBeChecked();
     expect(bridge.values['replay-autoscroll']).toBe('false');
     fireEvent.click(follow());
-    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+    expect(follow()).toBeChecked();
     expect(bridge.values['replay-autoscroll']).toBe('true');
   });
 
   it('starts off when it was turned off last time', () => {
     bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'false' });
     mount();
-    expect(follow()).toHaveAttribute('aria-pressed', 'false');
+    expect(follow()).not.toBeChecked();
   });
 
   it('follows when the stored value is anything but "false"', () => {
     bridge = installBridge({ 'font-size': '2', 'replay-autoscroll': 'yes' });
     mount();
-    expect(follow()).toHaveAttribute('aria-pressed', 'true');
+    expect(follow()).toBeChecked();
   });
 });
 
@@ -1191,15 +1228,15 @@ describe('Replay: drafts list', () => {
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
   });
 
-  // GitHub #98: Space only ever plays or pauses, with Settings open too. Enter stays with the list.
-  it('plays on Space while the list is open, and leaves Enter to the list', () => {
+  // GitHub #98: Space only ever plays or pauses, with Settings open too. Enter goes back to Edit, as without it.
+  it('plays on Space while the list is open, and Enter goes back to Edit', () => {
     mount();
     fireEvent.click(screen.getByRole('button', { name: 'Settings' }));
-    fireEvent.keyDown(document.body, { key: 'Enter' });
-    expect(screen.getByTestId('PlayArrowIcon')).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: ' ' });
     expect(screen.getByTestId('PauseIcon')).toBeInTheDocument();
     expect(screen.queryByText('EDITOR PAGE')).toBeNull();
+    fireEvent.keyDown(document.body, { key: 'Enter' });
+    expect(screen.getByText('EDITOR PAGE')).toBeInTheDocument();
   });
 
   // #313 (GitHub #85): naming a draft must not hide the poem. The list is a panel in the page's own layout, beside

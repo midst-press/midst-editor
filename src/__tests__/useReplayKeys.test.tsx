@@ -2,7 +2,7 @@ import { fireEvent, renderHook } from '@testing-library/react';
 import useReplayKeys from '../renderer/components/Replay/useReplayKeys';
 
 // Replay's keys (#374, GitHub #98): Space only plays or pauses, cancelled so a focused control does not take it
-// too; Enter belongs to a focused control; a control clicked with the mouse gives the focus up.
+// too; Enter goes back to Edit, unless a control has the focus, which it belongs to; a control clicked with the mouse gives the focus up.
 function setUp() {
   document.body.innerHTML = `
     <button id="play">Play</button>
@@ -73,21 +73,30 @@ describe('useReplayKeys: Space', () => {
 });
 
 describe('useReplayKeys: Enter', () => {
-  it('belongs to a focused control, and plays from the page or the slider', () => {
-    const { plays, el } = setUp();
-    expect(press(el('follow'), { key: 'Enter' })).toBe(true);
-    expect(press(el('switch'), { key: 'Enter' })).toBe(true);
+  it('goes back to Edit from the page or the slider, and does not play', () => {
+    const { plays, backToEdit, el } = setUp();
+    press(el('page'), { key: 'Enter' });
+    press(el('slider'), { key: 'Enter' });
+    expect(backToEdit).toHaveBeenCalledTimes(2);
     expect(plays).not.toHaveBeenCalled();
-    expect(press(el('page'), { key: 'Enter' })).toBe(false);
-    expect(press(el('slider'), { key: 'Enter' })).toBe(false);
-    expect(plays).toHaveBeenCalledTimes(2);
   });
 
-  it('counts a held key once, and belongs to the drafts list while it is open', () => {
-    const { plays, el } = setUp();
-    press(el('page'), { key: 'Enter', repeat: true });
-    el('page').classList.add('DraftDrawer');
-    expect(press(el('page'), { key: 'Enter' })).toBe(true);
+  it('belongs to a focused control: it works that control and does not leave the Timeline', () => {
+    const { plays, backToEdit, el } = setUp();
+    expect(press(el('follow'), { key: 'Enter' })).toBe(true); // true: the default was not prevented
+    expect(press(el('switch'), { key: 'Enter' })).toBe(true);
+    expect(backToEdit).not.toHaveBeenCalled();
+    expect(plays).not.toHaveBeenCalled();
+  });
+
+  it('is left to text entry, and to modified Enter', () => {
+    const { plays, backToEdit, el } = setUp();
+    press(el('name'), { key: 'Enter' });
+    press(el('notes'), { key: 'Enter' });
+    ['metaKey', 'ctrlKey', 'altKey'].forEach((mod) => {
+      press(el('page'), { key: 'Enter', [mod]: true });
+    });
+    expect(backToEdit).not.toHaveBeenCalled();
     expect(plays).not.toHaveBeenCalled();
   });
 });
