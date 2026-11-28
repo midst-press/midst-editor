@@ -1,3 +1,15 @@
+# 0.15.0
+
+Annelyse's design changes (GitHub #139):
+
+- **The Settings switches are now checkboxes.**
+- **Auto-scroll to follow edits** is a checkbox in Settings, in place of the auto-scroll button at the top of the Timeline. Midst remembers your choice.
+- **The text size buttons (+ and -) are centred at the top** and stay in the same place in Edit and Timeline.
+- **The Midst logo is in the top right corner.**
+- **The writing area starts about one line lower.**
+- **Return (Enter) in the Timeline goes back to Edit**, like Escape. It used to play the poem.
+- **Continue writing from here** has a new U-turn icon, and **Add a Draft Marker** a new map pin icon.
+
 # 0.14.0
 
 - **File > Export as Video…** writes the open poem's writing as an MP4 video: the whole timeline from the blank page, at the pace set on the Timeline, with the poem's title and the date it was last written above it, and the finished poem held for 3 seconds at the end. Silent, 1920×1080 (HD, 16:9), 30 frames a second. Progress shows in the Dock or taskbar, and when it is done Midst says so, with **Show in Folder** (GitHub #134).
